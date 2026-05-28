@@ -75,7 +75,7 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;-webkit-font-smoo
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* ══════════════════════════════════
-   BOOKED
+   BOOKED (legacy — used by /book-v1)
 ══════════════════════════════════ */
 .booked-root{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 24px;background:#fff;animation:fadeIn .5s ease both}
 .booked-wrap{max-width:400px;width:100%;text-align:center}
@@ -86,6 +86,24 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;-webkit-font-smoo
 .booked-card{background:#F9FAFB;border:1px solid #E5E7EB;border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:12px;text-align:left;margin-bottom:18px}
 .booked-row{display:flex;align-items:center;gap:10px;font-size:14px;color:#111827}
 .booked-foot{font-size:13px;color:#6B7280;line-height:1.75}
+
+/* ══════════════════════════════════
+   BOOKED v2 — personalized screen
+══════════════════════════════════ */
+.bkd-root{position:fixed;inset:0;background:#fff;display:flex;align-items:center;justify-content:center;padding:40px 20px;animation:fadeIn .5s both;overflow-y:auto}
+.bkd-wrap{max-width:420px;width:100%;text-align:center}
+.bkd-circle{width:80px;height:80px;background:#16A34A;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 26px;box-shadow:0 8px 28px rgba(22,163,74,.25)}
+.bkd-thanks{font-size:15px;font-weight:600;color:#6B7280;letter-spacing:.02em;margin-bottom:6px}
+.bkd-h{font-size:32px;font-weight:700;color:#111827;letter-spacing:-.03em;margin-bottom:14px;line-height:1.1}
+.bkd-email-line{font-size:14px;color:#6B7280;line-height:1.7;margin-bottom:28px}
+.bkd-email-line strong{display:block;color:#111827;font-weight:600;font-size:15px;margin-top:2px}
+.bkd-card{width:100%;background:#F9FAFB;border:1px solid #E5E7EB;border-radius:16px;overflow:hidden;text-align:left;margin-bottom:22px}
+.bkd-card-row{display:flex;align-items:center;gap:16px;padding:15px 18px}
+.bkd-row-sep{border-top:1px solid #E5E7EB}
+.bkd-card-ico{width:40px;height:40px;border-radius:10px;background:#EFF6FF;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#1D4ED8}
+.bkd-card-lbl{font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px}
+.bkd-card-val{font-size:15px;font-weight:500;color:#111827}
+.bkd-foot{font-size:13px;color:#9CA3AF;line-height:1.6}
 
 @media(max-width:480px){
   .tf-q{font-size:26px}

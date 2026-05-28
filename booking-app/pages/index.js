@@ -443,24 +443,57 @@ function ConfirmPhase({ selDate, selSlot, booking, onConfirm, onBack }) {
 
 // ─── Booked phase ─────────────────────────────────────────────────────────────
 function BookedPhase({ answers, selDate, selSlot }) {
+  const firstName = answers.firstName ? answers.firstName.trim() : '';
+
   return (
     <>
       <Head><title>You're Confirmed!</title></Head>
-      <div className="booked-root">
-        <div className="booked-wrap">
-          <div className="booked-check">
-            <svg width="28" height="28" viewBox="0 0 40 40" fill="none">
+      <div className="bkd-root">
+        <div className="bkd-wrap">
+
+          {/* Check circle */}
+          <div className="bkd-circle">
+            <svg width="32" height="32" viewBox="0 0 40 40" fill="none">
               <path d="M10 20l8 8 12-16" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
-          <div className="booked-h">You're confirmed!</div>
-          <div className="booked-s">Calendar invite sent to <b>{answers.email}</b></div>
-          <div className="booked-card">
-            <div className="booked-row">📅 {selDate?.dow}, {selDate?.mon} {selDate?.day}</div>
-            <div className="booked-row">🕐 {selSlot?.label} · {CFG.duration} min · {CFG.tz}</div>
-            <div className="booked-row">📹 Video call — link in your invite</div>
+
+          {/* Headline */}
+          {firstName && <div className="bkd-thanks">Thanks, {firstName}!</div>}
+          <div className="bkd-h">You're confirmed.</div>
+
+          {/* Email callout */}
+          <div className="bkd-email-line">
+            We sent a calendar invite to<br />
+            <strong>{answers.email}</strong>
           </div>
-          <div className="booked-foot">We look forward to speaking with you!</div>
+
+          {/* Appointment details card */}
+          <div className="bkd-card">
+            <div className="bkd-card-row">
+              <div className="bkd-card-ico"><IcoCal /></div>
+              <div>
+                <div className="bkd-card-lbl">Date</div>
+                <div className="bkd-card-val">{selDate?.dow}, {selDate?.mon} {selDate?.day}</div>
+              </div>
+            </div>
+            <div className="bkd-card-row bkd-row-sep">
+              <div className="bkd-card-ico"><IcoClk /></div>
+              <div>
+                <div className="bkd-card-lbl">Time</div>
+                <div className="bkd-card-val">{selSlot?.label} · {CFG.duration} min · {CFG.tz}</div>
+              </div>
+            </div>
+            <div className="bkd-card-row bkd-row-sep">
+              <div className="bkd-card-ico"><IcoVid /></div>
+              <div>
+                <div className="bkd-card-lbl">Format</div>
+                <div className="bkd-card-val">Video call — link in your invite</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bkd-foot">We look forward to speaking with you!</div>
         </div>
       </div>
     </>
@@ -510,5 +543,11 @@ const IcoClk = ({ size = 22 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="10" />
     <polyline points="12 6 12 12 16 14" />
+  </svg>
+);
+const IcoVid = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="23 7 16 12 23 17 23 7" />
+    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
   </svg>
 );
