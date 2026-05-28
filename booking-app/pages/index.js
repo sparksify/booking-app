@@ -411,13 +411,13 @@ function ConfirmPhase({ selDate, selSlot, booking, onConfirm, onBack, answers, o
           <button className="sv2-back" onClick={onBack} aria-label="Back to times">
             <ArrowLeft />
           </button>
-          <span className="cfm-hdr-label">Review &amp; confirm</span>
+          <span className="cfm-hdr-label">Step 3 of 3 — Confirm Your Call</span>
         </div>
 
         {/* Body */}
         <div className="cfm-body">
           <div className="cfm-title">You're All Set — Confirm Your Call</div>
-          <div className="cfm-sub">Review your details below and confirm your 15-minute Franchise Discovery Call.</div>
+          <div className="cfm-sub">Review your details below to confirm your scheduled call.</div>
 
           {/* Date & Time */}
           <div className="cfm-card">
@@ -439,18 +439,15 @@ function ConfirmPhase({ selDate, selSlot, booking, onConfirm, onBack, answers, o
 
           {/* Contact check */}
           <div className="cfm-contact-check">
-            <p className="cfm-contact-q">Is this your information?</p>
+            <p className="cfm-contact-q">Your Contact Information</p>
             <p className="cfm-contact-line">{answers.firstName} {answers.lastName} · {answers.phone}</p>
             <p className="cfm-contact-line">{answers.email}</p>
           </div>
 
-          <div className="cfm-trust">
-            <span>📞 We'll call you at the scheduled time</span>
-            <span>⏱ Takes just 15 minutes</span>
-          </div>
           <button className="cfm-btn" disabled={booking} onClick={onConfirm}>
-            {booking ? <><span className="bspin" /> Booking…</> : 'Confirm My Call'}
+            {booking ? <><span className="bspin" /> Booking…</> : 'Reserve My Spot'}
           </button>
+          <p className="cfm-signoff">Looking forward to speaking with you.</p>
           <button className="cfm-change" onClick={onBack}>Change time</button>
           <button className="cfm-change" onClick={() => onEditField(0)}>Edit contact info</button>
         </div>
