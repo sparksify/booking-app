@@ -75,7 +75,7 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;-webkit-font-smoo
 /* Date strip — full width, always visible */
 .date-wrap{
   background:#fff;border-bottom:1px solid #E5E7EB;
-  padding:14px 16px;overflow-x:auto;scrollbar-width:none;flex-shrink:0;
+  padding:10px 14px;overflow-x:auto;scrollbar-width:none;flex-shrink:0;
 }
 .date-wrap::-webkit-scrollbar{display:none}
 .date-strip{display:flex;gap:6px;min-width:max-content}
@@ -96,7 +96,7 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;-webkit-font-smoo
 
 /* Slots — take everything that's left */
 .slots-outer{
-  flex:1;overflow-y:auto;padding:20px 16px 100px;
+  flex:1;overflow-y:auto;padding:16px 14px 90px;
   scrollbar-width:thin;scrollbar-color:#E5E7EB transparent;
 }
 
@@ -112,25 +112,25 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;-webkit-font-smoo
 .slots-hdr{
   font-size:11px;font-weight:700;color:#9CA3AF;
   text-transform:uppercase;letter-spacing:.07em;
-  margin-bottom:14px;display:flex;align-items:center;gap:8px;
+  margin-bottom:12px;display:flex;align-items:center;gap:8px;
 }
 .slots-badge{background:#EFF6FF;color:#1D4ED8;border-radius:20px;padding:1px 9px;font-size:11px;font-weight:600;text-transform:none;letter-spacing:0}
 
-/* THE GRID — fills full width, max tap targets */
+/* THE GRID — 3 columns, big tap targets, fills full width */
 .slots-grid{
   display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(110px,1fr));
-  gap:9px;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
 }
 .slot{
-  padding:15px 4px;border-radius:9px;
+  padding:20px 4px;border-radius:12px;
   border:1.5px solid #E5E7EB;background:#fff;
   color:#111827;font-family:'Inter',system-ui,sans-serif;
-  font-size:15px;font-weight:500;cursor:pointer;
+  font-size:16px;font-weight:500;cursor:pointer;
   transition:all .12s;text-align:center;
-  box-shadow:0 1px 2px rgba(0,0,0,0.05);
+  box-shadow:0 1px 3px rgba(0,0,0,0.06);
 }
-.slot:hover{border-color:#1D4ED8;background:#EFF6FF;color:#1D4ED8;transform:translateY(-2px);box-shadow:0 4px 12px rgba(29,78,216,.12)}
+.slot:hover{border-color:#1D4ED8;background:#EFF6FF;color:#1D4ED8;box-shadow:0 4px 12px rgba(29,78,216,.12)}
 .slot.on{background:#EFF6FF!important;border-color:#1D4ED8!important;color:#1D4ED8!important;font-weight:600!important;box-shadow:0 0 0 3px rgba(29,78,216,.12)!important}
 
 /* Skeleton */
@@ -143,7 +143,7 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;-webkit-font-smoo
   background:#fff;border-top:1px solid #E5E7EB;
   padding:14px 20px;
   display:flex;align-items:center;justify-content:space-between;
-  gap:12px;flex-wrap:wrap;
+  gap:12px;flex-wrap:nowrap;
   box-shadow:0 -4px 24px rgba(0,0,0,.08);
   animation:su .22s cubic-bezier(.4,0,.2,1) both;z-index:60;
 }
@@ -176,10 +176,11 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;-webkit-font-smoo
 @media(max-width:480px){
   .tf-q{font-size:26px}
   .tf-input{font-size:20px}
-  .date-wrap{padding:12px}
-  .slots-outer{padding:16px 12px 100px}
-  .slots-grid{grid-template-columns:repeat(auto-fill,minmax(90px,1fr))}
-  .cbar{padding:12px 14px}
+  .date-wrap{padding:10px 12px}
+  .slots-outer{padding:14px 12px 90px}
+  .cbar{padding:12px 14px;flex-wrap:nowrap}
+  .cbar-text{font-size:13px}
+  .cbar-btn{padding:11px 18px;font-size:13px}
 }
 </style>
 </head>
@@ -262,7 +263,8 @@ function render(){
 // ── TYPEFORM ───────────────────────────────────────────────────────────────
 function renderForm(){
   const total=QS.length,pct=Math.round(((S.step+1)/(total+1))*100);
-  const q=QS[S.step],val=S.answers[q.key],hasVal=val.trim().length>0;
+  const q=QS[S.step],val=S.answers[q.key],hasVal=canAdvance();
+  const phoneHint=q.key==="phone"&&val.trim()&&!isValidPhone(val);
   return `
   <div class="tf-root">
     <div class="tf-pbar"><div class="tf-pbar-fill" style="width:${pct}%"></div></div>
@@ -272,6 +274,7 @@ function renderForm(){
       <input id="tf-inp" class="tf-input" type="${q.type}"
         placeholder="${q.ph}" value="${esc(val)}"
         autocomplete="off" autocorrect="off" spellcheck="false"/>
+      ${phoneHint?`<div style="font-size:12px;color:#EF4444;margin-top:8px">Please enter at least 7 digits</div>`:""}
       <div class="tf-actions">
         <button class="tf-ok" id="tf-ok" ${hasVal?"":"disabled"}>
           OK
@@ -380,16 +383,32 @@ function renderBooked(){
   </div></div>`;
 }
 
+// ── PHONE VALIDATION ───────────────────────────────────────────────────────
+function isValidPhone(v){return v.replace(/\D/g,"").length>=7;}
+function canAdvance(){
+  const q=QS[S.step],val=S.answers[q.key]?.trim()||"";
+  if(!val)return false;
+  if(q.key==="phone")return isValidPhone(val);
+  return true;
+}
+
 // ── EVENTS ─────────────────────────────────────────────────────────────────
 function attachEvents(){
   const inp=document.getElementById("tf-inp");
   if(inp){
-    setTimeout(()=>{try{inp.focus();}catch(e){}},40);
+    // Use requestAnimationFrame + click() to reliably open keyboard on iOS
+    requestAnimationFrame(()=>{
+      requestAnimationFrame(()=>{
+        try{inp.focus();inp.click();}catch(e){}
+      });
+    });
     inp.addEventListener("input",e=>{
       S.answers[QS[S.step].key]=e.target.value;
-      const has=e.target.value.trim().length>0;
-      const ok=document.getElementById("tf-ok");const nxt=document.getElementById("tf-next");
-      if(ok)ok.disabled=!has;if(nxt)nxt.disabled=!has;
+      const ok=document.getElementById("tf-ok");
+      const nxt=document.getElementById("tf-next");
+      const can=canAdvance();
+      if(ok)ok.disabled=!can;
+      if(nxt)nxt.disabled=!can;
     });
   }
   const ok=document.getElementById("tf-ok");if(ok)ok.addEventListener("click",advance);
@@ -420,11 +439,11 @@ function attachEvents(){
 document.addEventListener("keydown",e=>{
   if(e.key!=="Enter"||S.phase!=="form")return;
   e.preventDefault();
-  if(S.answers[QS[S.step]?.key]?.trim())advance();
+  if(canAdvance())advance();
 });
 
 function advance(){
-  if(!S.answers[QS[S.step]?.key]?.trim())return;
+  if(!canAdvance())return;
   const card=document.getElementById("tf-card");
   if(card){card.classList.remove("in-down");card.classList.add("out-up");}
   setTimeout(()=>{
