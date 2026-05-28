@@ -218,7 +218,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
 .cfm-hdr-label{font-size:13px;color:#8A8D91;font-weight:500}
 .cfm-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 20px 32px;overflow-y:auto}
 .cfm-title{font-size:clamp(20px,5vw,26px);font-weight:700;color:#050505;text-align:center;letter-spacing:-.02em;margin-bottom:4px;line-height:1.2}
-.cfm-sub{font-size:13px;color:#8A8D91;margin-bottom:20px}
+.cfm-sub{font-size:13px;color:#65676B;margin-bottom:20px;line-height:1.5;text-align:center;max-width:360px}
+.cfm-trust{width:100%;max-width:440px;display:flex;flex-direction:column;align-items:center;gap:5px;margin-bottom:14px;font-size:12px;color:#65676B;line-height:1.5}
 .cfm-card{width:100%;max-width:440px;background:#fff;border:1px solid #E4E6EB;border-radius:16px;overflow:hidden;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .cfm-row{display:flex;align-items:center;gap:14px;padding:14px 18px}
 .cfm-row-border{border-top:1px solid #E4E6EB}
@@ -229,9 +230,9 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
 .cfm-btn:hover:not(:disabled){background:#166FE5;transform:translateY(-1px);box-shadow:0 4px 14px rgba(24,119,242,.3)}
 .cfm-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
 .cfm-change{margin-top:16px;background:none;border:none;font-size:13px;color:#8A8D91;cursor:pointer;text-decoration:underline;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
-.cfm-row-val-sm{font-size:15px;font-weight:500;color:#050505;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cfm-edit-btn{background:none;border:none;cursor:pointer;color:#8A8D91;padding:6px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;margin-left:4px}
-.cfm-edit-btn:hover{background:#E4E6EB;color:#050505}
+.cfm-contact-check{width:100%;max-width:440px;margin-bottom:16px;text-align:center}
+.cfm-contact-q{font-size:12px;color:#8A8D91;margin-bottom:5px}
+.cfm-contact-line{font-size:14px;color:#050505;font-weight:500;line-height:1.6;word-break:break-word}
 
 @media(max-width:480px){
   .cv2-cell{height:42px}

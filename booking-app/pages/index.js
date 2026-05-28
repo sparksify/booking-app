@@ -416,8 +416,8 @@ function ConfirmPhase({ selDate, selSlot, booking, onConfirm, onBack, answers, o
 
         {/* Body */}
         <div className="cfm-body">
-          <div className="cfm-title">{CFG.meetingTitle}</div>
-          <div className="cfm-sub">{CFG.duration} min · {CFG.tz}</div>
+          <div className="cfm-title">You're All Set — Confirm Your Call</div>
+          <div className="cfm-sub">Review your details below and confirm your 15-minute Franchise Discovery Call.</div>
 
           {/* Date & Time */}
           <div className="cfm-card">
@@ -437,33 +437,19 @@ function ConfirmPhase({ selDate, selSlot, booking, onConfirm, onBack, answers, o
             </div>
           </div>
 
-          {/* Contact info */}
-          <div className="cfm-card">
-            <div className="cfm-row">
-              <div className="cfm-row-ico"><IcoPerson /></div>
-              <div>
-                <div className="cfm-row-lbl">Name</div>
-                <div className="cfm-row-val-sm">{answers.firstName} {answers.lastName}</div>
-              </div>
-            </div>
-            <div className="cfm-row cfm-row-border">
-              <div className="cfm-row-ico"><IcoPhone /></div>
-              <div>
-                <div className="cfm-row-lbl">Phone</div>
-                <div className="cfm-row-val-sm">{answers.phone}</div>
-              </div>
-            </div>
-            <div className="cfm-row cfm-row-border">
-              <div className="cfm-row-ico"><IcoMail /></div>
-              <div>
-                <div className="cfm-row-lbl">Email</div>
-                <div className="cfm-row-val-sm">{answers.email}</div>
-              </div>
-            </div>
+          {/* Contact check */}
+          <div className="cfm-contact-check">
+            <p className="cfm-contact-q">Is this your information?</p>
+            <p className="cfm-contact-line">{answers.firstName} {answers.lastName} · {answers.phone}</p>
+            <p className="cfm-contact-line">{answers.email}</p>
           </div>
 
+          <div className="cfm-trust">
+            <span>📞 We'll call you at the scheduled time</span>
+            <span>⏱ Takes just 15 minutes</span>
+          </div>
           <button className="cfm-btn" disabled={booking} onClick={onConfirm}>
-            {booking ? <><span className="bspin" /> Booking…</> : 'Confirm Booking'}
+            {booking ? <><span className="bspin" /> Booking…</> : 'Confirm My Call'}
           </button>
           <button className="cfm-change" onClick={onBack}>Change time</button>
           <button className="cfm-change" onClick={() => onEditField(0)}>Edit contact info</button>
