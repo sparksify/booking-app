@@ -421,7 +421,7 @@ function ConfirmPhase({ selDate, selSlot, booking, onConfirm, onBack, answers, o
           <div className="cfm-sub">{CFG.duration} min · {CFG.tz}</div>
 
           {/* Date & Time */}
-          <div className="cfm-card" style={{ marginBottom: 14 }}>
+          <div className="cfm-card">
             <div className="cfm-row">
               <div className="cfm-row-ico"><IcoCal /></div>
               <div>
@@ -438,31 +438,28 @@ function ConfirmPhase({ selDate, selSlot, booking, onConfirm, onBack, answers, o
             </div>
           </div>
 
-          {/* Contact info — tap pencil to edit */}
+          {/* Contact info */}
           <div className="cfm-card">
             <div className="cfm-row">
               <div className="cfm-row-ico"><IcoPerson /></div>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div>
                 <div className="cfm-row-lbl">Name</div>
                 <div className="cfm-row-val-sm">{answers.firstName} {answers.lastName}</div>
               </div>
-              <button className="cfm-edit-btn" onClick={() => onEditField(0)} aria-label="Edit name"><IcoPencil /></button>
             </div>
             <div className="cfm-row cfm-row-border">
               <div className="cfm-row-ico"><IcoPhone /></div>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div>
                 <div className="cfm-row-lbl">Phone</div>
                 <div className="cfm-row-val-sm">{answers.phone}</div>
               </div>
-              <button className="cfm-edit-btn" onClick={() => onEditField(2)} aria-label="Edit phone"><IcoPencil /></button>
             </div>
             <div className="cfm-row cfm-row-border">
               <div className="cfm-row-ico"><IcoMail /></div>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div>
                 <div className="cfm-row-lbl">Email</div>
                 <div className="cfm-row-val-sm">{answers.email}</div>
               </div>
-              <button className="cfm-edit-btn" onClick={() => onEditField(3)} aria-label="Edit email"><IcoPencil /></button>
             </div>
           </div>
 
@@ -470,6 +467,7 @@ function ConfirmPhase({ selDate, selSlot, booking, onConfirm, onBack, answers, o
             {booking ? <><span className="bspin" /> Booking…</> : 'Confirm Booking'}
           </button>
           <button className="cfm-change" onClick={onBack}>Change time</button>
+          <button className="cfm-change" onClick={() => onEditField(0)}>Edit contact info</button>
         </div>
       </div>
     </>
