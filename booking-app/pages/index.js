@@ -4,8 +4,9 @@ import Head from 'next/head';
 // ─── Config ────────────────────────────────────────────────────────────────────
 const CFG = {
   hostName:     process.env.NEXT_PUBLIC_HOST_NAME     || 'Steve Sparks',
-  meetingTitle: process.env.NEXT_PUBLIC_MEETING_TITLE || 'Franchise Discovery Call',
-  duration:     parseInt(process.env.NEXT_PUBLIC_MEETING_DURATION || '30'),
+  calTitle:     'Choose a time that works best for you',
+  meetingTitle: process.env.NEXT_PUBLIC_MEETING_TITLE || '15-Minute Phone Call',
+  duration:     parseInt(process.env.NEXT_PUBLIC_MEETING_DURATION || '15'),
   tz:           process.env.NEXT_PUBLIC_TIMEZONE_DISPLAY || 'Central Time',
   daysAhead:    14,
 };
@@ -140,6 +141,11 @@ export default function BookingPage() {
     setPhase('confirm');
   }
 
+  function editField(stepIndex) {
+    setStep(stepIndex);
+    setPhase('form');
+  }
+
   async function confirmBooking() {
     if (!selDate || !selSlot || booking) return;
     setBooking(true);
@@ -172,7 +178,7 @@ export default function BookingPage() {
   if (phase === 'slots')
     return <SlotsPhase day={selDate} slotMap={slotMap} onPickSlot={pickSlot} onBack={() => setPhase('calendar')} />;
   if (phase === 'confirm')
-    return <ConfirmPhase selDate={selDate} selSlot={selSlot} booking={booking} onConfirm={confirmBooking} onBack={() => setPhase('slots')} />;
+    return <ConfirmPhase selDate={selDate} selSlot={selSlot} booking={booking} onConfirm={confirmBooking} onBack={() => setPhase('slots')} answers={answers} onEditField={editField} />;
   return <BookedPhase answers={answers} selDate={selDate} selSlot={selSlot} />;
 }
 
@@ -264,9 +270,9 @@ function CalendarPhase({ days, slotMap, onPickDate }) {
 
         {/* Info bar */}
         <div className="cv2-infobar">
-          <div className="cv2-infobar-title">{CFG.meetingTitle}</div>
+          <div className="cv2-infobar-title">{CFG.calTitle}</div>
           <div className="cv2-infobar-meta">
-            <IcoClk size={13} /> {CFG.duration} min · {CFG.tz}
+            <IcoClk size={13} /> 15 Minute Phone Conversation · {CFG.tz}
           </div>
         </div>
 
@@ -393,7 +399,7 @@ function SlotsPhase({ day, slotMap, onPickSlot, onBack }) {
 }
 
 // ─── Confirm phase ────────────────────────────────────────────────────────────
-function ConfirmPhase({ selDate, selSlot, booking, onConfirm, onBack }) {
+function ConfirmPhase({ selDate, selSlot, booking, onConfirm, onBack, answers, onEditField }) {
   if (!selDate || !selSlot) return null;
 
   return (
@@ -414,7 +420,8 @@ function ConfirmPhase({ selDate, selSlot, booking, onConfirm, onBack }) {
           <div className="cfm-title">{CFG.meetingTitle}</div>
           <div className="cfm-sub">{CFG.duration} min · {CFG.tz}</div>
 
-          <div className="cfm-card">
+          {/* Date & Time */}
+          <div className="cfm-card" style={{ marginBottom: 14 }}>
             <div className="cfm-row">
               <div className="cfm-row-ico"><IcoCal /></div>
               <div>
@@ -428,6 +435,34 @@ function ConfirmPhase({ selDate, selSlot, booking, onConfirm, onBack }) {
                 <div className="cfm-row-lbl">Time</div>
                 <div className="cfm-row-val">{selSlot.label}</div>
               </div>
+            </div>
+          </div>
+
+          {/* Contact info — tap pencil to edit */}
+          <div className="cfm-card">
+            <div className="cfm-row">
+              <div className="cfm-row-ico"><IcoPerson /></div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="cfm-row-lbl">Name</div>
+                <div className="cfm-row-val-sm">{answers.firstName} {answers.lastName}</div>
+              </div>
+              <button className="cfm-edit-btn" onClick={() => onEditField(0)} aria-label="Edit name"><IcoPencil /></button>
+            </div>
+            <div className="cfm-row cfm-row-border">
+              <div className="cfm-row-ico"><IcoPhone /></div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="cfm-row-lbl">Phone</div>
+                <div className="cfm-row-val-sm">{answers.phone}</div>
+              </div>
+              <button className="cfm-edit-btn" onClick={() => onEditField(2)} aria-label="Edit phone"><IcoPencil /></button>
+            </div>
+            <div className="cfm-row cfm-row-border">
+              <div className="cfm-row-ico"><IcoMail /></div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="cfm-row-lbl">Email</div>
+                <div className="cfm-row-val-sm">{answers.email}</div>
+              </div>
+              <button className="cfm-edit-btn" onClick={() => onEditField(3)} aria-label="Edit email"><IcoPencil /></button>
             </div>
           </div>
 
@@ -549,5 +584,28 @@ const IcoVid = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <polygon points="23 7 16 12 23 17 23 7" />
     <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+  </svg>
+);
+const IcoPencil = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+  </svg>
+);
+const IcoPerson = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+);
+const IcoPhone = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.59 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.91a16 16 0 0 0 6.18 6.18l.91-.91a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+  </svg>
+);
+const IcoMail = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+    <polyline points="22,6 12,13 2,6" />
   </svg>
 );
