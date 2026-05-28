@@ -500,10 +500,10 @@ function BookedPhase({ answers, selDate, selSlot }) {
               </div>
             </div>
             <div className="bkd-card-row bkd-row-sep">
-              <div className="bkd-card-ico"><IcoVid /></div>
+              <div className="bkd-card-ico"><IcoPhone /></div>
               <div>
                 <div className="bkd-card-lbl">Format</div>
-                <div className="bkd-card-val">Video call — link in your invite</div>
+                <div className="bkd-card-val">Phone call — we'll call {answers.phone}</div>
               </div>
             </div>
           </div>
