@@ -4,7 +4,7 @@ import Head from 'next/head';
 // ─── Config ────────────────────────────────────────────────────────────────────
 const CFG = {
   hostName:     process.env.NEXT_PUBLIC_HOST_NAME     || 'Steve Sparks',
-  calTitle:     'Choose a time that works best for you',
+  calTitle:     'Choose a Time That Works Best for You',
   meetingTitle: process.env.NEXT_PUBLIC_MEETING_TITLE || '15-Minute Phone Call',
   duration:     parseInt(process.env.NEXT_PUBLIC_MEETING_DURATION || '15'),
   tz:           process.env.NEXT_PUBLIC_TIMEZONE_DISPLAY || 'Central Time',
@@ -271,9 +271,8 @@ function CalendarPhase({ days, slotMap, onPickDate }) {
         {/* Info bar */}
         <div className="cv2-infobar">
           <div className="cv2-infobar-title">{CFG.calTitle}</div>
-          <div className="cv2-infobar-meta">
-            <IcoClk size={13} /> 15 Minute Phone Conversation · {CFG.tz}
-          </div>
+          <div className="cv2-infobar-sub">15-Minute Franchise Discovery Call</div>
+          <div className="cv2-infobar-desc">Quick conversation. No pressure. We'll answer your questions and help you see if this is a fit.</div>
         </div>
 
         {/* Month navigation */}
