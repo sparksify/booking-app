@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, forwardRef } from 'react';
 import Head from 'next/head';
 
-// ─── Config (from env vars, set in Vercel dashboard) ─────────────────────────
+// ─── Config ────────────────────────────────────────────────────────────────────
 const CFG = {
   hostName:     process.env.NEXT_PUBLIC_HOST_NAME     || 'Steve Sparks',
-  hostRole:     process.env.NEXT_PUBLIC_HOST_ROLE     || 'Franchise Consultant',
   meetingTitle: process.env.NEXT_PUBLIC_MEETING_TITLE || 'Franchise Discovery Call',
   duration:     parseInt(process.env.NEXT_PUBLIC_MEETING_DURATION || '30'),
   tz:           process.env.NEXT_PUBLIC_TIMEZONE_DISPLAY || 'Central Time',
@@ -53,23 +52,21 @@ function generateWorkdays(daysAhead) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function BookingPage() {
-  const [phase,    setPhase]    = useState('form');        // 'form' | 'calendar' | 'booked'
-  const [step,     setStep]     = useState(0);
-  const [answers,  setAnswers]  = useState({ firstName: '', lastName: '', phone: '', email: '' });
-  const [selDate,  setSelDate]  = useState(null);          // { dateStr, dow, mon, day }
-  const [selSlot,  setSelSlot]  = useState(null);          // { h, m, label }
-  const [slotMap,  setSlotMap]  = useState({});            // dateStr → { slots, loading, loaded }
-  const [booking,  setBooking]  = useState(false);
-  const [days,     setDays]     = useState([]);
+  const [phase,   setPhase]   = useState('form');
+  const [step,    setStep]    = useState(0);
+  const [answers, setAnswers] = useState({ firstName: '', lastName: '', phone: '', email: '' });
+  // selSlot now carries date info: { h, m, label, dateStr, dow, mon, day }
+  const [selSlot, setSelSlot] = useState(null);
+  const [slotMap, setSlotMap] = useState({});   // dateStr → { slots, loading, loaded }
+  const [booking, setBooking] = useState(false);
+  const [days,    setDays]    = useState([]);
 
   const inputRef = useRef(null);
 
   // Generate workdays client-side (avoids SSR hydration mismatch)
-  useEffect(() => {
-    setDays(generateWorkdays(CFG.daysAhead));
-  }, []);
+  useEffect(() => { setDays(generateWorkdays(CFG.daysAhead)); }, []);
 
-  // Check for Facebook URL params (pre-fills form and jumps to calendar)
+  // Facebook URL params → skip form, jump to calendar
   useEffect(() => {
     const p  = new URLSearchParams(window.location.search);
     const fn = p.get('first_name')   || p.get('firstName') || '';
@@ -102,52 +99,50 @@ export default function BookingPage() {
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  // Fetch slots when a date is selected
+  // Pre-fetch ALL 14 days simultaneously when entering calendar phase
   useEffect(() => {
-    if (!selDate) return;
-    const ds = selDate.dateStr;
-    if (slotMap[ds]?.loaded) return;
+    if (phase !== 'calendar' || days.length === 0) return;
 
-    setSlotMap(prev => ({ ...prev, [ds]: { slots: [], loading: true, loaded: false } }));
+    // Mark all days as loading
+    setSlotMap(prev => {
+      const next = { ...prev };
+      days.forEach(d => {
+        if (!next[d.dateStr]) {
+          next[d.dateStr] = { slots: [], loading: true, loaded: false };
+        }
+      });
+      return next;
+    });
 
-    fetch(`/api/availability?date=${ds}`)
-      .then(r => r.json())
-      .then(data => setSlotMap(prev => ({
-        ...prev,
-        [ds]: { slots: data.slots || [], loading: false, loaded: true },
-      })))
-      .catch(() => setSlotMap(prev => ({
-        ...prev,
-        [ds]: { slots: [], loading: false, loaded: true },
-      })));
-  }, [selDate]);
+    // Fire every fetch in parallel — each resolves independently
+    days.forEach(({ dateStr }) => {
+      fetch(`/api/availability?date=${dateStr}`)
+        .then(r => r.json())
+        .then(data => setSlotMap(prev => ({
+          ...prev,
+          [dateStr]: { slots: data.slots || [], loading: false, loaded: true },
+        })))
+        .catch(() => setSlotMap(prev => ({
+          ...prev,
+          [dateStr]: { slots: [], loading: false, loaded: true },
+        })));
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, days]);
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
   function doAdvance() {
-    const nextStep = step + 1;
-    if (nextStep >= QUESTIONS.length) {
-      setPhase('calendar');
-    } else {
-      setStep(nextStep);
-    }
+    if (step + 1 >= QUESTIONS.length) setPhase('calendar');
+    else setStep(s => s + 1);
   }
 
   function doRetreat() {
     if (step > 0) setStep(s => s - 1);
   }
 
-  function selectDate(day) {
-    setSelDate(day);
-    setSelSlot(null);
-  }
-
-  function toggleSlot(sl) {
-    setSelSlot(prev => prev?.h === sl.h && prev?.m === sl.m ? null : sl);
-  }
-
   async function confirmBooking() {
-    if (!selDate || !selSlot || booking) return;
+    if (!selSlot || booking) return;
     setBooking(true);
     try {
       await fetch('/api/book', {
@@ -158,7 +153,7 @@ export default function BookingPage() {
           lastName:  answers.lastName,
           email:     answers.email,
           phone:     answers.phone,
-          date:      selDate.dateStr,
+          date:      selSlot.dateStr,
           h:         selSlot.h,
           m:         selSlot.m,
           label:     selSlot.label,
@@ -169,14 +164,14 @@ export default function BookingPage() {
     setPhase('booked');
   }
 
-  // ── Renders ────────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────
 
-  if (phase === 'form')     return <FormPhase     {...{ step, answers, setAnswers, doAdvance, doRetreat, inputRef }} />;
-  if (phase === 'calendar') return <CalendarPhase {...{ days, selDate, selSlot, slotMap, booking, selectDate, toggleSlot, confirmBooking }} />;
-  return <BookedPhase answers={answers} selDate={selDate} selSlot={selSlot} />;
+  if (phase === 'form')     return <FormPhase {...{ step, answers, setAnswers, doAdvance, doRetreat, inputRef }} />;
+  if (phase === 'calendar') return <RiverPhase {...{ days, selSlot, setSelSlot, slotMap, booking, confirmBooking }} />;
+  return <BookedPhase answers={answers} selSlot={selSlot} />;
 }
 
-// ─── Form phase ───────────────────────────────────────────────────────────────
+// ─── Form phase (unchanged from v1) ──────────────────────────────────────────
 function FormPhase({ step, answers, setAnswers, doAdvance, doRetreat, inputRef }) {
   const total   = QUESTIONS.length;
   const pct     = Math.round(((step + 1) / (total + 1)) * 100);
@@ -193,7 +188,6 @@ function FormPhase({ step, answers, setAnswers, doAdvance, doRetreat, inputRef }
           <div className="tf-pbar-fill" style={{ width: `${pct}%` }} />
         </div>
 
-        {/* key forces remount → re-triggers in-down animation on each step */}
         <div key={step} className="tf-card in-down">
           <div className="tf-qnum">{step + 1} → {total}</div>
           <div className="tf-q">{q.q(answers)}</div>
@@ -217,112 +211,151 @@ function FormPhase({ step, answers, setAnswers, doAdvance, doRetreat, inputRef }
 
           <div className="tf-actions">
             <button className="tf-ok" disabled={!can} onClick={doAdvance}>
-              OK
-              <ArrowRight />
+              OK <ArrowRight />
             </button>
             <span className="tf-hint">press <b>Enter ↵</b></span>
           </div>
         </div>
 
         <div className="tf-nav">
-          <button className="tf-nav-btn" disabled={step === 0} onClick={doRetreat}>
-            <ChevronUp />
-          </button>
-          <button className="tf-nav-btn" disabled={!can} onClick={doAdvance}>
-            <ChevronDown />
-          </button>
+          <button className="tf-nav-btn" disabled={step === 0} onClick={doRetreat}><ChevronUp /></button>
+          <button className="tf-nav-btn" disabled={!can} onClick={doAdvance}><ChevronDown /></button>
         </div>
-
         <div className="tf-counter"><b>{step + 1}</b> / {total}</div>
       </div>
     </>
   );
 }
 
-// ─── Calendar phase ───────────────────────────────────────────────────────────
-function CalendarPhase({ days, selDate, selSlot, slotMap, booking, selectDate, toggleSlot, confirmBooking }) {
-  const entry    = selDate ? slotMap[selDate.dateStr] : null;
-  const loading  = entry?.loading ?? false;
-  const slots    = entry?.slots   ?? [];
-  const loaded   = entry?.loaded  ?? false;
+// ─── River phase ──────────────────────────────────────────────────────────────
+function RiverPhase({ days, selSlot, setSelSlot, slotMap, booking, confirmBooking }) {
+  const [activeDateStr, setActiveDateStr] = useState(days[0]?.dateStr || null);
+
+  const bodyRef  = useRef(null);
+  const dayRefs  = useRef({});   // dateStr → DOM element
+  const pillRefs = useRef({});   // dateStr → DOM element
+
+  const loadedCount = Object.values(slotMap).filter(v => v.loaded).length;
+  const allLoaded   = loadedCount >= days.length;
+
+  // IntersectionObserver: highlight the pill of the day currently in view
+  useEffect(() => {
+    if (!bodyRef.current || days.length === 0) return;
+
+    const observers = [];
+
+    days.forEach(({ dateStr }) => {
+      const el = dayRefs.current[dateStr];
+      if (!el) return;
+
+      const obs = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) {
+            setActiveDateStr(dateStr);
+            // Scroll pill into view in the jump strip
+            const pill = pillRefs.current[dateStr];
+            if (pill) pill.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          }
+        },
+        {
+          root: bodyRef.current,
+          threshold: 0,
+          rootMargin: '-5% 0px -70% 0px',  // trigger when header enters top ~25% of body
+        }
+      );
+      obs.observe(el);
+      observers.push(obs);
+    });
+
+    return () => observers.forEach(o => o.disconnect());
+  }, [days]);
+
+  function scrollToDay(dateStr) {
+    const el = dayRefs.current[dateStr];
+    if (el && bodyRef.current) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  function handleSlotClick(day, sl) {
+    const alreadySelected =
+      selSlot?.dateStr === day.dateStr &&
+      selSlot?.h === sl.h &&
+      selSlot?.m === sl.m;
+    if (alreadySelected) {
+      setSelSlot(null);
+    } else {
+      setSelSlot({ ...sl, dateStr: day.dateStr, dow: day.dow, mon: day.mon, day: day.day });
+    }
+  }
 
   return (
     <>
       <Head><title>Schedule a Call</title></Head>
-      <div className="cal-root">
+      <div className="rv-root">
 
-        {/* Date strip */}
-        <div className="date-wrap">
-          <div className="date-strip">
-            {days.map(d => {
-              const on   = selDate?.dateStr === d.dateStr;
-              const info = slotMap[d.dateStr];
-              const hasDot = info?.loaded && info.slots.length > 0;
-              return (
-                <button
-                  key={d.dateStr}
-                  className={`dc${on ? ' on' : ''}`}
-                  onClick={() => selectDate(d)}
-                >
-                  <span className="dc-dow">{d.dow}</span>
-                  <span className="dc-num">{d.day}</span>
-                  <span className="dc-mon">{d.mon}</span>
-                  {hasDot && <span className="dc-dot" />}
-                </button>
-              );
-            })}
+        {/* ── Info bar ─────────────────────────────────────────────── */}
+        <div className="rv-infobar">
+          <div className="rv-infobar-left">
+            <span className="rv-infobar-title">{CFG.meetingTitle}</span>
+            <span className="rv-infobar-meta">{CFG.duration} min · {CFG.tz}</span>
           </div>
-        </div>
-
-        {/* Slot area */}
-        <div className="slots-outer">
-          {!selDate ? (
-            <div className="slots-empty">
-              <div className="slots-empty-ico">👆</div>
-              <div className="slots-empty-h">Pick a date</div>
+          {!allLoaded && (
+            <div className="rv-loading-pill">
+              <span className="rv-loading-dot" />
+              {loadedCount} / {days.length}
             </div>
-          ) : loading ? (
-            <div className="slots-grid">
-              {Array.from({ length: 18 }).map((_, i) => (
-                <div key={i} className="skel" style={{ animationDelay: `${i * 25}ms` }} />
-              ))}
+          )}
+          {allLoaded && (
+            <div className="rv-ready-pill">
+              <span className="rv-ready-check">✓</span> Ready
             </div>
-          ) : !slots.length ? (
-            <div className="slots-empty">
-              <div className="slots-empty-ico">😔</div>
-              <div className="slots-empty-h">No times available</div>
-              <div className="slots-empty-s">Try a different date</div>
-            </div>
-          ) : (
-            <>
-              <div className="slots-hdr">
-                {selDate.dow}, {selDate.mon} {selDate.day}
-                <span className="slots-badge">{slots.length} open</span>
-              </div>
-              <div className="slots-grid">
-                {slots.map(sl => {
-                  const on = selSlot?.h === sl.h && selSlot?.m === sl.m;
-                  return (
-                    <button
-                      key={`${sl.h}-${sl.m}`}
-                      className={`slot${on ? ' on' : ''}`}
-                      onClick={() => toggleSlot(sl)}
-                    >
-                      {sl.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </>
           )}
         </div>
 
-        {/* Confirm bar */}
-        {selSlot && selDate && (
+        {/* ── Jump strip ───────────────────────────────────────────── */}
+        <div className="rv-jump">
+          {days.map(d => {
+            const info     = slotMap[d.dateStr];
+            const hasSlots = info?.loaded && info.slots.length > 0;
+            const isActive = d.dateStr === activeDateStr;
+            return (
+              <button
+                key={d.dateStr}
+                ref={el => { pillRefs.current[d.dateStr] = el; }}
+                className={`rv-pill${isActive ? ' act' : ''}${hasSlots ? ' has' : ''}`}
+                onClick={() => scrollToDay(d.dateStr)}
+              >
+                <span className="rv-pill-dow">{d.dow[0]}</span>
+                <span className="rv-pill-day">{d.day}</span>
+                {hasSlots && <span className="rv-pill-dot" />}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ── River body ───────────────────────────────────────────── */}
+        <div className="rv-body" ref={bodyRef}>
+          {days.map(d => (
+            <DaySection
+              key={d.dateStr}
+              day={d}
+              info={slotMap[d.dateStr] || { slots: [], loading: true, loaded: false }}
+              selSlot={selSlot}
+              onSlotClick={(sl) => handleSlotClick(d, sl)}
+              ref={el => { dayRefs.current[d.dateStr] = el; }}
+            />
+          ))}
+          {/* Bottom spacer so last day scrolls up past the confirm bar */}
+          <div style={{ height: selSlot ? 100 : 40 }} />
+        </div>
+
+        {/* ── Confirm bar ──────────────────────────────────────────── */}
+        {selSlot && (
           <div className="cbar">
             <div>
               <div className="cbar-text">
-                {selDate.dow}, {selDate.mon} {selDate.day} · {selSlot.label}
+                {selSlot.dow}, {selSlot.mon} {selSlot.day} · {selSlot.label}
               </div>
               <div className="cbar-sub">{CFG.duration} min · {CFG.tz}</div>
             </div>
@@ -331,13 +364,63 @@ function CalendarPhase({ days, selDate, selSlot, slotMap, booking, selectDate, t
             </button>
           </div>
         )}
+
       </div>
     </>
   );
 }
 
+// ─── Day section ──────────────────────────────────────────────────────────────
+const DaySection = forwardRef(function DaySection({ day, info, selSlot, onSlotClick }, ref) {
+  const { slots, loading, loaded } = info;
+  const hasSlots    = loaded && slots.length > 0;
+  const fullyBooked = loaded && slots.length === 0;
+
+  return (
+    <div className="rv-day" ref={ref}>
+
+      {/* Sticky header */}
+      <div className="rv-day-hdr">
+        <span className="rv-day-hdr-name">{day.dow}, {day.mon} {day.day}</span>
+        {loading    && <span className="rv-day-badge loading">Loading…</span>}
+        {hasSlots   && <span className="rv-day-badge open">{slots.length} open</span>}
+        {fullyBooked && <span className="rv-day-badge full">Fully booked</span>}
+      </div>
+
+      {/* Slots or skeleton or empty */}
+      {loading ? (
+        <div className="rv-day-grid">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="skel rv-skel" style={{ animationDelay: `${i * 50}ms` }} />
+          ))}
+        </div>
+      ) : fullyBooked ? (
+        <div className="rv-day-empty">No availability — try another day</div>
+      ) : (
+        <div className="rv-day-grid">
+          {slots.map(sl => {
+            const on =
+              selSlot?.dateStr === day.dateStr &&
+              selSlot?.h === sl.h &&
+              selSlot?.m === sl.m;
+            return (
+              <button
+                key={`${sl.h}-${sl.m}`}
+                className={`slot${on ? ' on' : ''}`}
+                onClick={() => onSlotClick(sl)}
+              >
+                {sl.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+});
+
 // ─── Booked phase ─────────────────────────────────────────────────────────────
-function BookedPhase({ answers, selDate, selSlot }) {
+function BookedPhase({ answers, selSlot }) {
   return (
     <>
       <Head><title>You're Confirmed!</title></Head>
@@ -353,7 +436,7 @@ function BookedPhase({ answers, selDate, selSlot }) {
             Calendar invite sent to <b>{answers.email}</b>
           </div>
           <div className="booked-card">
-            <div className="booked-row">📅 {selDate?.dow}, {selDate?.mon} {selDate?.day}</div>
+            <div className="booked-row">📅 {selSlot?.dow}, {selSlot?.mon} {selSlot?.day}</div>
             <div className="booked-row">🕐 {selSlot?.label} · {CFG.duration} min · {CFG.tz}</div>
             <div className="booked-row">📹 Video call — link in your invite</div>
           </div>
@@ -364,7 +447,7 @@ function BookedPhase({ answers, selDate, selSlot }) {
   );
 }
 
-// ─── Icon components ──────────────────────────────────────────────────────────
+// ─── Icons ────────────────────────────────────────────────────────────────────
 const ArrowRight = () => (
   <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
     <path d="M3 8h10M8 3l5 5-5 5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
