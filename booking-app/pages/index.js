@@ -368,7 +368,7 @@ function SlotsPhase({ day, slotMap, onPickSlot, onBack }) {
               <div className="slots-empty-s">Try a different date</div>
               <button
                 onClick={onBack}
-                style={{ marginTop: 20, background: '#1D4ED8', color: '#fff', border: 'none', borderRadius: 9, padding: '11px 22px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "'Inter',system-ui,sans-serif" }}
+                style={{ marginTop: 20, background: '#1877F2', color: '#fff', border: 'none', borderRadius: 20, padding: '11px 22px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" }}
               >
                 ← Pick another day
               </button>
