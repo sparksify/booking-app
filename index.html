@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Schedule a Call</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;background:#fff;color:#111827}
+
+/* ══════════════════════════════════
+   TYPEFORM — light, full screen
+══════════════════════════════════ */
+.tf-root{
+  position:fixed;inset:0;background:#fff;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:32px 24px;
+}
+.tf-pbar{position:fixed;top:0;left:0;right:0;height:3px;background:#E5E7EB}
+.tf-pbar-fill{height:100%;background:#1D4ED8;transition:width .5s cubic-bezier(.4,0,.2,1)}
+
+.tf-card{width:100%;max-width:580px}
+.tf-card.out-up  {animation:outUp .18s ease forwards}
+.tf-card.in-down {animation:inDown .25s cubic-bezier(.4,0,.2,1) forwards}
+@keyframes outUp  {to{opacity:0;transform:translateY(-60px)}}
+@keyframes inDown {from{opacity:0;transform:translateY(60px)}to{opacity:1;transform:translateY(0)}}
+
+.tf-qnum{font-size:11px;font-weight:600;color:#9CA3AF;letter-spacing:.08em;text-transform:uppercase;margin-bottom:18px}
+.tf-q{font-size:clamp(26px,5vw,38px);font-weight:700;color:#111827;line-height:1.2;letter-spacing:-.02em;margin-bottom:32px}
+.tf-input{
+  display:block;width:100%;background:transparent;border:none;
+  border-bottom:2px solid #D1D5DB;outline:none;
+  font-family:'Inter',system-ui,sans-serif;font-size:22px;font-weight:400;
+  color:#111827;padding:8px 0 14px;transition:border-color .2s;caret-color:#1D4ED8;
+}
+.tf-input:focus{border-bottom-color:#1D4ED8}
+.tf-input::placeholder{color:#D1D5DB}
+.tf-actions{display:flex;align-items:center;gap:14px;margin-top:22px}
+.tf-ok{
+  display:flex;align-items:center;gap:8px;
+  background:#1D4ED8;color:#fff;border:none;border-radius:6px;
+  padding:11px 20px;font-family:'Inter',system-ui,sans-serif;
+  font-size:14px;font-weight:600;cursor:pointer;transition:all .18s;
+}
+.tf-ok:hover{background:#1E40AF;transform:translateY(-1px)}
+.tf-ok:disabled{opacity:.3;cursor:not-allowed;transform:none}
+.tf-hint{font-size:12px;color:#9CA3AF}
+.tf-hint b{color:#6B7280;font-weight:500}
+
+.tf-nav{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:flex;gap:8px}
+.tf-nav-btn{
+  width:36px;height:36px;border-radius:6px;
+  background:#F3F4F6;border:1px solid #E5E7EB;
+  color:#6B7280;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .18s;
+}
+.tf-nav-btn:hover{background:#E5E7EB;color:#111827}
+.tf-nav-btn:disabled{opacity:.3;cursor:not-allowed}
+.tf-counter{position:fixed;bottom:30px;right:28px;font-size:12px;color:#D1D5DB}
+.tf-counter b{color:#9CA3AF}
+
+/* ══════════════════════════════════
+   CALENDAR — full screen, all business
+   NO topbar. NO lead strip. NO fluff.
+   Date strip top. Slots fill everything.
+══════════════════════════════════ */
+.cal-root{
+  min-height:100vh;display:flex;flex-direction:column;
+  background:#F9FAFB;animation:fadeIn .35s ease both;
+}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+/* Date strip — full width, always visible */
+.date-wrap{
+  background:#fff;border-bottom:1px solid #E5E7EB;
+  padding:14px 16px;overflow-x:auto;scrollbar-width:none;flex-shrink:0;
+}
+.date-wrap::-webkit-scrollbar{display:none}
+.date-strip{display:flex;gap:6px;min-width:max-content}
+.dc{
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:10px 13px;border-radius:10px;border:1.5px solid #E5E7EB;
+  background:#fff;cursor:pointer;transition:all .13s;color:#9CA3AF;
+  font-family:'Inter',system-ui,sans-serif;min-width:54px;
+}
+.dc:hover:not([disabled]){border-color:#93C5FD;background:#EFF6FF;color:#1D4ED8}
+.dc.on{background:#1D4ED8!important;border-color:#1D4ED8!important;color:#fff!important;box-shadow:0 3px 10px rgba(29,78,216,.3)!important}
+.dc[disabled]{opacity:.22;cursor:not-allowed}
+.dc-dow{font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
+.dc-num{font-size:18px;font-weight:700;line-height:1.1}
+.dc-mon{font-size:9px;font-weight:500}
+.dc-dot{width:4px;height:4px;background:#1D4ED8;border-radius:50%;margin-top:2px}
+.dc.on .dc-dot{background:rgba(255,255,255,.65)}
+
+/* Slots — take everything that's left */
+.slots-outer{
+  flex:1;overflow-y:auto;padding:20px 16px 100px;
+  scrollbar-width:thin;scrollbar-color:#E5E7EB transparent;
+}
+
+/* Empty state */
+.slots-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-height:300px;gap:10px;text-align:center;color:#9CA3AF}
+.slots-empty-ico{font-size:36px}
+.slots-empty-h{font-size:16px;font-weight:600;color:#374151}
+.slots-empty-s{font-size:13px;line-height:1.6;max-width:200px}
+.adot{width:6px;height:6px;background:#1D4ED8;border-radius:50%;animation:ap 1.1s ease-in-out infinite;margin:0 auto}
+@keyframes ap{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.2;transform:scale(.5)}}
+
+/* Date heading above slots */
+.slots-hdr{
+  font-size:11px;font-weight:700;color:#9CA3AF;
+  text-transform:uppercase;letter-spacing:.07em;
+  margin-bottom:14px;display:flex;align-items:center;gap:8px;
+}
+.slots-badge{background:#EFF6FF;color:#1D4ED8;border-radius:20px;padding:1px 9px;font-size:11px;font-weight:600;text-transform:none;letter-spacing:0}
+
+/* THE GRID — fills full width, max tap targets */
+.slots-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(110px,1fr));
+  gap:9px;
+}
+.slot{
+  padding:15px 4px;border-radius:9px;
+  border:1.5px solid #E5E7EB;background:#fff;
+  color:#111827;font-family:'Inter',system-ui,sans-serif;
+  font-size:15px;font-weight:500;cursor:pointer;
+  transition:all .12s;text-align:center;
+  box-shadow:0 1px 2px rgba(0,0,0,0.05);
+}
+.slot:hover{border-color:#1D4ED8;background:#EFF6FF;color:#1D4ED8;transform:translateY(-2px);box-shadow:0 4px 12px rgba(29,78,216,.12)}
+.slot.on{background:#EFF6FF!important;border-color:#1D4ED8!important;color:#1D4ED8!important;font-weight:600!important;box-shadow:0 0 0 3px rgba(29,78,216,.12)!important}
+
+/* Skeleton */
+.skel{height:50px;border-radius:9px;background:linear-gradient(90deg,#F3F4F6 25%,#E9EAEC 50%,#F3F4F6 75%);background-size:200% 100%;animation:shimmer 1.3s ease-in-out infinite}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* CONFIRM BAR — slides up from bottom, full width */
+.cbar{
+  position:fixed;bottom:0;left:0;right:0;
+  background:#fff;border-top:1px solid #E5E7EB;
+  padding:14px 20px;
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;flex-wrap:wrap;
+  box-shadow:0 -4px 24px rgba(0,0,0,.08);
+  animation:su .22s cubic-bezier(.4,0,.2,1) both;z-index:60;
+}
+@keyframes su{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.cbar-text{font-size:15px;font-weight:600;color:#111827}
+.cbar-sub{font-size:12px;color:#6B7280;margin-top:2px}
+.cbar-btn{
+  display:flex;align-items:center;gap:8px;
+  background:#1D4ED8;color:#fff;border:none;border-radius:9px;
+  padding:13px 26px;font-family:'Inter',system-ui,sans-serif;
+  font-size:15px;font-weight:600;cursor:pointer;
+  transition:all .18s;box-shadow:0 3px 12px rgba(29,78,216,.28);white-space:nowrap;
+}
+.cbar-btn:hover{background:#1E40AF;transform:translateY(-1px);box-shadow:0 6px 18px rgba(29,78,216,.32)}
+.cbar-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.bspin{width:13px;height:13px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* BOOKED */
+.booked-root{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 24px;background:#fff;animation:fadeIn .5s ease both}
+.booked-wrap{max-width:400px;width:100%;text-align:center}
+.booked-check{width:64px;height:64px;background:#16A34A;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;box-shadow:0 6px 18px rgba(22,163,74,.22)}
+.booked-h{font-size:26px;font-weight:700;color:#111827;letter-spacing:-.02em;margin-bottom:8px}
+.booked-s{font-size:14px;color:#6B7280;margin-bottom:24px;line-height:1.6}
+.booked-s b{color:#111827;font-weight:500}
+.booked-card{background:#F9FAFB;border:1px solid #E5E7EB;border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:12px;text-align:left;margin-bottom:18px}
+.booked-row{display:flex;align-items:center;gap:10px;font-size:14px;color:#111827}
+.booked-foot{font-size:13px;color:#6B7280;line-height:1.75}
+
+@media(max-width:480px){
+  .tf-q{font-size:26px}
+  .tf-input{font-size:20px}
+  .date-wrap{padding:12px}
+  .slots-outer{padding:16px 12px 100px}
+  .slots-grid{grid-template-columns:repeat(auto-fill,minmax(90px,1fr))}
+  .cbar{padding:12px 14px}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const CFG={
+  hostName:"Steve Sparks",hostRole:"Franchise Consultant",hostInitials:"SS",
+  meetingTitle:"Franchise Discovery Call",duration:30,tz:"Central Time",
+  workStart:9,workEnd:18,daysAhead:14,
+};
+
+let S={
+  phase:"form",step:0,
+  answers:{firstName:"",lastName:"",phone:"",email:""},
+  fromFB:false,selDate:null,selSlot:null,
+  slotMap:null,availLoading:true,booking:false,
+};
+
+const QS=[
+  {q:()=>"What's your first name?",             ph:"Type your answer…",key:"firstName",type:"text"},
+  {q:()=>`Hi ${S.answers.firstName}! Last name?`,ph:"Type your answer…",key:"lastName", type:"text"},
+  {q:()=>"Best phone number?",                  ph:"Type your answer…",key:"phone",    type:"tel"},
+  {q:()=>"Email address?",                      ph:"Type your answer…",key:"email",    type:"email"},
+];
+
+// ── MOCK DATA ──────────────────────────────────────────────────────────────
+function buildMockSlotMap(){
+  const map={},DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],
+    MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],now=new Date();let c=0;
+  for(let i=1;c<CFG.daysAhead;i++){
+    const d=new Date(now);d.setDate(now.getDate()+i);
+    if(d.getDay()===0||d.getDay()===6)continue;
+    const ds=d.toISOString().split("T")[0];
+    const busy=new Set();for(let b=0;b<3;b++)busy.add(Math.floor(Math.random()*8)+9);
+    const slots=[];
+    for(let h=CFG.workStart;h<CFG.workEnd;h++){
+      for(let m=0;m<60;m+=30){
+        if([...busy].some(bh=>(h+m/60)<bh+1&&(h+m/60+.5)>bh))continue;
+        const p=h>=12?"PM":"AM",dh=h>12?h-12:h===0?12:h;
+        slots.push({h,m,label:`${dh}:${m===0?"00":m} ${p}`});
+      }
+    }
+    map[ds]={slots,dow:DOW[d.getDay()],mon:MON[d.getMonth()],day:d.getDate(),dateStr:ds};c++;
+  }
+  return map;
+}
+function getWorkdays(){
+  const days=[],DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],
+    MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],now=new Date();let c=0;
+  for(let i=1;c<CFG.daysAhead;i++){
+    const d=new Date(now);d.setDate(now.getDate()+i);
+    if(d.getDay()===0||d.getDay()===6)continue;
+    days.push({dateStr:d.toISOString().split("T")[0],dow:DOW[d.getDay()],mon:MON[d.getMonth()],day:d.getDate()});c++;
+  }
+  return days;
+}
+const DAYS=getWorkdays();
+
+function prefetch(){
+  setTimeout(()=>{S.slotMap=buildMockSlotMap();S.availLoading=false;if(S.phase==="calendar")render();},400);
+}
+function checkUrl(){
+  const p=new URLSearchParams(window.location.search);
+  const fn=p.get("first_name")||p.get("firstName")||"";
+  const ln=p.get("last_name")||p.get("lastName")||"";
+  const em=p.get("email")||"";const ph=p.get("phone")||p.get("phone_number")||"";
+  if(fn||em){S.answers={firstName:fn,lastName:ln,phone:ph,email:em};S.fromFB=true;S.phase="calendar";}
+}
+
+// ── RENDER ─────────────────────────────────────────────────────────────────
+function render(){
+  const app=document.getElementById("app");
+  if(S.phase==="form")app.innerHTML=renderForm();
+  else if(S.phase==="calendar")app.innerHTML=renderCalendar();
+  else app.innerHTML=renderBooked();
+  attachEvents();
+}
+
+// ── TYPEFORM ───────────────────────────────────────────────────────────────
+function renderForm(){
+  const total=QS.length,pct=Math.round(((S.step+1)/(total+1))*100);
+  const q=QS[S.step],val=S.answers[q.key],hasVal=val.trim().length>0;
+  return `
+  <div class="tf-root">
+    <div class="tf-pbar"><div class="tf-pbar-fill" style="width:${pct}%"></div></div>
+    <div class="tf-card in-down" id="tf-card">
+      <div class="tf-qnum">${S.step+1} → ${total}</div>
+      <div class="tf-q">${esc(q.q())}</div>
+      <input id="tf-inp" class="tf-input" type="${q.type}"
+        placeholder="${q.ph}" value="${esc(val)}"
+        autocomplete="off" autocorrect="off" spellcheck="false"/>
+      <div class="tf-actions">
+        <button class="tf-ok" id="tf-ok" ${hasVal?"":"disabled"}>
+          OK
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+            <path d="M3 8h10M8 3l5 5-5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <span class="tf-hint">press <b>Enter ↵</b></span>
+      </div>
+    </div>
+    <div class="tf-nav">
+      <button class="tf-nav-btn" id="tf-prev" ${S.step===0?"disabled":""}>
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3L3 8l5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="tf-nav-btn" id="tf-next" ${hasVal?"":"disabled"}>
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 13l5-5-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <div class="tf-counter"><b>${S.step+1}</b> / ${total}</div>
+  </div>`;
+}
+
+// ── CALENDAR ───────────────────────────────────────────────────────────────
+function renderCalendar(){
+  let h=`<div class="cal-root">`;
+
+  // DATE STRIP — nothing above it, nothing beside it
+  h+=`<div class="date-wrap"><div class="date-strip">`;
+  DAYS.forEach(d=>{
+    const sel=S.selDate?.dateStr===d.dateStr;
+    const dd=S.slotMap?.[d.dateStr];
+    const has=dd?dd.slots.length>0:null;
+    const none=S.slotMap&&!has;
+    h+=`<button class="dc${sel?" on":""}" data-action="selDate" data-date="${d.dateStr}" ${none?"disabled":""}>
+      <span class="dc-dow">${d.dow}</span>
+      <span class="dc-num">${d.day}</span>
+      <span class="dc-mon">${d.mon}</span>
+      ${S.slotMap&&has?`<span class="dc-dot"></span>`:""}
+    </button>`;
+  });
+  h+=`</div></div>`;
+
+  // SLOTS — take all remaining space
+  h+=`<div class="slots-outer" id="slots-outer">`;
+
+  if(!S.selDate){
+    h+=`<div class="slots-empty">
+      <div class="slots-empty-ico">👆</div>
+      <div class="slots-empty-h">Pick a date</div>
+      ${S.availLoading?`<div class="adot" style="margin-top:8px"></div>`:""}
+    </div>`;
+  } else {
+    const dd=S.slotMap?.[S.selDate.dateStr];
+    const slots=dd?.slots||[];
+    const loading=S.availLoading&&!S.slotMap;
+    if(loading){
+      h+=`<div class="slots-grid">`;
+      for(let i=0;i<18;i++)h+=`<div class="skel" style="animation-delay:${i*25}ms"></div>`;
+      h+=`</div>`;
+    } else if(!slots.length){
+      h+=`<div class="slots-empty"><div class="slots-empty-ico">😔</div><div class="slots-empty-h">No times available</div><div class="slots-empty-s">Try a different date</div></div>`;
+    } else {
+      const d=S.selDate;
+      h+=`<div class="slots-hdr">${d.dow}, ${d.mon} ${d.day} <span class="slots-badge">${slots.length} open</span></div>`;
+      h+=`<div class="slots-grid">`;
+      slots.forEach(sl=>{
+        const on=S.selSlot?.h===sl.h&&S.selSlot?.m===sl.m;
+        h+=`<button class="slot${on?" on":""}" data-action="selSlot" data-h="${sl.h}" data-m="${sl.m}" data-label="${sl.label}">${sl.label}</button>`;
+      });
+      h+=`</div>`;
+    }
+  }
+  h+=`</div>`; // slots-outer
+
+  // CONFIRM BAR — only shows when slot is selected
+  if(S.selSlot&&S.selDate){
+    const d=S.selDate;
+    h+=`<div class="cbar">
+      <div>
+        <div class="cbar-text">${d.dow}, ${d.mon} ${d.day} · ${S.selSlot.label}</div>
+        <div class="cbar-sub">${CFG.duration} min · ${CFG.tz}</div>
+      </div>
+      <button class="cbar-btn" data-action="confirm" ${S.booking?"disabled":""}>
+        ${S.booking?`<span class="bspin"></span> Booking…`:"Confirm →"}
+      </button>
+    </div>`;
+  }
+
+  h+=`</div>`; // cal-root
+  return h;
+}
+
+// ── BOOKED ─────────────────────────────────────────────────────────────────
+function renderBooked(){
+  const a=S.answers,d=S.selDate,sl=S.selSlot;
+  return `<div class="booked-root"><div class="booked-wrap">
+    <div class="booked-check"><svg width="28" height="28" viewBox="0 0 40 40" fill="none"><path d="M10 20l8 8 12-16" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="booked-h">You're confirmed!</div>
+    <div class="booked-s">Calendar invite sent to <b>${esc(a.email)}</b></div>
+    <div class="booked-card">
+      <div class="booked-row">📅 ${d.dow}, ${d.mon} ${d.day}</div>
+      <div class="booked-row">🕐 ${sl.label} · ${CFG.duration} min · ${CFG.tz}</div>
+      <div class="booked-row">📹 Video call — link in your invite</div>
+    </div>
+    <div class="booked-foot">We look forward to speaking with you!</div>
+  </div></div>`;
+}
+
+// ── EVENTS ─────────────────────────────────────────────────────────────────
+function attachEvents(){
+  const inp=document.getElementById("tf-inp");
+  if(inp){
+    setTimeout(()=>{try{inp.focus();}catch(e){}},40);
+    inp.addEventListener("input",e=>{
+      S.answers[QS[S.step].key]=e.target.value;
+      const has=e.target.value.trim().length>0;
+      const ok=document.getElementById("tf-ok");const nxt=document.getElementById("tf-next");
+      if(ok)ok.disabled=!has;if(nxt)nxt.disabled=!has;
+    });
+  }
+  const ok=document.getElementById("tf-ok");if(ok)ok.addEventListener("click",advance);
+  const prev=document.getElementById("tf-prev");if(prev)prev.addEventListener("click",retreat);
+  const nxt=document.getElementById("tf-next");if(nxt)nxt.addEventListener("click",advance);
+
+  document.querySelectorAll("[data-action]").forEach(el=>{
+    el.addEventListener("click",e=>{
+      const act=e.currentTarget.dataset.action;
+      if(act==="selDate"){
+        S.selDate=DAYS.find(d=>d.dateStr===e.currentTarget.dataset.date);
+        S.selSlot=null;render();
+      }
+      else if(act==="selSlot"){
+        const t=e.currentTarget;
+        const sl={h:+t.dataset.h,m:+t.dataset.m,label:t.dataset.label};
+        S.selSlot=S.selSlot?.h===sl.h&&S.selSlot?.m===sl.m?null:sl;
+        render();
+      }
+      else if(act==="confirm"){
+        S.booking=true;render();
+        setTimeout(()=>{S.phase="booked";S.booking=false;render();},900);
+      }
+    });
+  });
+}
+
+document.addEventListener("keydown",e=>{
+  if(e.key!=="Enter"||S.phase!=="form")return;
+  e.preventDefault();
+  if(S.answers[QS[S.step]?.key]?.trim())advance();
+});
+
+function advance(){
+  if(!S.answers[QS[S.step]?.key]?.trim())return;
+  const card=document.getElementById("tf-card");
+  if(card){card.classList.remove("in-down");card.classList.add("out-up");}
+  setTimeout(()=>{
+    S.step++;
+    if(S.step>=QS.length)S.phase="calendar";
+    render();
+  },160);
+}
+function retreat(){
+  if(S.step===0)return;
+  S.step--;render();
+}
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+
+checkUrl();prefetch();render();
+</script>
+</body>
+</html>
