@@ -354,7 +354,7 @@ function PickingPhase({ days, slotMap, selDate, selSlot, onPickDate, onPickSlot,
               {selDate.dow}, {selDate.mon} {selDate.day} · {selSlot.label} · {CFG.duration} min
             </div>
             <button className="pk-cbar-btn" onClick={onConfirm} disabled={booking}>
-              {booking ? <><span className="bspin" /> Confirming…</> : 'Confirm Appointment'}
+              {booking ? <><span className="bspin" /> Confirming…</> : 'Reserve My Spot'}
             </button>
           </div>
         )}
