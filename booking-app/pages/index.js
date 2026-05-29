@@ -265,15 +265,11 @@ function PickingPhase({ days, slotMap, selDate, selSlot, onPickDate, onPickSlot,
       <Head><title>Schedule a Call — {CFG.hostName}</title></Head>
       <div className="pk-root">
 
-        {/* Profile header */}
+        {/* Header */}
         <div className="pk-profile-wrap">
-          <div className="pk-profile-row">
-            <div className="pk-avatar">{initials}</div>
-            <div className="pk-host-text">
-              <div className="pk-host-name">{CFG.hostName}</div>
-              <div className="pk-host-title">{CFG.hostTitle}</div>
-            </div>
-          </div>
+          <div className="pk-headline">Choose a Time That Works Best for You</div>
+          <div className="pk-meeting-title">{CFG.meetingTitle}</div>
+          <div className="pk-desc">Quick conversation. No pressure. We'll answer your questions and help you see if this is a fit.</div>
           <div className="pk-meta-row">
             <span className="pk-meta-item"><IcoClk size={14} /> {CFG.duration} min</span>
             <span className="pk-meta-item"><IcoPhone size={14} /> Phone call</span>
