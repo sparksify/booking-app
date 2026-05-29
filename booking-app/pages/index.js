@@ -229,17 +229,18 @@ export default function BookingPage() {
     if (phase !== 'picking') return;
     const now = new Date();
     const candidates = [];
+    const WINDOW_HRS = 7 * 24; // score window: 7 days
 
-    for (const day of days.slice(0, 5)) {
+    for (const day of days.slice(0, 7)) {
       const info = slotMap[day.dateStr];
       if (!info?.loaded) continue;
       for (const slot of info.slots) {
         const slotDate  = new Date(`${day.dateStr}T${pad(slot.h)}:${pad(slot.m)}:00`);
         const hoursAway = (slotDate - now) / 3600000;
-        if (hoursAway < 1.5 || hoursAway > 72) continue;
-        // Score: 9-12 best (3), 12-15 good (2), else (1); sooner = slight bonus
-        const timeScore   = slot.h >= 9 && slot.h < 12 ? 3 : slot.h >= 12 && slot.h < 15 ? 2 : 1;
-        const nearScore   = Math.max(0, 72 - hoursAway) / 72;
+        if (hoursAway < 1.5) continue; // skip slots < 90 min from now
+        // Score: 9-12 best (3), 12-15 good (2), else (1); sooner = bonus
+        const timeScore = slot.h >= 9 && slot.h < 12 ? 3 : slot.h >= 12 && slot.h < 15 ? 2 : 1;
+        const nearScore = Math.max(0, WINDOW_HRS - hoursAway) / WINDOW_HRS;
         candidates.push({
           ...slot,
           dateStr: day.dateStr,
@@ -417,10 +418,11 @@ function PickingPhase({
             </div>
           )}
 
-          {/* No 72-hr slots — push to full calendar */}
+          {/* No slots found — push to full calendar */}
           {slotsLoaded && !recommended && (
             <div className="gd-no-near">
-              No openings in the next 72 hours — use the full calendar below.
+              <p>No upcoming openings found.</p>
+              <p>Use the full calendar below to find a time that works.</p>
             </div>
           )}
 
