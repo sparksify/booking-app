@@ -25,6 +25,13 @@ const MON_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function isValidPhone(v) { return v.replace(/\D/g, '').length >= 7; }
 
+function formatPhone(p) {
+  const d = (p || '').replace(/\D/g, '');
+  if (d.length === 10) return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;
+  if (d.length === 11 && d[0] === '1') return `(${d.slice(1,4)}) ${d.slice(4,7)}-${d.slice(7)}`;
+  return p;
+}
+
 function canAdvance(step, answers) {
   const q   = QUESTIONS[step];
   const val = (answers[q.key] || '').trim();
@@ -380,10 +387,11 @@ function BookedPhase({ answers, selDate, selSlot }) {
             </svg>
           </div>
 
-          <div className="bkd-h">You're confirmed!</div>
+          <div className="bkd-thanks">Thanks, {answers.firstName}!</div>
+          <div className="bkd-h">Your Call Is Confirmed</div>
 
           <div className="bkd-email-line">
-            A calendar invite is on its way to<br />
+            We've sent a calendar invitation to<br />
             <strong>{answers.email}</strong>
           </div>
 
@@ -399,7 +407,10 @@ function BookedPhase({ answers, selDate, selSlot }) {
             </div>
             <div className="bkd-card-row bkd-row-sep">
               <div className="bkd-card-ico"><IcoPhone /></div>
-              <div className="bkd-card-val">Phone call — we'll call {answers.phone}</div>
+              <div>
+                <div className="bkd-card-val">Phone Call</div>
+                <div className="bkd-card-sub">We'll call you at {formatPhone(answers.phone)}</div>
+              </div>
             </div>
           </div>
 
