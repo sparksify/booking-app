@@ -116,10 +116,12 @@ export async function createCalendarEvent(member, booking, settings) {
 
   const calendar = google.calendar({ version: 'v3', auth });
 
-  const startMs  = Date.parse(`${booking.date}T${pad(booking.h)}:${pad(booking.m)}:00`);
-  const endMs    = startMs + settings.meetingDuration * 60_000;
-  const startISO = new Date(startMs).toISOString();
-  const endISO   = new Date(endMs).toISOString();
+  // Build local datetime strings WITHOUT a Z/offset suffix.
+  // Google Calendar interprets these using the timeZone field, which is what we want.
+  // Using toISOString() would append Z (UTC) and cause Google to ignore timeZone entirely.
+  const startDT   = `${booking.date}T${pad(booking.h)}:${pad(booking.m)}:00`;
+  const totalMins = booking.h * 60 + booking.m + settings.meetingDuration;
+  const endDT     = `${booking.date}T${pad(Math.floor(totalMins / 60))}:${pad(totalMins % 60)}:00`;
 
   const event = await calendar.events.insert({
     calendarId: member.calendar_id || 'primary',
@@ -128,8 +130,8 @@ export async function createCalendarEvent(member, booking, settings) {
     requestBody: {
       summary: settings.meetingTitle,
       description: `Booked via booking page.\n\nLead: ${booking.firstName} ${booking.lastName}\nPhone: ${booking.phone || 'N/A'}`,
-      start: { dateTime: startISO, timeZone: settings.timezone },
-      end:   { dateTime: endISO,   timeZone: settings.timezone },
+      start: { dateTime: startDT, timeZone: settings.timezone },
+      end:   { dateTime: endDT,   timeZone: settings.timezone },
       attendees: [
         { email: booking.email, displayName: `${booking.firstName} ${booking.lastName}` },
         { email: member.email,  displayName: member.name, organizer: true },
