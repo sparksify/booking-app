@@ -37,15 +37,28 @@ function handleVerify(req, res) {
   return res.status(403).json({ error: 'Forbidden' });
 }
 
+// ─── Raw body reader ─────────────────────────────────────────────────────────
+
+function getRawBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', chunk => { data += chunk; });
+    req.on('end', () => resolve(data));
+    req.on('error', reject);
+  });
+}
+
 // ─── Lead event handler ───────────────────────────────────────────────────────
 
 async function handleWebhook(req, res) {
-  // Verify payload signature (optional but recommended)
+  const rawBody = await getRawBody(req);
+
+  // Verify payload signature using the raw body bytes Facebook signed
   if (process.env.FB_APP_SECRET) {
     const sig      = req.headers['x-hub-signature-256'] || '';
     const expected = 'sha256=' + crypto
       .createHmac('sha256', process.env.FB_APP_SECRET)
-      .update(JSON.stringify(req.body))
+      .update(rawBody)
       .digest('hex');
 
     if (sig !== expected) {
@@ -57,7 +70,7 @@ async function handleWebhook(req, res) {
   // Acknowledge immediately — Facebook retries if we take > 20 s
   res.json({ ok: true });
 
-  const { entry = [] } = req.body;
+  const { entry = [] } = JSON.parse(rawBody);
   const supabase = getSupabaseAdmin();
 
   for (const e of entry) {
@@ -147,7 +160,7 @@ async function handleWebhook(req, res) {
   }
 }
 
-// Next.js needs raw body for signature verification — bodyParser must be on
+// Disable Next.js body parser so we can read the raw bytes for signature verification
 export const config = {
-  api: { bodyParser: true },
+  api: { bodyParser: false },
 };
