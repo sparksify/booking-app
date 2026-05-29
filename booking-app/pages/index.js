@@ -403,6 +403,7 @@ function PickingPhase({
   calExpanded, onToggleCal, recommended, alternatives, onPickGuidedSlot,
   onReserveRecommended, answers,
 }) {
+  const [recExpanded, setRecExpanded] = useState(true);
   const slotsLoaded = Object.values(slotMap).some(v => v.loaded);
 
   // The footer only shows when an alternative (or calendar slot) is chosen,
@@ -413,6 +414,11 @@ function PickingPhase({
     selSlot.h === recommended.h &&
     selSlot.m === recommended.m
   );
+
+  // Auto-collapse recommended when an alt/cal slot is chosen
+  useEffect(() => {
+    if (altOrCalSelected) setRecExpanded(false);
+  }, [altOrCalSelected]);
 
   // Full calendar date/slot rendering (used inside expanded section)
   const calDateInfo  = selDate ? (slotMap[selDate.dateStr] || { slots: [], loading: true }) : null;
@@ -451,16 +457,24 @@ function PickingPhase({
             </div>
           )}
 
-          {/* Recommended slot */}
+          {/* Recommended slot — expanded or minimized */}
           {slotsLoaded && recommended && (
-            <div className="gd-rec">
-              <span className="gd-rec-tag">⭐ Recommended</span>
-              <div className="gd-rec-time">{recommended.dayLabel} at {recommended.label}</div>
-              <div className="gd-rec-sub">{hoursLabel(recommended.hoursAway)} · {CFG.tz}</div>
-              <button className="gd-rec-btn" onClick={onReserveRecommended} disabled={booking}>
-                {booking ? <><span className="bspin" /> Confirming…</> : 'Reserve This Time'}
+            recExpanded ? (
+              <div className="gd-rec">
+                <span className="gd-rec-tag">⭐ Recommended</span>
+                <div className="gd-rec-time">{recommended.dayLabel} at {recommended.label}</div>
+                <div className="gd-rec-sub">{hoursLabel(recommended.hoursAway)} · {CFG.tz}</div>
+                <button className="gd-rec-btn" onClick={onReserveRecommended} disabled={booking}>
+                  {booking ? <><span className="bspin" /> Confirming…</> : 'Reserve This Time'}
+                </button>
+              </div>
+            ) : (
+              <button className="gd-rec-min" onClick={() => setRecExpanded(true)}>
+                <span className="gd-rec-min-star">⭐</span>
+                <span className="gd-rec-min-text">{recommended.dayLabel} · {recommended.label}</span>
+                <span className="gd-rec-min-arrow">▾</span>
               </button>
-            </div>
+            )
           )}
 
           {/* No slots found — push to full calendar */}
