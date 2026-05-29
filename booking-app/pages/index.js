@@ -255,9 +255,14 @@ export default function BookingPage() {
     }
 
     if (!candidates.length) return;
-    candidates.sort((a, b) => b.score - a.score);
-    setRecommended(candidates[0]);
-    setAlternatives(candidates.slice(1, 6));
+    // Pick the best slot per distinct day so alternatives span different days
+    const byDay = {};
+    for (const c of candidates) {
+      if (!byDay[c.dateStr] || c.score > byDay[c.dateStr].score) byDay[c.dateStr] = c;
+    }
+    const dayBests = Object.values(byDay).sort((a, b) => b.score - a.score);
+    setRecommended(dayBests[0]);
+    setAlternatives(dayBests.slice(1, 5));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slotMap, phase]);
 
@@ -300,6 +305,35 @@ export default function BookingPage() {
     setPhase('booked');
   }
 
+  // Book the recommended slot directly (no footer step)
+  async function reserveRecommended() {
+    if (!recommended || booking) return;
+    const day = days.find(d => d.dateStr === recommended.dateStr);
+    if (!day) return;
+    setSelDate(day);
+    setSelSlot({ h: recommended.h, m: recommended.m, label: recommended.label });
+    setBooking(true);
+    try {
+      await fetch('/api/book', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName:        answers.firstName,
+          lastName:         answers.lastName,
+          email:            answers.email,
+          phone:            answers.phone,
+          date:             recommended.dateStr,
+          h:                recommended.h,
+          m:                recommended.m,
+          label:            recommended.label,
+          investment_level: investmentLevel || undefined,
+        }),
+      });
+    } catch (_) {}
+    setBooking(false);
+    setPhase('booked');
+  }
+
   if (phase === 'form')
     return <FormPhase {...{ step, answers, setAnswers, doAdvance, doRetreat, inputRef }} />;
   if (phase === 'picking')
@@ -309,6 +343,7 @@ export default function BookingPage() {
       calExpanded={calExpanded} onToggleCal={() => setCalExpanded(e => !e)}
       recommended={recommended} alternatives={alternatives}
       onPickGuidedSlot={pickGuidedSlot}
+      onReserveRecommended={reserveRecommended}
       answers={answers}
     />;
   return <BookedPhase answers={answers} selDate={selDate} selSlot={selSlot} />;
@@ -365,9 +400,19 @@ function FormPhase({ step, answers, setAnswers, doAdvance, doRetreat, inputRef }
 // ─── Picking phase — guided booking V2 ───────────────────────────────────────
 function PickingPhase({
   days, slotMap, selDate, selSlot, onPickDate, onPickSlot, onConfirm, booking,
-  calExpanded, onToggleCal, recommended, alternatives, onPickGuidedSlot, answers,
+  calExpanded, onToggleCal, recommended, alternatives, onPickGuidedSlot,
+  onReserveRecommended, answers,
 }) {
   const slotsLoaded = Object.values(slotMap).some(v => v.loaded);
+
+  // The footer only shows when an alternative (or calendar slot) is chosen,
+  // NOT when the recommended card is the selection (it books directly).
+  const altOrCalSelected = selSlot && selDate && !(
+    recommended &&
+    selDate.dateStr === recommended.dateStr &&
+    selSlot.h === recommended.h &&
+    selSlot.m === recommended.m
+  );
 
   // Full calendar date/slot rendering (used inside expanded section)
   const calDateInfo  = selDate ? (slotMap[selDate.dateStr] || { slots: [], loading: true }) : null;
@@ -408,12 +453,12 @@ function PickingPhase({
 
           {/* Recommended slot */}
           {slotsLoaded && recommended && (
-            <div className={`gd-rec${selDate?.dateStr === recommended.dateStr && selSlot?.h === recommended.h ? ' gd-rec-chosen' : ''}`}>
+            <div className="gd-rec">
               <span className="gd-rec-tag">⭐ Recommended</span>
               <div className="gd-rec-time">{recommended.dayLabel} at {recommended.label}</div>
               <div className="gd-rec-sub">{hoursLabel(recommended.hoursAway)} · {CFG.tz}</div>
-              <button className="gd-rec-btn" onClick={() => onPickGuidedSlot(recommended)}>
-                Reserve This Time
+              <button className="gd-rec-btn" onClick={onReserveRecommended} disabled={booking}>
+                {booking ? <><span className="bspin" /> Confirming…</> : 'Reserve This Time'}
               </button>
             </div>
           )}
@@ -513,8 +558,8 @@ function PickingPhase({
           )}
         </div>
 
-        {/* ── Bottom bar — appears when slot selected ── */}
-        {selSlot && selDate && (
+        {/* ── Bottom bar — appears when an alternative or calendar slot is selected ── */}
+        {altOrCalSelected && (
           <div className="pk-cbar">
             <div className="pk-cbar-info">
               {selDate.dow}, {selDate.mon} {selDate.day} · {selSlot.label} · {CFG.duration} min
