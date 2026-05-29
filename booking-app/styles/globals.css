@@ -91,19 +91,19 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
    BOOKED v2 — personalized screen
 ══════════════════════════════════ */
 .bkd-root{position:fixed;inset:0;background:#F0F2F5;overflow-y:auto;-webkit-overflow-scrolling:touch;animation:fadeIn .5s both}
-.bkd-wrap{max-width:420px;width:100%;margin:0 auto;text-align:center;padding:32px 20px 48px}
-.bkd-circle{width:72px;height:72px;background:#16A34A;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;box-shadow:0 4px 16px rgba(22,163,74,.2)}
-.bkd-thanks{font-size:15px;font-weight:600;color:#65676B;letter-spacing:.02em;margin-bottom:6px}
-.bkd-h{font-size:28px;font-weight:700;color:#050505;letter-spacing:-.02em;margin-bottom:10px;line-height:1.15}
-.bkd-email-line{font-size:14px;color:#65676B;line-height:1.7;margin-bottom:20px}
-.bkd-email-line strong{display:block;color:#050505;font-weight:600;font-size:15px;margin-top:2px}
-.bkd-card{width:100%;background:#fff;border:1px solid #E4E6EB;border-radius:14px;overflow:hidden;text-align:left;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
-.bkd-card-row{display:flex;align-items:center;gap:14px;padding:13px 16px}
+.bkd-wrap{max-width:420px;width:100%;margin:0 auto;text-align:center;padding:20px 16px 24px}
+.bkd-circle{width:60px;height:60px;background:#16A34A;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;box-shadow:0 4px 14px rgba(22,163,74,.2)}
+.bkd-thanks{font-size:14px;font-weight:600;color:#65676B;margin-bottom:4px}
+.bkd-h{font-size:24px;font-weight:700;color:#050505;letter-spacing:-.02em;margin-bottom:6px;line-height:1.15}
+.bkd-email-line{font-size:13px;color:#65676B;line-height:1.5;margin-bottom:12px;word-break:break-all}
+.bkd-email-line strong{display:block;color:#050505;font-weight:600;font-size:14px;margin-top:1px}
+.bkd-card{width:100%;background:#fff;border:1px solid #E4E6EB;border-radius:12px;overflow:hidden;text-align:left;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.bkd-card-row{display:flex;align-items:center;gap:12px;padding:10px 14px}
 .bkd-row-sep{border-top:1px solid #E4E6EB}
-.bkd-card-ico{width:36px;height:36px;border-radius:50%;background:#E7F3FF;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#1877F2}
+.bkd-card-ico{width:32px;height:32px;border-radius:50%;background:#E7F3FF;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#1877F2}
 .bkd-card-lbl{font-size:10px;font-weight:700;color:#8A8D91;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px}
 .bkd-card-val{font-size:14px;font-weight:500;color:#050505}
-.bkd-foot{font-size:13px;color:#8A8D91;line-height:1.6;margin-bottom:0}
+.bkd-foot{font-size:12px;color:#8A8D91;line-height:1.5;margin-bottom:0}
 
 @media(max-width:480px){
   .tf-q{font-size:26px}
@@ -332,9 +332,9 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
 /* ══════════════════════════════════
    BOOKED — Add to Calendar section
 ══════════════════════════════════ */
-.bkd-cal-label{font-size:10px;font-weight:700;color:#8A8D91;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px;margin-top:24px}
+.bkd-cal-label{font-size:10px;font-weight:700;color:#8A8D91;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;margin-top:12px}
 .bkd-cal-list{width:100%;background:#fff;border:1px solid #E4E6EB;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08);text-align:left}
-.bkd-cal-row{display:flex;align-items:center;gap:14px;padding:14px 18px;cursor:pointer;text-decoration:none;color:inherit;transition:background .13s;-webkit-tap-highlight-color:transparent;border:none;background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;width:100%}
+.bkd-cal-row{display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;text-decoration:none;color:inherit;transition:background .13s;-webkit-tap-highlight-color:transparent;border:none;background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;width:100%}
 .bkd-cal-row:hover{background:#F0F2F5}
 .bkd-cal-row+.bkd-cal-row{border-top:1px solid #E4E6EB}
 .bkd-cal-row:active{background:#E4E6EB}
