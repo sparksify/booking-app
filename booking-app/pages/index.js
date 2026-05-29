@@ -415,10 +415,9 @@ function PickingPhase({
     selSlot.m === recommended.m
   );
 
-  // Auto-collapse recommended when an alt/cal slot is chosen
-  useEffect(() => {
-    if (altOrCalSelected) setRecExpanded(false);
-  }, [altOrCalSelected]);
+  // Wrappers that also collapse the recommended card
+  function pickAlt(slot) { onPickGuidedSlot(slot); setRecExpanded(false); }
+  function pickCalSlot(sl) { onPickSlot(sl); setRecExpanded(false); }
 
   // Full calendar date/slot rendering (used inside expanded section)
   const calDateInfo  = selDate ? (slotMap[selDate.dateStr] || { slots: [], loading: true }) : null;
@@ -461,7 +460,10 @@ function PickingPhase({
           {slotsLoaded && recommended && (
             recExpanded ? (
               <div className="gd-rec">
-                <span className="gd-rec-tag">⭐ Recommended</span>
+                <div className="gd-rec-hdr">
+                  <span className="gd-rec-tag">⭐ Recommended</span>
+                  <button className="gd-rec-collapse" onClick={() => setRecExpanded(false)} title="Minimize">▲</button>
+                </div>
                 <div className="gd-rec-time">{recommended.dayLabel} at {recommended.label}</div>
                 <div className="gd-rec-sub">{hoursLabel(recommended.hoursAway)} · {CFG.tz}</div>
                 <button className="gd-rec-btn" onClick={onReserveRecommended} disabled={booking}>
@@ -470,8 +472,7 @@ function PickingPhase({
               </div>
             ) : (
               <button className="gd-rec-min" onClick={() => setRecExpanded(true)}>
-                <span className="gd-rec-min-star">⭐</span>
-                <span className="gd-rec-min-text">{recommended.dayLabel} · {recommended.label}</span>
+                <span className="gd-rec-min-text">Recommended · {recommended.dayLabel} · {recommended.label}</span>
                 <span className="gd-rec-min-arrow">▾</span>
               </button>
             )
@@ -492,7 +493,7 @@ function PickingPhase({
               {alternatives.map((slot, i) => {
                 const isSel = selDate?.dateStr === slot.dateStr && selSlot?.h === slot.h && selSlot?.m === slot.m;
                 return (
-                  <button key={i} className={`gd-alt${isSel ? ' gd-alt-sel' : ''}`} onClick={() => onPickGuidedSlot(slot)}>
+                  <button key={i} className={`gd-alt${isSel ? ' gd-alt-sel' : ''}`} onClick={() => pickAlt(slot)}>
                     <span className="gd-alt-label">{slot.dayLabel} — {slot.label}</span>
                     {isSel && <span className="gd-alt-check">✓</span>}
                   </button>
@@ -560,7 +561,7 @@ function PickingPhase({
                     {calSlots.map(sl => {
                       const isOn = selSlot?.h === sl.h && selSlot?.m === sl.m && selDate?.dateStr === selDate?.dateStr;
                       return (
-                        <button key={`${sl.h}-${sl.m}`} className={`pk-slot${isOn ? ' on' : ''}`} onClick={() => onPickSlot(sl)}>
+                        <button key={`${sl.h}-${sl.m}`} className={`pk-slot${isOn ? ' on' : ''}`} onClick={() => pickCalSlot(sl)}>
                           {sl.label}
                         </button>
                       );
@@ -576,7 +577,8 @@ function PickingPhase({
         {altOrCalSelected && (
           <div className="pk-cbar">
             <div className="pk-cbar-info">
-              {selDate.dow}, {selDate.mon} {selDate.day} · {selSlot.label} · {CFG.duration} min
+              <span className="pk-cbar-date">{selDate.dow}, {selDate.mon} {selDate.day}</span>
+              {' · '}{selSlot.label} · {CFG.duration} min
             </div>
             <button className="pk-cbar-btn" onClick={onConfirm} disabled={booking}>
               {booking ? <><span className="bspin" /> Confirming…</> : 'Reserve My Spot'}

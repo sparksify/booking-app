@@ -317,6 +317,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
 /* Confirm bottom bar — stacked: info text above, full-width button below */
 .pk-cbar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #E4E6EB;padding:12px 16px 20px;display:flex;flex-direction:column;gap:10px;box-shadow:0 -4px 24px rgba(0,0,0,.1);animation:su .22s cubic-bezier(.4,0,.2,1) both;z-index:60}
 .pk-cbar-info{text-align:center;font-size:14px;font-weight:600;color:#050505}
+.pk-cbar-date{background:#FFD700;color:#1a1a1a;border-radius:6px;padding:2px 8px;font-weight:700}
 .pk-cbar-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:#1877F2;color:#fff;border:none;border-radius:24px;padding:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:17px;font-weight:700;cursor:pointer;transition:all .18s;box-shadow:0 2px 8px rgba(24,119,242,.25)}
 .pk-cbar-btn:hover:not(:disabled){background:#166FE5;box-shadow:0 4px 14px rgba(24,119,242,.3)}
 .pk-cbar-btn:disabled{opacity:.5;cursor:not-allowed}
@@ -366,8 +367,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
 .gd-rec-min{width:100%;display:flex;align-items:center;gap:10px;background:#E7F3FF;border:1.5px solid #B0C9F7;border-radius:14px;padding:11px 14px;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;transition:all .14s;-webkit-tap-highlight-color:transparent;text-align:left}
 .gd-rec-min:hover{background:#D0E6FF;border-color:#1877F2}
 .gd-rec-min:active{transform:scale(.98)}
-.gd-rec-min-star{font-size:14px;flex-shrink:0}
-.gd-rec-min-text{flex:1;font-size:14px;font-weight:600;color:#1877F2}
+.gd-rec-min-text{flex:1;font-size:13px;font-weight:600;color:#1877F2}
 .gd-rec-min-arrow{font-size:13px;color:#1877F2;flex-shrink:0;opacity:.7}
 
 .gd-no-near{text-align:center;padding:32px 16px;background:#F7F8FA;border-radius:16px;border:1px dashed #D0D3DA}
@@ -378,7 +378,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
 .gd-rec{background:#fff;border:2px solid #1877F2;border-radius:20px;padding:20px 18px 16px;box-shadow:0 4px 20px rgba(24,119,242,.12);transition:box-shadow .15s,transform .12s}
 .gd-rec.gd-rec-chosen{background:#E7F3FF;box-shadow:0 0 0 3px rgba(24,119,242,.2),0 4px 20px rgba(24,119,242,.15)}
 
-.gd-rec-tag{display:inline-flex;align-items:center;gap:5px;background:#E7F3FF;color:#1877F2;border-radius:20px;padding:4px 11px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px}
+/* Recommended card header row (tag + collapse button) */
+.gd-rec-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.gd-rec-tag{display:inline-flex;align-items:center;gap:5px;background:#E7F3FF;color:#1877F2;border-radius:20px;padding:4px 11px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.gd-rec-collapse{background:none;border:none;cursor:pointer;font-size:13px;color:#8A8D91;padding:4px 6px;border-radius:8px;transition:all .13s;line-height:1}
+.gd-rec-collapse:hover{background:#E4E6EB;color:#444}
 
 .gd-rec-time{font-size:22px;font-weight:800;color:#050505;line-height:1.1;margin-bottom:4px}
 .gd-rec-day{font-size:15px;font-weight:600;color:#444;margin-bottom:2px}
