@@ -244,3 +244,100 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
   .cfm-row-val{font-size:17px}
   .cfm-btn{font-size:16px;padding:16px}
 }
+
+/* ══════════════════════════════════
+   PICKING PHASE (Calendly-style)
+══════════════════════════════════ */
+
+/* Root container */
+.pk-root{position:fixed;inset:0;background:#F0F2F5;display:flex;flex-direction:column;overflow:hidden;animation:fadeIn .3s both}
+
+/* Profile header */
+.pk-profile-wrap{flex-shrink:0;background:#fff;border-bottom:1px solid #E4E6EB;padding:20px 20px 16px;text-align:center;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.pk-avatar{width:64px;height:64px;border-radius:50%;background:#1877F2;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:22px;font-weight:700;color:#fff;letter-spacing:-.03em;box-shadow:0 4px 14px rgba(24,119,242,.25);flex-shrink:0}
+.pk-host-name{font-size:19px;font-weight:700;color:#050505;letter-spacing:-.02em;margin-bottom:3px}
+.pk-host-title{font-size:13px;color:#65676B;margin-bottom:14px}
+
+/* Meta row */
+.pk-meta-row{display:flex;align-items:center;justify-content:center;gap:0;flex-wrap:wrap;background:#fff;padding:10px 0 14px;border-bottom:1px solid #E4E6EB}
+.pk-meta-item{display:flex;align-items:center;gap:5px;font-size:12px;color:#65676B;padding:0 11px}
+.pk-meta-item svg{flex-shrink:0;color:#8A8D91}
+/* pk-divider is a horizontal rule between header and date strip */
+.pk-divider{height:0;border:none}
+
+/* Date strip */
+.pk-strip-label{flex-shrink:0;font-size:10px;font-weight:700;color:#8A8D91;text-transform:uppercase;letter-spacing:.1em;padding:14px 18px 6px;background:#F0F2F5}
+.pk-date-wrap{flex-shrink:0;overflow-x:auto;scrollbar-width:none;background:#F0F2F5;padding:0 14px 10px}
+.pk-date-wrap::-webkit-scrollbar{display:none}
+.pk-date-strip{display:flex;gap:7px;min-width:max-content;padding:4px 2px}
+
+/* Date chips */
+.pk-dc{display:flex;flex-direction:column;align-items:center;gap:1px;padding:9px 14px;border-radius:14px;border:1.5px solid #E4E6EB;background:#fff;cursor:pointer;transition:all .13s;color:#65676B;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;min-width:52px;-webkit-tap-highlight-color:transparent}
+.pk-dc:hover:not([disabled]){border-color:#1877F2;background:#E7F3FF;color:#1877F2}
+.pk-dc.on{background:#1877F2!important;border-color:#1877F2!important;color:#fff!important;box-shadow:0 3px 10px rgba(24,119,242,.28)!important}
+.pk-dc[disabled]{opacity:.22;cursor:not-allowed}
+.pk-dc-dow{font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;opacity:.7}
+.pk-dc.on .pk-dc-dow{opacity:.8}
+.pk-dc-num{font-size:18px;font-weight:700;line-height:1.1}
+.pk-dc-mon{font-size:9px;font-weight:500}
+.pk-dc-dot{width:4px;height:4px;background:#1877F2;border-radius:50%;margin-top:2px}
+.pk-dc.on .pk-dc-dot{background:rgba(255,255,255,.65)}
+
+/* Slots area */
+.pk-slots-outer{flex:1;min-height:0;overflow-y:auto;padding:12px 14px 120px;scrollbar-width:thin;scrollbar-color:#E4E6EB transparent}
+
+/* Empty state */
+.pk-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:220px;gap:8px;text-align:center;color:#8A8D91;padding:24px}
+.pk-empty-ico{font-size:38px;line-height:1;margin-bottom:4px}
+.pk-empty-h{font-size:16px;font-weight:600;color:#65676B}
+.pk-empty-s{font-size:13px;color:#8A8D91;line-height:1.6;max-width:200px}
+
+/* Slots header */
+.pk-slots-hdr{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.pk-slots-date{font-size:14px;font-weight:700;color:#050505}
+.pk-slots-badge{background:#E7F3FF;color:#1877F2;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:600}
+
+/* Slot grid */
+.pk-slots-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pk-slot{height:52px;border-radius:20px;border:1.5px solid #E4E6EB;background:#fff;color:#050505;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all .12s;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(0,0,0,.08);-webkit-tap-highlight-color:transparent}
+.pk-slot:hover{border-color:#1877F2;background:#E7F3FF;color:#1877F2;box-shadow:0 4px 12px rgba(24,119,242,.12)}
+.pk-slot:active{transform:scale(.96)}
+.pk-slot.on{background:#E7F3FF!important;border-color:#1877F2!important;color:#1877F2!important;font-weight:700!important;box-shadow:0 0 0 3px rgba(24,119,242,.15)!important}
+.pk-skel{height:52px;border-radius:20px;background:linear-gradient(90deg,#F0F2F5 25%,#E4E6EB 50%,#F0F2F5 75%);background-size:200% 100%;animation:shimmer 1.3s ease-in-out infinite}
+
+/* Confirm bottom bar */
+.pk-cbar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #E4E6EB;padding:14px 20px 20px;display:flex;align-items:center;justify-content:space-between;gap:14px;box-shadow:0 -4px 24px rgba(0,0,0,.1);animation:su .22s cubic-bezier(.4,0,.2,1) both;z-index:60}
+.pk-cbar-info{display:flex;flex-direction:column;gap:2px;min-width:0}
+.pk-cbar-info .pk-cbar-date{font-size:14px;font-weight:700;color:#050505;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pk-cbar-info .pk-cbar-time{font-size:12px;color:#65676B}
+.pk-cbar-btn{flex-shrink:0;display:flex;align-items:center;gap:8px;background:#1877F2;color:#fff;border:none;border-radius:20px;padding:12px 22px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;cursor:pointer;transition:all .18s;box-shadow:0 2px 8px rgba(24,119,242,.25);white-space:nowrap}
+.pk-cbar-btn:hover:not(:disabled){background:#166FE5;transform:translateY(-1px);box-shadow:0 4px 14px rgba(24,119,242,.3)}
+.pk-cbar-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+@media(max-width:480px){
+  .pk-profile-wrap{padding:16px 16px 12px}
+  .pk-avatar{width:56px;height:56px;font-size:19px}
+  .pk-host-name{font-size:17px}
+  .pk-date-wrap{padding:0 10px 8px}
+  .pk-slots-outer{padding:10px 10px 110px}
+  .pk-slots-grid{gap:6px}
+  .pk-slot{height:48px;font-size:13px}
+  .pk-skel{height:48px}
+  .pk-cbar{padding:12px 14px 16px}
+  .pk-cbar-info .pk-cbar-date{font-size:13px}
+  .pk-cbar-btn{padding:11px 18px;font-size:14px}
+}
+
+/* ══════════════════════════════════
+   BOOKED — Add to Calendar section
+══════════════════════════════════ */
+.bkd-cal-label{font-size:10px;font-weight:700;color:#8A8D91;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px;margin-top:24px}
+.bkd-cal-list{width:100%;background:#fff;border:1px solid #E4E6EB;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08);text-align:left}
+.bkd-cal-row{display:flex;align-items:center;gap:14px;padding:14px 18px;cursor:pointer;text-decoration:none;color:inherit;transition:background .13s;-webkit-tap-highlight-color:transparent;border:none;background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;width:100%}
+.bkd-cal-row:hover{background:#F0F2F5}
+.bkd-cal-row+.bkd-cal-row{border-top:1px solid #E4E6EB}
+.bkd-cal-row:active{background:#E4E6EB}
+.bkd-cal-ico{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
+.bkd-cal-name{font-size:15px;font-weight:600;color:#050505}
+.bkd-cal-desc{font-size:12px;color:#8A8D91;margin-top:1px}
+.bkd-cal-arrow{color:#CED0D4;flex-shrink:0}

@@ -1,27 +1,26 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 
 // ─── Config ────────────────────────────────────────────────────────────────────
 const CFG = {
   hostName:     process.env.NEXT_PUBLIC_HOST_NAME     || 'Steve Sparks',
-  calTitle:     'Choose a Time That Works Best for You',
-  meetingTitle: process.env.NEXT_PUBLIC_MEETING_TITLE || '15-Minute Phone Call',
+  hostTitle:    process.env.NEXT_PUBLIC_HOST_TITLE    || 'Franchise Consultant',
+  meetingTitle: process.env.NEXT_PUBLIC_MEETING_TITLE || '15-Minute Franchise Discovery Call',
   duration:     parseInt(process.env.NEXT_PUBLIC_MEETING_DURATION || '15'),
   tz:           process.env.NEXT_PUBLIC_TIMEZONE_DISPLAY || 'Central Time',
   daysAhead:    14,
 };
 
-// ─── Question definitions ─────────────────────────────────────────────────────
+// ─── Questions ────────────────────────────────────────────────────────────────
 const QUESTIONS = [
-  { q: ()    => "What's your first name?",                   ph: 'Type your answer…', key: 'firstName', type: 'text'  },
-  { q: (ans) => `Hi ${ans.firstName}! Last name?`,           ph: 'Type your answer…', key: 'lastName',  type: 'text'  },
-  { q: ()    => 'Best phone number?',                        ph: 'Type your answer…', key: 'phone',     type: 'tel'   },
-  { q: ()    => 'Email address?',                            ph: 'Type your answer…', key: 'email',     type: 'email' },
+  { q: ()    => "What's your first name?",                 ph: 'Type your answer…', key: 'firstName', type: 'text'  },
+  { q: (ans) => `Hi ${ans.firstName}! Last name?`,         ph: 'Type your answer…', key: 'lastName',  type: 'text'  },
+  { q: ()    => 'Best phone number?',                      ph: 'Type your answer…', key: 'phone',     type: 'tel'   },
+  { q: ()    => 'Email address?',                          ph: 'Type your answer…', key: 'email',     type: 'email' },
 ];
 
-const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-const DOW_NAMES   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const MON_SHORT   = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DOW_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MON_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function isValidPhone(v) { return v.replace(/\D/g, '').length >= 7; }
@@ -43,34 +42,77 @@ function generateWorkdays(daysAhead) {
     if (d.getDay() === 0 || d.getDay() === 6) continue;
     days.push({
       dateStr: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,
-      dow:     DOW_NAMES[d.getDay()],
-      mon:     MON_SHORT[d.getMonth()],
-      day:     d.getDate(),
-      month:   d.getMonth(),   // 0-indexed
-      year:    d.getFullYear(),
+      dow: DOW_NAMES[d.getDay()],
+      mon: MON_SHORT[d.getMonth()],
+      day: d.getDate(),
     });
     count++;
   }
   return days;
 }
 
+// ─── Calendar helpers ─────────────────────────────────────────────────────────
+function makeGcalUrl(selDate, selSlot) {
+  const [yr, mo, dy] = selDate.dateStr.split('-').map(Number);
+  const start = new Date(yr, mo - 1, dy, selSlot.h, selSlot.m);
+  const end   = new Date(start.getTime() + CFG.duration * 60000);
+  const fmt   = d => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  const text  = encodeURIComponent(CFG.meetingTitle);
+  const det   = encodeURIComponent(`Phone call with ${CFG.hostName}`);
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${fmt(start)}/${fmt(end)}&details=${det}`;
+}
+
+function downloadIcs(selDate, selSlot, answers) {
+  const [yr, mo, dy] = selDate.dateStr.split('-').map(Number);
+  const start = new Date(yr, mo - 1, dy, selSlot.h, selSlot.m);
+  const end   = new Date(start.getTime() + CFG.duration * 60000);
+  const fmtLocal = d =>
+    d.getFullYear() +
+    String(d.getMonth() + 1).padStart(2, '0') +
+    String(d.getDate()).padStart(2, '0') +
+    'T' +
+    String(d.getHours()).padStart(2, '0') +
+    String(d.getMinutes()).padStart(2, '0') +
+    '00';
+  const uid = `${Date.now()}@sparksify`;
+  const phone = answers.phone ? ` We will call you at ${answers.phone}.` : '';
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Steve Sparks//Booking//EN',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTART:${fmtLocal(start)}`,
+    `DTEND:${fmtLocal(end)}`,
+    `SUMMARY:${CFG.meetingTitle}`,
+    `DESCRIPTION:Phone call with ${CFG.hostName}.${phone}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n');
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'franchise-discovery-call.ics';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function BookingPage() {
-  // phases: 'form' | 'calendar' | 'slots' | 'confirm' | 'booked'
+  // phases: 'form' | 'picking' | 'booked'
   const [phase,   setPhase]   = useState('form');
   const [step,    setStep]    = useState(0);
   const [answers, setAnswers] = useState({ firstName: '', lastName: '', phone: '', email: '' });
   const [days,    setDays]    = useState([]);
-  const [slotMap, setSlotMap] = useState({});   // dateStr → { slots, loading, loaded }
-  const [selDate, setSelDate] = useState(null); // day object from generateWorkdays
-  const [selSlot, setSelSlot] = useState(null); // { h, m, label }
+  const [slotMap, setSlotMap] = useState({});
+  const [selDate, setSelDate] = useState(null);
+  const [selSlot, setSelSlot] = useState(null);
   const [booking, setBooking] = useState(false);
   const inputRef = useRef(null);
 
-  // Generate workdays client-side (avoids SSR hydration mismatch)
   useEffect(() => { setDays(generateWorkdays(CFG.daysAhead)); }, []);
 
-  // Facebook URL params → skip form, jump straight to calendar
+  // Facebook URL params → skip form
   useEffect(() => {
     const p  = new URLSearchParams(window.location.search);
     const fn = p.get('first_name')   || p.get('firstName') || '';
@@ -79,20 +121,20 @@ export default function BookingPage() {
     const ph = p.get('phone_number') || p.get('phone')     || '';
     if (fn || em) {
       setAnswers({ firstName: fn, lastName: ln, phone: ph, email: em });
-      setPhase('calendar');
+      setPhase('picking');
     }
   }, []);
 
-  // Auto-focus input on each form step
+  // Auto-focus form input
   useEffect(() => {
     if (phase !== 'form' || !inputRef.current) return;
     const el = inputRef.current;
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      try { el.focus(); el.click(); } catch (_) {}
+      try { el.focus(); } catch (_) {}
     }));
   }, [phase, step]);
 
-  // Keyboard: Enter to advance form
+  // Keyboard Enter for form
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Enter' || phase !== 'form') return;
@@ -103,9 +145,9 @@ export default function BookingPage() {
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  // Pre-fetch ALL 14 days simultaneously on calendar phase entry
+  // Pre-fetch all slot availability when entering picking phase
   useEffect(() => {
-    if (phase !== 'calendar' || days.length === 0) return;
+    if (phase !== 'picking' || days.length === 0) return;
     setSlotMap(prev => {
       const next = { ...prev };
       days.forEach(d => {
@@ -122,29 +164,14 @@ export default function BookingPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, days]);
 
-  // ── Actions ────────────────────────────────────────────────────────────────
-
   function doAdvance() {
-    if (step + 1 >= QUESTIONS.length) setPhase('calendar');
+    if (step + 1 >= QUESTIONS.length) setPhase('picking');
     else setStep(s => s + 1);
   }
   function doRetreat() { if (step > 0) setStep(s => s - 1); }
 
-  function pickDate(day) {
-    setSelDate(day);
-    setSelSlot(null);
-    setPhase('slots');
-  }
-
-  function pickSlot(sl) {
-    setSelSlot(sl);
-    setPhase('confirm');
-  }
-
-  function editField(stepIndex) {
-    setStep(stepIndex);
-    setPhase('form');
-  }
+  function pickDate(day) { setSelDate(day); setSelSlot(null); }
+  function pickSlot(sl)  { setSelSlot(sl); }
 
   async function confirmBooking() {
     if (!selDate || !selSlot || booking) return;
@@ -164,25 +191,20 @@ export default function BookingPage() {
           label:     selSlot.label,
         }),
       });
-    } catch (_) { /* still advance to booked screen */ }
+    } catch (_) {}
     setBooking(false);
     setPhase('booked');
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-
   if (phase === 'form')
     return <FormPhase {...{ step, answers, setAnswers, doAdvance, doRetreat, inputRef }} />;
-  if (phase === 'calendar')
-    return <CalendarPhase days={days} slotMap={slotMap} onPickDate={pickDate} />;
-  if (phase === 'slots')
-    return <SlotsPhase day={selDate} slotMap={slotMap} onPickSlot={pickSlot} onBack={() => setPhase('calendar')} />;
-  if (phase === 'confirm')
-    return <ConfirmPhase selDate={selDate} selSlot={selSlot} booking={booking} onConfirm={confirmBooking} onBack={() => setPhase('slots')} answers={answers} onEditField={editField} />;
+  if (phase === 'picking')
+    return <PickingPhase days={days} slotMap={slotMap} selDate={selDate} selSlot={selSlot}
+             onPickDate={pickDate} onPickSlot={pickSlot} onConfirm={confirmBooking} booking={booking} />;
   return <BookedPhase answers={answers} selDate={selDate} selSlot={selSlot} />;
 }
 
-// ─── Form phase (unchanged) ───────────────────────────────────────────────────
+// ─── Form phase ───────────────────────────────────────────────────────────────
 function FormPhase({ step, answers, setAnswers, doAdvance, doRetreat, inputRef }) {
   const total   = QUESTIONS.length;
   const pct     = Math.round(((step + 1) / (total + 1)) * 100);
@@ -230,227 +252,115 @@ function FormPhase({ step, answers, setAnswers, doAdvance, doRetreat, inputRef }
   );
 }
 
-// ─── Calendar phase ───────────────────────────────────────────────────────────
-function CalendarPhase({ days, slotMap, onPickDate }) {
-  const todayMidnight = useMemo(() => {
-    const t = new Date(); t.setHours(0, 0, 0, 0); return t;
-  }, []);
+// ─── Picking phase (date strip + inline slots) ────────────────────────────────
+function PickingPhase({ days, slotMap, selDate, selSlot, onPickDate, onPickSlot, onConfirm, booking }) {
+  const info    = selDate ? (slotMap[selDate.dateStr] || { slots: [], loading: true, loaded: false }) : null;
+  const slots   = info?.slots   || [];
+  const loading = info?.loading ?? false;
 
-  const [vm, setVm] = useState(todayMidnight.getMonth());
-  const [vy, setVy] = useState(todayMidnight.getFullYear());
-
-  // Quick lookup: dateStr → day object
-  const dayMap = useMemo(() => {
-    const m = {};
-    days.forEach(d => { m[d.dateStr] = d; });
-    return m;
-  }, [days]);
-
-  const lastDay  = days[days.length - 1];
-  const maxMonth = lastDay?.month ?? todayMidnight.getMonth();
-  const maxYear  = lastDay?.year  ?? todayMidnight.getFullYear();
-
-  const canPrev = vy > todayMidnight.getFullYear() || vm > todayMidnight.getMonth();
-  const canNext = vy < maxYear || (vy === maxYear && vm < maxMonth);
-
-  function changeMonth(delta) {
-    let nm = vm + delta, ny = vy;
-    if (nm > 11) { nm = 0; ny++; }
-    if (nm < 0)  { nm = 11; ny--; }
-    setVm(nm); setVy(ny);
-  }
-
-  const firstDow    = new Date(vy, vm, 1).getDay();
-  const daysInMonth = new Date(vy, vm + 1, 0).getDate();
+  const initials = CFG.hostName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
   return (
     <>
-      <Head><title>Schedule a Call</title></Head>
-      <div className="cv2-root">
+      <Head><title>Schedule a Call — {CFG.hostName}</title></Head>
+      <div className="pk-root">
 
-        {/* Info bar */}
-        <div className="cv2-infobar">
-          <div className="cv2-infobar-title">{CFG.calTitle}</div>
-          <div className="cv2-infobar-sub">15-Minute Franchise Discovery Call</div>
-          <div className="cv2-infobar-desc">Quick conversation. No pressure. We'll answer your questions and help you see if this is a fit.</div>
-        </div>
-
-        {/* Month navigation */}
-        <div className="cv2-month-nav">
-          <button className="cv2-nav-btn" disabled={!canPrev} onClick={() => changeMonth(-1)} aria-label="Previous month">
-            <ChevronLeft />
-          </button>
-          <span className="cv2-month-label">{MONTH_NAMES[vm]} {vy}</span>
-          <button className="cv2-nav-btn" disabled={!canNext} onClick={() => changeMonth(1)} aria-label="Next month">
-            <ChevronRight />
-          </button>
-        </div>
-
-        {/* Day-of-week headers */}
-        <div className="cv2-dow-row">
-          {['S','M','T','W','T','F','S'].map((d, i) => (
-            <div key={i} className="cv2-dow">{d}</div>
-          ))}
-        </div>
-
-        {/* Calendar grid */}
-        <div className="cv2-grid">
-          {/* Blank padding cells */}
-          {Array.from({ length: firstDow }).map((_, i) => (
-            <div key={`b${i}`} className="cv2-cell" />
-          ))}
-          {/* Day cells */}
-          {Array.from({ length: daysInMonth }).map((_, i) => {
-            const d       = i + 1;
-            const dateStr = `${vy}-${String(vm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-            const dt      = new Date(vy, vm, d, 0, 0, 0, 0);
-            const isPast  = dt < todayMidnight;
-            const isWe    = dt.getDay() === 0 || dt.getDay() === 6;
-            const dayObj  = dayMap[dateStr];
-            const info    = slotMap[dateStr];
-            // Show as available while loading; hide only if confirmed 0 slots
-            const noSlots = info?.loaded && info.slots.length === 0;
-            const isAvail = !isPast && !isWe && !!dayObj && !noSlots;
-
-            return (
-              <div
-                key={dateStr}
-                className={`cv2-cell${isAvail ? ' cv2-cell-avail' : ' cv2-cell-dim'}`}
-                onClick={isAvail ? () => onPickDate(dayObj) : undefined}
-              >
-                <span className="cv2-num">{d}</span>
-                {isAvail && <span className="cv2-dot" />}
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="cv2-legend">
-          <span className="cv2-ldot" />
-          <span>Available — tap a date to see times</span>
-        </div>
-      </div>
-    </>
-  );
-}
-
-// ─── Slots phase ──────────────────────────────────────────────────────────────
-function SlotsPhase({ day, slotMap, onPickSlot, onBack }) {
-  if (!day) return null;
-  const info             = slotMap[day.dateStr] || { slots: [], loading: true, loaded: false };
-  const { slots, loading } = info;
-
-  return (
-    <>
-      <Head><title>Schedule a Call</title></Head>
-      <div className="sv2-root">
-
-        {/* Header: back + date */}
-        <div className="sv2-hdr">
-          <button className="sv2-back" onClick={onBack} aria-label="Back to calendar">
-            <ArrowLeft />
-          </button>
+        {/* Profile header */}
+        <div className="pk-profile-wrap">
+          <div className="pk-avatar">{initials}</div>
           <div>
-            <div className="sv2-hdr-date">{day.dow}, {day.mon} {day.day}</div>
-            <div className="sv2-hdr-count">
-              {loading ? 'Loading times…' : `${slots.length} times available · ${CFG.duration} min`}
-            </div>
+            <div className="pk-host-name">{CFG.hostName}</div>
+            <div className="pk-host-title">{CFG.hostTitle}</div>
+          </div>
+        </div>
+        <div className="pk-meta-row">
+          <span className="pk-meta-item"><IcoClk size={14} /> {CFG.duration} min</span>
+          <span className="pk-meta-item"><IcoPhone size={14} /> Phone call</span>
+          <span className="pk-meta-item"><IcoGlobe size={14} /> {CFG.tz}</span>
+        </div>
+        <div className="pk-divider" />
+
+        {/* Date strip */}
+        <div className="pk-strip-label">SELECT A DATE</div>
+        <div className="pk-date-wrap">
+          <div className="pk-date-strip">
+            {days.map(d => {
+              const info    = slotMap[d.dateStr];
+              const noSlots = info?.loaded && info.slots.length === 0;
+              if (noSlots) return null;
+              const isOn = selDate?.dateStr === d.dateStr;
+              return (
+                <button key={d.dateStr} className={`pk-dc${isOn ? ' on' : ''}`} onClick={() => onPickDate(d)}>
+                  <span className="pk-dc-dow">{d.dow}</span>
+                  <span className="pk-dc-num">{d.day}</span>
+                  <span className="pk-dc-mon">{d.mon}</span>
+                  <span className="pk-dc-dot" />
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Slots or skeleton or empty */}
-        <div className="sv2-body">
-          {loading ? (
-            <div className="sv2-grid">
-              {Array.from({ length: 9 }).map((_, i) => (
-                <div key={i} className="skel sv2-skel" style={{ animationDelay: `${i * 40}ms` }} />
-              ))}
+        {/* Slots area */}
+        <div className="pk-slots-outer">
+          {!selDate ? (
+            <div className="pk-empty">
+              <div className="pk-empty-ico">👆</div>
+              <div className="pk-empty-h">Pick a date above</div>
+              <div className="pk-empty-s">Available times will appear here</div>
             </div>
+          ) : loading ? (
+            <>
+              <div className="pk-slots-hdr">
+                <span className="pk-slots-date">{selDate.dow}, {selDate.mon} {selDate.day}</span>
+              </div>
+              <div className="pk-slots-grid">
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <div key={i} className="skel pk-skel" style={{ animationDelay: `${i * 40}ms` }} />
+                ))}
+              </div>
+            </>
           ) : slots.length === 0 ? (
-            <div className="slots-empty" style={{ minHeight: 300 }}>
-              <div className="slots-empty-ico">😔</div>
-              <div className="slots-empty-h">Fully booked</div>
-              <div className="slots-empty-s">Try a different date</div>
-              <button
-                onClick={onBack}
-                style={{ marginTop: 20, background: '#1877F2', color: '#fff', border: 'none', borderRadius: 20, padding: '11px 22px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" }}
-              >
-                ← Pick another day
-              </button>
+            <div className="pk-empty">
+              <div className="pk-empty-ico">😔</div>
+              <div className="pk-empty-h">Fully booked</div>
+              <div className="pk-empty-s">Try a different date</div>
             </div>
           ) : (
-            <div className="sv2-grid">
-              {slots.map(sl => (
-                <button
-                  key={`${sl.h}-${sl.m}`}
-                  className="sv2-slot"
-                  onClick={() => onPickSlot(sl)}
-                >
-                  {sl.label}
-                </button>
-              ))}
-            </div>
+            <>
+              <div className="pk-slots-hdr">
+                <span className="pk-slots-date">{selDate.dow}, {selDate.mon} {selDate.day}</span>
+                <span className="pk-slots-badge">{slots.length} open</span>
+              </div>
+              <div className="pk-slots-grid">
+                {slots.map(sl => {
+                  const isOn = selSlot?.h === sl.h && selSlot?.m === sl.m;
+                  return (
+                    <button
+                      key={`${sl.h}-${sl.m}`}
+                      className={`pk-slot${isOn ? ' on' : ''}`}
+                      onClick={() => onPickSlot(sl)}
+                    >
+                      {sl.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
-      </div>
-    </>
-  );
-}
 
-// ─── Confirm phase ────────────────────────────────────────────────────────────
-function ConfirmPhase({ selDate, selSlot, booking, onConfirm, onBack, answers, onEditField }) {
-  if (!selDate || !selSlot) return null;
-
-  return (
-    <>
-      <Head><title>Confirm Your Booking</title></Head>
-      <div className="cfm-root">
-
-        {/* Header */}
-        <div className="cfm-hdr">
-          <button className="sv2-back" onClick={onBack} aria-label="Back to times">
-            <ArrowLeft />
-          </button>
-          <span className="cfm-hdr-label">Step 3 of 3 — Confirm Your Call</span>
-        </div>
-
-        {/* Body */}
-        <div className="cfm-body">
-          <div className="cfm-title">You're All Set — Confirm Your Call</div>
-          <div className="cfm-sub">Review your details below to confirm your scheduled call.</div>
-
-          {/* Date & Time */}
-          <div className="cfm-card">
-            <div className="cfm-row">
-              <div className="cfm-row-ico"><IcoCal /></div>
-              <div>
-                <div className="cfm-row-lbl">Date</div>
-                <div className="cfm-row-val">{selDate.dow}, {selDate.mon} {selDate.day}</div>
-              </div>
+        {/* Bottom bar — appears when a slot is selected */}
+        {selSlot && selDate && (
+          <div className="pk-cbar">
+            <div className="pk-cbar-info">
+              {selDate.dow}, {selDate.mon} {selDate.day} · {selSlot.label} · {CFG.duration} min
             </div>
-            <div className="cfm-row cfm-row-border">
-              <div className="cfm-row-ico"><IcoClk /></div>
-              <div>
-                <div className="cfm-row-lbl">Time</div>
-                <div className="cfm-row-val">{selSlot.label}</div>
-              </div>
-            </div>
+            <button className="pk-cbar-btn" onClick={onConfirm} disabled={booking}>
+              {booking ? <><span className="bspin" /> Confirming…</> : 'Confirm Appointment'}
+            </button>
           </div>
-
-          {/* Contact check */}
-          <div className="cfm-contact-check">
-            <p className="cfm-contact-q">Your Contact Information</p>
-            <p className="cfm-contact-line">{answers.firstName} {answers.lastName} · {answers.phone}</p>
-            <p className="cfm-contact-line">{answers.email}</p>
-          </div>
-
-          <button className="cfm-btn" disabled={booking} onClick={onConfirm}>
-            {booking ? <><span className="bspin" /> Booking…</> : 'Reserve My Spot'}
-          </button>
-          <p className="cfm-signoff">Looking forward to speaking with you.</p>
-          <button className="cfm-change" onClick={onBack}>Change time</button>
-          <button className="cfm-change" onClick={() => onEditField(0)}>Edit contact info</button>
-        </div>
+        )}
       </div>
     </>
   );
@@ -458,7 +368,7 @@ function ConfirmPhase({ selDate, selSlot, booking, onConfirm, onBack, answers, o
 
 // ─── Booked phase ─────────────────────────────────────────────────────────────
 function BookedPhase({ answers, selDate, selSlot }) {
-  const firstName = answers.firstName ? answers.firstName.trim() : '';
+  const gcalUrl = selDate && selSlot ? makeGcalUrl(selDate, selSlot) : '#';
 
   return (
     <>
@@ -466,49 +376,67 @@ function BookedPhase({ answers, selDate, selSlot }) {
       <div className="bkd-root">
         <div className="bkd-wrap">
 
-          {/* Check circle */}
+          {/* Green check */}
           <div className="bkd-circle">
             <svg width="32" height="32" viewBox="0 0 40 40" fill="none">
               <path d="M10 20l8 8 12-16" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
 
-          {/* Headline */}
-          {firstName && <div className="bkd-thanks">Thanks, {firstName}!</div>}
-          <div className="bkd-h">You're confirmed.</div>
+          <div className="bkd-h">You're confirmed!</div>
 
-          {/* Email callout */}
           <div className="bkd-email-line">
-            We sent a calendar invite to<br />
+            A calendar invite is on its way to<br />
             <strong>{answers.email}</strong>
           </div>
 
-          {/* Appointment details card */}
+          {/* Appointment card */}
           <div className="bkd-card">
             <div className="bkd-card-row">
               <div className="bkd-card-ico"><IcoCal /></div>
-              <div>
-                <div className="bkd-card-lbl">Date</div>
-                <div className="bkd-card-val">{selDate?.dow}, {selDate?.mon} {selDate?.day}</div>
-              </div>
+              <div className="bkd-card-val">{selDate?.dow}, {selDate?.mon} {selDate?.day}</div>
             </div>
             <div className="bkd-card-row bkd-row-sep">
               <div className="bkd-card-ico"><IcoClk /></div>
-              <div>
-                <div className="bkd-card-lbl">Time</div>
-                <div className="bkd-card-val">{selSlot?.label} · {CFG.duration} min · {CFG.tz}</div>
-              </div>
+              <div className="bkd-card-val">{selSlot?.label} · {CFG.duration} min · {CFG.tz}</div>
             </div>
             <div className="bkd-card-row bkd-row-sep">
               <div className="bkd-card-ico"><IcoPhone /></div>
-              <div>
-                <div className="bkd-card-lbl">Format</div>
-                <div className="bkd-card-val">Phone call — we'll call {answers.phone}</div>
-              </div>
+              <div className="bkd-card-val">Phone call — we'll call {answers.phone}</div>
             </div>
           </div>
 
           <div className="bkd-foot">We look forward to speaking with you!</div>
+
+          {/* Add to calendar */}
+          <div className="bkd-cal-label">ADD TO YOUR CALENDAR</div>
+          <div className="bkd-cal-list">
+            <a className="bkd-cal-row" href={gcalUrl} target="_blank" rel="noreferrer">
+              <div className="bkd-cal-ico"><IcoCalGoogle /></div>
+              <div style={{ flex: 1 }}>
+                <div className="bkd-cal-name">Google Calendar</div>
+                <div className="bkd-cal-desc">Opens in Google Calendar</div>
+              </div>
+              <ChevronRight />
+            </a>
+            <button className="bkd-cal-row" onClick={() => downloadIcs(selDate, selSlot, answers)}>
+              <div className="bkd-cal-ico"><IcoCalApple /></div>
+              <div style={{ flex: 1 }}>
+                <div className="bkd-cal-name">Apple Calendar</div>
+                <div className="bkd-cal-desc">Downloads .ics file</div>
+              </div>
+              <ChevronRight />
+            </button>
+            <button className="bkd-cal-row" onClick={() => downloadIcs(selDate, selSlot, answers)}>
+              <div className="bkd-cal-ico"><IcoCalOutlook /></div>
+              <div style={{ flex: 1 }}>
+                <div className="bkd-cal-name">Outlook</div>
+                <div className="bkd-cal-desc">Downloads .ics file</div>
+              </div>
+              <ChevronRight />
+            </button>
+          </div>
+
         </div>
       </div>
     </>
@@ -521,21 +449,6 @@ const ArrowRight = () => (
     <path d="M3 8h10M8 3l5 5-5 5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
-const ArrowLeft = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-    <path d="M13 8H3M8 3L3 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-const ChevronLeft = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-    <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-const ChevronRight = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-    <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
 const ChevronUp = () => (
   <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
     <path d="M8 3L3 8l5 5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
@@ -544,6 +457,11 @@ const ChevronUp = () => (
 const ChevronDown = () => (
   <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
     <path d="M8 13l5-5-5-5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const ChevronRight = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 const IcoCal = () => (
@@ -560,32 +478,40 @@ const IcoClk = ({ size = 22 }) => (
     <polyline points="12 6 12 12 16 14" />
   </svg>
 );
-const IcoVid = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polygon points="23 7 16 12 23 17 23 7" />
-    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-  </svg>
-);
-const IcoPencil = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-  </svg>
-);
-const IcoPerson = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-    <circle cx="12" cy="7" r="4" />
-  </svg>
-);
-const IcoPhone = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+const IcoPhone = ({ size = 20 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.59 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.91a16 16 0 0 0 6.18 6.18l.91-.91a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
   </svg>
 );
-const IcoMail = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-    <polyline points="22,6 12,13 2,6" />
+const IcoGlobe = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <line x1="2" y1="12" x2="22" y2="12" />
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+  </svg>
+);
+const IcoCalGoogle = () => (
+  <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+    <rect width="36" height="36" rx="8" fill="#fff" stroke="#E4E6EB" strokeWidth="1"/>
+    <rect x="4" y="4" width="28" height="28" rx="4" fill="#4285F4"/>
+    <rect x="4" y="4" width="28" height="10" rx="4" fill="#1A73E8"/>
+    <rect x="4" y="10" width="28" height="4" fill="#1A73E8"/>
+    <text x="18" y="27" textAnchor="middle" fill="white" fontSize="11" fontWeight="700" fontFamily="Arial,sans-serif">G</text>
+  </svg>
+);
+const IcoCalApple = () => (
+  <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+    <rect width="36" height="36" rx="8" fill="#fff" stroke="#E4E6EB" strokeWidth="1"/>
+    <rect x="4" y="4" width="28" height="28" rx="4" fill="#FF3B30"/>
+    <rect x="4" y="4" width="28" height="9" rx="4" fill="#CC2018"/>
+    <rect x="4" y="9" width="28" height="4" fill="#CC2018"/>
+    <text x="18" y="27" textAnchor="middle" fill="white" fontSize="11" fontWeight="700" fontFamily="Arial,sans-serif">A</text>
+  </svg>
+);
+const IcoCalOutlook = () => (
+  <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+    <rect width="36" height="36" rx="8" fill="#fff" stroke="#E4E6EB" strokeWidth="1"/>
+    <rect x="4" y="4" width="28" height="28" rx="4" fill="#0078D4"/>
+    <text x="18" y="27" textAnchor="middle" fill="white" fontSize="11" fontWeight="700" fontFamily="Arial,sans-serif">O</text>
   </svg>
 );
