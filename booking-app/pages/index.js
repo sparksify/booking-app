@@ -267,18 +267,19 @@ function PickingPhase({ days, slotMap, selDate, selSlot, onPickDate, onPickSlot,
 
         {/* Profile header */}
         <div className="pk-profile-wrap">
-          <div className="pk-avatar">{initials}</div>
-          <div>
-            <div className="pk-host-name">{CFG.hostName}</div>
-            <div className="pk-host-title">{CFG.hostTitle}</div>
+          <div className="pk-profile-row">
+            <div className="pk-avatar">{initials}</div>
+            <div className="pk-host-text">
+              <div className="pk-host-name">{CFG.hostName}</div>
+              <div className="pk-host-title">{CFG.hostTitle}</div>
+            </div>
+          </div>
+          <div className="pk-meta-row">
+            <span className="pk-meta-item"><IcoClk size={14} /> {CFG.duration} min</span>
+            <span className="pk-meta-item"><IcoPhone size={14} /> Phone call</span>
+            <span className="pk-meta-item"><IcoGlobe size={14} /> {CFG.tz}</span>
           </div>
         </div>
-        <div className="pk-meta-row">
-          <span className="pk-meta-item"><IcoClk size={14} /> {CFG.duration} min</span>
-          <span className="pk-meta-item"><IcoPhone size={14} /> Phone call</span>
-          <span className="pk-meta-item"><IcoGlobe size={14} /> {CFG.tz}</span>
-        </div>
-        <div className="pk-divider" />
 
         {/* Date strip */}
         <div className="pk-strip-label">SELECT A DATE</div>

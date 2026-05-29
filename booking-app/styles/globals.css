@@ -90,20 +90,20 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
 /* ══════════════════════════════════
    BOOKED v2 — personalized screen
 ══════════════════════════════════ */
-.bkd-root{position:fixed;inset:0;background:#F0F2F5;display:flex;align-items:center;justify-content:center;padding:40px 20px;animation:fadeIn .5s both;overflow-y:auto}
-.bkd-wrap{max-width:420px;width:100%;text-align:center}
-.bkd-circle{width:80px;height:80px;background:#16A34A;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 26px;box-shadow:0 6px 20px rgba(22,163,74,.2)}
+.bkd-root{position:fixed;inset:0;background:#F0F2F5;overflow-y:auto;-webkit-overflow-scrolling:touch;animation:fadeIn .5s both}
+.bkd-wrap{max-width:420px;width:100%;margin:0 auto;text-align:center;padding:32px 20px 48px}
+.bkd-circle{width:72px;height:72px;background:#16A34A;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;box-shadow:0 4px 16px rgba(22,163,74,.2)}
 .bkd-thanks{font-size:15px;font-weight:600;color:#65676B;letter-spacing:.02em;margin-bottom:6px}
-.bkd-h{font-size:32px;font-weight:700;color:#050505;letter-spacing:-.03em;margin-bottom:14px;line-height:1.1}
-.bkd-email-line{font-size:14px;color:#65676B;line-height:1.7;margin-bottom:28px}
+.bkd-h{font-size:28px;font-weight:700;color:#050505;letter-spacing:-.02em;margin-bottom:10px;line-height:1.15}
+.bkd-email-line{font-size:14px;color:#65676B;line-height:1.7;margin-bottom:20px}
 .bkd-email-line strong{display:block;color:#050505;font-weight:600;font-size:15px;margin-top:2px}
-.bkd-card{width:100%;background:#fff;border:1px solid #E4E6EB;border-radius:16px;overflow:hidden;text-align:left;margin-bottom:22px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
-.bkd-card-row{display:flex;align-items:center;gap:16px;padding:15px 18px}
+.bkd-card{width:100%;background:#fff;border:1px solid #E4E6EB;border-radius:14px;overflow:hidden;text-align:left;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.bkd-card-row{display:flex;align-items:center;gap:14px;padding:13px 16px}
 .bkd-row-sep{border-top:1px solid #E4E6EB}
-.bkd-card-ico{width:40px;height:40px;border-radius:50%;background:#E7F3FF;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#1877F2}
+.bkd-card-ico{width:36px;height:36px;border-radius:50%;background:#E7F3FF;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#1877F2}
 .bkd-card-lbl{font-size:10px;font-weight:700;color:#8A8D91;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px}
-.bkd-card-val{font-size:15px;font-weight:500;color:#050505}
-.bkd-foot{font-size:13px;color:#8A8D91;line-height:1.6}
+.bkd-card-val{font-size:14px;font-weight:500;color:#050505}
+.bkd-foot{font-size:13px;color:#8A8D91;line-height:1.6;margin-bottom:0}
 
 @media(max-width:480px){
   .tf-q{font-size:26px}
@@ -253,16 +253,18 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
 .pk-root{position:fixed;inset:0;background:#F0F2F5;display:flex;flex-direction:column;overflow:hidden;animation:fadeIn .3s both}
 
 /* Profile header */
-.pk-profile-wrap{flex-shrink:0;background:#fff;border-bottom:1px solid #E4E6EB;padding:20px 20px 16px;text-align:center;box-shadow:0 1px 2px rgba(0,0,0,.06)}
-.pk-avatar{width:64px;height:64px;border-radius:50%;background:#1877F2;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:22px;font-weight:700;color:#fff;letter-spacing:-.03em;box-shadow:0 4px 14px rgba(24,119,242,.25);flex-shrink:0}
-.pk-host-name{font-size:19px;font-weight:700;color:#050505;letter-spacing:-.02em;margin-bottom:3px}
-.pk-host-title{font-size:13px;color:#65676B;margin-bottom:14px}
+.pk-profile-wrap{flex-shrink:0;background:#fff;border-bottom:1px solid #E4E6EB;padding:14px 16px 0;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.pk-profile-row{display:flex;align-items:center;gap:12px;padding-bottom:12px;border-bottom:1px solid #E4E6EB}
+.pk-avatar{width:44px;height:44px;border-radius:50%;background:#1877F2;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;flex-shrink:0;box-shadow:0 2px 8px rgba(24,119,242,.2)}
+.pk-host-text{display:flex;flex-direction:column;gap:1px}
+.pk-host-name{font-size:16px;font-weight:700;color:#050505;letter-spacing:-.01em}
+.pk-host-title{font-size:13px;color:#65676B}
 
 /* Meta row */
-.pk-meta-row{display:flex;align-items:center;justify-content:center;gap:0;flex-wrap:wrap;background:#fff;padding:10px 0 14px;border-bottom:1px solid #E4E6EB}
-.pk-meta-item{display:flex;align-items:center;gap:5px;font-size:12px;color:#65676B;padding:0 11px}
+.pk-meta-row{display:flex;align-items:center;gap:0;flex-wrap:wrap;padding:10px 0 12px}
+.pk-meta-item{display:flex;align-items:center;gap:5px;font-size:13px;color:#65676B;padding:0 12px}
+.pk-meta-item:first-child{padding-left:0}
 .pk-meta-item svg{flex-shrink:0;color:#8A8D91}
-/* pk-divider is a horizontal rule between header and date strip */
 .pk-divider{height:0;border:none}
 
 /* Date strip */
