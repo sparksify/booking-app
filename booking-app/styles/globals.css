@@ -347,3 +347,75 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
 .bkd-cal-name{font-size:15px;font-weight:600;color:#050505;text-align:center}
 .bkd-cal-desc{font-size:12px;color:#8A8D91;margin-top:1px;text-align:center}
 .bkd-cal-arrow{color:#CED0D4;flex-shrink:0}
+
+/* ══════════════════════════════════
+   GUIDED BOOKING V2
+══════════════════════════════════ */
+
+/* Outer wrapper — sits below the profile card, above the fixed cbar */
+.gd-body{display:flex;flex-direction:column;gap:16px;padding:20px 16px 120px}
+
+/* Loading state */
+.gd-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:48px 0}
+.gd-loading-spinner{width:32px;height:32px;border:3px solid #E4E6EB;border-top-color:#1877F2;border-radius:50%;animation:spin .75s linear infinite}
+.gd-loading-text{font-size:14px;color:#8A8D91;font-weight:500}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* No nearby slots fallback */
+.gd-no-near{text-align:center;padding:32px 16px;background:#F7F8FA;border-radius:16px;border:1px dashed #D0D3DA}
+.gd-no-near p{margin:0;font-size:14px;color:#65676B;line-height:1.5}
+.gd-no-near p:first-child{font-size:16px;font-weight:600;color:#050505;margin-bottom:6px}
+
+/* ── Recommended card ── */
+.gd-rec{background:#fff;border:2px solid #1877F2;border-radius:20px;padding:20px 18px 16px;box-shadow:0 4px 20px rgba(24,119,242,.12);transition:box-shadow .15s,transform .12s}
+.gd-rec.gd-rec-chosen{background:#E7F3FF;box-shadow:0 0 0 3px rgba(24,119,242,.2),0 4px 20px rgba(24,119,242,.15)}
+
+.gd-rec-tag{display:inline-flex;align-items:center;gap:5px;background:#E7F3FF;color:#1877F2;border-radius:20px;padding:4px 11px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px}
+
+.gd-rec-time{font-size:22px;font-weight:800;color:#050505;line-height:1.1;margin-bottom:4px}
+.gd-rec-day{font-size:15px;font-weight:600;color:#444;margin-bottom:2px}
+.gd-rec-sub{font-size:13px;color:#8A8D91;margin-bottom:16px}
+
+.gd-rec-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:#1877F2;color:#fff;border:none;border-radius:16px;padding:14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;font-weight:700;cursor:pointer;transition:all .15s;box-shadow:0 2px 8px rgba(24,119,242,.25)}
+.gd-rec-btn:hover{background:#166FE5;box-shadow:0 4px 14px rgba(24,119,242,.3);transform:translateY(-1px)}
+.gd-rec-btn:active{transform:scale(.97)}
+.gd-rec-btn.chosen{background:#E7F3FF;color:#1877F2;box-shadow:none;border:2px solid #1877F2}
+
+/* ── Alternatives ── */
+.gd-alts{display:flex;flex-direction:column;gap:8px}
+.gd-alts-hdr{font-size:13px;font-weight:700;color:#8A8D91;text-transform:uppercase;letter-spacing:.07em;margin-bottom:2px}
+
+.gd-alt{width:100%;display:flex;align-items:center;justify-content:space-between;background:#fff;border:1.5px solid #E4E6EB;border-radius:14px;padding:13px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;cursor:pointer;transition:all .12s;box-shadow:0 1px 3px rgba(0,0,0,.06);-webkit-tap-highlight-color:transparent;text-align:left}
+.gd-alt:hover{border-color:#1877F2;background:#F0F7FF}
+.gd-alt:active{transform:scale(.98)}
+.gd-alt.gd-alt-sel{border-color:#1877F2;background:#E7F3FF}
+
+.gd-alt-left{display:flex;flex-direction:column;gap:2px}
+.gd-alt-time{font-size:15px;font-weight:700;color:#050505}
+.gd-alt-day{font-size:12px;color:#65676B}
+.gd-alt-soon{font-size:12px;color:#8A8D91}
+
+.gd-alt-check{width:24px;height:24px;border-radius:50%;background:#1877F2;display:flex;align-items:center;justify-content:center;flex-shrink:0;opacity:0;transition:opacity .15s}
+.gd-alt.gd-alt-sel .gd-alt-check{opacity:1}
+
+/* ── Full calendar toggle ── */
+.gd-cal-toggle{width:100%;display:flex;align-items:center;justify-content:center;gap:7px;background:transparent;border:1.5px solid #E4E6EB;border-radius:14px;padding:13px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#444;cursor:pointer;transition:all .14s;-webkit-tap-highlight-color:transparent}
+.gd-cal-toggle:hover{border-color:#1877F2;color:#1877F2;background:#F0F7FF}
+.gd-cal-toggle svg{transition:transform .2s}
+.gd-cal-toggle.open svg{transform:rotate(180deg)}
+
+/* ── Expanded full calendar ── */
+.gd-full-cal{background:#fff;border:1.5px solid #E4E6EB;border-radius:20px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.07);animation:gd-slide-in .22s cubic-bezier(.4,0,.2,1) both}
+@keyframes gd-slide-in{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+
+/* Guided header text */
+.gd-header{font-size:19px;font-weight:800;color:#050505;margin-bottom:4px;line-height:1.25}
+.gd-subheader{font-size:14px;color:#65676B;margin-bottom:0}
+
+@media(max-width:480px){
+  .gd-body{padding:16px 12px 120px}
+  .gd-rec{padding:16px 14px 14px}
+  .gd-rec-time{font-size:20px}
+  .gd-rec-btn{font-size:15px;padding:13px}
+  .gd-alt{padding:11px 14px}
+}

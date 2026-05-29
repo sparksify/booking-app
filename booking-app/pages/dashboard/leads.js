@@ -8,18 +8,20 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const STAGES = [
-  { key: 'scheduled', label: 'New Lead',          color: '#6366F1', bg: '#EEF2FF' },
-  { key: 'showed',    label: 'Showed / Completed', color: '#0EA5E9', bg: '#E0F2FE' },
-  { key: 'qualified', label: 'Qualified',          color: '#16A34A', bg: '#DCFCE7' },
-  { key: 'lost',      label: 'Lost',               color: '#DC2626', bg: '#FEE2E2' },
+const STATUSES = [
+  { key: 'new',       label: 'New',       color: '#6366F1', bg: '#EEF2FF' },
+  { key: 'booked',    label: 'Booked',    color: '#0EA5E9', bg: '#E0F2FE' },
+  { key: 'showed',    label: 'Showed',    color: '#16A34A', bg: '#DCFCE7' },
+  { key: 'no_show',   label: 'No Show',   color: '#F59E0B', bg: '#FEF3C7' },
+  { key: 'qualified', label: 'Qualified', color: '#7C3AED', bg: '#EDE9FE' },
+  { key: 'lost',      label: 'Lost',      color: '#DC2626', bg: '#FEE2E2' },
 ];
 
 const INV_LABELS = {
-  lt_100k:    { label: 'Under $100k',    color: '#92400E', bg: '#FEF3C7' },
-  '100k_250k':{ label: '$100k–$250k',   color: '#1D4ED8', bg: '#DBEAFE' },
-  '250k_500k':{ label: '$250k–$500k',   color: '#6D28D9', bg: '#EDE9FE' },
-  gt_500k:    { label: 'Over $500k',    color: '#065F46', bg: '#D1FAE5' },
+  lt_100k:     { label: 'Under $100k',  color: '#92400E', bg: '#FEF3C7' },
+  '100k_250k': { label: '$100k–$250k',  color: '#1D4ED8', bg: '#DBEAFE' },
+  '250k_500k': { label: '$250k–$500k',  color: '#6D28D9', bg: '#EDE9FE' },
+  gt_500k:     { label: 'Over $500k',   color: '#065F46', bg: '#D1FAE5' },
 };
 
 const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -34,86 +36,94 @@ export async function getServerSideProps(context) {
 
   const supabase = getSupabaseAdmin();
 
-  const [{ data: bookings }, { data: members }] = await Promise.all([
-    supabase
-      .from('bookings')
-      .select('id, first_name, last_name, email, phone, slot_start, slot_end, assigned_to_email, meet_link, status, investment_level, notes, created_at')
-      .order('slot_start', { ascending: false })
-      .limit(200),
-    supabase
-      .from('team_members')
-      .select('id, name, email, active')
-      .eq('active', true)
-      .order('name'),
-  ]);
+  // Fetch leads joined with their booking (if any)
+  const { data: leads } = await supabase
+    .from('leads')
+    .select(`
+      id, token, first_name, last_name, email, phone,
+      investment_level, raw_fields, status,
+      fb_form_id, fb_ad_id, fb_campaign_id,
+      ghl_contact_id, created_at,
+      bookings (
+        id, slot_start, assigned_to_email, meet_link, status
+      )
+    `)
+    .order('created_at', { ascending: false })
+    .limit(300);
 
   return {
     props: {
       session,
-      initialBookings: bookings || [],
-      repList: members || [],
+      initialLeads: leads || [],
+      baseUrl: `https://${context.req.headers.host}`,
     },
   };
 }
 
 // ─── Leads Dashboard ─────────────────────────────────────────────────────────
 
-export default function LeadsDashboard({ initialBookings, repList }) {
+export default function LeadsDashboard({ initialLeads, baseUrl }) {
   const { data: session } = useSession();
 
-  const [bookings, setBookings]   = useState(initialBookings);
-  const [viewMode, setViewMode]   = useState('kanban'); // 'kanban' | 'list'
-  const [repFilter, setRepFilter] = useState('all');
-  const [stageFilter, setStageFilter] = useState('all');
-  const [movingId, setMovingId]   = useState(null);
+  const [leads, setLeads]           = useState(initialLeads);
+  const [statusFilter, setStatus]   = useState('all');
+  const [invFilter, setInv]         = useState('all');
+  const [search, setSearch]         = useState('');
   const [expandedId, setExpandedId] = useState(null);
+  const [updating, setUpdating]     = useState(null);
+  const [copied, setCopied]         = useState(null);
 
-  // Filtered bookings
+  // Filtered leads
   const filtered = useMemo(() => {
-    let b = bookings;
-    if (repFilter !== 'all') b = b.filter(x => x.assigned_to_email === repFilter);
-    if (stageFilter !== 'all') b = b.filter(x => x.status === stageFilter);
-    return b;
-  }, [bookings, repFilter, stageFilter]);
+    let l = leads;
+    if (statusFilter !== 'all') l = l.filter(x => x.status === statusFilter);
+    if (invFilter    !== 'all') l = l.filter(x => x.investment_level === invFilter);
+    if (search) {
+      const q = search.toLowerCase();
+      l = l.filter(x =>
+        `${x.first_name} ${x.last_name} ${x.email} ${x.phone}`.toLowerCase().includes(q)
+      );
+    }
+    return l;
+  }, [leads, statusFilter, invFilter, search]);
 
-  // Move a lead to a different status
-  async function moveStatus(id, newStatus) {
-    setMovingId(id);
+  // Counts per status for badges
+  const counts = useMemo(() => {
+    const c = {};
+    STATUSES.forEach(s => { c[s.key] = leads.filter(l => l.status === s.key).length; });
+    return c;
+  }, [leads]);
+
+  async function updateStatus(id, newStatus) {
+    setUpdating(id);
     await fetch('/api/dashboard/leads', {
       method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ id, status: newStatus }),
     });
-    setBookings(prev => prev.map(b => b.id === id ? { ...b, status: newStatus } : b));
-    setMovingId(null);
+    setLeads(prev => prev.map(l => l.id === id ? { ...l, status: newStatus } : l));
+    setUpdating(null);
   }
 
-  // Save notes
-  async function saveNotes(id, notes) {
-    await fetch('/api/dashboard/leads', {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ id, status: bookings.find(b => b.id === id)?.status, notes }),
+  function copyBookingLink(token) {
+    const url = `${baseUrl}/?t=${token}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(token);
+      setTimeout(() => setCopied(null), 2000);
     });
-    setBookings(prev => prev.map(b => b.id === id ? { ...b, notes } : b));
   }
-
-  const stageMap = useMemo(() => {
-    const m = {};
-    STAGES.forEach(s => { m[s.key] = filtered.filter(b => b.status === s.key); });
-    return m;
-  }, [filtered]);
 
   return (
     <>
-      <Head><title>Lead Pipeline</title></Head>
+      <Head><title>Leads</title></Head>
       <div style={s.page}>
 
         {/* ── Header ── */}
         <header style={s.header}>
           <div style={s.headerLeft}>
             <Link href="/dashboard" style={s.backLink}>← Dashboard</Link>
-            <span style={s.headerTitle}>Lead Pipeline</span>
+            <span style={s.headerTitle}>Leads</span>
+            <span style={s.totalBadge}>{leads.length}</span>
           </div>
           <div style={s.headerRight}>
             <span style={s.headerUser}>{session?.user?.email}</span>
@@ -123,53 +133,70 @@ export default function LeadsDashboard({ initialBookings, repList }) {
           </div>
         </header>
 
-        {/* ── Toolbar ── */}
-        <div style={s.toolbar}>
-          <div style={s.toolbarLeft}>
-            {/* Rep filter */}
-            <select style={s.filterSelect} value={repFilter} onChange={e => setRepFilter(e.target.value)}>
-              <option value="all">All reps</option>
-              {repList.map(r => (
-                <option key={r.email} value={r.email}>{r.name}</option>
-              ))}
-            </select>
-
-            {/* Stage filter (list view only) */}
-            {viewMode === 'list' && (
-              <select style={s.filterSelect} value={stageFilter} onChange={e => setStageFilter(e.target.value)}>
-                <option value="all">All stages</option>
-                {STAGES.map(st => (
-                  <option key={st.key} value={st.key}>{st.label}</option>
-                ))}
-              </select>
-            )}
-
-            <span style={s.countBadge}>{filtered.length} leads</span>
-          </div>
-
-          {/* View toggle */}
-          <div style={s.viewToggle}>
+        {/* ── Status bar ── */}
+        <div style={s.statusBar}>
+          <button
+            style={{ ...s.statusChip, ...(statusFilter === 'all' ? s.statusChipActive : {}) }}
+            onClick={() => setStatus('all')}
+          >
+            All <span style={s.chipCount}>{leads.length}</span>
+          </button>
+          {STATUSES.map(st => (
             <button
-              style={{ ...s.toggleBtn, ...(viewMode === 'kanban' ? s.toggleActive : {}) }}
-              onClick={() => { setViewMode('kanban'); setStageFilter('all'); }}
+              key={st.key}
+              style={{
+                ...s.statusChip,
+                ...(statusFilter === st.key ? { ...s.statusChipActive, borderColor: st.color, color: st.color } : {}),
+              }}
+              onClick={() => setStatus(statusFilter === st.key ? 'all' : st.key)}
             >
-              ⊞ Kanban
+              {st.label} <span style={s.chipCount}>{counts[st.key] || 0}</span>
             </button>
-            <button
-              style={{ ...s.toggleBtn, ...(viewMode === 'list' ? s.toggleActive : {}) }}
-              onClick={() => setViewMode('list')}
-            >
-              ☰ List
-            </button>
-          </div>
+          ))}
         </div>
 
-        {/* ── Main content ── */}
+        {/* ── Filters ── */}
+        <div style={s.toolbar}>
+          <input
+            style={s.searchInput}
+            type="search"
+            placeholder="Search name, email, phone…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <select style={s.filterSelect} value={invFilter} onChange={e => setInv(e.target.value)}>
+            <option value="all">All investment levels</option>
+            {Object.entries(INV_LABELS).map(([k, v]) => (
+              <option key={k} value={k}>{v.label}</option>
+            ))}
+          </select>
+          <span style={s.resultCount}>{filtered.length} leads</span>
+        </div>
+
+        {/* ── Leads list ── */}
         <main style={s.main}>
-          {viewMode === 'kanban' ? (
-            <KanbanBoard stageMap={stageMap} movingId={movingId} onMove={moveStatus} expandedId={expandedId} setExpandedId={setExpandedId} onSaveNotes={saveNotes} />
+          {filtered.length === 0 ? (
+            <div style={s.empty}>
+              {leads.length === 0
+                ? 'No leads yet. Once your Facebook webhook is live, leads will appear here automatically.'
+                : 'No leads match your filters.'}
+            </div>
           ) : (
-            <ListView leads={filtered} movingId={movingId} onMove={moveStatus} expandedId={expandedId} setExpandedId={setExpandedId} onSaveNotes={saveNotes} />
+            <div style={s.list}>
+              {filtered.map(lead => (
+                <LeadRow
+                  key={lead.id}
+                  lead={lead}
+                  expanded={expandedId === lead.id}
+                  onToggle={() => setExpandedId(expandedId === lead.id ? null : lead.id)}
+                  onStatusChange={updateStatus}
+                  updating={updating === lead.id}
+                  onCopyLink={() => copyBookingLink(lead.token)}
+                  linkCopied={copied === lead.token}
+                  baseUrl={baseUrl}
+                />
+              ))}
+            </div>
           )}
         </main>
       </div>
@@ -177,174 +204,112 @@ export default function LeadsDashboard({ initialBookings, repList }) {
   );
 }
 
-// ─── Kanban Board ─────────────────────────────────────────────────────────────
+// ─── Lead Row ─────────────────────────────────────────────────────────────────
 
-function KanbanBoard({ stageMap, movingId, onMove, expandedId, setExpandedId, onSaveNotes }) {
+function LeadRow({ lead, expanded, onToggle, onStatusChange, updating, onCopyLink, linkCopied, baseUrl }) {
+  const status = STATUSES.find(s => s.key === lead.status) || STATUSES[0];
+  const inv    = lead.investment_level ? INV_LABELS[lead.investment_level] : null;
+  const booking = lead.bookings?.[0] || null;
+
+  // Extra fields beyond core contact info
+  const extraFields = Object.entries(lead.raw_fields || {}).filter(([k]) =>
+    !['first_name','last_name','email','phone_number','phone'].includes(k)
+  );
+
   return (
-    <div style={s.kanban}>
-      {STAGES.map(stage => (
-        <div key={stage.key} style={s.kanbanCol}>
-          <div style={s.kanbanColHdr}>
-            <span style={{ ...s.stageLabel, color: stage.color, background: stage.bg }}>
-              {stage.label}
-            </span>
-            <span style={s.kanbanCount}>{stageMap[stage.key]?.length ?? 0}</span>
+    <div style={{ ...s.row, opacity: updating ? 0.6 : 1 }}>
+      {/* Main row */}
+      <div style={s.rowMain} onClick={onToggle}>
+        <div style={s.rowLeft}>
+          <div style={s.leadName}>{lead.first_name} {lead.last_name}</div>
+          <div style={s.leadContact}>
+            {lead.email && <span>{lead.email}</span>}
+            {lead.phone && <span style={s.dot}>·</span>}
+            {lead.phone && <span>{formatPhone(lead.phone)}</span>}
           </div>
-          <div style={s.kanbanCards}>
-            {(stageMap[stage.key] || []).length === 0 ? (
-              <div style={s.emptyCol}>No leads</div>
-            ) : (
-              (stageMap[stage.key] || []).map(lead => (
-                <LeadCard
-                  key={lead.id}
-                  lead={lead}
-                  currentStage={stage}
-                  movingId={movingId}
-                  onMove={onMove}
-                  expanded={expandedId === lead.id}
-                  onToggle={() => setExpandedId(expandedId === lead.id ? null : lead.id)}
-                  onSaveNotes={onSaveNotes}
-                />
-              ))
+          <div style={s.leadMeta}>
+            <span style={s.leadDate}>{formatDate(lead.created_at)}</span>
+            {booking && (
+              <span style={s.bookingPill}>📅 {formatSlot(booking.slot_start)}</span>
             )}
           </div>
         </div>
-      ))}
-    </div>
-  );
-}
-
-// ─── List View ────────────────────────────────────────────────────────────────
-
-function ListView({ leads, movingId, onMove, expandedId, setExpandedId, onSaveNotes }) {
-  if (leads.length === 0) {
-    return <div style={s.emptyFull}>No leads match your filters.</div>;
-  }
-  return (
-    <div style={s.listWrap}>
-      {leads.map(lead => {
-        const stage = STAGES.find(st => st.key === lead.status) || STAGES[0];
-        return (
-          <LeadCard
-            key={lead.id}
-            lead={lead}
-            currentStage={stage}
-            movingId={movingId}
-            onMove={onMove}
-            expanded={expandedId === lead.id}
-            onToggle={() => setExpandedId(expandedId === lead.id ? null : lead.id)}
-            onSaveNotes={onSaveNotes}
-            listMode
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-// ─── Lead Card ────────────────────────────────────────────────────────────────
-
-function LeadCard({ lead, currentStage, movingId, onMove, expanded, onToggle, onSaveNotes, listMode }) {
-  const [noteText, setNoteText] = useState(lead.notes || '');
-  const [savingNote, setSavingNote] = useState(false);
-  const [noteSaved, setNoteSaved] = useState(false);
-
-  const inv = lead.investment_level ? INV_LABELS[lead.investment_level] : null;
-  const isMoving = movingId === lead.id;
-
-  const otherStages = STAGES.filter(s => s.key !== lead.status);
-  const stageIdx = STAGES.findIndex(s => s.key === lead.status);
-  const nextStage = STAGES[stageIdx + 1];
-  const prevStage = stageIdx > 0 ? STAGES[stageIdx - 1] : null;
-
-  async function handleSaveNotes() {
-    setSavingNote(true);
-    await onSaveNotes(lead.id, noteText);
-    setSavingNote(false);
-    setNoteSaved(true);
-    setTimeout(() => setNoteSaved(false), 2000);
-  }
-
-  return (
-    <div style={{ ...s.card, ...(listMode ? s.cardList : {}), opacity: isMoving ? 0.6 : 1 }}>
-      {/* Top row */}
-      <div style={s.cardTop} onClick={onToggle}>
-        <div style={s.cardMain}>
-          <div style={s.cardName}>{lead.first_name} {lead.last_name}</div>
-          <div style={s.cardMeta}>
-            {formatSlot(lead.slot_start)}
-          </div>
-          {listMode && (
-            <div style={s.cardMetaSmall}>
-              <span style={{ ...s.stageLabel, color: currentStage.color, background: currentStage.bg, fontSize: 10, padding: '2px 7px' }}>
-                {currentStage.label}
-              </span>
-            </div>
-          )}
-        </div>
-        <div style={s.cardRight}>
+        <div style={s.rowRight}>
           {inv && (
-            <span style={{ ...s.invBadge, color: inv.color, background: inv.bg }}>
-              {inv.label}
-            </span>
+            <span style={{ ...s.badge, color: inv.color, background: inv.bg }}>{inv.label}</span>
           )}
-          <span style={{ ...s.expandChevron, transform: expanded ? 'rotate(180deg)' : 'none' }}>▾</span>
+          <span style={{ ...s.badge, color: status.color, background: status.bg }}>{status.label}</span>
+          <span style={{ ...s.chevron, transform: expanded ? 'rotate(180deg)' : 'none' }}>▾</span>
         </div>
       </div>
 
-      {/* Assigned rep */}
-      {lead.assigned_to_email && (
-        <div style={s.cardRep}>👤 {lead.assigned_to_email}</div>
-      )}
-
       {/* Expanded detail */}
       {expanded && (
-        <div style={s.cardDetail}>
-          <div style={s.detailGrid}>
-            <DetailRow label="Email"  value={<a href={`mailto:${lead.email}`} style={s.detailLink}>{lead.email}</a>} />
-            <DetailRow label="Phone"  value={lead.phone ? <a href={`tel:${lead.phone}`} style={s.detailLink}>{formatPhone(lead.phone)}</a> : '—'} />
-            {lead.meet_link && (
-              <DetailRow label="Meet" value={<a href={lead.meet_link} target="_blank" rel="noreferrer" style={s.detailLink}>Join call →</a>} />
+        <div style={s.detail}>
+          {/* Actions */}
+          <div style={s.detailActions}>
+            <button
+              style={{ ...s.actionBtn, background: linkCopied ? '#16A34A' : '#1D4ED8', color: '#fff' }}
+              onClick={onCopyLink}
+            >
+              {linkCopied ? '✓ Copied!' : '🔗 Copy booking link'}
+            </button>
+            {lead.ghl_contact_id && (
+              <a
+                href={`https://app.gohighlevel.com/contacts/${lead.ghl_contact_id}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ ...s.actionBtn, background: '#F3F4F6', color: '#374151', textDecoration: 'none' }}
+              >
+                Open in GHL →
+              </a>
             )}
           </div>
 
-          {/* Notes */}
-          <div style={s.notesWrap}>
-            <label style={s.notesLabel}>Notes</label>
-            <textarea
-              style={s.notesTA}
-              rows={3}
-              value={noteText}
-              onChange={e => setNoteText(e.target.value)}
-              placeholder="Add rep notes…"
-            />
-            <button
-              style={{ ...s.notesBtn, background: noteSaved ? '#16A34A' : '#1D4ED8' }}
-              onClick={handleSaveNotes}
-              disabled={savingNote}
-            >
-              {savingNote ? 'Saving…' : noteSaved ? '✓ Saved' : 'Save notes'}
-            </button>
-          </div>
+          {/* All form answers */}
+          {extraFields.length > 0 && (
+            <div style={s.rawFields}>
+              <div style={s.rawTitle}>Form answers</div>
+              {extraFields.map(([key, val]) => (
+                <div key={key} style={s.rawRow}>
+                  <span style={s.rawKey}>{key.replace(/_/g, ' ')}</span>
+                  <span style={s.rawVal}>{val}</span>
+                </div>
+              ))}
+            </div>
+          )}
 
-          {/* Move actions */}
+          {/* Booking info */}
+          {booking && (
+            <div style={s.bookingInfo}>
+              <div style={s.rawTitle}>Booked call</div>
+              <div style={s.rawRow}>
+                <span style={s.rawKey}>Time</span>
+                <span style={s.rawVal}>{formatSlot(booking.slot_start)}</span>
+              </div>
+              <div style={s.rawRow}>
+                <span style={s.rawKey}>Rep</span>
+                <span style={s.rawVal}>{booking.assigned_to_email || '—'}</span>
+              </div>
+              {booking.meet_link && (
+                <div style={s.rawRow}>
+                  <span style={s.rawKey}>Meet</span>
+                  <a href={booking.meet_link} target="_blank" rel="noreferrer" style={s.link}>Join call →</a>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Move status */}
           <div style={s.moveRow}>
             <span style={s.moveLabel}>Move to:</span>
-            {prevStage && (
-              <button style={{ ...s.moveBtn, borderColor: prevStage.color, color: prevStage.color }}
-                onClick={() => onMove(lead.id, prevStage.key)} disabled={isMoving}>
-                ← {prevStage.label}
-              </button>
-            )}
-            {nextStage && (
-              <button style={{ ...s.moveBtn, borderColor: nextStage.color, color: nextStage.color }}
-                onClick={() => onMove(lead.id, nextStage.key)} disabled={isMoving}>
-                {nextStage.label} →
-              </button>
-            )}
-            {otherStages.filter(s => s.key !== (prevStage?.key) && s.key !== (nextStage?.key)).map(st => (
-              <button key={st.key} style={{ ...s.moveBtn, borderColor: st.color, color: st.color }}
-                onClick={() => onMove(lead.id, st.key)} disabled={isMoving}>
+            {STATUSES.filter(st => st.key !== lead.status).map(st => (
+              <button
+                key={st.key}
+                style={{ ...s.moveBtn, borderColor: st.color, color: st.color }}
+                onClick={() => onStatusChange(lead.id, st.key)}
+                disabled={updating}
+              >
                 {st.label}
               </button>
             ))}
@@ -355,25 +320,25 @@ function LeadCard({ lead, currentStage, movingId, onMove, expanded, onToggle, on
   );
 }
 
-function DetailRow({ label, value }) {
-  return (
-    <div style={s.detailRow}>
-      <span style={s.detailLabel}>{label}</span>
-      <span style={s.detailVal}>{value}</span>
-    </div>
-  );
-}
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return `${MON[d.getMonth()]} ${d.getDate()} at ${fmtTime(d)}`;
+}
 
 function formatSlot(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
-  const h = d.getHours();
-  const m = d.getMinutes();
+  return `${MON[d.getMonth()]} ${d.getDate()} · ${fmtTime(d)}`;
+}
+
+function fmtTime(d) {
+  const h = d.getHours(), m = d.getMinutes();
   const p = h >= 12 ? 'PM' : 'AM';
   const dh = h > 12 ? h - 12 : h === 0 ? 12 : h;
-  return `${MON[d.getMonth()]} ${d.getDate()} · ${dh}:${String(m).padStart(2,'0')} ${p}`;
+  return `${dh}:${String(m).padStart(2,'0')} ${p}`;
 }
 
 function formatPhone(p) {
@@ -386,69 +351,56 @@ function formatPhone(p) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = {
-  page:          { minHeight: '100vh', background: '#F3F4F6', fontFamily: "'Inter',system-ui,sans-serif", color: '#111827', display: 'flex', flexDirection: 'column' },
-  header:        { background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50 },
-  headerLeft:    { display: 'flex', alignItems: 'center', gap: 16 },
-  backLink:      { fontSize: 13, color: '#6B7280', textDecoration: 'none', fontWeight: 500 },
-  headerTitle:   { fontSize: 15, fontWeight: 700, color: '#111827' },
-  headerRight:   { display: 'flex', alignItems: 'center', gap: 12 },
-  headerUser:    { fontSize: 13, color: '#6B7280' },
-  signOutBtn:    { fontSize: 13, fontWeight: 500, color: '#6B7280', background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit' },
+  page:         { minHeight: '100vh', background: '#F3F4F6', fontFamily: "'Inter',system-ui,sans-serif", color: '#111827', display: 'flex', flexDirection: 'column' },
+  header:       { background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50 },
+  headerLeft:   { display: 'flex', alignItems: 'center', gap: 12 },
+  backLink:     { fontSize: 13, color: '#6B7280', textDecoration: 'none', fontWeight: 500 },
+  headerTitle:  { fontSize: 15, fontWeight: 700, color: '#111827' },
+  totalBadge:   { fontSize: 12, fontWeight: 700, background: '#F3F4F6', color: '#6B7280', borderRadius: 10, padding: '2px 8px' },
+  headerRight:  { display: 'flex', alignItems: 'center', gap: 12 },
+  headerUser:   { fontSize: 13, color: '#6B7280' },
+  signOutBtn:   { fontSize: 13, fontWeight: 500, color: '#6B7280', background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit' },
 
-  toolbar:       { background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
-  toolbarLeft:   { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
-  filterSelect:  { padding: '7px 12px', border: '1.5px solid #D1D5DB', borderRadius: 7, fontSize: 13, color: '#111827', background: '#fff', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' },
-  countBadge:    { fontSize: 12, color: '#6B7280', fontWeight: 600 },
-  viewToggle:    { display: 'flex', gap: 0, border: '1.5px solid #D1D5DB', borderRadius: 8, overflow: 'hidden' },
-  toggleBtn:     { padding: '7px 14px', fontSize: 13, fontWeight: 500, color: '#6B7280', background: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit' },
-  toggleActive:  { background: '#EFF6FF', color: '#1D4ED8', fontWeight: 700 },
+  statusBar:    { background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '10px 24px', display: 'flex', gap: 8, overflowX: 'auto', flexShrink: 0 },
+  statusChip:   { padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#6B7280', background: '#F9FAFB', border: '1.5px solid #E5E7EB', borderRadius: 20, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 },
+  statusChipActive: { background: '#EFF6FF', color: '#1D4ED8', borderColor: '#1D4ED8' },
+  chipCount:    { fontWeight: 700, opacity: 0.7 },
 
-  main:          { flex: 1, overflowX: 'auto', padding: '20px 24px' },
+  toolbar:      { background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '10px 24px', display: 'flex', alignItems: 'center', gap: 10 },
+  searchInput:  { flex: 1, maxWidth: 300, padding: '8px 12px', border: '1.5px solid #D1D5DB', borderRadius: 7, fontSize: 13, fontFamily: 'inherit', outline: 'none', color: '#111827' },
+  filterSelect: { padding: '8px 12px', border: '1.5px solid #D1D5DB', borderRadius: 7, fontSize: 13, color: '#111827', background: '#fff', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' },
+  resultCount:  { fontSize: 12, color: '#9CA3AF', fontWeight: 600, marginLeft: 'auto' },
 
-  // Kanban
-  kanban:        { display: 'flex', gap: 16, alignItems: 'flex-start', minWidth: 'max-content' },
-  kanbanCol:     { width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10 },
-  kanbanColHdr:  { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  kanbanCount:   { fontSize: 12, fontWeight: 700, color: '#9CA3AF', background: '#F3F4F6', borderRadius: 10, padding: '2px 8px' },
-  kanbanCards:   { display: 'flex', flexDirection: 'column', gap: 10 },
-  emptyCol:      { fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '20px 0' },
+  main:         { flex: 1, padding: '20px 24px' },
+  list:         { display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 900, margin: '0 auto' },
+  empty:        { textAlign: 'center', padding: '60px 24px', fontSize: 14, color: '#9CA3AF', maxWidth: 480, margin: '0 auto', lineHeight: 1.6 },
 
-  // List
-  listWrap:      { maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 10 },
-  emptyFull:     { textAlign: 'center', padding: '60px 0', fontSize: 14, color: '#9CA3AF' },
+  row:          { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden', transition: 'opacity .15s' },
+  rowMain:      { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '14px 16px', cursor: 'pointer' },
+  rowLeft:      { flex: 1, minWidth: 0 },
+  leadName:     { fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 3 },
+  leadContact:  { fontSize: 13, color: '#6B7280', display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4 },
+  dot:          { color: '#D1D5DB' },
+  leadMeta:     { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  leadDate:     { fontSize: 11, color: '#9CA3AF' },
+  bookingPill:  { fontSize: 11, fontWeight: 600, color: '#0EA5E9', background: '#E0F2FE', borderRadius: 10, padding: '2px 8px' },
+  rowRight:     { display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 12 },
+  badge:        { fontSize: 10, fontWeight: 700, borderRadius: 20, padding: '3px 8px', whiteSpace: 'nowrap' },
+  chevron:      { fontSize: 16, color: '#9CA3AF', transition: 'transform .2s', display: 'inline-block', lineHeight: 1 },
 
-  // Cards
-  card:          { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,.05)', transition: 'box-shadow .15s' },
-  cardList:      { /* list mode — full width already set by listWrap */ },
-  cardTop:       { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '12px 14px', cursor: 'pointer' },
-  cardMain:      { flex: 1, minWidth: 0 },
-  cardName:      { fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 2 },
-  cardMeta:      { fontSize: 12, color: '#6B7280' },
-  cardMetaSmall: { marginTop: 4 },
-  cardRight:     { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 8 },
-  cardRep:       { fontSize: 11, color: '#9CA3AF', padding: '0 14px 8px', marginTop: -4 },
+  detail:       { borderTop: '1px solid #F3F4F6', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 14 },
+  detailActions:{ display: 'flex', gap: 8, flexWrap: 'wrap' },
+  actionBtn:    { padding: '7px 14px', borderRadius: 7, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
-  // Badges
-  stageLabel:    { fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '3px 9px', display: 'inline-block' },
-  invBadge:      { fontSize: 10, fontWeight: 700, borderRadius: 20, padding: '3px 8px', whiteSpace: 'nowrap' },
-  expandChevron: { fontSize: 16, color: '#9CA3AF', transition: 'transform .2s', display: 'inline-block', lineHeight: 1 },
+  rawFields:    { background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '10px 14px' },
+  bookingInfo:  { background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 14px' },
+  rawTitle:     { fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 8 },
+  rawRow:       { display: 'flex', gap: 10, alignItems: 'baseline', marginBottom: 4 },
+  rawKey:       { fontSize: 12, fontWeight: 600, color: '#6B7280', textTransform: 'capitalize', minWidth: 100, flexShrink: 0 },
+  rawVal:       { fontSize: 13, color: '#111827' },
+  link:         { fontSize: 13, color: '#1D4ED8', textDecoration: 'none', fontWeight: 500 },
 
-  // Expanded
-  cardDetail:    { borderTop: '1px solid #F3F4F6', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 },
-  detailGrid:    { display: 'flex', flexDirection: 'column', gap: 6 },
-  detailRow:     { display: 'flex', gap: 8, alignItems: 'baseline' },
-  detailLabel:   { fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', width: 44, flexShrink: 0 },
-  detailVal:     { fontSize: 13, color: '#111827' },
-  detailLink:    { color: '#1D4ED8', textDecoration: 'none', fontWeight: 500 },
-
-  // Notes
-  notesWrap:     { display: 'flex', flexDirection: 'column', gap: 6 },
-  notesLabel:    { fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.04em' },
-  notesTA:       { resize: 'vertical', padding: '8px 10px', border: '1.5px solid #D1D5DB', borderRadius: 7, fontSize: 13, fontFamily: 'inherit', color: '#111827', outline: 'none', lineHeight: 1.5 },
-  notesBtn:      { alignSelf: 'flex-end', padding: '6px 14px', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'background .15s' },
-
-  // Move buttons
-  moveRow:       { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  moveLabel:     { fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase' },
-  moveBtn:       { padding: '5px 12px', background: '#fff', border: '1.5px solid', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'opacity .15s' },
+  moveRow:      { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  moveLabel:    { fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase' },
+  moveBtn:      { padding: '5px 12px', background: '#fff', border: '1.5px solid', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };

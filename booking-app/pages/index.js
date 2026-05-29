@@ -58,6 +58,24 @@ function generateWorkdays(daysAhead) {
   return days;
 }
 
+// ─── Guided booking helpers ───────────────────────────────────────────────────
+function pad(n) { return String(n).padStart(2, '0'); }
+
+function getDayLabel(dateStr) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(dateStr + 'T12:00:00');
+  const diff = Math.round((d - today) / 86400000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  return `${DOW_NAMES[d.getDay()]}, ${MON_SHORT[d.getMonth()]} ${d.getDate()}`;
+}
+
+function hoursLabel(h) {
+  if (h < 24) return `In about ${Math.round(h)} hours`;
+  const days = Math.floor(h / 24);
+  return `In ${days} day${days > 1 ? 's' : ''}`;
+}
+
 // ─── Calendar helpers ─────────────────────────────────────────────────────────
 function makeGcalUrl(selDate, selSlot) {
   const [yr, mo, dy] = selDate.dateStr.split('-').map(Number);
@@ -107,25 +125,53 @@ function downloadIcs(selDate, selSlot, answers) {
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function BookingPage() {
   // phases: 'form' | 'picking' | 'booked'
-  const [phase,   setPhase]   = useState('form');
-  const [step,    setStep]    = useState(0);
-  const [answers, setAnswers] = useState({ firstName: '', lastName: '', phone: '', email: '' });
-  const [days,    setDays]    = useState([]);
-  const [slotMap, setSlotMap] = useState({});
-  const [selDate, setSelDate] = useState(null);
-  const [selSlot, setSelSlot] = useState(null);
-  const [booking, setBooking] = useState(false);
+  const [phase,          setPhase]          = useState('form');
+  const [step,           setStep]           = useState(0);
+  const [answers,        setAnswers]        = useState({ firstName: '', lastName: '', phone: '', email: '' });
+  const [investmentLevel, setInvestmentLevel] = useState('');
+  const [days,           setDays]           = useState([]);
+  const [slotMap,        setSlotMap]        = useState({});
+  const [selDate,        setSelDate]        = useState(null);
+  const [selSlot,        setSelSlot]        = useState(null);
+  const [booking,        setBooking]        = useState(false);
+  const [calExpanded,    setCalExpanded]    = useState(false);
+  const [recommended,    setRecommended]    = useState(null);
+  const [alternatives,   setAlternatives]   = useState([]);
   const inputRef = useRef(null);
 
   useEffect(() => { setDays(generateWorkdays(CFG.daysAhead)); }, []);
 
-  // Facebook URL params → skip form
+  // Token or URL params → pre-fill lead data and skip the form
   useEffect(() => {
-    const p  = new URLSearchParams(window.location.search);
-    const fn = p.get('first_name')   || p.get('firstName') || '';
-    const ln = p.get('last_name')    || p.get('lastName')  || '';
-    const em = p.get('email')        || '';
-    const ph = p.get('phone_number') || p.get('phone')     || '';
+    const p     = new URLSearchParams(window.location.search);
+    const token = p.get('t');
+
+    if (token) {
+      // New architecture: fetch lead from database via token
+      fetch(`/api/lead?t=${encodeURIComponent(token)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(lead => {
+          if (!lead) return;
+          if (lead.investment_level) setInvestmentLevel(lead.investment_level);
+          setAnswers({
+            firstName: lead.first_name  || '',
+            lastName:  lead.last_name   || '',
+            phone:     lead.phone       || '',
+            email:     lead.email       || '',
+          });
+          setPhase('picking');
+        })
+        .catch(() => {});
+      return;
+    }
+
+    // Fallback: direct URL params (backward compat / manual testing)
+    const fn  = p.get('first_name')       || p.get('firstName') || '';
+    const ln  = p.get('last_name')        || p.get('lastName')  || '';
+    const em  = p.get('email')            || '';
+    const ph  = p.get('phone_number')     || p.get('phone')     || '';
+    const inv = p.get('investment_level') || p.get('investment')|| p.get('budget') || '';
+    if (inv) setInvestmentLevel(inv);
     if (fn || em) {
       setAnswers({ firstName: fn, lastName: ln, phone: ph, email: em });
       setPhase('picking');
@@ -155,6 +201,12 @@ export default function BookingPage() {
   // Pre-fetch all slot availability when entering picking phase
   useEffect(() => {
     if (phase !== 'picking' || days.length === 0) return;
+    // Reset guided state on entry
+    setCalExpanded(false);
+    setRecommended(null);
+    setAlternatives([]);
+    setSelDate(null);
+    setSelSlot(null);
     setSlotMap(prev => {
       const next = { ...prev };
       days.forEach(d => {
@@ -163,13 +215,50 @@ export default function BookingPage() {
       return next;
     });
     days.forEach(({ dateStr }) => {
-      fetch(`/api/availability?date=${dateStr}`)
+      const inv = investmentLevel ? `&investment_level=${encodeURIComponent(investmentLevel)}` : '';
+      fetch(`/api/availability?date=${dateStr}${inv}`)
         .then(r => r.json())
         .then(data => setSlotMap(prev => ({ ...prev, [dateStr]: { slots: data.slots || [], loading: false, loaded: true } })))
         .catch(() => setSlotMap(prev => ({ ...prev, [dateStr]: { slots: [], loading: false, loaded: true } })));
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, days]);
+
+  // Smart slot selection — runs as slotMap fills in
+  useEffect(() => {
+    if (phase !== 'picking') return;
+    const now = new Date();
+    const candidates = [];
+
+    for (const day of days.slice(0, 5)) {
+      const info = slotMap[day.dateStr];
+      if (!info?.loaded) continue;
+      for (const slot of info.slots) {
+        const slotDate  = new Date(`${day.dateStr}T${pad(slot.h)}:${pad(slot.m)}:00`);
+        const hoursAway = (slotDate - now) / 3600000;
+        if (hoursAway < 1.5 || hoursAway > 72) continue;
+        // Score: 9-12 best (3), 12-15 good (2), else (1); sooner = slight bonus
+        const timeScore   = slot.h >= 9 && slot.h < 12 ? 3 : slot.h >= 12 && slot.h < 15 ? 2 : 1;
+        const nearScore   = Math.max(0, 72 - hoursAway) / 72;
+        candidates.push({
+          ...slot,
+          dateStr: day.dateStr,
+          dow: day.dow,
+          mon: day.mon,
+          dayNum: day.day,
+          hoursAway,
+          score: timeScore + nearScore,
+          dayLabel: getDayLabel(day.dateStr),
+        });
+      }
+    }
+
+    if (!candidates.length) return;
+    candidates.sort((a, b) => b.score - a.score);
+    setRecommended(candidates[0]);
+    setAlternatives(candidates.slice(1, 6));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slotMap, phase]);
 
   function doAdvance() {
     if (step + 1 >= QUESTIONS.length) setPhase('picking');
@@ -180,6 +269,12 @@ export default function BookingPage() {
   function pickDate(day) { setSelDate(day); setSelSlot(null); }
   function pickSlot(sl)  { setSelSlot(sl); }
 
+  // Select a slot from the guided view (slot has dateStr + slot fields)
+  function pickGuidedSlot(slot) {
+    const day = days.find(d => d.dateStr === slot.dateStr);
+    if (day) { setSelDate(day); setSelSlot({ h: slot.h, m: slot.m, label: slot.label }); }
+  }
+
   async function confirmBooking() {
     if (!selDate || !selSlot || booking) return;
     setBooking(true);
@@ -188,14 +283,15 @@ export default function BookingPage() {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          firstName: answers.firstName,
-          lastName:  answers.lastName,
-          email:     answers.email,
-          phone:     answers.phone,
-          date:      selDate.dateStr,
-          h:         selSlot.h,
-          m:         selSlot.m,
-          label:     selSlot.label,
+          firstName:        answers.firstName,
+          lastName:         answers.lastName,
+          email:            answers.email,
+          phone:            answers.phone,
+          date:             selDate.dateStr,
+          h:                selSlot.h,
+          m:                selSlot.m,
+          label:            selSlot.label,
+          investment_level: investmentLevel || undefined,
         }),
       });
     } catch (_) {}
@@ -206,8 +302,14 @@ export default function BookingPage() {
   if (phase === 'form')
     return <FormPhase {...{ step, answers, setAnswers, doAdvance, doRetreat, inputRef }} />;
   if (phase === 'picking')
-    return <PickingPhase days={days} slotMap={slotMap} selDate={selDate} selSlot={selSlot}
-             onPickDate={pickDate} onPickSlot={pickSlot} onConfirm={confirmBooking} booking={booking} />;
+    return <PickingPhase
+      days={days} slotMap={slotMap} selDate={selDate} selSlot={selSlot}
+      onPickDate={pickDate} onPickSlot={pickSlot} onConfirm={confirmBooking} booking={booking}
+      calExpanded={calExpanded} onToggleCal={() => setCalExpanded(e => !e)}
+      recommended={recommended} alternatives={alternatives}
+      onPickGuidedSlot={pickGuidedSlot}
+      answers={answers}
+    />;
   return <BookedPhase answers={answers} selDate={selDate} selSlot={selSlot} />;
 }
 
@@ -259,22 +361,30 @@ function FormPhase({ step, answers, setAnswers, doAdvance, doRetreat, inputRef }
   );
 }
 
-// ─── Picking phase (date strip + inline slots) ────────────────────────────────
-function PickingPhase({ days, slotMap, selDate, selSlot, onPickDate, onPickSlot, onConfirm, booking }) {
-  const info    = selDate ? (slotMap[selDate.dateStr] || { slots: [], loading: true, loaded: false }) : null;
-  const slots   = info?.slots   || [];
-  const loading = info?.loading ?? false;
+// ─── Picking phase — guided booking V2 ───────────────────────────────────────
+function PickingPhase({
+  days, slotMap, selDate, selSlot, onPickDate, onPickSlot, onConfirm, booking,
+  calExpanded, onToggleCal, recommended, alternatives, onPickGuidedSlot, answers,
+}) {
+  const slotsLoaded = Object.values(slotMap).some(v => v.loaded);
 
-  const initials = CFG.hostName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  // Full calendar date/slot rendering (used inside expanded section)
+  const calDateInfo  = selDate ? (slotMap[selDate.dateStr] || { slots: [], loading: true }) : null;
+  const calSlots     = calDateInfo?.slots   || [];
+  const calLoading   = calDateInfo?.loading ?? false;
 
   return (
     <>
       <Head><title>Schedule a Call — {CFG.hostName}</title></Head>
       <div className="pk-root">
 
-        {/* Header */}
+        {/* ── Header ── */}
         <div className="pk-profile-wrap">
-          <div className="pk-headline">Choose a Time That Works Best for You</div>
+          <div className="pk-headline">
+            {answers?.firstName
+              ? `${answers.firstName}, let's get your consultation scheduled.`
+              : 'Choose a Time That Works Best for You'}
+          </div>
           <div className="pk-meeting-title">{CFG.meetingTitle}</div>
           <div className="pk-desc">Quick conversation. No pressure. We'll answer your questions and help you see if this is a fit.</div>
           <div className="pk-meta-row">
@@ -284,77 +394,124 @@ function PickingPhase({ days, slotMap, selDate, selSlot, onPickDate, onPickSlot,
           </div>
         </div>
 
-        {/* Date strip */}
-        <div className="pk-strip-label">SELECT A DATE</div>
-        <div className="pk-date-wrap">
-          <div className="pk-date-strip">
-            {days.map(d => {
-              const info    = slotMap[d.dateStr];
-              const noSlots = info?.loaded && info.slots.length === 0;
-              if (noSlots) return null;
-              const isOn = selDate?.dateStr === d.dateStr;
-              return (
-                <button key={d.dateStr} className={`pk-dc${isOn ? ' on' : ''}`} onClick={() => onPickDate(d)}>
-                  <span className="pk-dc-dow">{d.dow}</span>
-                  <span className="pk-dc-num">{d.day}</span>
-                  <span className="pk-dc-mon">{d.mon}</span>
-                  <span className="pk-dc-dot" />
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        {/* ── Guided body ── */}
+        <div className="gd-body">
 
-        {/* Slots area */}
-        <div className="pk-slots-outer">
-          {!selDate ? (
-            <div className="pk-empty">
-              <div className="pk-empty-ico">👆</div>
-              <div className="pk-empty-h">Pick a date above</div>
-              <div className="pk-empty-s">Available times will appear here</div>
+          {/* Loading — slots not yet ready */}
+          {!slotsLoaded && (
+            <div className="gd-loading">
+              <span className="bspin" style={{ marginRight: 10 }} />
+              Finding available times…
             </div>
-          ) : loading ? (
-            <>
-              <div className="pk-slots-hdr">
-                <span className="pk-slots-date">{selDate.dow}, {selDate.mon} {selDate.day}</span>
-              </div>
-              <div className="pk-slots-grid">
-                {Array.from({ length: 9 }).map((_, i) => (
-                  <div key={i} className="skel pk-skel" style={{ animationDelay: `${i * 40}ms` }} />
-                ))}
-              </div>
-            </>
-          ) : slots.length === 0 ? (
-            <div className="pk-empty">
-              <div className="pk-empty-ico">😔</div>
-              <div className="pk-empty-h">Fully booked</div>
-              <div className="pk-empty-s">Try a different date</div>
+          )}
+
+          {/* Recommended slot */}
+          {slotsLoaded && recommended && (
+            <div className={`gd-rec${selDate?.dateStr === recommended.dateStr && selSlot?.h === recommended.h ? ' gd-rec-chosen' : ''}`}>
+              <span className="gd-rec-tag">⭐ Recommended</span>
+              <div className="gd-rec-time">{recommended.dayLabel} at {recommended.label}</div>
+              <div className="gd-rec-sub">{hoursLabel(recommended.hoursAway)} · {CFG.tz}</div>
+              <button className="gd-rec-btn" onClick={() => onPickGuidedSlot(recommended)}>
+                Reserve This Time
+              </button>
             </div>
-          ) : (
-            <>
-              <div className="pk-slots-hdr">
-                <span className="pk-slots-date">{selDate.dow}, {selDate.mon} {selDate.day}</span>
-                <span className="pk-slots-badge">{slots.length} open</span>
+          )}
+
+          {/* No 72-hr slots — push to full calendar */}
+          {slotsLoaded && !recommended && (
+            <div className="gd-no-near">
+              No openings in the next 72 hours — use the full calendar below.
+            </div>
+          )}
+
+          {/* Alternative slots */}
+          {slotsLoaded && alternatives.length > 0 && (
+            <div className="gd-alts">
+              <div className="gd-alts-hdr">Other available times</div>
+              {alternatives.map((slot, i) => {
+                const isSel = selDate?.dateStr === slot.dateStr && selSlot?.h === slot.h && selSlot?.m === slot.m;
+                return (
+                  <button key={i} className={`gd-alt${isSel ? ' gd-alt-sel' : ''}`} onClick={() => onPickGuidedSlot(slot)}>
+                    <span className="gd-alt-label">{slot.dayLabel} — {slot.label}</span>
+                    {isSel && <span className="gd-alt-check">✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* View full calendar toggle */}
+          {slotsLoaded && (
+            <button className="gd-cal-toggle" onClick={onToggleCal}>
+              <IcoCal />
+              <span style={{ flex: 1 }}>{calExpanded ? 'Hide calendar' : 'View full calendar'}</span>
+              <span style={{ display:'inline-block', transition:'transform .2s', transform: calExpanded ? 'rotate(180deg)' : 'none' }}>▾</span>
+            </button>
+          )}
+
+          {/* ── Full calendar (expanded) ── */}
+          {calExpanded && (
+            <div className="gd-full-cal">
+              <div className="pk-strip-label">SELECT A DATE</div>
+              <div className="pk-date-wrap">
+                <div className="pk-date-strip">
+                  {days.map(d => {
+                    const di = slotMap[d.dateStr];
+                    if (di?.loaded && di.slots.length === 0) return null;
+                    const isOn = selDate?.dateStr === d.dateStr;
+                    return (
+                      <button key={d.dateStr} className={`pk-dc${isOn ? ' on' : ''}`} onClick={() => onPickDate(d)}>
+                        <span className="pk-dc-dow">{d.dow}</span>
+                        <span className="pk-dc-num">{d.day}</span>
+                        <span className="pk-dc-mon">{d.mon}</span>
+                        <span className="pk-dc-dot" />
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="pk-slots-grid">
-                {slots.map(sl => {
-                  const isOn = selSlot?.h === sl.h && selSlot?.m === sl.m;
-                  return (
-                    <button
-                      key={`${sl.h}-${sl.m}`}
-                      className={`pk-slot${isOn ? ' on' : ''}`}
-                      onClick={() => onPickSlot(sl)}
-                    >
-                      {sl.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </>
+
+              {!selDate ? (
+                <div className="pk-empty" style={{ paddingBottom: 8 }}>
+                  <div className="pk-empty-ico">👆</div>
+                  <div className="pk-empty-h">Pick a date above</div>
+                  <div className="pk-empty-s">Available times will appear here</div>
+                </div>
+              ) : calLoading ? (
+                <div className="pk-slots-grid" style={{ padding: '0 16px' }}>
+                  {Array.from({ length: 9 }).map((_, i) => (
+                    <div key={i} className="skel pk-skel" style={{ animationDelay: `${i * 40}ms` }} />
+                  ))}
+                </div>
+              ) : calSlots.length === 0 ? (
+                <div className="pk-empty" style={{ paddingBottom: 8 }}>
+                  <div className="pk-empty-ico">😔</div>
+                  <div className="pk-empty-h">Fully booked</div>
+                  <div className="pk-empty-s">Try a different date</div>
+                </div>
+              ) : (
+                <div className="pk-slots-outer" style={{ marginTop: 0 }}>
+                  <div className="pk-slots-hdr">
+                    <span className="pk-slots-date">{selDate.dow}, {selDate.mon} {selDate.day}</span>
+                    <span className="pk-slots-badge">{calSlots.length} open</span>
+                  </div>
+                  <div className="pk-slots-grid">
+                    {calSlots.map(sl => {
+                      const isOn = selSlot?.h === sl.h && selSlot?.m === sl.m && selDate?.dateStr === selDate?.dateStr;
+                      return (
+                        <button key={`${sl.h}-${sl.m}`} className={`pk-slot${isOn ? ' on' : ''}`} onClick={() => onPickSlot(sl)}>
+                          {sl.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
-        {/* Bottom bar — appears when a slot is selected */}
+        {/* ── Bottom bar — appears when slot selected ── */}
         {selSlot && selDate && (
           <div className="pk-cbar">
             <div className="pk-cbar-info">

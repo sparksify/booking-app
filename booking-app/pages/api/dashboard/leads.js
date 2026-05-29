@@ -2,16 +2,18 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
-const VALID_STATUSES = ['scheduled', 'showed', 'qualified', 'lost'];
+const LEAD_STATUSES    = ['new', 'booked', 'showed', 'no_show', 'qualified', 'lost'];
+const BOOKING_STATUSES = ['scheduled', 'showed', 'qualified', 'lost'];
 
 /**
  * PATCH /api/dashboard/leads
- * Body: { id, status, notes? }
- * Move a booking to a new pipeline stage.
+ * Body: { id, status, table?, notes? }
+ *   table = 'leads' (default) | 'bookings'
+ * Move a lead or booking to a new pipeline stage.
  *
  * DELETE /api/dashboard/leads
- * Body: { id }
- * Remove a booking record.
+ * Body: { id, table? }
+ * Remove a lead or booking record.
  */
 export default async function handler(req, res) {
   const session = await getServerSession(req, res, authOptions);
@@ -20,28 +22,26 @@ export default async function handler(req, res) {
   const supabase = getSupabaseAdmin();
 
   if (req.method === 'PATCH') {
-    const { id, status, notes } = req.body;
+    const { id, status, notes, table = 'leads' } = req.body;
     if (!id || !status) return res.status(400).json({ error: 'id and status required' });
-    if (!VALID_STATUSES.includes(status)) {
-      return res.status(400).json({ error: `status must be one of: ${VALID_STATUSES.join(', ')}` });
+
+    const validStatuses = table === 'bookings' ? BOOKING_STATUSES : LEAD_STATUSES;
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: `status must be one of: ${validStatuses.join(', ')}` });
     }
 
-    const update = { status };
+    const update = { status, updated_at: new Date().toISOString() };
     if (notes !== undefined) update.notes = notes;
 
-    const { error } = await supabase
-      .from('bookings')
-      .update(update)
-      .eq('id', id);
-
+    const { error } = await supabase.from(table).update(update).eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
     return res.json({ success: true });
   }
 
   if (req.method === 'DELETE') {
-    const { id } = req.body;
+    const { id, table = 'leads' } = req.body;
     if (!id) return res.status(400).json({ error: 'id required' });
-    const { error } = await supabase.from('bookings').delete().eq('id', id);
+    const { error } = await supabase.from(table).delete().eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
     return res.json({ success: true });
   }
