@@ -414,7 +414,13 @@ function BookedPhase({ answers, selDate, selSlot }) {
             </div>
           </div>
 
-          <div className="bkd-foot">We look forward to speaking with you!</div>
+          {/* What Happens Next */}
+          <div className="bkd-next">
+            <div className="bkd-next-title">What Happens Next?</div>
+            <div className="bkd-next-item"><span className="bkd-next-check">✓</span> Add this event to your calendar</div>
+            <div className="bkd-next-item"><span className="bkd-next-check">✓</span> Check your email for confirmation</div>
+            <div className="bkd-next-item"><span className="bkd-next-check">✓</span> We'll call you at your scheduled time</div>
+          </div>
 
           {/* Add to calendar */}
           <div className="bkd-cal-label">ADD TO YOUR CALENDAR</div>
