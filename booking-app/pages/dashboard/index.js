@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { getServerSession } from 'next-auth/next';
 import Head from 'next/head';
+import Link from 'next/link';
 import { authOptions } from '../api/auth/[...nextauth]';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
@@ -23,7 +24,7 @@ export async function getServerSideProps(context) {
   const supabase = getSupabaseAdmin();
 
   const [{ data: members }, { data: bookings }, { data: settingsRow }] = await Promise.all([
-    supabase.from('team_members').select('id, name, email, active, created_at').order('created_at'),
+    supabase.from('team_members').select('id, name, email, active, investment_ranges, created_at').order('created_at'),
     supabase.from('bookings')
       .select('id, first_name, last_name, email, phone, slot_start, assigned_to_email, meet_link')
       .order('slot_start', { ascending: false })
@@ -56,7 +57,7 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
   const [copied,   setCopied]   = useState(false);
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-  const bookingUrl = `${baseUrl}/?first_name={{first_name}}&last_name={{last_name}}&phone={{phone_number}}&email={{email}}`;
+  const bookingUrl = `${baseUrl}/?first_name={{first_name}}&last_name={{last_name}}&phone={{phone_number}}&email={{email}}&investment_level={{investment_level}}`;
 
   async function saveSettings(e) {
     e.preventDefault();
@@ -79,6 +80,17 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
     });
     setMembers(prev =>
       prev.map(m => m.email === email ? { ...m, active } : m)
+    );
+  }
+
+  async function updateInvestmentRanges(email, ranges) {
+    await fetch('/api/dashboard/settings', {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, investment_ranges: ranges }),
+    });
+    setMembers(prev =>
+      prev.map(m => m.email === email ? { ...m, investment_ranges: ranges } : m)
     );
   }
 
@@ -106,7 +118,10 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <header style={s.header}>
-          <span style={s.headerTitle}>Booking Dashboard</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+            <span style={s.headerTitle}>Booking Dashboard</span>
+            <Link href="/dashboard/leads" style={s.navLink}>Lead Pipeline →</Link>
+          </div>
           <div style={s.headerRight}>
             <span style={s.headerUser}>{session?.user?.email}</span>
             <button style={s.signOutBtn} onClick={() => signOut({ callbackUrl: '/dashboard/login' })}>
@@ -140,7 +155,7 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
             ) : (
               <div style={s.memberGrid}>
                 {members.map(m => (
-                  <MemberCard key={m.email} member={m} onToggle={toggleMember} />
+                  <MemberCard key={m.email} member={m} onToggle={toggleMember} onUpdateRanges={updateInvestmentRanges} />
                 ))}
               </div>
             )}
@@ -283,22 +298,64 @@ function Field({ label, children }) {
   );
 }
 
-function MemberCard({ member, onToggle }) {
+const INV_RANGES = [
+  { key: 'lt_100k',    label: 'Under $100k'  },
+  { key: '100k_250k',  label: '$100k–$250k'  },
+  { key: '250k_500k',  label: '$250k–$500k'  },
+  { key: 'gt_500k',    label: 'Over $500k'   },
+];
+
+function MemberCard({ member, onToggle, onUpdateRanges }) {
+  const [expanded, setExpanded] = useState(false);
+  const ranges = member.investment_ranges || [];
   const initials = member.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+
+  function toggleRange(key) {
+    const next = ranges.includes(key) ? ranges.filter(r => r !== key) : [...ranges, key];
+    onUpdateRanges(member.email, next);
+  }
+
   return (
     <div style={{ ...s.memberCard, opacity: member.active ? 1 : 0.5 }}>
-      <div style={s.avatar}>{initials}</div>
-      <div style={s.memberInfo}>
-        <div style={s.memberName}>{member.name}</div>
-        <div style={s.memberEmail}>{member.email}</div>
+      <div style={s.memberCardTop}>
+        <div style={s.avatar}>{initials}</div>
+        <div style={s.memberInfo}>
+          <div style={s.memberName}>{member.name}</div>
+          <div style={s.memberEmail}>{member.email}</div>
+          {ranges.length === 0 ? (
+            <div style={s.memberRangeNote}>Handles all investment levels</div>
+          ) : (
+            <div style={s.memberRangeNote}>{INV_RANGES.filter(r => ranges.includes(r.key)).map(r => r.label).join(', ')}</div>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ ...s.statusDot, background: member.active ? '#16A34A' : '#D1D5DB' }} title={member.active ? 'Active' : 'Inactive'} />
+          <button style={s.toggleBtn} onClick={() => onToggle(member.email, !member.active)}>
+            {member.active ? 'Pause' : 'Resume'}
+          </button>
+          <button style={s.toggleBtn} onClick={() => setExpanded(e => !e)}>
+            {expanded ? 'Done' : 'Routing'}
+          </button>
+        </div>
       </div>
-      <div style={{ ...s.statusDot, background: member.active ? '#16A34A' : '#D1D5DB' }} title={member.active ? 'Active' : 'Inactive'} />
-      <button
-        style={s.toggleBtn}
-        onClick={() => onToggle(member.email, !member.active)}
-      >
-        {member.active ? 'Pause' : 'Resume'}
-      </button>
+      {expanded && (
+        <div style={s.rangesWrap}>
+          <div style={s.rangesLabel}>Investment ranges this rep handles (leave all unchecked = handles all)</div>
+          <div style={s.rangesRow}>
+            {INV_RANGES.map(r => (
+              <label key={r.key} style={s.rangeCheck}>
+                <input
+                  type="checkbox"
+                  checked={ranges.includes(r.key)}
+                  onChange={() => toggleRange(r.key)}
+                  style={{ marginRight: 6 }}
+                />
+                {r.label}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -343,14 +400,21 @@ const s = {
   chip:       { flexShrink: 0, padding: '6px 14px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'background .15s' },
   urlNote:    { fontSize: 12, color: '#9CA3AF', lineHeight: 1.6 },
   inlineCode: { background: '#F3F4F6', borderRadius: 3, padding: '1px 4px', fontFamily: 'monospace', fontSize: 11 },
+  navLink:    { fontSize: 13, color: '#1D4ED8', fontWeight: 600, textDecoration: 'none' },
   memberGrid: { display: 'flex', flexDirection: 'column', gap: 10 },
-  memberCard: { display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 10, transition: 'opacity .2s' },
+  memberCard: { background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden', transition: 'opacity .2s' },
+  memberCardTop: { display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' },
   avatar:     { width: 38, height: 38, borderRadius: '50%', background: '#EFF6FF', color: '#1D4ED8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 },
   memberInfo: { flex: 1, minWidth: 0 },
   memberName: { fontSize: 14, fontWeight: 600, color: '#111827' },
   memberEmail:{ fontSize: 12, color: '#6B7280', marginTop: 1 },
+  memberRangeNote: { fontSize: 11, color: '#9CA3AF', marginTop: 3, fontStyle: 'italic' },
   statusDot:  { width: 8, height: 8, borderRadius: '50%', flexShrink: 0 },
   toggleBtn:  { fontSize: 12, fontWeight: 500, color: '#6B7280', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 5, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit' },
+  rangesWrap: { borderTop: '1px solid #E5E7EB', padding: '12px 16px', background: '#fff' },
+  rangesLabel:{ fontSize: 11, color: '#6B7280', marginBottom: 10 },
+  rangesRow:  { display: 'flex', gap: 16, flexWrap: 'wrap' },
+  rangeCheck: { display: 'flex', alignItems: 'center', fontSize: 13, color: '#111827', cursor: 'pointer', fontWeight: 500 },
   addMemberLink:{ fontSize: 13, color: '#1D4ED8', fontWeight: 500, textDecoration: 'none' },
   form:       { display: 'flex', flexDirection: 'column', gap: 16 },
   formRow:    { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 },

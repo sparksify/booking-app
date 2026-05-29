@@ -5,20 +5,22 @@ const DEFAULTS = {
   workStart: 9,
   workEnd: 18,
   timezone: 'America/Chicago',
-  meetingDuration: 30,
+  meetingDuration: 15,
   bufferMinutes: 15,
 };
 
 /**
- * GET /api/availability?date=YYYY-MM-DD
+ * GET /api/availability?date=YYYY-MM-DD[&investment_level=100k_250k]
  *
  * Returns available time slots for the given date.
- * Falls back to mock slots when no calendars are connected yet (useful during setup).
+ * If investment_level is provided, only considers reps whose investment_ranges
+ * array includes that level (or reps with an empty array = handles all levels).
+ * Falls back to mock slots when no calendars are connected.
  */
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).end();
 
-  const { date } = req.query;
+  const { date, investment_level } = req.query;
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return res.status(400).json({ error: 'date param required (YYYY-MM-DD)' });
   }
@@ -48,14 +50,20 @@ export default async function handler(req, res) {
     : DEFAULTS;
 
   // Load active team members with tokens
-  const { data: members } = await supabase
+  const { data: allMembers } = await supabase
     .from('team_members')
-    .select('email, name, calendar_id, google_access_token, google_refresh_token')
+    .select('email, name, calendar_id, google_access_token, google_refresh_token, investment_ranges')
     .eq('active', true)
     .not('google_refresh_token', 'is', null);
 
-  // No connected calendars yet → return demo slots so the UI isn't empty
-  if (!members?.length) {
+  // Filter by investment level if provided
+  // A rep qualifies if:
+  //   - their investment_ranges is null/empty (handles all levels), OR
+  //   - their investment_ranges includes the requested level
+  const members = filterByInvestmentLevel(allMembers || [], investment_level);
+
+  // No connected / matching calendars → return demo slots
+  if (!members.length) {
     return res.json({ slots: mockSlots(settings, date), demo: true });
   }
 
@@ -66,16 +74,27 @@ export default async function handler(req, res) {
     return res.json({ slots });
   } catch (err) {
     console.error('[availability] Google Calendar error:', err.message);
-    // Degrade gracefully: return mock slots rather than a hard error
     return res.json({ slots: mockSlots(settings, date), demo: true, error: err.message });
   }
 }
 
-// ─── Mock slot generator (used before calendars are connected) ────────────────
+// ─── Routing helpers ──────────────────────────────────────────────────────────
+
+function filterByInvestmentLevel(members, investmentLevel) {
+  if (!investmentLevel) return members; // no filter — use all
+  return members.filter(m => {
+    const ranges = m.investment_ranges;
+    // Empty / null → rep handles all levels
+    if (!ranges || ranges.length === 0) return true;
+    return ranges.includes(investmentLevel);
+  });
+}
+
+// ─── Mock slot generator ──────────────────────────────────────────────────────
+
 function mockSlots(settings, dateStr) {
   const { workStart, workEnd } = settings;
   const slots = [];
-  // Seed random with the date string so the same date always returns the same mock slots
   const seed = dateStr.replace(/-/g, '');
   let rng = parseInt(seed, 10);
   const rand = () => { rng = (rng * 1664525 + 1013904223) >>> 0; return rng / 0xffffffff; };

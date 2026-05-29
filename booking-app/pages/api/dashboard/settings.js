@@ -3,10 +3,12 @@ import { authOptions } from '../auth/[...nextauth]';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
 /**
- * GET  /api/dashboard/settings  → returns current settings row
- * POST /api/dashboard/settings  → updates settings row
+ * GET    /api/dashboard/settings  → returns current settings row
+ * POST   /api/dashboard/settings  → updates settings row
+ * PATCH  /api/dashboard/settings  → updates a team member's investment_ranges
+ * DELETE /api/dashboard/settings  → toggles a team member's active status
  *
- * Both require an active dashboard session.
+ * All require an active dashboard session.
  */
 export default async function handler(req, res) {
   const session = await getServerSession(req, res, authOptions);
@@ -46,6 +48,21 @@ export default async function handler(req, res) {
 
     if (error) return res.status(500).json({ error: error.message });
     return res.json(data);
+  }
+
+  if (req.method === 'PATCH') {
+    // Update a team member's investment_ranges
+    const { email, investment_ranges } = req.body;
+    if (!email) return res.status(400).json({ error: 'email required' });
+    if (!Array.isArray(investment_ranges)) return res.status(400).json({ error: 'investment_ranges must be an array' });
+
+    const { error } = await supabase
+      .from('team_members')
+      .update({ investment_ranges })
+      .eq('email', email);
+
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ ok: true });
   }
 
   if (req.method === 'DELETE') {
