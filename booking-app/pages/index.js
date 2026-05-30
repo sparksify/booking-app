@@ -486,27 +486,11 @@ function PickingPhase({
             </div>
           )}
 
-          {/* Alternative slots */}
-          {slotsLoaded && alternatives.length > 0 && (
-            <div className="gd-alts">
-              <div className="gd-alts-hdr">Other available times</div>
-              {alternatives.map((slot, i) => {
-                const isSel = selDate?.dateStr === slot.dateStr && selSlot?.h === slot.h && selSlot?.m === slot.m;
-                return (
-                  <button key={i} className={`gd-alt${isSel ? ' gd-alt-sel' : ''}`} onClick={() => pickAlt(slot)}>
-                    <span className="gd-alt-label">{slot.dayLabel} — {slot.label}</span>
-                    {isSel && <span className="gd-alt-check">✓</span>}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* View full calendar toggle */}
+          {/* Other time toggle */}
           {slotsLoaded && (
             <button className="gd-cal-toggle" onClick={onToggleCal}>
               <IcoCal />
-              <span style={{ flex: 1 }}>{calExpanded ? 'Hide calendar' : 'View full calendar'}</span>
+              <span style={{ flex: 1 }}>{calExpanded ? 'Hide' : 'Other time'}</span>
               <span style={{ display:'inline-block', transition:'transform .2s', transform: calExpanded ? 'rotate(180deg)' : 'none' }}>▾</span>
             </button>
           )}
