@@ -118,11 +118,14 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <header style={s.header}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-            <span style={s.headerTitle}>Booking Dashboard</span>
-            <Link href="/dashboard/bookings" style={s.navLink}>Bookings →</Link>
-            <Link href="/dashboard/leads" style={s.navLink}>Lead Pipeline →</Link>
-            <Link href="/dashboard/analytics" style={s.navLink}>Analytics →</Link>
+          <div style={s.headerLeft}>
+            <span style={s.logo}>⬡ FranchiseBook</span>
+            <nav style={s.nav}>
+              <Link href="/dashboard"           style={{ ...s.navLink, ...s.navActive }}>Home</Link>
+              <Link href="/dashboard/bookings"  style={s.navLink}>Bookings</Link>
+              <Link href="/dashboard/leads"     style={s.navLink}>Leads</Link>
+              <Link href="/dashboard/analytics" style={s.navLink}>Analytics</Link>
+            </nav>
           </div>
           <div style={s.headerRight}>
             <span style={s.headerUser}>{session?.user?.email}</span>
@@ -401,50 +404,68 @@ function hours() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = {
-  page:       { minHeight: '100vh', background: '#F9FAFB', fontFamily: "'Inter',system-ui,sans-serif", color: '#111827' },
-  header:     { background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '14px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50 },
-  headerTitle:{ fontSize: 15, fontWeight: 700, color: '#111827', letterSpacing: '-.01em' },
-  headerRight:{ display: 'flex', alignItems: 'center', gap: 12 },
-  headerUser: { fontSize: 13, color: '#6B7280' },
-  signOutBtn: { fontSize: 13, fontWeight: 500, color: '#6B7280', background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit' },
-  main:       { maxWidth: 900, margin: '0 auto', padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: 32 },
-  section:    { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 14, padding: '28px 28px 32px', boxShadow: '0 1px 4px rgba(0,0,0,.04)' },
-  sectionHdr: { marginBottom: 20 },
-  sectionTitle:{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 4 },
-  sectionSub: { fontSize: 13, color: '#6B7280', lineHeight: 1.6 },
-  urlBox:     { display: 'flex', alignItems: 'center', gap: 10, background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 9, padding: '12px 16px', marginBottom: 10 },
-  urlCode:    { flex: 1, fontSize: 12, fontFamily: 'monospace', color: '#374151', wordBreak: 'break-all' },
-  chip:       { flexShrink: 0, padding: '6px 14px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'background .15s' },
-  urlNote:    { fontSize: 12, color: '#9CA3AF', lineHeight: 1.6 },
-  inlineCode: { background: '#F3F4F6', borderRadius: 3, padding: '1px 4px', fontFamily: 'monospace', fontSize: 11 },
-  navLink:    { fontSize: 13, color: '#1D4ED8', fontWeight: 600, textDecoration: 'none' },
-  memberGrid: { display: 'flex', flexDirection: 'column', gap: 10 },
-  memberCard: { background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden', transition: 'opacity .2s' },
-  memberCardTop: { display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' },
-  avatar:     { width: 38, height: 38, borderRadius: '50%', background: '#EFF6FF', color: '#1D4ED8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 },
-  memberInfo: { flex: 1, minWidth: 0 },
-  memberName: { fontSize: 14, fontWeight: 600, color: '#111827' },
-  memberEmail:{ fontSize: 12, color: '#6B7280', marginTop: 1 },
+  // Page
+  page:        { minHeight: '100vh', background: '#F5F6F7', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif", color: '#333' },
+
+  // QB dark header — precise color
+  header:      { background: '#33485E', padding: '0 20px', height: 50, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50 },
+  headerLeft:  { display: 'flex', alignItems: 'center', gap: 28 },
+  logo:        { fontWeight: 600, fontSize: 15, color: '#FFFFFF', letterSpacing: '-0.2px', flexShrink: 0 },
+  nav:         { display: 'flex', gap: 2 },
+  navLink:     { fontSize: 13, color: '#A8BED0', textDecoration: 'none', padding: '7px 14px', borderRadius: 3, fontWeight: 400 },
+  navActive:   { color: '#FFFFFF', background: 'rgba(255,255,255,.13)' },
+  headerRight: { display: 'flex', alignItems: 'center', gap: 12 },
+  headerUser:  { fontSize: 13, color: '#A8BED0' },
+  signOutBtn:  { fontSize: 12, fontWeight: 400, color: '#A8BED0', background: 'transparent', border: '1px solid rgba(255,255,255,.18)', borderRadius: 3, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit' },
+
+  // Body
+  main:        { maxWidth: 960, margin: '0 auto', padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 20 },
+
+  // Section cards — QB white card with thin border, no shadow
+  section:     { background: '#fff', border: '1px solid #D8DCE0', borderRadius: 4, padding: '22px 24px 26px' },
+  sectionHdr:  { marginBottom: 16 },
+  sectionTitle:{ fontSize: 15, fontWeight: 600, color: '#1A2B3C', marginBottom: 4 },
+  sectionSub:  { fontSize: 13, color: '#6B7280', lineHeight: 1.6 },
+
+  // Booking URL
+  urlBox:      { display: 'flex', alignItems: 'center', gap: 10, background: '#F5F6F7', border: '1px solid #D8DCE0', borderRadius: 3, padding: '11px 14px', marginBottom: 10 },
+  urlCode:     { flex: 1, fontSize: 12, fontFamily: 'monospace', color: '#444', wordBreak: 'break-all' },
+  chip:        { flexShrink: 0, padding: '6px 14px', borderRadius: 3, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'background .15s' },
+  urlNote:     { fontSize: 12, color: '#9CA3AF', lineHeight: 1.6 },
+  inlineCode:  { background: '#EAECEF', borderRadius: 2, padding: '1px 4px', fontFamily: 'monospace', fontSize: 11 },
+
+  // Team members
+  memberGrid:  { display: 'flex', flexDirection: 'column', gap: 8 },
+  memberCard:  { background: '#F5F6F7', border: '1px solid #D8DCE0', borderRadius: 4, overflow: 'hidden', transition: 'opacity .2s' },
+  memberCardTop:{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px' },
+  avatar:      { width: 34, height: 34, borderRadius: '50%', background: '#E0EFF9', color: '#0077C5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, flexShrink: 0 },
+  memberInfo:  { flex: 1, minWidth: 0 },
+  memberName:  { fontSize: 14, fontWeight: 600, color: '#1A2B3C' },
+  memberEmail: { fontSize: 12, color: '#6B7280', marginTop: 1 },
   memberRangeNote: { fontSize: 11, color: '#9CA3AF', marginTop: 3, fontStyle: 'italic' },
-  statusDot:  { width: 8, height: 8, borderRadius: '50%', flexShrink: 0 },
-  toggleBtn:  { fontSize: 12, fontWeight: 500, color: '#6B7280', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 5, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit' },
-  rangesWrap: { borderTop: '1px solid #E5E7EB', padding: '12px 16px', background: '#fff' },
-  rangesLabel:{ fontSize: 11, color: '#6B7280', marginBottom: 10 },
-  rangesRow:  { display: 'flex', gap: 16, flexWrap: 'wrap' },
-  rangeCheck: { display: 'flex', alignItems: 'center', fontSize: 13, color: '#111827', cursor: 'pointer', fontWeight: 500 },
-  addMemberLink:{ fontSize: 13, color: '#1D4ED8', fontWeight: 500, textDecoration: 'none' },
-  form:       { display: 'flex', flexDirection: 'column', gap: 16 },
-  formRow:    { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 },
-  field:      { display: 'flex', flexDirection: 'column', gap: 6 },
-  label:      { fontSize: 12, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '.04em' },
-  select:     { padding: '9px 12px', border: '1.5px solid #D1D5DB', borderRadius: 7, fontSize: 14, color: '#111827', background: '#fff', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' },
-  input:      { padding: '9px 12px', border: '1.5px solid #D1D5DB', borderRadius: 7, fontSize: 14, color: '#111827', background: '#fff', fontFamily: 'inherit', outline: 'none' },
-  saveBtn:    { padding: '11px 24px', background: '#1D4ED8', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'background .15s' },
-  tableWrap:  { overflowX: 'auto', borderRadius: 9, border: '1px solid #E5E7EB' },
-  table:      { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-  th:         { padding: '10px 14px', background: '#F9FAFB', color: '#6B7280', fontWeight: 600, textAlign: 'left', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', borderBottom: '1px solid #E5E7EB', whiteSpace: 'nowrap' },
-  td:         { padding: '11px 14px', borderBottom: '1px solid #F3F4F6', color: '#111827', verticalAlign: 'middle', whiteSpace: 'nowrap' },
-  tr:         { transition: 'background .1s' },
-  meetLink:   { color: '#1D4ED8', fontWeight: 500, textDecoration: 'none' },
-  empty:      { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '32px 0' },
+  statusDot:   { width: 8, height: 8, borderRadius: '50%', flexShrink: 0 },
+  toggleBtn:   { fontSize: 12, fontWeight: 400, color: '#4A5568', background: '#fff', border: '1px solid #C8CDD2', borderRadius: 3, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit' },
+  rangesWrap:  { borderTop: '1px solid #D8DCE0', padding: '12px 14px', background: '#fff' },
+  rangesLabel: { fontSize: 11, color: '#6B7280', marginBottom: 10 },
+  rangesRow:   { display: 'flex', gap: 16, flexWrap: 'wrap' },
+  rangeCheck:  { display: 'flex', alignItems: 'center', fontSize: 13, color: '#1A2B3C', cursor: 'pointer', fontWeight: 400 },
+  addMemberLink:{ fontSize: 13, color: '#0077C5', fontWeight: 500, textDecoration: 'none' },
+
+  // Form
+  form:        { display: 'flex', flexDirection: 'column', gap: 16 },
+  formRow:     { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 },
+  field:       { display: 'flex', flexDirection: 'column', gap: 6 },
+  label:       { fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.5px' },
+  select:      { padding: '8px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', background: '#fff', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' },
+  input:       { padding: '8px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', background: '#fff', fontFamily: 'inherit', outline: 'none' },
+  saveBtn:     { padding: '9px 20px', background: '#0077C5', color: '#fff', border: 'none', borderRadius: 3, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+
+  // Table
+  tableWrap:   { overflowX: 'auto', border: '1px solid #D8DCE0', borderRadius: 4 },
+  table:       { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
+  th:          { padding: '9px 14px', background: '#F5F6F7', color: '#6B7280', fontWeight: 600, textAlign: 'left', fontSize: 11, letterSpacing: '.4px', borderBottom: '1px solid #D8DCE0', whiteSpace: 'nowrap' },
+  td:          { padding: '11px 14px', borderBottom: '1px solid #EBEBEB', color: '#1A2B3C', verticalAlign: 'middle', whiteSpace: 'nowrap' },
+  tr:          { transition: 'background .1s' },
+  meetLink:    { color: '#0077C5', fontWeight: 500, textDecoration: 'none' },
+  empty:       { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '32px 0' },
 };

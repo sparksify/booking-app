@@ -315,47 +315,47 @@ function QBBtn({ variant, onClick, children }) {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const s = {
-  page:        { minHeight: '100vh', background: '#F7F8FA', fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif' },
+  page:        { minHeight: '100vh', background: '#F5F6F7', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" },
 
-  // Header — QB dark nav
-  header:      { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', height: 52, background: '#2D3E50', boxShadow: '0 2px 4px rgba(0,0,0,.2)' },
-  headerLeft:  { display: 'flex', alignItems: 'center', gap: 32 },
-  logo:        { fontWeight: 700, fontSize: 16, color: '#FFFFFF', letterSpacing: '-0.3px' },
-  nav:         { display: 'flex', gap: 4 },
-  navLink:     { fontSize: 13, color: '#B0C4D8', textDecoration: 'none', padding: '6px 12px', borderRadius: 4, fontWeight: 500 },
-  navActive:   { color: '#FFFFFF', background: 'rgba(255,255,255,.12)' },
+  // QB dark nav — precise color from screenshot
+  header:      { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', height: 50, background: '#33485E' },
+  headerLeft:  { display: 'flex', alignItems: 'center', gap: 28 },
+  logo:        { fontWeight: 600, fontSize: 15, color: '#FFFFFF', letterSpacing: '-0.2px', flexShrink: 0 },
+  nav:         { display: 'flex', gap: 2 },
+  navLink:     { fontSize: 13, color: '#A8BED0', textDecoration: 'none', padding: '7px 14px', borderRadius: 3, fontWeight: 400 },
+  navActive:   { color: '#FFFFFF', background: 'rgba(255,255,255,.13)' },
   headerRight: { display: 'flex', alignItems: 'center', gap: 16 },
-  headerUser:  { fontSize: 13, color: '#B0C4D8' },
+  headerUser:  { fontSize: 13, color: '#A8BED0' },
 
   // Body
-  body:        { maxWidth: 1140, margin: '0 auto', padding: '28px 24px' },
-  titleBar:    { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 },
-  pageTitle:   { fontSize: 22, fontWeight: 700, color: '#1A2740', margin: 0 },
-  pageSubtitle:{ fontSize: 13, color: '#6B7280', margin: '4px 0 0' },
-  refreshBtn:  { padding: '8px 16px', fontSize: 13, fontWeight: 600, borderRadius: 4, border: '1px solid #D0D7DE', background: '#FFFFFF', color: '#333', cursor: 'pointer' },
+  body:        { maxWidth: 1160, margin: '0 auto', padding: '24px 20px' },
+  titleBar:    { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18 },
+  pageTitle:   { fontSize: 20, fontWeight: 600, color: '#1A2B3C', margin: 0 },
+  pageSubtitle:{ fontSize: 13, color: '#6B7280', margin: '3px 0 0' },
+  refreshBtn:  { padding: '7px 14px', fontSize: 13, fontWeight: 500, borderRadius: 3, border: '1px solid #C8CDD2', background: '#FFFFFF', color: '#4A5568', cursor: 'pointer' },
 
-  // Demo banner
-  demoBanner:  { background: '#FFF8E1', border: '1px solid #FFE082', borderRadius: 6, padding: '10px 16px', fontSize: 13, color: '#5D4037', marginBottom: 20 },
+  // Demo banner — matches QB's yellow notice banner exactly
+  demoBanner:  { background: '#FFFBF0', border: '1px solid #F5A623', borderLeft: '4px solid #F5A623', borderRadius: 4, padding: '10px 14px', fontSize: 13, color: '#7D4E00', marginBottom: 18 },
 
   // Summary cards
-  summaryRow:  { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 24 },
-  summaryCard: { background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 8, padding: '16px 20px', position: 'relative', boxShadow: '0 1px 3px rgba(0,0,0,.06)' },
-  summaryDot:  { position: 'absolute', top: 0, left: 0, right: 0, height: 3, borderRadius: '8px 8px 0 0' },
-  summaryNum:  { fontSize: 32, fontWeight: 700, color: '#1A2740', lineHeight: 1 },
-  summaryLabel:{ fontSize: 12, color: '#6B7280', marginTop: 6, fontWeight: 500 },
+  summaryRow:  { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 20 },
+  summaryCard: { background: '#FFFFFF', border: '1px solid #D8DCE0', borderRadius: 4, padding: '16px 18px', position: 'relative', overflow: 'hidden' },
+  summaryDot:  { position: 'absolute', top: 0, left: 0, right: 0, height: 3 },
+  summaryNum:  { fontSize: 28, fontWeight: 600, color: '#1A2B3C', lineHeight: 1 },
+  summaryLabel:{ fontSize: 12, color: '#6B7280', marginTop: 5, fontWeight: 400 },
 
-  // Tabs — QB-style segmented control
-  tabBar:      { display: 'flex', gap: 0, marginBottom: 16, background: '#FFFFFF', border: '1px solid #D0D7DE', borderRadius: 6, width: 'fit-content', overflow: 'hidden' },
-  tab:         { padding: '8px 20px', border: 'none', borderRight: '1px solid #D0D7DE', background: 'transparent', color: '#555', fontSize: 13, fontWeight: 500, cursor: 'pointer' },
-  tabActive:   { background: '#0077C5', color: '#FFFFFF' },
+  // Tabs
+  tabBar:      { display: 'flex', gap: 0, marginBottom: 14, background: '#FFFFFF', border: '1px solid #C8CDD2', borderRadius: 3, width: 'fit-content', overflow: 'hidden' },
+  tab:         { padding: '7px 18px', border: 'none', borderRight: '1px solid #C8CDD2', background: 'transparent', color: '#4A5568', fontSize: 13, fontWeight: 400, cursor: 'pointer' },
+  tabActive:   { background: '#0077C5', color: '#FFFFFF', fontWeight: 600 },
 
   // Table card
-  card:        { background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,.06)' },
+  card:        { background: '#FFFFFF', border: '1px solid #D8DCE0', borderRadius: 4, overflow: 'hidden' },
   table:       { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-  thead:       { background: '#F7F8FA' },
-  th:          { textAlign: 'left', padding: '10px 16px', fontWeight: 700, color: '#6B7280', fontSize: 11, letterSpacing: '.5px', borderBottom: '1px solid #E5E7EB' },
-  tr:          { borderBottom: '1px solid #F0F0F0' },
-  td:          { padding: '14px 16px', verticalAlign: 'middle' },
+  thead:       { background: '#F5F6F7' },
+  th:          { textAlign: 'left', padding: '9px 14px', fontWeight: 600, color: '#6B7280', fontSize: 11, letterSpacing: '.4px', borderBottom: '1px solid #D8DCE0' },
+  tr:          { borderBottom: '1px solid #EBEBEB' },
+  td:          { padding: '13px 14px', verticalAlign: 'middle' },
 
   empty:       { textAlign: 'center', padding: 56, color: '#9CA3AF', fontSize: 14 },
 };

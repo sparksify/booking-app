@@ -28,10 +28,14 @@ export default function AnalyticsDashboard() {
       <Head><title>Analytics — Booking Dashboard</title></Head>
       <div style={s.page}>
         <header style={s.header}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-            <span style={s.headerTitle}>Analytics</span>
-            <Link href="/dashboard" style={s.navLink}>← Dashboard</Link>
-            <Link href="/dashboard/leads" style={s.navLink}>Lead Pipeline</Link>
+          <div style={s.headerLeft}>
+            <span style={s.logo}>⬡ FranchiseBook</span>
+            <nav style={s.nav}>
+              <Link href="/dashboard"           style={s.navLink}>Home</Link>
+              <Link href="/dashboard/bookings"  style={s.navLink}>Bookings</Link>
+              <Link href="/dashboard/leads"     style={s.navLink}>Leads</Link>
+              <Link href="/dashboard/analytics" style={{ ...s.navLink, ...s.navActive }}>Analytics</Link>
+            </nav>
           </div>
           <span style={s.headerUser}>{session?.user?.email}</span>
         </header>
@@ -211,43 +215,51 @@ function funnelSteps(f) {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const s = {
-  page:       { minHeight: '100vh', background: '#F9FAFB', fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif' },
-  header:     { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', height: 56, background: '#fff', borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 10 },
-  headerTitle:{ fontWeight: 700, fontSize: 16, color: '#111827' },
-  headerUser: { fontSize: 13, color: '#6B7280' },
-  navLink:    { fontSize: 13, color: '#1D4ED8', textDecoration: 'none' },
-  main:       { maxWidth: 1000, margin: '0 auto', padding: '32px 24px' },
-  empty:      { textAlign: 'center', padding: 64, color: '#6B7280' },
-  section:    { background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', padding: 24, marginBottom: 24 },
-  sectionTitle:{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 20 },
+  page:        { minHeight: '100vh', background: '#F5F6F7', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" },
+
+  // QB dark header — precise color
+  header:      { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', height: 50, background: '#33485E', position: 'sticky', top: 0, zIndex: 10 },
+  headerLeft:  { display: 'flex', alignItems: 'center', gap: 28 },
+  logo:        { fontWeight: 600, fontSize: 15, color: '#FFFFFF', letterSpacing: '-0.2px', flexShrink: 0 },
+  nav:         { display: 'flex', gap: 2 },
+  navLink:     { fontSize: 13, color: '#A8BED0', textDecoration: 'none', padding: '7px 14px', borderRadius: 3, fontWeight: 400 },
+  navActive:   { color: '#FFFFFF', background: 'rgba(255,255,255,.13)' },
+  headerUser:  { fontSize: 13, color: '#A8BED0' },
+
+  main:        { maxWidth: 1000, margin: '0 auto', padding: '24px 20px' },
+  empty:       { textAlign: 'center', padding: 64, color: '#6B7280' },
+
+  // Cards — QB white, thin border, no shadow
+  section:     { background: '#fff', borderRadius: 4, border: '1px solid #D8DCE0', padding: '20px 22px', marginBottom: 16 },
+  sectionTitle:{ fontSize: 14, fontWeight: 600, color: '#1A2B3C', marginBottom: 16 },
 
   // Funnel
-  funnelRow:  { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0 },
-  funnelBox:  { textAlign: 'center', padding: '16px 20px', minWidth: 110 },
-  funnelNum:  { fontSize: 28, fontWeight: 800, color: '#111827' },
-  funnelLabel:{ fontSize: 12, color: '#6B7280', marginTop: 2 },
-  funnelPct:  { fontSize: 11, color: '#16A34A', marginTop: 4, fontWeight: 600 },
-  funnelArrow:{ fontSize: 20, color: '#D1D5DB', padding: '0 4px' },
+  funnelRow:   { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0 },
+  funnelBox:   { textAlign: 'center', padding: '14px 18px', minWidth: 100 },
+  funnelNum:   { fontSize: 26, fontWeight: 600, color: '#1A2B3C' },
+  funnelLabel: { fontSize: 11, color: '#6B7280', marginTop: 2 },
+  funnelPct:   { fontSize: 11, color: '#2CA01C', marginTop: 4, fontWeight: 600 },
+  funnelArrow: { fontSize: 18, color: '#C8CDD2', padding: '0 4px' },
 
   // Stat cards
-  statGrid:   { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: 16 },
-  statCard:   { background: '#F9FAFB', borderRadius: 8, padding: '16px 20px', border: '1px solid #E5E7EB' },
-  statNum:    { fontSize: 28, fontWeight: 800, color: '#111827' },
-  statLabel:  { fontSize: 12, color: '#6B7280', marginTop: 2 },
-  statSub:    { fontSize: 11, color: '#9CA3AF', marginTop: 4 },
+  statGrid:    { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(155px,1fr))', gap: 12 },
+  statCard:    { background: '#F5F6F7', borderRadius: 4, padding: '14px 16px', border: '1px solid #D8DCE0' },
+  statNum:     { fontSize: 26, fontWeight: 600, color: '#1A2B3C' },
+  statLabel:   { fontSize: 11, color: '#6B7280', marginTop: 2 },
+  statSub:     { fontSize: 11, color: '#9CA3AF', marginTop: 4 },
 
   // Bar chart
-  barChart:   { display: 'flex', flexDirection: 'column', gap: 10 },
-  barRow:     { display: 'flex', alignItems: 'center', gap: 12 },
-  barLabel:   { width: 72, fontSize: 13, color: '#374151', textAlign: 'right', flexShrink: 0 },
-  barTrack:   { flex: 1, height: 20, background: '#F3F4F6', borderRadius: 4, overflow: 'hidden' },
-  barFill:    { height: '100%', borderRadius: 4, transition: 'width .4s ease' },
-  barVal:     { width: 32, fontSize: 13, color: '#6B7280', textAlign: 'right', flexShrink: 0 },
+  barChart:    { display: 'flex', flexDirection: 'column', gap: 10 },
+  barRow:      { display: 'flex', alignItems: 'center', gap: 12 },
+  barLabel:    { width: 72, fontSize: 12, color: '#4A5568', textAlign: 'right', flexShrink: 0 },
+  barTrack:    { flex: 1, height: 16, background: '#EAECEF', borderRadius: 2, overflow: 'hidden' },
+  barFill:     { height: '100%', borderRadius: 2, transition: 'width .4s ease' },
+  barVal:      { width: 32, fontSize: 12, color: '#6B7280', textAlign: 'right', flexShrink: 0 },
 
   // Table
-  tableWrap:  { overflowX: 'auto' },
-  table:      { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-  th:         { textAlign: 'left', padding: '8px 12px', fontWeight: 600, color: '#6B7280', borderBottom: '1px solid #E5E7EB', whiteSpace: 'nowrap' },
-  tr:         { borderBottom: '1px solid #F3F4F6' },
-  td:         { padding: '10px 12px', color: '#111827' },
+  tableWrap:   { overflowX: 'auto' },
+  table:       { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
+  th:          { textAlign: 'left', padding: '8px 12px', fontWeight: 600, color: '#6B7280', borderBottom: '1px solid #D8DCE0', whiteSpace: 'nowrap', fontSize: 11, letterSpacing: '.4px' },
+  tr:          { borderBottom: '1px solid #EBEBEB' },
+  td:          { padding: '10px 12px', color: '#1A2B3C' },
 };

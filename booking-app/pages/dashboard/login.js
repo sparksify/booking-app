@@ -4,27 +4,32 @@ import Head from 'next/head';
 export default function Login() {
   return (
     <>
-      <Head><title>Dashboard Login</title></Head>
-      <div style={styles.root}>
-        <div style={styles.card}>
-          <div style={styles.logo}>
-            <span style={styles.logoText}>{process.env.NEXT_PUBLIC_HOST_NAME || 'Booking App'}</span>
+      <Head><title>Sign In — FranchiseBook</title></Head>
+      <div style={st.root}>
+        {/* Top bar matching QB dark nav */}
+        <div style={st.topBar}>
+          <span style={st.topLogo}>⬡ FranchiseBook</span>
+        </div>
+
+        {/* Centered card */}
+        <div style={st.body}>
+          <div style={st.card}>
+            <div style={st.brandMark}>⬡</div>
+            <h1 style={st.heading}>Sign in</h1>
+            <p style={st.sub}>
+              Access your operator dashboard and connect your Google Calendar to start receiving bookings.
+            </p>
+            <button
+              style={st.googleBtn}
+              onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
+            >
+              <GoogleIcon />
+              Continue with Google
+            </button>
+            <p style={st.note}>
+              Each team member signs in here to connect their own calendar.
+            </p>
           </div>
-          <h1 style={styles.heading}>Dashboard Login</h1>
-          <p style={styles.sub}>
-            Sign in with your Google account to access the operator dashboard
-            and connect your calendar.
-          </p>
-          <button
-            style={styles.btn}
-            onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
-          >
-            <GoogleIcon />
-            Sign in with Google
-          </button>
-          <p style={styles.note}>
-            Each team member signs in here to connect their own Google Calendar.
-          </p>
         </div>
       </div>
     </>
@@ -40,70 +45,38 @@ const GoogleIcon = () => (
   </svg>
 );
 
-const styles = {
-  root: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
+const st = {
+  root:      { minHeight: '100vh', background: '#F5F6F7', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif", display: 'flex', flexDirection: 'column' },
+
+  topBar:    { background: '#33485E', height: 52, display: 'flex', alignItems: 'center', padding: '0 24px' },
+  topLogo:   { color: '#fff', fontWeight: 600, fontSize: 15, letterSpacing: '-0.3px' },
+
+  body:      { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 },
+
+  card:      { background: '#fff', border: '1px solid #D8DCE0', borderRadius: 8, padding: '40px 36px', maxWidth: 400, width: '100%', textAlign: 'center' },
+
+  brandMark: { fontSize: 36, color: '#0077C5', marginBottom: 16 },
+
+  heading:   { fontSize: 22, fontWeight: 600, color: '#1A2B3C', margin: '0 0 8px', letterSpacing: '-0.3px' },
+  sub:       { fontSize: 14, color: '#6B7280', lineHeight: 1.6, margin: '0 0 28px' },
+
+  googleBtn: {
+    display:        'flex',
+    alignItems:     'center',
     justifyContent: 'center',
-    background: '#F9FAFB',
-    padding: '24px',
-    fontFamily: "'Inter', system-ui, sans-serif",
+    gap:            10,
+    width:          '100%',
+    padding:        '11px 20px',
+    background:     '#fff',
+    border:         '1px solid #D0D7DE',
+    borderRadius:   4,
+    fontSize:       14,
+    fontWeight:     600,
+    color:          '#333',
+    cursor:         'pointer',
+    fontFamily:     'inherit',
+    marginBottom:   16,
   },
-  card: {
-    background: '#fff',
-    border: '1px solid #E5E7EB',
-    borderRadius: '16px',
-    padding: '40px 36px',
-    maxWidth: '400px',
-    width: '100%',
-    textAlign: 'center',
-    boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
-  },
-  logo: {
-    marginBottom: '24px',
-  },
-  logoText: {
-    fontSize: '13px',
-    fontWeight: '600',
-    color: '#6B7280',
-    textTransform: 'uppercase',
-    letterSpacing: '.06em',
-  },
-  heading: {
-    fontSize: '24px',
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: '8px',
-    letterSpacing: '-.02em',
-  },
-  sub: {
-    fontSize: '14px',
-    color: '#6B7280',
-    lineHeight: '1.6',
-    marginBottom: '28px',
-  },
-  btn: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '10px',
-    width: '100%',
-    padding: '13px 20px',
-    background: '#fff',
-    border: '1.5px solid #D1D5DB',
-    borderRadius: '9px',
-    fontSize: '15px',
-    fontWeight: '600',
-    color: '#111827',
-    cursor: 'pointer',
-    fontFamily: "'Inter', system-ui, sans-serif",
-    transition: 'all .15s',
-    marginBottom: '16px',
-  },
-  note: {
-    fontSize: '12px',
-    color: '#9CA3AF',
-    lineHeight: '1.5',
-  },
+
+  note:      { fontSize: 12, color: '#9CA3AF', lineHeight: 1.5, margin: 0 },
 };

@@ -121,9 +121,13 @@ export default function LeadsDashboard({ initialLeads, baseUrl }) {
         {/* ── Header ── */}
         <header style={s.header}>
           <div style={s.headerLeft}>
-            <Link href="/dashboard" style={s.backLink}>← Dashboard</Link>
-            <span style={s.headerTitle}>Leads</span>
-            <span style={s.totalBadge}>{leads.length}</span>
+            <span style={s.logo}>⬡ FranchiseBook</span>
+            <nav style={s.nav}>
+              <Link href="/dashboard"           style={s.navLink}>Home</Link>
+              <Link href="/dashboard/bookings"  style={s.navLink}>Bookings</Link>
+              <Link href="/dashboard/leads"     style={{ ...s.navLink, ...s.navActive }}>Leads</Link>
+              <Link href="/dashboard/analytics" style={s.navLink}>Analytics</Link>
+            </nav>
           </div>
           <div style={s.headerRight}>
             <span style={s.headerUser}>{session?.user?.email}</span>
@@ -351,56 +355,64 @@ function formatPhone(p) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = {
-  page:         { minHeight: '100vh', background: '#F3F4F6', fontFamily: "'Inter',system-ui,sans-serif", color: '#111827', display: 'flex', flexDirection: 'column' },
-  header:       { background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50 },
-  headerLeft:   { display: 'flex', alignItems: 'center', gap: 12 },
-  backLink:     { fontSize: 13, color: '#6B7280', textDecoration: 'none', fontWeight: 500 },
-  headerTitle:  { fontSize: 15, fontWeight: 700, color: '#111827' },
-  totalBadge:   { fontSize: 12, fontWeight: 700, background: '#F3F4F6', color: '#6B7280', borderRadius: 10, padding: '2px 8px' },
+  page:         { minHeight: '100vh', background: '#F5F6F7', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif", color: '#1A2B3C', display: 'flex', flexDirection: 'column' },
+
+  // QB dark header — precise color
+  header:       { background: '#33485E', padding: '0 20px', height: 50, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50, flexShrink: 0 },
+  headerLeft:   { display: 'flex', alignItems: 'center', gap: 28 },
+  logo:         { fontWeight: 600, fontSize: 15, color: '#FFFFFF', letterSpacing: '-0.2px', flexShrink: 0 },
+  nav:          { display: 'flex', gap: 2 },
+  navLink:      { fontSize: 13, color: '#A8BED0', textDecoration: 'none', padding: '7px 14px', borderRadius: 3, fontWeight: 400 },
+  navActive:    { color: '#FFFFFF', background: 'rgba(255,255,255,.13)' },
   headerRight:  { display: 'flex', alignItems: 'center', gap: 12 },
-  headerUser:   { fontSize: 13, color: '#6B7280' },
-  signOutBtn:   { fontSize: 13, fontWeight: 500, color: '#6B7280', background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit' },
+  headerUser:   { fontSize: 13, color: '#A8BED0' },
+  signOutBtn:   { fontSize: 12, fontWeight: 400, color: '#A8BED0', background: 'transparent', border: '1px solid rgba(255,255,255,.18)', borderRadius: 3, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit' },
 
-  statusBar:    { background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '10px 24px', display: 'flex', gap: 8, overflowX: 'auto', flexShrink: 0 },
-  statusChip:   { padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#6B7280', background: '#F9FAFB', border: '1.5px solid #E5E7EB', borderRadius: 20, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 },
-  statusChipActive: { background: '#EFF6FF', color: '#1D4ED8', borderColor: '#1D4ED8' },
-  chipCount:    { fontWeight: 700, opacity: 0.7 },
+  // Status filter bar
+  statusBar:    { background: '#fff', borderBottom: '1px solid #D8DCE0', padding: '9px 20px', display: 'flex', gap: 6, overflowX: 'auto', flexShrink: 0 },
+  statusChip:   { padding: '5px 12px', fontSize: 12, fontWeight: 400, color: '#4A5568', background: '#F5F6F7', border: '1px solid #D8DCE0', borderRadius: 20, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 },
+  statusChipActive: { background: '#E0EFF9', color: '#0077C5', borderColor: '#0077C5' },
+  chipCount:    { fontWeight: 600, opacity: 0.7 },
 
-  toolbar:      { background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '10px 24px', display: 'flex', alignItems: 'center', gap: 10 },
-  searchInput:  { flex: 1, maxWidth: 300, padding: '8px 12px', border: '1.5px solid #D1D5DB', borderRadius: 7, fontSize: 13, fontFamily: 'inherit', outline: 'none', color: '#111827' },
-  filterSelect: { padding: '8px 12px', border: '1.5px solid #D1D5DB', borderRadius: 7, fontSize: 13, color: '#111827', background: '#fff', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' },
-  resultCount:  { fontSize: 12, color: '#9CA3AF', fontWeight: 600, marginLeft: 'auto' },
+  // Toolbar
+  toolbar:      { background: '#fff', borderBottom: '1px solid #D8DCE0', padding: '9px 20px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 },
+  searchInput:  { flex: 1, maxWidth: 300, padding: '7px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, fontFamily: 'inherit', outline: 'none', color: '#1A2B3C' },
+  filterSelect: { padding: '7px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', background: '#fff', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' },
+  resultCount:  { fontSize: 12, color: '#9CA3AF', fontWeight: 400, marginLeft: 'auto' },
 
-  main:         { flex: 1, padding: '20px 24px' },
-  list:         { display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 900, margin: '0 auto' },
+  // Lead list
+  main:         { flex: 1, padding: '18px 20px' },
+  list:         { display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 960, margin: '0 auto' },
   empty:        { textAlign: 'center', padding: '60px 24px', fontSize: 14, color: '#9CA3AF', maxWidth: 480, margin: '0 auto', lineHeight: 1.6 },
 
-  row:          { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden', transition: 'opacity .15s' },
-  rowMain:      { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '14px 16px', cursor: 'pointer' },
+  // Lead row card — QB white card, thin border, no shadow
+  row:          { background: '#fff', border: '1px solid #D8DCE0', borderRadius: 4, overflow: 'hidden', transition: 'opacity .15s' },
+  rowMain:      { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '13px 16px', cursor: 'pointer' },
   rowLeft:      { flex: 1, minWidth: 0 },
-  leadName:     { fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 3 },
+  leadName:     { fontSize: 14, fontWeight: 600, color: '#1A2B3C', marginBottom: 3 },
   leadContact:  { fontSize: 13, color: '#6B7280', display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4 },
-  dot:          { color: '#D1D5DB' },
+  dot:          { color: '#C8CDD2' },
   leadMeta:     { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   leadDate:     { fontSize: 11, color: '#9CA3AF' },
-  bookingPill:  { fontSize: 11, fontWeight: 600, color: '#0EA5E9', background: '#E0F2FE', borderRadius: 10, padding: '2px 8px' },
+  bookingPill:  { fontSize: 11, fontWeight: 500, color: '#0077C5', background: '#E0EFF9', borderRadius: 10, padding: '2px 8px' },
   rowRight:     { display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 12 },
-  badge:        { fontSize: 10, fontWeight: 700, borderRadius: 20, padding: '3px 8px', whiteSpace: 'nowrap' },
+  badge:        { fontSize: 10, fontWeight: 600, borderRadius: 20, padding: '3px 8px', whiteSpace: 'nowrap' },
   chevron:      { fontSize: 16, color: '#9CA3AF', transition: 'transform .2s', display: 'inline-block', lineHeight: 1 },
 
-  detail:       { borderTop: '1px solid #F3F4F6', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 14 },
+  // Expanded detail
+  detail:       { borderTop: '1px solid #EBEBEB', padding: '13px 16px', display: 'flex', flexDirection: 'column', gap: 12, background: '#F8F9FA' },
   detailActions:{ display: 'flex', gap: 8, flexWrap: 'wrap' },
-  actionBtn:    { padding: '7px 14px', borderRadius: 7, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  actionBtn:    { padding: '7px 14px', borderRadius: 3, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
-  rawFields:    { background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '10px 14px' },
-  bookingInfo:  { background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 14px' },
-  rawTitle:     { fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 8 },
+  rawFields:    { background: '#fff', border: '1px solid #D8DCE0', borderRadius: 4, padding: '10px 14px' },
+  bookingInfo:  { background: '#E0EFF9', border: '1px solid #B3D4EE', borderRadius: 4, padding: '10px 14px' },
+  rawTitle:     { fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 8 },
   rawRow:       { display: 'flex', gap: 10, alignItems: 'baseline', marginBottom: 4 },
   rawKey:       { fontSize: 12, fontWeight: 600, color: '#6B7280', textTransform: 'capitalize', minWidth: 100, flexShrink: 0 },
-  rawVal:       { fontSize: 13, color: '#111827' },
-  link:         { fontSize: 13, color: '#1D4ED8', textDecoration: 'none', fontWeight: 500 },
+  rawVal:       { fontSize: 13, color: '#1A2B3C' },
+  link:         { fontSize: 13, color: '#0077C5', textDecoration: 'none', fontWeight: 500 },
 
   moveRow:      { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  moveLabel:    { fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase' },
-  moveBtn:      { padding: '5px 12px', background: '#fff', border: '1.5px solid', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  moveLabel:    { fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase' },
+  moveBtn:      { padding: '5px 12px', background: '#fff', border: '1px solid', borderRadius: 3, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };
