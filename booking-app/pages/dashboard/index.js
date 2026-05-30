@@ -223,6 +223,21 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
                 />
               </Field>
 
+              <div style={s.formRow}>
+                <Field label="Max slots shown per day">
+                  <select style={s.select} value={settings.max_slots_per_day ?? 15}
+                    onChange={e => setSettings(p => ({ ...p, max_slots_per_day: +e.target.value }))}>
+                    {[5, 8, 10, 12, 15, 20, 25].map(n => <option key={n} value={n}>{n} slots</option>)}
+                  </select>
+                </Field>
+                <Field label="Slots randomly hidden per day">
+                  <select style={s.select} value={settings.hidden_slots_count ?? 1}
+                    onChange={e => setSettings(p => ({ ...p, hidden_slots_count: +e.target.value }))}>
+                    {[0, 1, 2, 3].map(n => <option key={n} value={n}>{n === 0 ? 'None' : `${n} slot${n > 1 ? 's' : ''}`}</option>)}
+                  </select>
+                </Field>
+              </div>
+
               <div style={{ marginTop: 20 }}>
                 <button type="submit" style={s.saveBtn} disabled={saving}>
                   {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save settings'}

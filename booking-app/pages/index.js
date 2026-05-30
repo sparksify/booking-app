@@ -490,7 +490,7 @@ function PickingPhase({
           {slotsLoaded && (
             <button className="gd-cal-toggle" onClick={onToggleCal}>
               <IcoCal />
-              <span style={{ flex: 1 }}>{calExpanded ? 'Hide' : 'Other time'}</span>
+              <span style={{ flex: 1 }}>{calExpanded ? 'Hide' : '📆 Choose Another Time'}</span>
               <span style={{ display:'inline-block', transition:'transform .2s', transform: calExpanded ? 'rotate(180deg)' : 'none' }}>▾</span>
             </button>
           )}

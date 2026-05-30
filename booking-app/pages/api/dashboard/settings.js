@@ -28,19 +28,22 @@ export default async function handler(req, res) {
       work_start, work_end, timezone,
       meeting_duration, meeting_title,
       days_ahead, buffer_minutes,
+      max_slots_per_day, hidden_slots_count,
     } = req.body;
 
     const { data, error } = await supabase
       .from('settings')
       .update({
-        work_start:       work_start       ?? undefined,
-        work_end:         work_end         ?? undefined,
-        timezone:         timezone         ?? undefined,
-        meeting_duration: meeting_duration ?? undefined,
-        meeting_title:    meeting_title    ?? undefined,
-        days_ahead:       days_ahead       ?? undefined,
-        buffer_minutes:   buffer_minutes   ?? undefined,
-        updated_at:       new Date().toISOString(),
+        work_start:         work_start         ?? undefined,
+        work_end:           work_end           ?? undefined,
+        timezone:           timezone           ?? undefined,
+        meeting_duration:   meeting_duration   ?? undefined,
+        meeting_title:      meeting_title      ?? undefined,
+        days_ahead:         days_ahead         ?? undefined,
+        buffer_minutes:     buffer_minutes     ?? undefined,
+        max_slots_per_day:  max_slots_per_day  ?? undefined,
+        hidden_slots_count: hidden_slots_count ?? undefined,
+        updated_at:         new Date().toISOString(),
       })
       .eq('id', 1)
       .select()
