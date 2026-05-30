@@ -120,6 +120,7 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
         <header style={s.header}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
             <span style={s.headerTitle}>Booking Dashboard</span>
+            <Link href="/dashboard/bookings" style={s.navLink}>Bookings →</Link>
             <Link href="/dashboard/leads" style={s.navLink}>Lead Pipeline →</Link>
             <Link href="/dashboard/analytics" style={s.navLink}>Analytics →</Link>
           </div>

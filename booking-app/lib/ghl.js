@@ -87,3 +87,78 @@ export async function addGHLTags(contactId, tags) {
   }
   return res.json();
 }
+
+/**
+ * Look up a GHL contact by email.
+ * Returns the first matching contact or null.
+ */
+export async function lookupGHLContactByEmail(email) {
+  const apiKey     = process.env.GHL_API_KEY;
+  const locationId = process.env.GHL_LOCATION_ID;
+  if (!apiKey || !locationId) return null;
+
+  const res = await fetch(
+    `${GHL_API}/contacts/?locationId=${locationId}&email=${encodeURIComponent(email)}`,
+    {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Version':       GHL_VERSION,
+      },
+    }
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.contacts?.[0] ?? null;
+}
+
+/**
+ * Get the most recent open opportunity for a GHL contact.
+ * Returns the opportunity object or null.
+ */
+export async function getGHLContactOpportunity(contactId) {
+  const apiKey     = process.env.GHL_API_KEY;
+  const locationId = process.env.GHL_LOCATION_ID;
+  if (!apiKey || !locationId) return null;
+
+  const res = await fetch(
+    `${GHL_API}/opportunities/search?location_id=${locationId}&contact_id=${contactId}&limit=1`,
+    {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Version':       GHL_VERSION,
+      },
+    }
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.opportunities?.[0] ?? null;
+}
+
+/**
+ * Update a GHL opportunity's pipeline stage.
+ *
+ * Required env vars (paste your GHL pipeline stage IDs):
+ *   GHL_STAGE_SHOWED      — stage ID for "Consultation Completed" / Showed
+ *   GHL_STAGE_NO_SHOW     — stage ID for "No Show"
+ *   GHL_STAGE_CLOSED_WON  — stage ID for "Closed Won"
+ */
+export async function updateGHLOpportunityStage(opportunityId, stageId) {
+  const apiKey = process.env.GHL_API_KEY;
+  if (!apiKey || !stageId) return null;
+
+  const res = await fetch(`${GHL_API}/opportunities/${opportunityId}`, {
+    method:  'PUT',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type':  'application/json',
+      'Version':       GHL_VERSION,
+    },
+    body: JSON.stringify({ stageId }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`GHL updateOpportunity failed ${res.status}: ${text}`);
+  }
+  return res.json();
+}
