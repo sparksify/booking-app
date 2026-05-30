@@ -121,6 +121,7 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
           <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
             <span style={s.headerTitle}>Booking Dashboard</span>
             <Link href="/dashboard/leads" style={s.navLink}>Lead Pipeline →</Link>
+            <Link href="/dashboard/analytics" style={s.navLink}>Analytics →</Link>
           </div>
           <div style={s.headerRight}>
             <span style={s.headerUser}>{session?.user?.email}</span>

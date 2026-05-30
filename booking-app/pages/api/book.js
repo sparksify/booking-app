@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createCalendarEvent } from '@/lib/googleCalendar';
 import { sendConfirmationEmail } from '@/lib/resend';
+import { sendCapiEvents, buildCapiEvent } from '@/lib/fbConversionsApi';
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -26,6 +27,7 @@ export default async function handler(req, res) {
     date, h, m, label,
     investment_level,
     fb_attribution,
+    lead_id,
   } = req.body;
 
   if (!firstName || !email || !date || h == null || m == null) {
@@ -115,6 +117,33 @@ export default async function handler(req, res) {
 
   if (dbError) console.error('[book] db insert error:', dbError);
 
+  // Get the inserted booking ID for event tracking
+  let bookingId = null;
+  if (!dbError) {
+    const { data: inserted } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('email', email)
+      .eq('slot_start', new Date(startMs).toISOString())
+      .single();
+    bookingId = inserted?.id || null;
+  }
+
+  // ── Facebook Conversions API — Schedule event ───────────────────────────────
+  sendCapiEvents([
+    buildCapiEvent('Schedule', {
+      email,
+      phone,
+      sourceUrl: `${process.env.NEXTAUTH_URL || ''}/`,
+      customData: {
+        content_name:     'Franchise Discovery Call',
+        content_category: 'Franchise Consulting',
+        value:            0,
+        currency:         'USD',
+      },
+    }),
+  ]).catch(err => console.error('[book] CAPI error:', err.message));
+
   // ── Send confirmation email ─────────────────────────────────────────────────
   if (process.env.RESEND_API_KEY) {
     try {
@@ -135,7 +164,7 @@ export default async function handler(req, res) {
     }
   }
 
-  res.json({ success: true, meetLink });
+  res.json({ success: true, meetLink, bookingId });
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

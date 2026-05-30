@@ -1,5 +1,38 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Head from 'next/head';
+import { initPixel, pixelTrack, pixelEvent } from '@/lib/fbPixel';
+
+// ─── Event tracking ───────────────────────────────────────────────────────────
+
+function getSessionId() {
+  if (typeof window === 'undefined') return null;
+  let sid = sessionStorage.getItem('bk_sid');
+  if (!sid) {
+    sid = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now();
+    sessionStorage.setItem('bk_sid', sid);
+  }
+  return sid;
+}
+
+function track(eventType, leadId, props = {}) {
+  const session_id = getSessionId();
+  if (!session_id) return;
+  fetch('/api/events', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event_type: eventType, session_id, lead_id: leadId || null, props }),
+  }).catch(() => {});
+}
+
+function trackWithBooking(eventType, leadId, bookingId, props = {}) {
+  const session_id = getSessionId();
+  if (!session_id) return;
+  fetch('/api/events', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event_type: eventType, session_id, lead_id: leadId || null, booking_id: bookingId || null, props }),
+  }).catch(() => {});
+}
 
 // ─── Config ────────────────────────────────────────────────────────────────────
 const CFG = {
@@ -137,9 +170,16 @@ export default function BookingPage() {
   const [calExpanded,    setCalExpanded]    = useState(false);
   const [recommended,    setRecommended]    = useState(null);
   const [alternatives,   setAlternatives]   = useState([]);
+  const [leadId,         setLeadId]         = useState(null);
   const inputRef = useRef(null);
 
   useEffect(() => { setDays(generateWorkdays(CFG.daysAhead)); }, []);
+
+  // Init FB Pixel and fire page_view on mount
+  useEffect(() => {
+    initPixel();
+    track('page_view', null, { path: window.location.pathname });
+  }, []);
 
   // Token or URL params → pre-fill lead data and skip the form
   useEffect(() => {
@@ -152,6 +192,7 @@ export default function BookingPage() {
         .then(r => r.ok ? r.json() : null)
         .then(lead => {
           if (!lead) return;
+          if (lead.id) setLeadId(lead.id);
           if (lead.investment_level) setInvestmentLevel(lead.investment_level);
           setAnswers({
             firstName: lead.first_name  || '',
@@ -159,6 +200,7 @@ export default function BookingPage() {
             phone:     lead.phone       || '',
             email:     lead.email       || '',
           });
+          pixelTrack('Lead', { content_name: 'Booking Page', content_category: 'Franchise' });
           setPhase('picking');
         })
         .catch(() => {});
@@ -261,8 +303,11 @@ export default function BookingPage() {
       if (!byDay[c.dateStr] || c.score > byDay[c.dateStr].score) byDay[c.dateStr] = c;
     }
     const dayBests = Object.values(byDay).sort((a, b) => b.score - a.score);
-    setRecommended(dayBests[0]);
+    const top = dayBests[0];
+    setRecommended(top);
     setAlternatives(dayBests.slice(1, 5));
+    // Track that the recommended slot was shown
+    if (top) track('recommended_shown', leadId, { dateStr: top.dateStr, h: top.h, m: top.m, label: top.label });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slotMap, phase]);
 
@@ -285,7 +330,7 @@ export default function BookingPage() {
     if (!selDate || !selSlot || booking) return;
     setBooking(true);
     try {
-      await fetch('/api/book', {
+      const res = await fetch('/api/book', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -298,8 +343,14 @@ export default function BookingPage() {
           m:                selSlot.m,
           label:            selSlot.label,
           investment_level: investmentLevel || undefined,
+          lead_id:          leadId || undefined,
         }),
       });
+      const data = res.ok ? await res.json() : {};
+      trackWithBooking('booking_completed', leadId, data.bookingId || null, {
+        dateStr: selDate.dateStr, h: selSlot.h, m: selSlot.m, source: 'calendar',
+      });
+      pixelTrack('Schedule', { content_name: 'Appointment Booked', content_category: 'Franchise' });
     } catch (_) {}
     setBooking(false);
     setPhase('booked');
@@ -313,8 +364,9 @@ export default function BookingPage() {
     setSelDate(day);
     setSelSlot({ h: recommended.h, m: recommended.m, label: recommended.label });
     setBooking(true);
+    track('recommended_accepted', leadId, { dateStr: recommended.dateStr, h: recommended.h, m: recommended.m });
     try {
-      await fetch('/api/book', {
+      const res = await fetch('/api/book', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -327,8 +379,14 @@ export default function BookingPage() {
           m:                recommended.m,
           label:            recommended.label,
           investment_level: investmentLevel || undefined,
+          lead_id:          leadId || undefined,
         }),
       });
+      const data = res.ok ? await res.json() : {};
+      trackWithBooking('booking_completed', leadId, data.bookingId || null, {
+        dateStr: recommended.dateStr, h: recommended.h, m: recommended.m, source: 'recommended',
+      });
+      pixelTrack('Schedule', { content_name: 'Appointment Booked', content_category: 'Franchise' });
     } catch (_) {}
     setBooking(false);
     setPhase('booked');
@@ -340,13 +398,21 @@ export default function BookingPage() {
     return <PickingPhase
       days={days} slotMap={slotMap} selDate={selDate} selSlot={selSlot}
       onPickDate={pickDate} onPickSlot={pickSlot} onConfirm={confirmBooking} booking={booking}
-      calExpanded={calExpanded} onToggleCal={() => setCalExpanded(e => !e)}
+      calExpanded={calExpanded} onToggleCal={() => {
+        const opening = !calExpanded;
+        setCalExpanded(opening);
+        if (opening) {
+          track('calendar_opened', leadId);
+          if (recommended) track('recommended_rejected', leadId, { dateStr: recommended.dateStr, h: recommended.h, m: recommended.m });
+        }
+      }}
       recommended={recommended} alternatives={alternatives}
-      onPickGuidedSlot={pickGuidedSlot}
+      onPickGuidedSlot={(slot) => { pickGuidedSlot(slot); track('slot_selected', leadId, { dateStr: slot.dateStr, h: slot.h, m: slot.m, source: 'guided' }); }}
       onReserveRecommended={reserveRecommended}
       answers={answers}
+      leadId={leadId}
     />;
-  return <BookedPhase answers={answers} selDate={selDate} selSlot={selSlot} />;
+  return <BookedPhase answers={answers} selDate={selDate} selSlot={selSlot} leadId={leadId} />;
 }
 
 // ─── Form phase ───────────────────────────────────────────────────────────────
@@ -575,8 +641,9 @@ function PickingPhase({
 }
 
 // ─── Booked phase ─────────────────────────────────────────────────────────────
-function BookedPhase({ answers, selDate, selSlot }) {
+function BookedPhase({ answers, selDate, selSlot, leadId }) {
   const gcalUrl = selDate && selSlot ? makeGcalUrl(selDate, selSlot) : '#';
+  function trackCalAdd(provider) { track('calendar_add_clicked', leadId, { provider }); }
 
   return (
     <>
@@ -629,7 +696,7 @@ function BookedPhase({ answers, selDate, selSlot }) {
           {/* Add to calendar */}
           <div className="bkd-cal-label">ADD TO YOUR CALENDAR</div>
           <div className="bkd-cal-list">
-            <a className="bkd-cal-row" href={gcalUrl} target="_blank" rel="noreferrer">
+            <a className="bkd-cal-row" href={gcalUrl} target="_blank" rel="noreferrer" onClick={() => trackCalAdd('google')}>
               <div className="bkd-cal-ico"><IcoCalGoogle /></div>
               <div style={{ flex: 1 }}>
                 <div className="bkd-cal-name">Google Calendar</div>
@@ -637,7 +704,7 @@ function BookedPhase({ answers, selDate, selSlot }) {
               </div>
               <ChevronRight />
             </a>
-            <button className="bkd-cal-row" onClick={() => downloadIcs(selDate, selSlot, answers)}>
+            <button className="bkd-cal-row" onClick={() => { trackCalAdd('apple'); downloadIcs(selDate, selSlot, answers); }}>
               <div className="bkd-cal-ico"><IcoCalApple /></div>
               <div style={{ flex: 1 }}>
                 <div className="bkd-cal-name">Apple Calendar</div>
@@ -645,7 +712,7 @@ function BookedPhase({ answers, selDate, selSlot }) {
               </div>
               <ChevronRight />
             </button>
-            <button className="bkd-cal-row" onClick={() => downloadIcs(selDate, selSlot, answers)}>
+            <button className="bkd-cal-row" onClick={() => { trackCalAdd('outlook'); downloadIcs(selDate, selSlot, answers); }}>
               <div className="bkd-cal-ico"><IcoCalOutlook /></div>
               <div style={{ flex: 1 }}>
                 <div className="bkd-cal-name">Outlook</div>
