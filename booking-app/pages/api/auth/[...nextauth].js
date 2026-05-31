@@ -14,8 +14,7 @@ export const authOptions = {
             'openid',
             'email',
             'profile',
-            'https://www.googleapis.com/auth/calendar.events',
-            'https://www.googleapis.com/auth/calendar.events.freebusy',
+            'https://www.googleapis.com/auth/calendar',
           ].join(' '),
           access_type: 'offline',
           prompt: 'consent',   // force consent screen so refresh_token is always returned
