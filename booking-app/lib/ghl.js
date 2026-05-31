@@ -135,6 +135,39 @@ export async function getGHLContactOpportunity(contactId) {
 }
 
 /**
+ * Create a new GHL opportunity linked to a contact.
+ */
+export async function createGHLOpportunity({ contactId, name, pipelineId, stageId }) {
+  const apiKey     = process.env.GHL_API_KEY;
+  const locationId = process.env.GHL_LOCATION_ID;
+  if (!apiKey || !locationId) return null;
+
+  const res = await fetch(`${GHL_API}/opportunities/`, {
+    method:  'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type':  'application/json',
+      'Version':       GHL_VERSION,
+    },
+    body: JSON.stringify({
+      locationId,
+      contactId,
+      name,
+      pipelineId,
+      stageId,
+      status: 'open',
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`GHL createOpportunity failed ${res.status}: ${text}`);
+  }
+  const data = await res.json();
+  return data.opportunity ?? null;
+}
+
+/**
  * Update a GHL opportunity's pipeline stage.
  *
  * Required env vars (paste your GHL pipeline stage IDs):

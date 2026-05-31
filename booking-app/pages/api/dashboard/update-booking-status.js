@@ -18,18 +18,18 @@ import {
  *   1. Update bookings.status in Supabase
  *   2. Update leads.status in Supabase (matched by email)
  *   3. Add GHL tag
- *   4. Update GHL opportunity stage (if stage env var set)
- *
- * Required env vars for GHL stage sync (optional — skipped if missing):
- *   GHL_STAGE_SHOWED      — GHL pipeline stage ID for "Showed"
- *   GHL_STAGE_NO_SHOW     — GHL pipeline stage ID for "No Show"
- *   GHL_STAGE_CLOSED_WON  — GHL pipeline stage ID for "Closed Won"
+ *   4. Update GHL opportunity stage in "Appointment Scheduling" pipeline
  */
 
+// "Appointment Scheduling" pipeline stage IDs
+const GHL_STAGE_NO_SHOW = 'ed181db7-c6b9-4a47-8814-1be6ab10f8b1';
+const GHL_STAGE_CLOSED  = '435ab3d7-8889-4b16-b72f-0ae633e0cff6';
+// "Showed" has no explicit stage — lead stays at Booked Appointment until CQ is sent
+
 const STATUS_MAP = {
-  showed:   { tag: 'showed',     leadStatus: 'showed',    stageEnv: 'GHL_STAGE_SHOWED'     },
-  'no-show':{ tag: 'no-show',    leadStatus: 'no-show',   stageEnv: 'GHL_STAGE_NO_SHOW'    },
-  closed:   { tag: 'closed-won', leadStatus: 'qualified', stageEnv: 'GHL_STAGE_CLOSED_WON' },
+  showed:    { tag: 'showed',     leadStatus: 'showed',    stageId: null              },
+  'no-show': { tag: 'no-show',    leadStatus: 'no-show',   stageId: GHL_STAGE_NO_SHOW },
+  closed:    { tag: 'closed-won', leadStatus: 'qualified', stageId: GHL_STAGE_CLOSED  },
 };
 
 export default async function handler(req, res) {
@@ -46,7 +46,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: `Invalid status: ${status}` });
   }
 
-  const { tag, leadStatus, stageEnv } = STATUS_MAP[status];
+  const { tag, leadStatus, stageId } = STATUS_MAP[status];
   const supabase = getSupabaseAdmin();
   const errors   = [];
 
@@ -76,7 +76,7 @@ export default async function handler(req, res) {
 
   // 3 + 4. GHL tag + opportunity stage (best-effort, non-blocking)
   try {
-    // Resolve GHL contact ID — use stored one or look up by email
+    // Resolve GHL contact ID — use stored one from lead or look up by email
     let ghlContactId = lead?.ghl_contact_id ?? null;
     if (!ghlContactId && process.env.GHL_API_KEY) {
       const contact = await lookupGHLContactByEmail(email);
@@ -88,16 +88,32 @@ export default async function handler(req, res) {
       await addGHLTags(ghlContactId, [tag]).catch(e =>
         errors.push(`GHL tag: ${e.message}`)
       );
+    }
 
-      // Update opportunity stage if stage ID env var is set
-      const stageId = process.env[stageEnv];
-      if (stageId) {
-        const opp = await getGHLContactOpportunity(ghlContactId).catch(() => null);
-        if (opp?.id) {
-          await updateGHLOpportunityStage(opp.id, stageId).catch(e =>
-            errors.push(`GHL stage: ${e.message}`)
-          );
+    // Update opportunity stage (prefer stored opportunity ID on booking)
+    if (stageId && process.env.GHL_API_KEY) {
+      // Try to get opportunity ID directly from the booking record
+      const { data: bookingRow } = await supabase
+        .from('bookings')
+        .select('ghl_opportunity_id, ghl_contact_id')
+        .eq('id', bookingId)
+        .single();
+
+      let oppId = bookingRow?.ghl_opportunity_id ?? null;
+
+      // Fall back to searching by contact
+      if (!oppId) {
+        const contactId = bookingRow?.ghl_contact_id ?? ghlContactId;
+        if (contactId) {
+          const opp = await getGHLContactOpportunity(contactId).catch(() => null);
+          oppId = opp?.id ?? null;
         }
+      }
+
+      if (oppId) {
+        await updateGHLOpportunityStage(oppId, stageId).catch(e =>
+          errors.push(`GHL stage: ${e.message}`)
+        );
       }
     }
   } catch (ghlErr) {

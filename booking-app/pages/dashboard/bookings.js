@@ -460,9 +460,14 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
     setTimeout(() => { setEmailSent(false); setShowEmail(false); }, 2500);
   }
 
-  function sendCQ() {
-    console.log('[CQ] sending to:', booking.email);
+  async function sendCQ() {
+    if (isDemo) { setCqSent(true); setTimeout(() => setCqSent(false), 2500); return; }
     setCqSent(true);
+    await fetch('/api/dashboard/send-cq', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ bookingId: booking.id, email: booking.email }),
+    }).catch(console.error);
     setTimeout(() => setCqSent(false), 2500);
   }
 

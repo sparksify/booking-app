@@ -2,6 +2,11 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { createCalendarEvent } from '@/lib/googleCalendar';
 import { sendConfirmationEmail } from '@/lib/resend';
 import { sendCapiEvents, buildCapiEvent } from '@/lib/fbConversionsApi';
+import { upsertGHLContact, createGHLOpportunity } from '@/lib/ghl';
+
+// Appointment Scheduling pipeline
+const GHL_PIPELINE_ID  = 'tOlnnAijaReLJ30AZaSL';
+const GHL_STAGE_BOOKED = '34c03355-1c6a-4532-b2e5-f080f4263807';
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -177,6 +182,57 @@ export default async function handler(req, res) {
     } catch (err) {
       console.error('[book] sendConfirmationEmail error:', err.message);
     }
+  }
+
+  // ── GHL opportunity ─────────────────────────────────────────────────────────
+  // Create (or find) a GHL contact and open an opportunity in the
+  // "Appointment Scheduling" pipeline at the "Booked Appointment" stage.
+  if (process.env.GHL_API_KEY && process.env.GHL_LOCATION_ID) {
+    (async () => {
+      try {
+        let ghlContactId = null;
+
+        // If the lead came via a pre-fill token, their contact is already in GHL
+        if (lead_id) {
+          const { data: leadRow } = await supabase
+            .from('leads')
+            .select('ghl_contact_id')
+            .eq('token', lead_id)
+            .single();
+          ghlContactId = leadRow?.ghl_contact_id ?? null;
+        }
+
+        // Fall back to upsert (handles direct bookings / test bookings)
+        if (!ghlContactId) {
+          const contact = await upsertGHLContact({
+            locationId: process.env.GHL_LOCATION_ID,
+            firstName, lastName, email, phone,
+            tags:   ['booking-app'],
+            source: 'BookingOS',
+          });
+          ghlContactId = contact?.id ?? null;
+        }
+
+        if (ghlContactId) {
+          const opp = await createGHLOpportunity({
+            contactId:  ghlContactId,
+            name:       `${firstName} ${lastName || ''} — Discovery Call`.trim(),
+            pipelineId: GHL_PIPELINE_ID,
+            stageId:    GHL_STAGE_BOOKED,
+          });
+
+          // Persist IDs back onto the booking so status updates can use them
+          if (bookingId) {
+            await supabase.from('bookings').update({
+              ghl_opportunity_id: opp?.id    ?? null,
+              ghl_contact_id:     ghlContactId,
+            }).eq('id', bookingId);
+          }
+        }
+      } catch (err) {
+        console.error('[book] GHL opportunity error:', err.message);
+      }
+    })();
   }
 
   res.json({ success: true, meetLink, bookingId });
