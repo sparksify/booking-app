@@ -260,7 +260,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
               <table style={s.table}>
                 <thead>
                   <tr style={s.thead}>
-                    {['Time', 'Client', 'Phone', 'Investment', 'Rep', 'Status', 'Actions'].map(h => (
+                    {['Time', 'Client', 'Phone', 'Investment', 'Consultant', 'Status', 'Actions'].map(h => (
                       <th key={h} style={s.th}>{h}</th>
                     ))}
                   </tr>
@@ -377,6 +377,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
   const [notes,        setNotes]        = useState('');
   const [interests,    setInterests]    = useState([]);  // franchise_interests array
   const [selectedIdx,  setSelectedIdx]  = useState(null);
+  const [brandEditMode,setBrandEditMode]= useState(false);
   const [brandSaving,  setBrandSaving]  = useState(false);
   const [brandSaved,   setBrandSaved]   = useState(false);
   const [notesSaving,  setNotesSaving]  = useState(false);
@@ -399,7 +400,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
   }, [lead]);
 
   useEffect(() => {
-    if (!open) { setShowEmail(false); setEmailSent(false); setPitchOpen(false); }
+    if (!open) { setShowEmail(false); setEmailSent(false); setPitchOpen(false); setBrandEditMode(false); }
   }, [open]);
 
   const selectedFI = selectedIdx !== null ? interests[selectedIdx] : null;
@@ -553,7 +554,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                 <Row icon="📅" label="Scheduled">
                   <span style={p.val}>{slotLabel}</span>
                 </Row>
-                <Row icon="👤" label="Rep">
+                <Row icon="👤" label="Consultant">
                   <span style={p.val}>{booking.assigned_to_email || '—'}</span>
                 </Row>
                 {booking.meet_link && (
@@ -574,9 +575,6 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                   <QBBtn variant="cq" onClick={sendCQ} disabled={cqSent}>
                     {cqSent ? '✓ CQ Sent' : 'Send CQ'}
                   </QBBtn>
-                  <QBBtn variant="pitch" onClick={() => { setPitchBrandIdx(0); setPitchOpen(true); }}>
-                    📞 Brand Pitch
-                  </QBBtn>
                 </div>
               </PanelSection>
 
@@ -587,7 +585,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                   {interests.map((fi, i) => (
                     <div key={fi.id || i} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
                       <button
-                        onClick={() => setSelectedIdx(i)}
+                        onClick={() => { setSelectedIdx(i); setBrandEditMode(false); }}
                         style={selectedIdx === i ? p.brandChipActive : p.brandChip}
                       >
                         {fi.brand || <em style={{ opacity: 0.6 }}>New Brand</em>}
@@ -602,39 +600,82 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                   <button onClick={addBrand} style={p.addBrandBtn}>+ Brand</button>
                 </div>
 
-                {/* Selected brand detail — inline editable */}
+                {/* Selected brand detail */}
                 {selectedFI && (
                   <div style={p.brandCard}>
-                    <div style={p.fieldGroupLabel}>Brand / Concept</div>
-                    <div style={{ marginBottom: 10 }}>
-                      <input style={p.input}
-                        placeholder="e.g. Wet Fuel"
-                        value={selectedFI.brand || ''}
-                        onChange={e => updateInterest(selectedIdx, 'brand', e.target.value)} />
+                    {/* Card header row: brand name + action buttons */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#1A2B3C' }}>
+                        {selectedFI.brand || <em style={{ color: '#9CA3AF', fontWeight: 400 }}>Unnamed brand</em>}
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          onClick={() => { setPitchBrandIdx(interests.indexOf(selectedFI)); setPitchOpen(true); }}
+                          style={{ ...p.editBtn, color: '#1A7E24', borderColor: '#A8D5AA', background: '#E3F4E5' }}
+                        >
+                          📞 Brand Pitch
+                        </button>
+                        {!brandEditMode
+                          ? <button onClick={() => setBrandEditMode(true)} style={p.editBtn}>Edit</button>
+                          : <>
+                              <button onClick={async () => { await saveBrand(); setBrandEditMode(false); }}
+                                disabled={brandSaving}
+                                style={{ ...p.saveEditBtn, background: brandSaved ? '#2CA01C' : '#0077C5' }}>
+                                {brandSaving ? 'Saving…' : brandSaved ? '✓' : 'Save'}
+                              </button>
+                              <button onClick={() => setBrandEditMode(false)} style={p.cancelEditBtn}>Cancel</button>
+                            </>
+                        }
+                      </div>
                     </div>
+
+                    {/* Brand / concept field */}
+                    {brandEditMode ? (
+                      <div style={{ marginBottom: 10 }}>
+                        <label style={p.editLabel}>Brand / Concept</label>
+                        <input style={p.input} placeholder="e.g. Wet Fuel"
+                          value={selectedFI.brand || ''}
+                          onChange={e => updateInterest(selectedIdx, 'brand', e.target.value)} />
+                      </div>
+                    ) : null}
+
+                    {/* Developer info */}
                     <div style={p.fieldGroupLabel}>Developer</div>
-                    <div style={{ marginBottom: 8 }}>
-                      <input style={p.input}
-                        placeholder="Developer name"
-                        value={selectedFI.developer_name || ''}
-                        onChange={e => updateInterest(selectedIdx, 'developer_name', e.target.value)} />
-                    </div>
-                    <div style={{ marginBottom: 8 }}>
-                      <input style={p.input}
-                        placeholder="(555) 000-0000"
-                        value={selectedFI.developer_phone || ''}
-                        onChange={e => updateInterest(selectedIdx, 'developer_phone', e.target.value)} />
-                    </div>
-                    <div style={{ marginBottom: 12 }}>
-                      <input style={p.input}
-                        placeholder="developer@brand.com"
-                        value={selectedFI.developer_email || ''}
-                        onChange={e => updateInterest(selectedIdx, 'developer_email', e.target.value)} />
-                    </div>
-                    <button onClick={saveBrand} disabled={brandSaving}
-                      style={{ ...p.actionBtn, background: brandSaved ? '#2CA01C' : '#0077C5' }}>
-                      {brandSaving ? 'Saving…' : brandSaved ? '✓ Saved' : 'Save Brand'}
-                    </button>
+                    {brandEditMode ? (
+                      <>
+                        <div style={{ marginBottom: 8 }}>
+                          <input style={p.input} placeholder="Developer name"
+                            value={selectedFI.developer_name || ''}
+                            onChange={e => updateInterest(selectedIdx, 'developer_name', e.target.value)} />
+                        </div>
+                        <div style={{ marginBottom: 8 }}>
+                          <input style={p.input} placeholder="(555) 000-0000"
+                            value={selectedFI.developer_phone || ''}
+                            onChange={e => updateInterest(selectedIdx, 'developer_phone', e.target.value)} />
+                        </div>
+                        <div style={{ marginBottom: 4 }}>
+                          <input style={p.input} placeholder="developer@brand.com"
+                            value={selectedFI.developer_email || ''}
+                            onChange={e => updateInterest(selectedIdx, 'developer_email', e.target.value)} />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <Row icon="👤" label="Name">
+                          <span style={p.val}>{selectedFI.developer_name || <em style={{ color: '#9CA3AF' }}>Not set</em>}</span>
+                        </Row>
+                        <Row icon="📞" label="Phone">
+                          {selectedFI.developer_phone
+                            ? <a href={`tel:${selectedFI.developer_phone}`} style={p.link}>{selectedFI.developer_phone}</a>
+                            : <em style={{ color: '#9CA3AF', fontSize: 13 }}>Not set</em>}
+                        </Row>
+                        <Row icon="✉️" label="Email">
+                          {selectedFI.developer_email
+                            ? <a href={`mailto:${selectedFI.developer_email}`} style={p.link}>{selectedFI.developer_email}</a>
+                            : <em style={{ color: '#9CA3AF', fontSize: 13 }}>Not set</em>}
+                        </Row>
+                      </>
+                    )}
                   </div>
                 )}
 
