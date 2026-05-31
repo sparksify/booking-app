@@ -34,7 +34,7 @@ export default async function handler(req, res) {
 
   let query = supabase
     .from('bookings')
-    .select('id, first_name, last_name, email, phone, slot_start, slot_end, status, investment_level, assigned_to_email, meet_link, created_at, lead_score, show_probability, fb_attribution')
+    .select('id, first_name, last_name, email, phone, slot_start, slot_end, status, investment_level, assigned_to_email, meet_link, created_at, lead_score, show_probability, fb_attribution, booking_source')
     .order('slot_start', { ascending: true });
 
   if (from && to) {
@@ -69,6 +69,7 @@ export default async function handler(req, res) {
       lead_score:       leadScore,
       show_probability: showProbability,
       health,
+      booking_source:   b.booking_source     ?? null,
     };
   });
 

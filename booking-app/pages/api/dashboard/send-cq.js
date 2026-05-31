@@ -6,6 +6,7 @@ import {
   getGHLContactOpportunity,
   updateGHLOpportunityStage,
 } from '@/lib/ghl';
+import { logLeadEvent } from '@/lib/leadEvents';
 
 // "Appointment Scheduling" pipeline → "Sent CQ Email" stage
 const GHL_STAGE_SENT_CQ = '2d399cc0-7d30-400c-beb0-b4900576e7d3';
@@ -64,6 +65,8 @@ export default async function handler(req, res) {
   } catch (err) {
     errors.push(err.message);
   }
+
+  logLeadEvent(email, 'cq_email_sent', { booking_id: bookingId }).catch(() => {});
 
   res.json({ ok: true, errors: errors.length ? errors : undefined });
 }

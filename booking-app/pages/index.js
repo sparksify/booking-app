@@ -34,6 +34,16 @@ function trackWithBooking(eventType, leadId, bookingId, props = {}) {
   }).catch(() => {});
 }
 
+// Lead attribution tracking — requires a known email
+function trackLead(email, eventType, eventData = {}, leadToken = null) {
+  if (!email) return;
+  fetch('/api/lead-events', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, event_type: eventType, event_data: eventData, lead_id: leadToken }),
+  }).catch(() => {});
+}
+
 // ─── Config ────────────────────────────────────────────────────────────────────
 const CFG = {
   hostName:     process.env.NEXT_PUBLIC_HOST_NAME     || 'Steve Sparks',
@@ -171,6 +181,8 @@ export default function BookingPage() {
   const [recommended,    setRecommended]    = useState(null);
   const [alternatives,   setAlternatives]   = useState([]);
   const [leadId,         setLeadId]         = useState(null);
+  const [leadToken,      setLeadToken]      = useState(null);
+  const [bookingSource,  setBookingSource]  = useState('direct');
   const inputRef = useRef(null);
 
   useEffect(() => { setDays(generateWorkdays(CFG.daysAhead)); }, []);
@@ -183,10 +195,13 @@ export default function BookingPage() {
 
   // Token or URL params → pre-fill lead data and skip the form
   useEffect(() => {
-    const p     = new URLSearchParams(window.location.search);
-    const token = p.get('t');
+    const p      = new URLSearchParams(window.location.search);
+    const token  = p.get('t');
+    const source = p.get('source') || 'direct';
+    setBookingSource(source);
 
     if (token) {
+      setLeadToken(token);
       // New architecture: fetch lead from database via token
       fetch(`/api/lead?t=${encodeURIComponent(token)}`)
         .then(r => r.ok ? r.json() : null)
@@ -194,13 +209,18 @@ export default function BookingPage() {
           if (!lead) return;
           if (lead.id) setLeadId(lead.id);
           if (lead.investment_level) setInvestmentLevel(lead.investment_level);
-          setAnswers({
+          const newAnswers = {
             firstName: lead.first_name  || '',
             lastName:  lead.last_name   || '',
             phone:     lead.phone       || '',
             email:     lead.email       || '',
-          });
+          };
+          setAnswers(newAnswers);
           pixelTrack('Lead', { content_name: 'Booking Page', content_category: 'Franchise' });
+          // Log booking_page_viewed to lead timeline
+          if (lead.email) {
+            trackLead(lead.email, 'booking_page_viewed', { source }, token);
+          }
           setPhase('picking');
         })
         .catch(() => {});
@@ -216,6 +236,7 @@ export default function BookingPage() {
     if (inv) setInvestmentLevel(inv);
     if (fn || em) {
       setAnswers({ firstName: fn, lastName: ln, phone: ph, email: em });
+      if (em) trackLead(em, 'booking_page_viewed', { source });
       setPhase('picking');
     }
   }, []);
@@ -307,7 +328,10 @@ export default function BookingPage() {
     setRecommended(top);
     setAlternatives(dayBests.slice(1, 5));
     // Track that the recommended slot was shown
-    if (top) track('recommended_shown', leadId, { dateStr: top.dateStr, h: top.h, m: top.m, label: top.label });
+    if (top) {
+      track('recommended_shown', leadId, { dateStr: top.dateStr, h: top.h, m: top.m, label: top.label });
+      if (answers.email) trackLead(answers.email, 'recommended_slot_shown', { slot: `${top.dateStr}T${pad(top.h)}:${pad(top.m)}` }, leadToken);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slotMap, phase]);
 
@@ -344,6 +368,7 @@ export default function BookingPage() {
           label:            selSlot.label,
           investment_level: investmentLevel || undefined,
           lead_id:          leadId || undefined,
+          source:           bookingSource || 'direct',
         }),
       });
       const data = res.ok ? await res.json() : {};
@@ -365,6 +390,7 @@ export default function BookingPage() {
     setSelSlot({ h: recommended.h, m: recommended.m, label: recommended.label });
     setBooking(true);
     track('recommended_accepted', leadId, { dateStr: recommended.dateStr, h: recommended.h, m: recommended.m });
+    if (answers.email) trackLead(answers.email, 'recommended_slot_accepted', { slot: `${recommended.dateStr}T${pad(recommended.h)}:${pad(recommended.m)}` }, leadToken);
     try {
       const res = await fetch('/api/book', {
         method:  'POST',
@@ -380,6 +406,7 @@ export default function BookingPage() {
           label:            recommended.label,
           investment_level: investmentLevel || undefined,
           lead_id:          leadId || undefined,
+          source:           bookingSource || 'direct',
         }),
       });
       const data = res.ok ? await res.json() : {};
@@ -403,16 +430,34 @@ export default function BookingPage() {
         setCalExpanded(opening);
         if (opening) {
           track('calendar_opened', leadId);
-          if (recommended) track('recommended_rejected', leadId, { dateStr: recommended.dateStr, h: recommended.h, m: recommended.m });
+          if (recommended) {
+            track('recommended_rejected', leadId, { dateStr: recommended.dateStr, h: recommended.h, m: recommended.m });
+            if (answers.email) trackLead(answers.email, 'recommended_slot_rejected', { slot: `${recommended.dateStr}T${pad(recommended.h)}:${pad(recommended.m)}` }, leadToken);
+          }
         }
       }}
       recommended={recommended} alternatives={alternatives}
-      onPickGuidedSlot={(slot) => { pickGuidedSlot(slot); track('slot_selected', leadId, { dateStr: slot.dateStr, h: slot.h, m: slot.m, source: 'guided' }); }}
+      onPickGuidedSlot={(slot) => {
+        pickGuidedSlot(slot);
+        track('slot_selected', leadId, { dateStr: slot.dateStr, h: slot.h, m: slot.m, source: 'guided' });
+        if (answers.email) trackLead(answers.email, 'slot_selected', { slot: `${slot.dateStr}T${pad(slot.h)}:${pad(slot.m)}`, source: 'guided' }, leadToken);
+      }}
       onReserveRecommended={reserveRecommended}
       answers={answers}
       leadId={leadId}
     />;
-  return <BookedPhase answers={answers} selDate={selDate} selSlot={selSlot} leadId={leadId} />;
+  return (
+    <BookedPhase
+      answers={answers}
+      selDate={selDate}
+      selSlot={selSlot}
+      leadId={leadId}
+      onCalendarAdd={(provider) => {
+        track('calendar_add_clicked', leadId, { provider });
+        if (answers.email) trackLead(answers.email, 'calendar_add_clicked', { provider }, leadToken);
+      }}
+    />
+  );
 }
 
 // ─── Form phase ───────────────────────────────────────────────────────────────
@@ -641,9 +686,12 @@ function PickingPhase({
 }
 
 // ─── Booked phase ─────────────────────────────────────────────────────────────
-function BookedPhase({ answers, selDate, selSlot, leadId }) {
+function BookedPhase({ answers, selDate, selSlot, leadId, onCalendarAdd }) {
   const gcalUrl = selDate && selSlot ? makeGcalUrl(selDate, selSlot) : '#';
-  function trackCalAdd(provider) { track('calendar_add_clicked', leadId, { provider }); }
+  function trackCalAdd(provider) {
+    track('calendar_add_clicked', leadId, { provider });
+    if (onCalendarAdd) onCalendarAdd(provider);
+  }
 
   return (
     <>

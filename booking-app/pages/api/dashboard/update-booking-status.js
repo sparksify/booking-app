@@ -7,6 +7,7 @@ import {
   getGHLContactOpportunity,
   updateGHLOpportunityStage,
 } from '@/lib/ghl';
+import { logLeadEvent } from '@/lib/leadEvents';
 
 /**
  * POST /api/dashboard/update-booking-status
@@ -119,6 +120,17 @@ export default async function handler(req, res) {
   } catch (ghlErr) {
     errors.push(`GHL: ${ghlErr.message}`);
   }
+
+  // Log outcome event to lead timeline
+  const eventTypeMap = {
+    showed:    'appointment_showed',
+    'no-show': 'appointment_no_show',
+    closed:    'opportunity_closed',
+  };
+  logLeadEvent(email, eventTypeMap[status] || status, {
+    booking_id: bookingId,
+    updated_by: 'dashboard',
+  }).catch(() => {});
 
   res.json({ ok: true, status, errors: errors.length ? errors : undefined });
 }

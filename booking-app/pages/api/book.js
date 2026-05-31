@@ -4,6 +4,7 @@ import { sendConfirmationEmail } from '@/lib/resend';
 import { sendCapiEvents, buildCapiEvent } from '@/lib/fbConversionsApi';
 import { upsertGHLContact, createGHLOpportunity } from '@/lib/ghl';
 import { computeLeadScore, computeShowProbability } from '@/lib/scoring';
+import { logLeadEvent } from '@/lib/leadEvents';
 
 // Appointment Scheduling pipeline
 const GHL_PIPELINE_ID  = 'tOlnnAijaReLJ30AZaSL';
@@ -46,6 +47,7 @@ export default async function handler(req, res) {
     investment_level,
     fb_attribution,
     lead_id,
+    source,
   } = req.body;
 
   if (!firstName || !email || !date || h == null || m == null) {
@@ -147,6 +149,7 @@ export default async function handler(req, res) {
     fb_attribution:    fb_attribution   || null,
     lead_score:        leadScore,
     show_probability:  showProbability,
+    booking_source:    source || (lead_id ? 'facebook_lead' : 'direct'),
   });
 
   if (dbError) console.error('[book] db insert error:', dbError);
@@ -247,6 +250,21 @@ export default async function handler(req, res) {
         console.error('[book] GHL opportunity error:', err.message);
       }
     })();
+  }
+
+  // ── Log appointment_booked event ─────────────────────────────────────────────
+  if (email) {
+    const bookingSource = source || (lead_id ? 'facebook_lead' : 'direct');
+    logLeadEvent(email, 'appointment_booked', {
+      booking_source:   bookingSource,
+      slot_start:       new Date(startMs).toISOString(),
+      assigned_to:      assignedEmail || null,
+      investment_level: investment_level || null,
+      meet_link:        meetLink || null,
+    }, {
+      leadId:    lead_id || null,
+      bookingId: bookingId || null,
+    }).catch(() => {});
   }
 
   res.json({ success: true, meetLink, bookingId });

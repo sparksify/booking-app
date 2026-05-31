@@ -401,6 +401,9 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
   const [cqSent,       setCqSent]       = useState(false);
   const [pitchOpen,    setPitchOpen]    = useState(false);
   const [pitchBrandIdx,setPitchBrandIdx]= useState(0);
+  const [panelTab,     setPanelTab]     = useState('info');
+  const [timeline,     setTimeline]     = useState([]);
+  const [tlLoading,    setTlLoading]    = useState(false);
   const panelRef = useRef(null);
 
   useEffect(() => {
@@ -413,8 +416,21 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
   }, [lead]);
 
   useEffect(() => {
-    if (!open) { setShowEmail(false); setEmailSent(false); setPitchOpen(false); setBrandEditMode(false); }
+    if (!open) {
+      setShowEmail(false); setEmailSent(false); setPitchOpen(false); setBrandEditMode(false);
+      setPanelTab('info'); setTimeline([]);
+    }
   }, [open]);
+
+  function openTimeline() {
+    setPanelTab('timeline');
+    if (timeline.length > 0 || tlLoading) return;
+    setTlLoading(true);
+    fetch(`/api/lead-events?email=${encodeURIComponent(booking.email)}`)
+      .then(r => r.json())
+      .then(d => { setTimeline(d.events || []); setTlLoading(false); })
+      .catch(() => setTlLoading(false));
+  }
 
   const selectedFI = selectedIdx !== null ? interests[selectedIdx] : null;
 
@@ -551,9 +567,23 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
           <button onClick={onClose} style={p.closeBtn} aria-label="Close">✕</button>
         </div>
 
+        {/* Tab bar */}
+        <div style={p.tabBar}>
+          <button
+            style={{ ...p.panelTab, ...(panelTab === 'info' ? p.panelTabActive : {}) }}
+            onClick={() => setPanelTab('info')}
+          >📋 Info</button>
+          <button
+            style={{ ...p.panelTab, ...(panelTab === 'timeline' ? p.panelTabActive : {}) }}
+            onClick={openTimeline}
+          >🕐 Timeline</button>
+        </div>
+
         {/* Scrollable body */}
         <div style={p.scrollBody}>
-          {loading ? (
+          {panelTab === 'timeline' ? (
+            <TimelineView events={timeline} loading={tlLoading} bookingSource={booking.booking_source} />
+          ) : loading ? (
             <div style={p.loadingMsg}>Loading client details…</div>
           ) : (
             <>
@@ -878,6 +908,122 @@ function EditRow({ label, children }) {
   );
 }
 
+// ─── Timeline View ────────────────────────────────────────────────────────────
+
+const EVENT_META = {
+  lead_submitted:            { emoji: '📝', label: 'Lead Submitted',            color: '#6B7280' },
+  ghl_contact_created:       { emoji: '🔗', label: 'GHL Contact Created',       color: '#6B7280' },
+  closebot_engaged:          { emoji: '🤖', label: 'CloseBot Engaged',          color: '#7C3AED' },
+  booking_page_viewed:       { emoji: '👁',  label: 'Booking Page Viewed',       color: '#1D4ED8' },
+  recommended_slot_shown:    { emoji: '⭐', label: 'Recommended Slot Shown',    color: '#1D4ED8' },
+  recommended_slot_accepted: { emoji: '✅', label: 'Recommended Slot Accepted', color: '#16A34A' },
+  recommended_slot_rejected: { emoji: '⏭',  label: 'Recommended Slot Skipped', color: '#B45309' },
+  slot_selected:             { emoji: '📅', label: 'Slot Selected',             color: '#1D4ED8' },
+  appointment_booked:        { emoji: '🎉', label: 'Appointment Booked',        color: '#16A34A' },
+  confirmation_email_sent:   { emoji: '✉️', label: 'Confirmation Email Sent',   color: '#6B7280' },
+  calendar_add_clicked:      { emoji: '📆', label: 'Calendar Add Clicked',      color: '#1D4ED8' },
+  cq_email_sent:             { emoji: '📤', label: 'CQ Email Sent',             color: '#7C3AED' },
+  appointment_showed:        { emoji: '🟢', label: 'Showed Up',                 color: '#16A34A' },
+  appointment_no_show:       { emoji: '🔴', label: 'No Show',                   color: '#DC2626' },
+  opportunity_closed:        { emoji: '🏆', label: 'Deal Closed',               color: '#7C3AED' },
+};
+
+const SOURCE_LABELS = {
+  direct:        '🌐 Direct',
+  facebook_lead: '📘 Facebook Lead',
+  closebot:      '🤖 CloseBot',
+  sms:           '💬 SMS',
+  email:         '📧 Email',
+  retargeting:   '🎯 Retargeting',
+};
+
+function TimelineView({ events, loading, bookingSource }) {
+  if (loading) {
+    return <div style={{ padding: 24, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>Loading timeline…</div>;
+  }
+
+  return (
+    <div style={{ padding: '16px 20px' }}>
+      {/* Booking source chip */}
+      {bookingSource && (
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 6, letterSpacing: '.4px', fontWeight: 600 }}>BOOKING SOURCE</div>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '5px 12px', borderRadius: 20,
+            background: '#F0F4FF', border: '1px solid #C7D7F8',
+            fontSize: 13, fontWeight: 600, color: '#1D4ED8',
+          }}>
+            {SOURCE_LABELS[bookingSource] || bookingSource}
+          </div>
+        </div>
+      )}
+
+      {/* Event stream */}
+      {events.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '32px 0', color: '#9CA3AF', fontSize: 13 }}>
+          No events recorded yet.<br />
+          <span style={{ fontSize: 12 }}>Events will appear as the lead interacts with your system.</span>
+        </div>
+      ) : (
+        <div style={{ position: 'relative' }}>
+          {/* Vertical line */}
+          <div style={{
+            position: 'absolute', left: 14, top: 8, bottom: 8,
+            width: 2, background: '#E5E7EB', borderRadius: 2,
+          }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {events.map((ev, i) => {
+              const meta = EVENT_META[ev.event_type] || { emoji: '●', label: ev.event_type.replace(/_/g, ' '), color: '#6B7280' };
+              const ts   = new Date(ev.created_at);
+              const dateStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const timeStr = ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+              const isLast = i === events.length - 1;
+
+              return (
+                <div key={ev.id} style={{ display: 'flex', gap: 12, paddingBottom: isLast ? 0 : 18 }}>
+                  {/* Dot */}
+                  <div style={{
+                    width: 30, flexShrink: 0, display: 'flex', justifyContent: 'center', paddingTop: 2,
+                  }}>
+                    <div style={{
+                      width: 22, height: 22, borderRadius: '50%',
+                      background: meta.color + '1A',
+                      border: `2px solid ${meta.color}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 10, zIndex: 1,
+                    }}>{meta.emoji}</div>
+                  </div>
+                  {/* Content */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1A2B3C' }}>{meta.label}</div>
+                    <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>{dateStr} · {timeStr}</div>
+                    {/* Show relevant event_data fields */}
+                    {ev.event_data && Object.keys(ev.event_data).length > 0 && (
+                      <div style={{
+                        marginTop: 5, fontSize: 11, color: '#6B7280',
+                        background: '#F9FAFB', borderRadius: 4, padding: '5px 8px',
+                        border: '1px solid #E5E7EB',
+                      }}>
+                        {ev.event_data.source && <span>Source: <strong>{ev.event_data.source}</strong></span>}
+                        {ev.event_data.provider && <span>Provider: <strong>{ev.event_data.provider}</strong></span>}
+                        {ev.event_data.booking_source && <span>Via: <strong>{ev.event_data.booking_source}</strong></span>}
+                        {ev.event_data.action && <span>Action: <strong>{ev.event_data.action}</strong></span>}
+                        {ev.event_data.slot && <span>Slot: <strong>{new Date(ev.event_data.slot).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</strong></span>}
+                        {ev.event_data.note && <span> · {ev.event_data.note}</span>}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function QBBtn({ variant, onClick, children, disabled }) {
   const [hover, setHover] = useState(false);
   const vs = {
@@ -956,6 +1102,10 @@ const p = {
   clientEmail:    { fontSize: 12, color: '#6B7280', marginBottom: 6 },
   statusBadge:    { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600 },
   closeBtn:       { background: 'none', border: 'none', fontSize: 18, color: '#9CA3AF', cursor: 'pointer', padding: '0 0 0 8px', lineHeight: 1, flexShrink: 0 },
+
+  tabBar:         { display: 'flex', borderBottom: '1px solid #EBEBEB', flexShrink: 0, background: '#FAFAFA' },
+  panelTab:       { flex: 1, padding: '10px 0', fontSize: 12, fontWeight: 500, color: '#6B7280', background: 'none', border: 'none', borderBottom: '2px solid transparent', cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' },
+  panelTabActive: { color: '#1D4ED8', borderBottom: '2px solid #1D4ED8', fontWeight: 600 },
 
   scrollBody:     { flex: 1, overflowY: 'auto', padding: '0 0 24px' },
   loadingMsg:     { textAlign: 'center', padding: 40, color: '#9CA3AF', fontSize: 14 },

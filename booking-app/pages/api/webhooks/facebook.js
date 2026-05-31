@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getLeadData, parseLeadFields, generateToken } from '@/lib/facebookLeads';
 import { upsertGHLContact } from '@/lib/ghl';
+import { logLeadEvent } from '@/lib/leadEvents';
 
 /**
  * /api/webhooks/facebook
@@ -125,6 +126,17 @@ async function handleWebhook(req, res) {
 
         console.log(`[fb-webhook] lead stored: ${lead.id} token=${lead.token}`);
 
+        // Log lead_submitted event
+        if (parsed.email) {
+          logLeadEvent(parsed.email, 'lead_submitted', {
+            source:      'facebook_lead_ad',
+            fb_form_id:  form_id      || null,
+            fb_ad_id:    ad_id        || null,
+            fb_campaign_id: campaign_id || null,
+            investment_level: parsed.investmentLevel || null,
+          }, { leadId: lead.token }).catch(() => {});
+        }
+
         // 3. Look up form tag rules from settings
         let formTags = ['facebook-lead'];
         if (form_id) formTags.push(`form-${form_id}`);
@@ -162,6 +174,12 @@ async function handleWebhook(req, res) {
                 .update({ ghl_contact_id: ghlContact.id })
                 .eq('id', lead.id);
               console.log(`[fb-webhook] GHL contact: ${ghlContact.id}`);
+
+              if (parsed.email) {
+                logLeadEvent(parsed.email, 'ghl_contact_created', {
+                  ghl_contact_id: ghlContact.id,
+                }, { leadId: lead.token }).catch(() => {});
+              }
             }
           } catch (ghlErr) {
             console.error('[fb-webhook] GHL error:', ghlErr.message);
