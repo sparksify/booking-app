@@ -75,10 +75,36 @@ export default function AnalyticsDashboard() {
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 function Dashboard({ data }) {
-  const hasRevenue = data.revenue.per_close > 0;
+  const hasRevenue   = data.revenue.per_close > 0;
+  const [showRevenue, setShowRevenue] = useState(false);
+  const showRev = showRevenue && hasRevenue;
 
   return (
     <>
+      {/* Revenue toggle bar */}
+      <div style={s.toggleBar}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#4B5563' }}>Revenue Metrics</span>
+          {!hasRevenue && (
+            <span style={{ fontSize: 11, color: '#9CA3AF' }}>— set Revenue per Close in Settings to enable</span>
+          )}
+        </div>
+        <button
+          onClick={() => hasRevenue && setShowRevenue(p => !p)}
+          disabled={!hasRevenue}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px',
+            borderRadius: 20, border: 'none', cursor: hasRevenue ? 'pointer' : 'not-allowed',
+            background: showRev ? '#16A34A' : '#D1D5DB',
+            color: showRev ? '#fff' : '#6B7280',
+            fontSize: 12, fontWeight: 600, transition: 'background .2s', fontFamily: 'inherit',
+          }}
+        >
+          <span style={{ width: 10, height: 10, borderRadius: '50%', background: showRev ? '#fff' : '#9CA3AF', display: 'inline-block' }} />
+          {showRev ? 'Revenue ON' : 'Revenue OFF'}
+        </button>
+      </div>
+
       {/* §1 Executive Summary */}
       <SecTitle>§1 — Executive Summary</SecTitle>
       <div style={s.kpi4}>
@@ -87,12 +113,14 @@ function Dashboard({ data }) {
         <KpiCard label="Show Rate"    value={`${data.showRate}%`}                sub={`${data.funnel.showed} of ${data.funnel.booked}`} accent="#16A34A" icon="✅" warn={data.showRate > 0 && data.showRate < 60} />
         <KpiCard label="Close Rate"   value={`${data.closeRate}%`}               sub={`${data.funnel.closed} closed`} accent="#7C3AED" icon="🤝" />
       </div>
-      <div style={s.kpi4}>
-        <KpiCard label="Revenue Generated"    value={hasRevenue ? fmtCurrency(data.revenue.generated)  : '—'} sub={hasRevenue ? `${data.funnel.closed} closes × ${fmtCurrency(data.revenue.per_close)}` : 'Set revenue/close in Settings'} accent="#16A34A" icon="💰" />
-        <KpiCard label="Revenue Per Appt"     value={hasRevenue ? fmtCurrency(data.revenue.per_appt)   : '—'} sub="revenue ÷ bookings"        accent="#0EA5E9" icon="📈" />
-        <KpiCard label="Revenue Per Lead"     value={hasRevenue ? fmtCurrency(data.revenue.per_lead)   : '—'} sub="revenue ÷ total leads"     accent="#F59E0B" icon="🎯" />
-        <KpiCard label="Est. Revenue Lost"    value={hasRevenue ? fmtCurrency(data.revenue.lost)        : '—'} sub={`${data.funnel.leads - data.funnel.booked} lost leads × rev/lead`} accent="#DC2626" icon="⚠️" />
-      </div>
+      {showRev && (
+        <div style={s.kpi4}>
+          <KpiCard label="Revenue Generated" value={fmtCurrency(data.revenue.generated)}  sub={`${data.funnel.closed} closes × ${fmtCurrency(data.revenue.per_close)}`} accent="#16A34A" icon="💰" />
+          <KpiCard label="Revenue Per Appt"  value={fmtCurrency(data.revenue.per_appt)}   sub="revenue ÷ bookings"    accent="#0EA5E9" icon="📈" />
+          <KpiCard label="Revenue Per Lead"  value={fmtCurrency(data.revenue.per_lead)}   sub="revenue ÷ total leads" accent="#F59E0B" icon="🎯" />
+          <KpiCard label="Est. Revenue Lost" value={fmtCurrency(data.revenue.lost)}       sub={`${data.funnel.leads - data.funnel.booked} lost leads × rev/lead`} accent="#DC2626" icon="⚠️" />
+        </div>
+      )}
 
       {/* §2 + §3 Booking Engine + Slot Leaderboard */}
       <SecTitle>§2 — Booking Engine Health &nbsp;&nbsp; | &nbsp;&nbsp; §3 — Slot Leaderboard</SecTitle>
@@ -105,7 +133,7 @@ function Dashboard({ data }) {
         <div style={s.card}>
           <CTitle>Slot Leaderboard</CTitle>
           <CSub>Top booking times by volume — the engine's training data</CSub>
-          <SlotTable slots={data.slotLeaderboard} hasRevenue={hasRevenue} />
+          <SlotTable slots={data.slotLeaderboard} hasRevenue={showRev} />
         </div>
       </div>
 
@@ -133,7 +161,7 @@ function Dashboard({ data }) {
       {/* §6 Consultant Performance */}
       <SecTitle>§6 — Consultant Performance</SecTitle>
       <div style={s.card}>
-        <RepTable reps={data.repStats} hasRevenue={hasRevenue} />
+        <RepTable reps={data.repStats} hasRevenue={showRev} />
       </div>
 
       {/* §7 Velocity | §8 Delay | §9 Calendar */}
@@ -157,7 +185,7 @@ function Dashboard({ data }) {
       </div>
 
       {/* §10 Revenue Intelligence */}
-      {hasRevenue && (
+      {showRev && (
         <>
           <SecTitle>§10 — Revenue Intelligence</SecTitle>
           <div style={s.twoCol}>
@@ -186,7 +214,7 @@ function Dashboard({ data }) {
         <div style={s.card}>
           <CTitle>Opportunity Loss</CTitle>
           <CSub>Revenue left on the table from unconverted leads</CSub>
-          <OpportunityLoss funnel={data.funnel} revenue={data.revenue} hasRevenue={hasRevenue} />
+          <OpportunityLoss funnel={data.funnel} revenue={data.revenue} hasRevenue={showRev} />
         </div>
       </div>
     </>
@@ -633,6 +661,7 @@ const s = {
   spinner:      { width: 32, height: 32, borderRadius: '50%', border: '3px solid #D8DCE0', borderTopColor: '#1D4ED8', animation: 'spin 0.8s linear infinite' },
   loadingText:  { color: '#6B7280', fontSize: 14 },
 
+  toggleBar:    { display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', border: '1px solid #E0E3E7', borderRadius: 6, padding: '10px 16px', marginBottom: 16 },
   secTitle:     { fontSize: 10, fontWeight: 700, color: '#9CA3AF', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 24, marginBottom: 10 },
   card:         { background: '#fff', borderRadius: 6, border: '1px solid #E0E3E7', padding: '16px 18px' },
   cardTitle:    { fontSize: 13, fontWeight: 600, color: '#1A2B3C', marginBottom: 2 },
