@@ -78,9 +78,26 @@ function makeDemoLead(booking) {
     developer_phone:  '(972) 555-0182',
     developer_email:  'janet.okafor@wetfuel.com',
     notes:            'Very motivated buyer. Has previous business ownership experience. Interested in multi-unit.',
+    raw_fields: {
+      liquid_capital_to_get_started:                       '$100,000 – $250,000',
+      have_you_ever_owned_or_managed_a_business_before:    'Yes',
+    },
     bookings:    [booking],
     created_at:  new Date().toISOString(),
   };
+}
+
+// Helper — search raw_fields by keyword match
+function getField(raw, ...keys) {
+  if (!raw) return null;
+  for (const key of keys) {
+    const slug = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const found = Object.entries(raw).find(([k]) =>
+      k.toLowerCase().replace(/[^a-z0-9]/g, '').includes(slug)
+    );
+    if (found) return found[1];
+  }
+  return null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -350,15 +367,18 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus 
 // ─── CRM Side Panel ───────────────────────────────────────────────────────────
 
 function CRMPanel({ booking, lead, loading, open, isDemo, onClose, onStatusChange }) {
-  const [form,       setForm]       = useState({});
-  const [saving,     setSaving]     = useState(false);
-  const [saved,      setSaved]      = useState(false);
-  const [showEmail,  setShowEmail]  = useState(false);
-  const [email,      setEmail]      = useState({ to: '', subject: '', body: '' });
-  const [emailSent,  setEmailSent]  = useState(false);
+  const [form,         setForm]         = useState({});
+  const [editMode,     setEditMode]     = useState(false);
+  const [saving,       setSaving]       = useState(false);
+  const [saved,        setSaved]        = useState(false);
+  const [notesSaving,  setNotesSaving]  = useState(false);
+  const [notesSaved,   setNotesSaved]   = useState(false);
+  const [showEmail,    setShowEmail]    = useState(false);
+  const [email,        setEmail]        = useState({ to: '', subject: '', body: '' });
+  const [emailSent,    setEmailSent]    = useState(false);
+  const [cqSent,       setCqSent]       = useState(false);
   const panelRef = useRef(null);
 
-  // Sync form from lead data when it loads
   useEffect(() => {
     if (lead) {
       setForm({
@@ -372,34 +392,80 @@ function CRMPanel({ booking, lead, loading, open, isDemo, onClose, onStatusChang
     }
   }, [lead]);
 
-  // Reset email state when panel closes
   useEffect(() => {
-    if (!open) { setShowEmail(false); setEmailSent(false); }
+    if (!open) { setShowEmail(false); setEmailSent(false); setEditMode(false); }
   }, [open]);
 
-  async function saveLead() {
-    if (!lead || isDemo) { setSaved(true); setTimeout(() => setSaved(false), 2000); return; }
+  function cancelEdit() {
+    if (lead) {
+      setForm(f => ({
+        ...f,
+        franchise_brand:  lead.franchise_brand  || '',
+        developer_name:   lead.developer_name   || '',
+        developer_phone:  lead.developer_phone  || '',
+        developer_email:  lead.developer_email  || '',
+      }));
+    }
+    setEditMode(false);
+  }
+
+  async function saveFranchise() {
+    if (!lead || isDemo) {
+      setSaved(true);
+      setTimeout(() => { setSaved(false); setEditMode(false); }, 1500);
+      return;
+    }
     setSaving(true);
     await fetch('/api/dashboard/update-lead', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ id: lead.id, ...form }),
+      body:    JSON.stringify({
+        id:               lead.id,
+        franchise_brand:  form.franchise_brand,
+        developer_name:   form.developer_name,
+        developer_phone:  form.developer_phone,
+        developer_email:  form.developer_email,
+      }),
     }).catch(console.error);
     setSaving(false);
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setTimeout(() => { setSaved(false); setEditMode(false); }, 1500);
+  }
+
+  async function saveNotes() {
+    if (!lead || isDemo) { setNotesSaved(true); setTimeout(() => setNotesSaved(false), 2000); return; }
+    setNotesSaving(true);
+    await fetch('/api/dashboard/update-lead', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ id: lead.id, notes: form.notes }),
+    }).catch(console.error);
+    setNotesSaving(false);
+    setNotesSaved(true);
+    setTimeout(() => setNotesSaved(false), 2000);
   }
 
   function sendEmail() {
-    // Framework — wire to SendGrid/Resend later
     console.log('[email] sending to:', email.to, 'subject:', email.subject);
     setEmailSent(true);
     setTimeout(() => { setEmailSent(false); setShowEmail(false); }, 2500);
   }
 
-  const meta     = STATUS_META[booking.status] || STATUS_META.scheduled;
-  const initials = `${booking.first_name?.[0] || ''}${booking.last_name?.[0] || ''}`.toUpperCase();
-  const slot     = booking.slot_start ? new Date(booking.slot_start) : null;
+  function sendCQ() {
+    console.log('[CQ] sending candidate questionnaire to:', booking.email);
+    setCqSent(true);
+    setTimeout(() => setCqSent(false), 2500);
+  }
+
+  const raw = lead?.raw_fields
+    ? (typeof lead.raw_fields === 'string' ? JSON.parse(lead.raw_fields) : lead.raw_fields)
+    : {};
+  const liquidCapital = getField(raw, 'liquid_capital', 'liquid capital');
+  const ownedBusiness = getField(raw, 'owned_business', 'owned or managed', 'managed a business', 'business before');
+
+  const meta      = STATUS_META[booking.status] || STATUS_META.scheduled;
+  const initials  = `${booking.first_name?.[0] || ''}${booking.last_name?.[0] || ''}`.toUpperCase();
+  const slot      = booking.slot_start ? new Date(booking.slot_start) : null;
   const slotLabel = slot
     ? slot.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) +
       ' · ' + slot.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
@@ -408,29 +474,24 @@ function CRMPanel({ booking, lead, loading, open, isDemo, onClose, onStatusChang
   return (
     <>
       {/* Backdrop */}
-      <div
-        onClick={onClose}
-        style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.25)',
-          zIndex: 100, opacity: open ? 1 : 0,
-          transition: 'opacity .25s ease',
-          pointerEvents: open ? 'auto' : 'none',
-        }}
-      />
+      <div onClick={onClose} style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,.25)',
+        zIndex: 100, opacity: open ? 1 : 0,
+        transition: 'opacity .25s ease',
+        pointerEvents: open ? 'auto' : 'none',
+      }} />
 
       {/* Panel */}
-      <div
-        ref={panelRef}
-        style={{
-          position: 'fixed', top: 0, right: 0, bottom: 0,
-          width: 440, background: '#fff',
-          boxShadow: '-4px 0 24px rgba(0,0,0,.12)',
-          zIndex: 101, display: 'flex', flexDirection: 'column',
-          transform: open ? 'translateX(0)' : 'translateX(100%)',
-          transition: 'transform .25s cubic-bezier(.4,0,.2,1)',
-          fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif",
-        }}
-      >
+      <div ref={panelRef} style={{
+        position: 'fixed', top: 0, right: 0, bottom: 0,
+        width: 440, background: '#fff',
+        boxShadow: '-4px 0 24px rgba(0,0,0,.12)',
+        zIndex: 101, display: 'flex', flexDirection: 'column',
+        transform: open ? 'translateX(0)' : 'translateX(100%)',
+        transition: 'transform .25s cubic-bezier(.4,0,.2,1)',
+        fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif",
+      }}>
+
         {/* Panel header */}
         <div style={p.panelHdr}>
           <div style={p.avatar}>{initials}</div>
@@ -451,8 +512,8 @@ function CRMPanel({ booking, lead, loading, open, isDemo, onClose, onStatusChang
             <div style={p.loadingMsg}>Loading client details…</div>
           ) : (
             <>
-              {/* ── Contact info ── */}
-              <Section title="Contact">
+              {/* ── Contact ── */}
+              <PanelSection title="Contact">
                 <Row icon="📞" label="Phone">
                   <a href={`tel:${booking.phone}`} style={p.link}>{booking.phone || '—'}</a>
                 </Row>
@@ -462,10 +523,20 @@ function CRMPanel({ booking, lead, loading, open, isDemo, onClose, onStatusChang
                 <Row icon="💰" label="Investment">
                   <span style={p.tag}>{booking.investment_level || '—'}</span>
                 </Row>
-              </Section>
+                {liquidCapital && (
+                  <Row icon="🏦" label="Liquid Cap.">
+                    <span style={p.val}>{liquidCapital}</span>
+                  </Row>
+                )}
+                {ownedBusiness && (
+                  <Row icon="🏢" label="Owned Biz">
+                    <span style={p.val}>{ownedBusiness}</span>
+                  </Row>
+                )}
+              </PanelSection>
 
-              {/* ── Booking info ── */}
-              <Section title="Booking">
+              {/* ── Booking ── */}
+              <PanelSection title="Booking">
                 <Row icon="📅" label="Scheduled">
                   <span style={p.val}>{slotLabel}</span>
                 </Row>
@@ -477,146 +548,140 @@ function CRMPanel({ booking, lead, loading, open, isDemo, onClose, onStatusChang
                     <a href={booking.meet_link} target="_blank" rel="noreferrer" style={p.link}>Join call →</a>
                   </Row>
                 )}
-                {/* Status change buttons */}
-                {booking.status === 'scheduled' && (
-                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                    <QBBtn variant="success" onClick={() => onStatusChange('showed')}>Mark Showed</QBBtn>
-                    <QBBtn variant="danger"  onClick={() => onStatusChange('no-show')}>Mark No-Show</QBBtn>
-                  </div>
-                )}
-                {booking.status === 'showed' && (
-                  <div style={{ marginTop: 12 }}>
+                <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                  {booking.status === 'scheduled' && (
+                    <>
+                      <QBBtn variant="success" onClick={() => onStatusChange('showed')}>Mark Showed</QBBtn>
+                      <QBBtn variant="danger"  onClick={() => onStatusChange('no-show')}>Mark No-Show</QBBtn>
+                    </>
+                  )}
+                  {booking.status === 'showed' && (
                     <QBBtn variant="primary" onClick={() => onStatusChange('closed')}>Mark Closed Won 🏆</QBBtn>
-                  </div>
+                  )}
+                  <QBBtn variant="cq" onClick={sendCQ} disabled={cqSent}>
+                    {cqSent ? '✓ CQ Sent' : 'Send CQ'}
+                  </QBBtn>
+                </div>
+              </PanelSection>
+
+              {/* ── Franchise (Interest + Developer combined, with edit mode) ── */}
+              <PanelSection
+                title="Franchise"
+                editMode={editMode}
+                onEdit={() => setEditMode(true)}
+                onSave={saveFranchise}
+                onCancel={cancelEdit}
+                saving={saving}
+                saved={saved}
+              >
+                {editMode ? (
+                  <>
+                    <EditRow label="Brand / Concept">
+                      <input style={p.input} placeholder="e.g. Wet Fuel"
+                        value={form.franchise_brand || ''}
+                        onChange={e => setForm(f => ({ ...f, franchise_brand: e.target.value }))} />
+                    </EditRow>
+                    <div style={p.divider} />
+                    <EditRow label="Developer Name">
+                      <input style={p.input} placeholder="Developer name"
+                        value={form.developer_name || ''}
+                        onChange={e => setForm(f => ({ ...f, developer_name: e.target.value }))} />
+                    </EditRow>
+                    <EditRow label="Developer Phone">
+                      <input style={p.input} placeholder="(555) 000-0000"
+                        value={form.developer_phone || ''}
+                        onChange={e => setForm(f => ({ ...f, developer_phone: e.target.value }))} />
+                    </EditRow>
+                    <EditRow label="Developer Email">
+                      <input style={p.input} placeholder="developer@brand.com"
+                        value={form.developer_email || ''}
+                        onChange={e => {
+                          setForm(f => ({ ...f, developer_email: e.target.value }));
+                          setEmail(em => ({ ...em, to: e.target.value }));
+                        }} />
+                    </EditRow>
+                  </>
+                ) : (
+                  <>
+                    <div style={p.fieldGroupLabel}>Brand / Concept</div>
+                    <Row icon="🏷️" label="">
+                      <span style={p.val}>{form.franchise_brand || <em style={{ color: '#9CA3AF' }}>Not set</em>}</span>
+                    </Row>
+                    <div style={{ ...p.divider, margin: '10px 0' }} />
+                    <div style={p.fieldGroupLabel}>Developer</div>
+                    <Row icon="👤" label="Name">
+                      <span style={p.val}>{form.developer_name || <em style={{ color: '#9CA3AF' }}>Not set</em>}</span>
+                    </Row>
+                    <Row icon="📞" label="Phone">
+                      {form.developer_phone
+                        ? <a href={`tel:${form.developer_phone}`} style={p.link}>{form.developer_phone}</a>
+                        : <em style={{ color: '#9CA3AF', fontSize: 13 }}>Not set</em>}
+                    </Row>
+                    <Row icon="✉️" label="Email">
+                      {form.developer_email
+                        ? <a href={`mailto:${form.developer_email}`} style={p.link}>{form.developer_email}</a>
+                        : <em style={{ color: '#9CA3AF', fontSize: 13 }}>Not set</em>}
+                    </Row>
+                  </>
                 )}
-              </Section>
 
-              {/* ── Franchise interest ── */}
-              <Section title="Franchise Interest">
-                <EditRow label="Brand / Concept">
-                  <input
-                    style={p.input}
-                    placeholder="e.g. Wet Fuel"
-                    value={form.franchise_brand || ''}
-                    onChange={e => setForm(f => ({ ...f, franchise_brand: e.target.value }))}
-                  />
-                </EditRow>
-              </Section>
-
-              {/* ── Franchise developer ── */}
-              <Section title="Franchise Developer">
-                <EditRow label="Name">
-                  <input
-                    style={p.input}
-                    placeholder="Developer name"
-                    value={form.developer_name || ''}
-                    onChange={e => setForm(f => ({ ...f, developer_name: e.target.value }))}
-                  />
-                </EditRow>
-                <EditRow label="Phone">
-                  <input
-                    style={p.input}
-                    placeholder="(555) 000-0000"
-                    value={form.developer_phone || ''}
-                    onChange={e => setForm(f => ({ ...f, developer_phone: e.target.value }))}
-                  />
-                </EditRow>
-                <EditRow label="Email">
-                  <input
-                    style={p.input}
-                    placeholder="developer@brand.com"
-                    value={form.developer_email || ''}
-                    onChange={e => {
-                      setForm(f => ({ ...f, developer_email: e.target.value }));
-                      setEmail(em => ({ ...em, to: e.target.value }));
-                    }}
-                  />
-                </EditRow>
-                {/* Email to developer button */}
-                <button
-                  onClick={() => setShowEmail(v => !v)}
-                  style={p.emailToggleBtn}
-                >
+                {/* Email to developer */}
+                <button onClick={() => setShowEmail(v => !v)} style={p.emailToggleBtn}>
                   ✉️ {showEmail ? 'Hide email' : 'Email developer'}
                 </button>
 
-                {/* Email composer */}
                 {showEmail && (
                   <div style={p.emailBox}>
                     <div style={p.emailHeader}>New Email</div>
                     <div style={p.emailField}>
                       <span style={p.emailLabel}>To</span>
-                      <input
-                        style={p.emailInput}
-                        value={email.to}
+                      <input style={p.emailInput} value={email.to}
                         onChange={e => setEmail(em => ({ ...em, to: e.target.value }))}
-                        placeholder="developer@brand.com"
-                      />
+                        placeholder="developer@brand.com" />
                     </div>
                     <div style={p.emailField}>
                       <span style={p.emailLabel}>Subject</span>
-                      <input
-                        style={p.emailInput}
-                        value={email.subject}
+                      <input style={p.emailInput} value={email.subject}
                         onChange={e => setEmail(em => ({ ...em, subject: e.target.value }))}
-                        placeholder={`Re: ${booking.first_name} ${booking.last_name}`}
-                      />
+                        placeholder={`Re: ${booking.first_name} ${booking.last_name}`} />
                     </div>
-                    <textarea
-                      style={p.emailBody}
-                      rows={5}
-                      value={email.body}
+                    <textarea style={p.emailBody} rows={5} value={email.body}
                       onChange={e => setEmail(em => ({ ...em, body: e.target.value }))}
                       placeholder={`Hi ${form.developer_name || 'there'},\n\nI wanted to follow up regarding ${booking.first_name} ${booking.last_name}…`}
                     />
                     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                      <button
-                        onClick={sendEmail}
-                        disabled={!email.to || emailSent}
-                        style={{
-                          ...p.sendBtn,
-                          background: emailSent ? '#2CA01C' : '#0077C5',
-                          opacity: !email.to ? 0.5 : 1,
-                        }}
-                      >
+                      <button onClick={sendEmail} disabled={!email.to || emailSent}
+                        style={{ ...p.actionBtn, background: emailSent ? '#2CA01C' : '#0077C5', opacity: !email.to ? 0.5 : 1 }}>
                         {emailSent ? '✓ Sent!' : 'Send Email'}
                       </button>
                       <button onClick={() => setShowEmail(false)} style={p.cancelBtn}>Cancel</button>
                     </div>
                     {isDemo && (
                       <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>
-                        Email integration coming soon — connect Resend or Gmail to activate sending.
+                        Email integration coming soon — connect Resend or Gmail to activate.
                       </p>
                     )}
                   </div>
                 )}
-              </Section>
+              </PanelSection>
 
               {/* ── Notes ── */}
-              <Section title="Notes">
-                <textarea
-                  style={p.notesArea}
-                  rows={5}
+              <PanelSection title="Notes">
+                <textarea style={p.notesArea} rows={5}
                   value={form.notes || ''}
                   placeholder="Add notes about this client…"
                   onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                 />
-              </Section>
+                <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button onClick={saveNotes} disabled={notesSaving}
+                    style={{ ...p.actionBtn, background: notesSaved ? '#2CA01C' : '#0077C5' }}>
+                    {notesSaving ? 'Saving…' : notesSaved ? '✓ Saved' : 'Save Notes'}
+                  </button>
+                </div>
+              </PanelSection>
             </>
           )}
         </div>
-
-        {/* Save bar */}
-        {!loading && (
-          <div style={p.saveBar}>
-            <button onClick={saveLead} disabled={saving} style={p.saveBtn}>
-              {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save changes'}
-            </button>
-            {saved && !saving && (
-              <span style={{ fontSize: 12, color: '#2CA01C', fontWeight: 500 }}>Changes saved</span>
-            )}
-          </div>
-        )}
       </div>
     </>
   );
@@ -624,10 +689,25 @@ function CRMPanel({ booking, lead, loading, open, isDemo, onClose, onStatusChang
 
 // ─── Panel helper components ──────────────────────────────────────────────────
 
-function Section({ title, children }) {
+function PanelSection({ title, editMode, onEdit, onSave, onCancel, saving, saved, children }) {
+  const hasEdit = onEdit !== undefined;
   return (
     <div style={p.section}>
-      <div style={p.sectionTitle}>{title}</div>
+      <div style={p.sectionHdrRow}>
+        <div style={p.sectionTitle}>{title}</div>
+        {hasEdit && !editMode && (
+          <button onClick={onEdit} style={p.editBtn}>Edit</button>
+        )}
+        {hasEdit && editMode && (
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={onSave} disabled={saving}
+              style={{ ...p.saveEditBtn, background: saved ? '#2CA01C' : '#0077C5' }}>
+              {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save'}
+            </button>
+            <button onClick={onCancel} style={p.cancelEditBtn}>Cancel</button>
+          </div>
+        )}
+      </div>
       {children}
     </div>
   );
@@ -637,7 +717,7 @@ function Row({ icon, label, children }) {
   return (
     <div style={p.row}>
       <span style={p.rowIcon}>{icon}</span>
-      <span style={p.rowLabel}>{label}</span>
+      {label && <span style={p.rowLabel}>{label}</span>}
       <span style={p.rowVal}>{children}</span>
     </div>
   );
@@ -658,6 +738,7 @@ function QBBtn({ variant, onClick, children, disabled }) {
     success: { color: '#1A7E24', bg: '#E3F4E5', hoverBg: '#C3E6C5', border: '#A8D5AA' },
     danger:  { color: '#C23934', bg: '#FDECEA', hoverBg: '#FFCDD2', border: '#EF9A9A' },
     primary: { color: '#0077C5', bg: '#E0EFF9', hoverBg: '#B3D4EE', border: '#90CAF9' },
+    cq:      { color: '#5C35A8', bg: '#EEE9FA', hoverBg: '#DDD5F7', border: '#C5B8F0' },
   }[variant];
   return (
     <button
@@ -722,44 +803,51 @@ const s = {
 
 // ─── Panel styles ─────────────────────────────────────────────────────────────
 const p = {
-  panelHdr:     { display: 'flex', alignItems: 'flex-start', gap: 14, padding: '20px 20px 16px', borderBottom: '1px solid #EBEBEB', flexShrink: 0 },
-  avatar:       { width: 46, height: 46, borderRadius: '50%', background: '#33485E', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, flexShrink: 0 },
-  clientName:   { fontSize: 16, fontWeight: 600, color: '#1A2B3C', marginBottom: 2 },
-  clientEmail:  { fontSize: 12, color: '#6B7280', marginBottom: 6 },
-  statusBadge:  { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600 },
-  closeBtn:     { background: 'none', border: 'none', fontSize: 18, color: '#9CA3AF', cursor: 'pointer', padding: '0 0 0 8px', lineHeight: 1, flexShrink: 0 },
+  panelHdr:       { display: 'flex', alignItems: 'flex-start', gap: 14, padding: '20px 20px 16px', borderBottom: '1px solid #EBEBEB', flexShrink: 0 },
+  avatar:         { width: 46, height: 46, borderRadius: '50%', background: '#33485E', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, flexShrink: 0 },
+  clientName:     { fontSize: 16, fontWeight: 600, color: '#1A2B3C', marginBottom: 2 },
+  clientEmail:    { fontSize: 12, color: '#6B7280', marginBottom: 6 },
+  statusBadge:    { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600 },
+  closeBtn:       { background: 'none', border: 'none', fontSize: 18, color: '#9CA3AF', cursor: 'pointer', padding: '0 0 0 8px', lineHeight: 1, flexShrink: 0 },
 
-  scrollBody:   { flex: 1, overflowY: 'auto', padding: '0 0 8px' },
-  loadingMsg:   { textAlign: 'center', padding: 40, color: '#9CA3AF', fontSize: 14 },
+  scrollBody:     { flex: 1, overflowY: 'auto', padding: '0 0 24px' },
+  loadingMsg:     { textAlign: 'center', padding: 40, color: '#9CA3AF', fontSize: 14 },
 
-  section:      { padding: '16px 20px', borderBottom: '1px solid #F0F0F0' },
-  sectionTitle: { fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.6px', marginBottom: 12 },
+  section:        { padding: '16px 20px', borderBottom: '1px solid #F0F0F0' },
+  sectionHdrRow:  { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  sectionTitle:   { fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.6px' },
 
-  row:          { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, fontSize: 13 },
-  rowIcon:      { fontSize: 14, width: 20, textAlign: 'center', flexShrink: 0 },
-  rowLabel:     { color: '#6B7280', width: 72, flexShrink: 0, fontSize: 12 },
-  rowVal:       { color: '#1A2B3C', flex: 1 },
-  link:         { color: '#0077C5', textDecoration: 'none', fontSize: 13 },
-  tag:          { background: '#EAECEF', borderRadius: 3, padding: '2px 8px', fontSize: 12, color: '#4A5568' },
-  val:          { fontSize: 13, color: '#1A2B3C' },
+  // Edit mode controls in section header
+  editBtn:        { fontSize: 12, fontWeight: 500, color: '#0077C5', background: 'transparent', border: '1px solid #B3D4EE', borderRadius: 3, padding: '3px 10px', cursor: 'pointer', fontFamily: 'inherit' },
+  saveEditBtn:    { fontSize: 12, fontWeight: 600, color: '#fff', border: 'none', borderRadius: 3, padding: '4px 12px', cursor: 'pointer', fontFamily: 'inherit', transition: 'background .15s' },
+  cancelEditBtn:  { fontSize: 12, fontWeight: 400, color: '#4A5568', background: '#F5F6F7', border: '1px solid #C8CDD2', borderRadius: 3, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit' },
 
-  editRow:      { marginBottom: 10 },
-  editLabel:    { display: 'block', fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 5 },
-  input:        { width: '100%', padding: '8px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' },
+  fieldGroupLabel:{ fontSize: 10, fontWeight: 700, color: '#B0B8C4', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 },
+  divider:        { borderTop: '1px solid #F0F0F0', margin: '12px 0' },
+
+  row:            { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, fontSize: 13 },
+  rowIcon:        { fontSize: 14, width: 20, textAlign: 'center', flexShrink: 0 },
+  rowLabel:       { color: '#6B7280', width: 72, flexShrink: 0, fontSize: 12 },
+  rowVal:         { color: '#1A2B3C', flex: 1 },
+  link:           { color: '#0077C5', textDecoration: 'none', fontSize: 13 },
+  tag:            { background: '#EAECEF', borderRadius: 3, padding: '2px 8px', fontSize: 12, color: '#4A5568' },
+  val:            { fontSize: 13, color: '#1A2B3C' },
+
+  editRow:        { marginBottom: 10 },
+  editLabel:      { display: 'block', fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 5 },
+  input:          { width: '100%', padding: '8px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' },
 
   emailToggleBtn: { marginTop: 12, padding: '7px 14px', background: '#F5F6F7', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#0077C5', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
+  emailBox:       { marginTop: 12, background: '#F8F9FA', border: '1px solid #D8DCE0', borderRadius: 4, padding: '14px 14px 12px' },
+  emailHeader:    { fontSize: 12, fontWeight: 700, color: '#1A2B3C', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '.4px' },
+  emailField:     { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
+  emailLabel:     { fontSize: 11, color: '#6B7280', width: 44, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.3px', flexShrink: 0 },
+  emailInput:     { flex: 1, padding: '6px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none' },
+  emailBody:      { width: '100%', padding: '8px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
 
-  emailBox:     { marginTop: 12, background: '#F8F9FA', border: '1px solid #D8DCE0', borderRadius: 4, padding: '14px 14px 12px' },
-  emailHeader:  { fontSize: 12, fontWeight: 700, color: '#1A2B3C', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '.4px' },
-  emailField:   { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
-  emailLabel:   { fontSize: 11, color: '#6B7280', width: 44, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.3px', flexShrink: 0 },
-  emailInput:   { flex: 1, padding: '6px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none' },
-  emailBody:    { width: '100%', padding: '8px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
-  sendBtn:      { padding: '8px 18px', color: '#fff', border: 'none', borderRadius: 3, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'background .2s' },
-  cancelBtn:    { padding: '8px 14px', background: '#fff', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#4A5568', cursor: 'pointer', fontFamily: 'inherit' },
+  // Shared action button (email send, save notes, CQ sent)
+  actionBtn:      { padding: '8px 18px', color: '#fff', border: 'none', borderRadius: 3, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'background .2s' },
+  cancelBtn:      { padding: '8px 14px', background: '#fff', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#4A5568', cursor: 'pointer', fontFamily: 'inherit' },
 
-  notesArea:    { width: '100%', padding: '8px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.6 },
-
-  saveBar:      { padding: '12px 20px', borderTop: '1px solid #EBEBEB', background: '#fff', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 },
-  saveBtn:      { padding: '9px 20px', background: '#0077C5', color: '#fff', border: 'none', borderRadius: 3, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  notesArea:      { width: '100%', padding: '8px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.6 },
 };
