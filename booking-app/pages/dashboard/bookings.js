@@ -19,7 +19,7 @@ export async function getServerSideProps(context) {
 
 const FILTERS = [
   { key: 'today', label: 'Today' },
-  { key: 'week',  label: 'This Week' },
+  { key: 'week',  label: 'Next 2 Weeks' },
   { key: 'all',   label: 'All' },
 ];
 
@@ -110,7 +110,7 @@ function getField(raw, ...keys) {
 
 export default function BookingsDashboard({ brandPitches = {} }) {
   const { data: session } = useSession();
-  const [filter,   setFilter]   = useState('today');
+  const [filter,   setFilter]   = useState('week');
   const [bookings, setBookings] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [updating, setUpdating] = useState({});

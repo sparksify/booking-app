@@ -25,8 +25,10 @@ export default async function handler(req, res) {
     from = new Date(now); from.setHours(0, 0, 0, 0);
     to   = new Date(now); to.setHours(23, 59, 59, 999);
   } else if (filter === 'week') {
-    from = new Date(now); from.setDate(now.getDate() - now.getDay()); from.setHours(0, 0, 0, 0);
-    to   = new Date(from); to.setDate(from.getDate() + 6); to.setHours(23, 59, 59, 999);
+    // Rolling 14-day window: start of today through end of day +13
+    // Keeps this week + next week always visible regardless of what day it is
+    from = new Date(now); from.setHours(0, 0, 0, 0);
+    to   = new Date(from); to.setDate(from.getDate() + 13); to.setHours(23, 59, 59, 999);
   }
 
   let query = supabase
