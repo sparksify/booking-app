@@ -29,7 +29,7 @@ export default async function handler(req, res) {
       meeting_duration, meeting_title,
       days_ahead, buffer_minutes,
       max_slots_per_day, hidden_slots_count,
-      brand_pitches, form_tag_rules,
+      brand_pitches, form_tag_rules, revenue_per_close,
     } = req.body;
 
     const update = { updated_at: new Date().toISOString() };
@@ -44,6 +44,7 @@ export default async function handler(req, res) {
     if (hidden_slots_count !== undefined) update.hidden_slots_count = hidden_slots_count;
     if (brand_pitches      !== undefined) update.brand_pitches      = brand_pitches;
     if (form_tag_rules     !== undefined) update.form_tag_rules     = form_tag_rules;
+    if (revenue_per_close  !== undefined) update.revenue_per_close  = Number(revenue_per_close) || 0;
 
     const { data, error } = await supabase
       .from('settings')

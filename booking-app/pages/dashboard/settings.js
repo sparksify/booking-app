@@ -314,6 +314,20 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
                 </Field>
               </div>
 
+              <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #E0E3E7' }}>
+                <Field label="Revenue per close ($)">
+                  <input
+                    style={{ ...s.input, width: 160 }}
+                    type="number"
+                    min="0"
+                    step="100"
+                    placeholder="0"
+                    value={settings.revenue_per_close ?? 0}
+                    onChange={e => setSettings(p => ({ ...p, revenue_per_close: +e.target.value }))}
+                  />
+                </Field>
+              </div>
+
               <div style={{ marginTop: 20 }}>
                 <button type="submit" style={s.saveBtn} disabled={saving}>
                   {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save settings'}
