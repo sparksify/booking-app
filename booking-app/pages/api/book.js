@@ -3,6 +3,7 @@ import { createCalendarEvent } from '@/lib/googleCalendar';
 import { sendConfirmationEmail } from '@/lib/resend';
 import { sendCapiEvents, buildCapiEvent } from '@/lib/fbConversionsApi';
 import { upsertGHLContact, createGHLOpportunity } from '@/lib/ghl';
+import { computeLeadScore, computeShowProbability } from '@/lib/scoring';
 
 // Appointment Scheduling pipeline
 const GHL_PIPELINE_ID  = 'tOlnnAijaReLJ30AZaSL';
@@ -120,6 +121,17 @@ export default async function handler(req, res) {
   const startMs = Date.UTC(sy, smo - 1, sd, h, m, 0) - offsetMins * 60_000;
   const endMs   = startMs + settings.meetingDuration * 60_000;
 
+  // ── Lead scoring ─────────────────────────────────────────────────────────────
+  const bookingForScoring = {
+    slot_start:       new Date(startMs).toISOString(),
+    created_at:       new Date().toISOString(),
+    investment_level: investment_level || null,
+    fb_attribution:   fb_attribution   || null,
+    phone, email, first_name: firstName, last_name: lastName,
+  };
+  const leadScore      = computeLeadScore(bookingForScoring, null);
+  const showProbability = computeShowProbability(bookingForScoring, null);
+
   const { error: dbError } = await supabase.from('bookings').insert({
     first_name:        firstName,
     last_name:         lastName,
@@ -133,6 +145,8 @@ export default async function handler(req, res) {
     status:            'scheduled',
     investment_level:  investment_level || null,
     fb_attribution:    fb_attribution   || null,
+    lead_score:        leadScore,
+    show_probability:  showProbability,
   });
 
   if (dbError) console.error('[book] db insert error:', dbError);

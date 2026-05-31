@@ -202,7 +202,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
             </nav>
           </div>
           <div style={s.headerRight}>
-            <Link href="/dashboard" style={s.settingsLink}>⚙ Settings</Link>
+            <Link href="/dashboard/settings" style={s.settingsLink}>⚙ Settings</Link>
             <span style={s.headerUser}>{session?.user?.email}</span>
           </div>
         </header>
@@ -260,7 +260,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
               <table style={s.table}>
                 <thead>
                   <tr style={s.thead}>
-                    {['Time', 'Client', 'Phone', 'Investment', 'Consultant', 'Status', 'Actions'].map(h => (
+                    {['Time', 'Client', 'Score', 'Investment', 'Consultant', 'Status', 'Actions'].map(h => (
                       <th key={h} style={s.th}>{h}</th>
                     ))}
                   </tr>
@@ -324,8 +324,21 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus 
         <div style={{ fontWeight: 600, color: '#0077C5', fontSize: 13 }}>{b.first_name} {b.last_name}</div>
         <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>{b.email}</div>
       </td>
-      <td style={{ ...s.td, whiteSpace: 'nowrap' }}>
-        <span style={{ fontSize: 13, color: '#1A2B3C' }}>{b.phone || '—'}</span>
+      <td style={s.td}>
+        {b.health ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 11 }}>{b.health.emoji}</span>
+              <span style={{
+                fontSize: 13, fontWeight: 700,
+                color: b.lead_score >= 75 ? '#1A7E24' : b.lead_score >= 50 ? '#856404' : '#C23934',
+              }}>{b.lead_score ?? '—'}</span>
+            </div>
+            <div style={{ fontSize: 10, color: '#9CA3AF' }}>{b.show_probability ?? '—'}% show</div>
+          </div>
+        ) : (
+          <span style={{ fontSize: 12, color: '#C8CDD2' }}>—</span>
+        )}
       </td>
       <td style={s.td}>
         <span style={{ fontSize: 11, color: '#4A5568', background: '#EAECEF', padding: '3px 8px', borderRadius: 3 }}>
@@ -517,10 +530,23 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={p.clientName}>{booking.first_name} {booking.last_name}</div>
             <div style={p.clientEmail}>{booking.email}</div>
-            <span style={{ ...p.statusBadge, color: meta.color, background: meta.bg }}>
-              <span style={{ width: 5, height: 5, borderRadius: '50%', background: meta.dot, display: 'inline-block' }} />
-              {meta.label}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+              <span style={{ ...p.statusBadge, color: meta.color, background: meta.bg }}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: meta.dot, display: 'inline-block' }} />
+                {meta.label}
+              </span>
+              {booking.health && (
+                <span style={{ ...p.statusBadge, color: booking.health.color, background: booking.health.bg }}>
+                  {booking.health.emoji} {booking.health.label} Confidence
+                </span>
+              )}
+              {booking.lead_score != null && (
+                <span style={{ fontSize: 11, color: '#6B7280' }}>
+                  Score <strong style={{ color: booking.lead_score >= 75 ? '#1A7E24' : booking.lead_score >= 50 ? '#856404' : '#C23934' }}>{booking.lead_score}</strong>
+                  {' · '}{booking.show_probability}% show prob
+                </span>
+              )}
+            </div>
           </div>
           <button onClick={onClose} style={p.closeBtn} aria-label="Close">✕</button>
         </div>

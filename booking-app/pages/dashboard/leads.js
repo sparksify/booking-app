@@ -129,7 +129,7 @@ export default function LeadsDashboard({ initialLeads, baseUrl }) {
             </nav>
           </div>
           <div style={s.headerRight}>
-            <Link href="/dashboard" style={s.navLink}>⚙ Settings</Link>
+            <Link href="/dashboard/settings" style={s.navLink}>⚙ Settings</Link>
             <span style={s.headerUser}>{session?.user?.email}</span>
             <button style={s.signOutBtn} onClick={() => signOut({ callbackUrl: '/dashboard/login' })}>
               Sign out

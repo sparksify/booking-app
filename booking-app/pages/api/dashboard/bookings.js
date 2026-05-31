@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { computeLeadScore, computeShowProbability, getHealthBadge } from '@/lib/scoring';
 
 /**
  * GET /api/dashboard/bookings
@@ -33,7 +34,7 @@ export default async function handler(req, res) {
 
   let query = supabase
     .from('bookings')
-    .select('id, first_name, last_name, email, phone, slot_start, slot_end, status, investment_level, assigned_to_email, meet_link, created_at')
+    .select('id, first_name, last_name, email, phone, slot_start, slot_end, status, investment_level, assigned_to_email, meet_link, created_at, lead_score, show_probability, fb_attribution')
     .order('slot_start', { ascending: true });
 
   if (from && to) {
@@ -54,11 +55,22 @@ export default async function handler(req, res) {
     (leads || []).forEach(l => { leadsByEmail[l.email] = l; });
   }
 
-  const enriched = (bookings || []).map(b => ({
-    ...b,
-    lead_status:     leadsByEmail[b.email]?.status     ?? null,
-    ghl_contact_id:  leadsByEmail[b.email]?.ghl_contact_id ?? null,
-  }));
+  const enriched = (bookings || []).map(b => {
+    const lead = leadsByEmail[b.email] ?? null;
+    // Compute scores on-the-fly for old bookings that pre-date the scoring columns
+    const leadScore      = b.lead_score      ?? computeLeadScore(b, lead);
+    const showProbability = b.show_probability ?? computeShowProbability(b, lead);
+    const health         = getHealthBadge(leadScore, showProbability);
+
+    return {
+      ...b,
+      lead_status:      lead?.status         ?? null,
+      ghl_contact_id:   lead?.ghl_contact_id ?? null,
+      lead_score:       leadScore,
+      show_probability: showProbability,
+      health,
+    };
+  });
 
   res.json({ bookings: enriched });
 }

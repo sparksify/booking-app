@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     { data: events },
   ] = await Promise.all([
     supabase.from('leads').select('id, status, created_at, fb_campaign_id, fb_adset_id, fb_ad_id, fb_form_id'),
-    supabase.from('bookings').select('id, status, slot_start, assigned_to_email, investment_level, created_at'),
+    supabase.from('bookings').select('id, status, slot_start, assigned_to_email, investment_level, created_at, lead_score, show_probability'),
     supabase.from('events').select('event_type, session_id, lead_id, props, created_at').order('created_at', { ascending: false }).limit(5000),
   ]);
 
@@ -35,9 +35,25 @@ export default async function handler(req, res) {
     leads:      allLeads.length,
     page_views: countEvents(allEvents, 'page_view'),
     booked:     allBookings.length,
-    showed:     allLeads.filter(l => l.status === 'showed').length,
-    closed:     allLeads.filter(l => l.status === 'qualified').length,
+    showed:     allBookings.filter(b => b.status === 'showed' || b.status === 'qualified').length,
+    closed:     allBookings.filter(b => b.status === 'qualified').length,
   };
+
+  // ── Lead quality / scoring ────────────────────────────────────────────────
+  const healthDist = { green: 0, yellow: 0, red: 0 };
+  let totalScore = 0, scoredCount = 0;
+  allBookings.forEach(b => {
+    const score = b.lead_score;
+    const prob  = b.show_probability ?? 0;
+    if (score != null) {
+      totalScore += score;
+      scoredCount++;
+      if (score >= 70 && prob >= 70)      healthDist.green++;
+      else if (score >= 45 || prob >= 55) healthDist.yellow++;
+      else                                healthDist.red++;
+    }
+  });
+  const avgLeadScore = scoredCount > 0 ? Math.round(totalScore / scoredCount) : null;
 
   // ── Recommendation acceptance ─────────────────────────────────────────────
   const recShown    = countEvents(allEvents, 'recommended_shown');
@@ -111,6 +127,8 @@ export default async function handler(req, res) {
 
   return res.json({
     funnel,
+    healthDist,
+    avgLeadScore,
     recommendation,
     calendarAdds,
     bestDays,
