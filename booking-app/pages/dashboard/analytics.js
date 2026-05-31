@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 import { getServerSession } from 'next-auth/next';
 import Head from 'next/head';
 import Link from 'next/link';
@@ -31,13 +31,18 @@ export default function AnalyticsDashboard() {
           <div style={s.headerLeft}>
             <span style={s.logo}>⬡ FranchiseBook</span>
             <nav style={s.nav}>
-              <Link href="/dashboard"           style={s.navLink}>Home</Link>
               <Link href="/dashboard/bookings"  style={s.navLink}>Bookings</Link>
               <Link href="/dashboard/leads"     style={s.navLink}>Leads</Link>
               <Link href="/dashboard/analytics" style={{ ...s.navLink, ...s.navActive }}>Analytics</Link>
             </nav>
           </div>
-          <span style={s.headerUser}>{session?.user?.email}</span>
+          <div style={s.headerRight}>
+            <Link href="/dashboard" style={s.navLink}>⚙ Settings</Link>
+            <span style={s.headerUser}>{session?.user?.email}</span>
+            <button style={s.signOutBtn} onClick={() => signOut({ callbackUrl: '/dashboard/login' })}>
+              Sign out
+            </button>
+          </div>
         </header>
 
         <main style={s.main}>
@@ -224,7 +229,9 @@ const s = {
   nav:         { display: 'flex', gap: 2 },
   navLink:     { fontSize: 13, color: '#A8BED0', textDecoration: 'none', padding: '7px 14px', borderRadius: 3, fontWeight: 400 },
   navActive:   { color: '#FFFFFF', background: 'rgba(255,255,255,.13)' },
+  headerRight: { display: 'flex', alignItems: 'center', gap: 12 },
   headerUser:  { fontSize: 13, color: '#A8BED0' },
+  signOutBtn:  { fontSize: 12, fontWeight: 400, color: '#A8BED0', background: 'transparent', border: '1px solid rgba(255,255,255,.18)', borderRadius: 3, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit' },
 
   main:        { maxWidth: 1000, margin: '0 auto', padding: '24px 20px' },
   empty:       { textAlign: 'center', padding: 64, color: '#6B7280' },
