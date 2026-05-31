@@ -74,7 +74,7 @@ export default async function handler(req, res) {
     const slots     = generateSlots(settings, busyTimes, date);
     const visible   = applySlotDisplay(slots, date, settings.maxSlotsPerDay, settings.hiddenSlotsCount);
     res.setHeader('Cache-Control', 'no-store');
-    return res.json({ slots: visible });
+    return res.json({ slots: visible, _debug_busy_count: busyTimes.length });
   } catch (err) {
     console.error('[availability] Google Calendar error:', err.message);
     return res.json({ slots: mockSlots(settings, date), demo: true, error: err.message });

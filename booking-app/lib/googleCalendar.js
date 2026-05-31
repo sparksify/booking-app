@@ -64,10 +64,9 @@ export async function getBusyTimes(members, dateStr, timezone) {
       });
       const calendar = google.calendar({ version: 'v3', auth });
 
-      // Use email as calendar ID — 'primary' is ambiguous across different accounts
-      const calendarId = (member.calendar_id && member.calendar_id !== 'primary')
-        ? member.calendar_id
-        : member.email;
+      // Each member authenticates with their own token, so 'primary' correctly
+      // refers to that member's primary calendar — no ambiguity.
+      const calendarId = member.calendar_id || 'primary';
 
       const response = await calendar.freebusy.query({
         requestBody: {
