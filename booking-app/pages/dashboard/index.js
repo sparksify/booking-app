@@ -49,12 +49,21 @@ export async function getServerSideProps(context) {
 // ─── Dashboard page ───────────────────────────────────────────────────────────
 export default function Dashboard({ initialMembers, initialBookings, initialSettings }) {
   const { data: session } = useSession();
-  const [members,  setMembers]  = useState(initialMembers);
-  const [bookings]              = useState(initialBookings);
-  const [settings, setSettings] = useState(initialSettings);
-  const [saving,   setSaving]   = useState(false);
-  const [saved,    setSaved]    = useState(false);
-  const [copied,   setCopied]   = useState(false);
+  const [members,       setMembers]       = useState(initialMembers);
+  const [bookings]                        = useState(initialBookings);
+  const [settings,      setSettings]      = useState(initialSettings);
+  const [saving,        setSaving]        = useState(false);
+  const [saved,         setSaved]         = useState(false);
+  const [copied,        setCopied]        = useState(false);
+
+  // Brand Pitches state
+  const [brandPitches,  setBrandPitches]  = useState(initialSettings.brand_pitches || {});
+  const [newPitchBrand, setNewPitchBrand] = useState('');
+  const [pitchSaving,   setPitchSaving]   = useState({});
+
+  // Form Tag Rules state
+  const [tagRules,      setTagRules]      = useState(initialSettings.form_tag_rules || []);
+  const [tagRuleSaving, setTagRuleSaving] = useState({});
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
   const bookingUrl = `${baseUrl}/?first_name={{first_name}}&last_name={{last_name}}&phone={{phone_number}}&email={{email}}&investment_level={{investment_level}}`;
@@ -98,6 +107,68 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
     navigator.clipboard.writeText(bookingUrl).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  // ── Brand Pitches helpers ──────────────────────────────────────────────────
+  function addPitch() {
+    const brand = newPitchBrand.trim();
+    if (!brand) return;
+    setBrandPitches(p => ({ ...p, [brand]: '' }));
+    setNewPitchBrand('');
+  }
+
+  function deletePitch(brand) {
+    setBrandPitches(p => { const n = { ...p }; delete n[brand]; return n; });
+  }
+
+  async function savePitch(brand) {
+    setPitchSaving(s => ({ ...s, [brand]: true }));
+    await fetch('/api/dashboard/settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brand_pitches: brandPitches }),
+    });
+    setPitchSaving(s => ({ ...s, [brand]: false }));
+  }
+
+  async function saveAllPitches() {
+    await fetch('/api/dashboard/settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brand_pitches: brandPitches }),
+    });
+  }
+
+  // ── Form Tag Rules helpers ─────────────────────────────────────────────────
+  function addTagRule() {
+    setTagRules(r => [...r, { id: Date.now().toString(), form_id: '', form_name: '', tags: [] }]);
+  }
+
+  function updateTagRule(id, field, value) {
+    setTagRules(r => r.map(rule => rule.id === id ? { ...rule, [field]: value } : rule));
+  }
+
+  function addTagToRule(id, tag) {
+    const t = tag.trim();
+    if (!t) return;
+    setTagRules(r => r.map(rule =>
+      rule.id === id && !rule.tags.includes(t) ? { ...rule, tags: [...rule.tags, t] } : rule
+    ));
+  }
+
+  function removeTagFromRule(id, tag) {
+    setTagRules(r => r.map(rule =>
+      rule.id === id ? { ...rule, tags: rule.tags.filter(t => t !== tag) } : rule
+    ));
+  }
+
+  function removeTagRule(id) {
+    setTagRules(r => r.filter(rule => rule.id !== id));
+  }
+
+  async function saveTagRules() {
+    await fetch('/api/dashboard/settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ form_tag_rules: tagRules }),
     });
   }
 
@@ -251,6 +322,65 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
             </form>
           </Section>
 
+          {/* ── Brand Pitches ───────────────────────────────────────────── */}
+          <Section title="Brand Pitches" subtitle="Phone pitch scripts shown in the CRM panel when you click 'Brand Pitch'. Keyed by brand name.">
+            {Object.entries(brandPitches).map(([brand, pitch]) => (
+              <div key={brand} style={{ marginBottom: 18, background: '#F5F6F7', border: '1px solid #D8DCE0', borderRadius: 4, padding: '14px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: '#1A2B3C' }}>{brand}</span>
+                  <button
+                    style={{ fontSize: 12, color: '#C23934', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                    onClick={() => { deletePitch(brand); saveAllPitches(); }}
+                  >Delete</button>
+                </div>
+                <textarea
+                  style={{ ...s.input, width: '100%', minHeight: 100, resize: 'vertical', lineHeight: 1.6, boxSizing: 'border-box' }}
+                  value={pitch}
+                  placeholder={`Enter your phone pitch script for ${brand}…`}
+                  onChange={e => setBrandPitches(p => ({ ...p, [brand]: e.target.value }))}
+                />
+                <button
+                  style={{ marginTop: 8, ...s.saveBtn, fontSize: 12, padding: '6px 16px' }}
+                  onClick={() => savePitch(brand)}
+                  disabled={pitchSaving[brand]}
+                >
+                  {pitchSaving[brand] ? 'Saving…' : 'Save Pitch'}
+                </button>
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: 10, marginTop: Object.keys(brandPitches).length > 0 ? 0 : 0 }}>
+              <input
+                style={{ ...s.input, flex: 1 }}
+                placeholder="Brand name (e.g. Wet Fuel)"
+                value={newPitchBrand}
+                onChange={e => setNewPitchBrand(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addPitch()}
+              />
+              <button style={s.saveBtn} onClick={addPitch}>+ Add Brand</button>
+            </div>
+          </Section>
+
+          {/* ── Form Tag Rules ───────────────────────────────────────────── */}
+          <Section title="Form Tag Rules" subtitle="Tags automatically applied to a lead in GoHighLevel when they arrive from a specific Facebook form.">
+            {tagRules.map((rule, i) => (
+              <FormTagRule
+                key={rule.id}
+                rule={rule}
+                onUpdate={(field, val) => updateTagRule(rule.id, field, val)}
+                onAddTag={tag => addTagToRule(rule.id, tag)}
+                onRemoveTag={tag => removeTagFromRule(rule.id, tag)}
+                onDelete={() => { removeTagRule(rule.id); saveTagRules(); }}
+                styles={s}
+              />
+            ))}
+            <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+              <button style={s.saveBtn} onClick={addTagRule}>+ Add Rule</button>
+              {tagRules.length > 0 && (
+                <button style={{ ...s.saveBtn, background: '#1A7E24' }} onClick={saveTagRules}>Save All Rules</button>
+              )}
+            </div>
+          </Section>
+
           {/* ── Recent Bookings ──────────────────────────────────────────── */}
           <Section
             title="Recent Bookings"
@@ -385,6 +515,45 @@ function EmptyState({ icon, message }) {
     <div style={s.empty}>
       <span style={{ fontSize: 28 }}>{icon}</span>
       <span style={{ fontSize: 14, color: '#6B7280', maxWidth: 280, textAlign: 'center' }}>{message}</span>
+    </div>
+  );
+}
+
+function FormTagRule({ rule, onUpdate, onAddTag, onRemoveTag, onDelete, styles: s }) {
+  const [newTag, setNewTag] = useState('');
+  return (
+    <div style={{ marginBottom: 14, background: '#F5F6F7', border: '1px solid #D8DCE0', borderRadius: 4, padding: '14px 16px' }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+        <div style={{ flex: 1 }}>
+          <label style={s.label}>Form ID</label>
+          <input style={s.input} placeholder="Facebook form_id"
+            value={rule.form_id} onChange={e => onUpdate('form_id', e.target.value)} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={s.label}>Form Name (for reference)</label>
+          <input style={s.input} placeholder="e.g. Wet Fuel Ad"
+            value={rule.form_name} onChange={e => onUpdate('form_name', e.target.value)} />
+        </div>
+        <button style={{ alignSelf: 'flex-end', marginBottom: 1, fontSize: 12, color: '#C23934', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: '8px 0' }}
+          onClick={onDelete}>Delete</button>
+      </div>
+      <label style={s.label}>Auto-apply tags in GHL</label>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+        {rule.tags.map(tag => (
+          <span key={tag} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#E0EFF9', color: '#0077C5', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 500 }}>
+            {tag}
+            <button onClick={() => onRemoveTag(tag)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0077C5', fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
+          </span>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input style={{ ...s.input, flex: 1 }} placeholder="Add tag (e.g. wet-fuel-lead)"
+          value={newTag}
+          onChange={e => setNewTag(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { onAddTag(newTag); setNewTag(''); } }}
+        />
+        <button style={s.saveBtn} onClick={() => { onAddTag(newTag); setNewTag(''); }}>Add</button>
+      </div>
     </div>
   );
 }

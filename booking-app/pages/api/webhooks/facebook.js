@@ -125,7 +125,22 @@ async function handleWebhook(req, res) {
 
         console.log(`[fb-webhook] lead stored: ${lead.id} token=${lead.token}`);
 
-        // 3. Sync to GoHighLevel
+        // 3. Look up form tag rules from settings
+        let formTags = ['facebook-lead'];
+        if (form_id) formTags.push(`form-${form_id}`);
+        try {
+          const { data: settingsRow } = await supabase
+            .from('settings').select('form_tag_rules').eq('id', 1).single();
+          const rules = settingsRow?.form_tag_rules || [];
+          const matchedRule = rules.find(r => r.form_id === form_id);
+          if (matchedRule?.tags?.length) {
+            formTags = [...new Set([...formTags, ...matchedRule.tags])];
+          }
+        } catch (e) {
+          console.warn('[fb-webhook] could not load form_tag_rules:', e.message);
+        }
+
+        // 4. Sync to GoHighLevel
         if (process.env.GHL_LOCATION_ID && process.env.GHL_API_KEY) {
           try {
             const ghlContact = await upsertGHLContact({
@@ -134,7 +149,7 @@ async function handleWebhook(req, res) {
               lastName:   parsed.lastName,
               email:      parsed.email,
               phone:      parsed.phone,
-              tags:       ['facebook-lead', form_id ? `form-${form_id}` : null].filter(Boolean),
+              tags:       formTags,
               source:     'Facebook Lead Ad',
               customFields: parsed.investmentLevel
                 ? [{ key: 'investment_level', field_value: parsed.investmentLevel }]

@@ -29,22 +29,25 @@ export default async function handler(req, res) {
       meeting_duration, meeting_title,
       days_ahead, buffer_minutes,
       max_slots_per_day, hidden_slots_count,
+      brand_pitches, form_tag_rules,
     } = req.body;
+
+    const update = { updated_at: new Date().toISOString() };
+    if (work_start         !== undefined) update.work_start         = work_start;
+    if (work_end           !== undefined) update.work_end           = work_end;
+    if (timezone           !== undefined) update.timezone           = timezone;
+    if (meeting_duration   !== undefined) update.meeting_duration   = meeting_duration;
+    if (meeting_title      !== undefined) update.meeting_title      = meeting_title;
+    if (days_ahead         !== undefined) update.days_ahead         = days_ahead;
+    if (buffer_minutes     !== undefined) update.buffer_minutes     = buffer_minutes;
+    if (max_slots_per_day  !== undefined) update.max_slots_per_day  = max_slots_per_day;
+    if (hidden_slots_count !== undefined) update.hidden_slots_count = hidden_slots_count;
+    if (brand_pitches      !== undefined) update.brand_pitches      = brand_pitches;
+    if (form_tag_rules     !== undefined) update.form_tag_rules     = form_tag_rules;
 
     const { data, error } = await supabase
       .from('settings')
-      .update({
-        work_start:         work_start         ?? undefined,
-        work_end:           work_end           ?? undefined,
-        timezone:           timezone           ?? undefined,
-        meeting_duration:   meeting_duration   ?? undefined,
-        meeting_title:      meeting_title      ?? undefined,
-        days_ahead:         days_ahead         ?? undefined,
-        buffer_minutes:     buffer_minutes     ?? undefined,
-        max_slots_per_day:  max_slots_per_day  ?? undefined,
-        hidden_slots_count: hidden_slots_count ?? undefined,
-        updated_at:         new Date().toISOString(),
-      })
+      .update(update)
       .eq('id', 1)
       .select()
       .single();

@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 /**
  * POST /api/dashboard/update-lead
  *
- * Body: { id, franchise_brand?, developer_name?, developer_phone?, developer_email?, notes? }
+ * Body: { id, franchise_brand?, developer_name?, developer_phone?, developer_email?, notes?, franchise_interests? }
  * Updates CRM/franchise fields on a lead record.
  */
 export default async function handler(req, res) {
@@ -14,19 +14,18 @@ export default async function handler(req, res) {
   const session = await getServerSession(req, res, authOptions);
   if (!session) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { id, franchise_brand, developer_name, developer_phone, developer_email, notes } = req.body;
+  const { id, franchise_brand, developer_name, developer_phone, developer_email, notes, franchise_interests } = req.body;
   if (!id) return res.status(400).json({ error: 'id required' });
 
   const supabase = getSupabaseAdmin();
 
-  const updates = {
-    updated_at: new Date().toISOString(),
-  };
-  if (franchise_brand  !== undefined) updates.franchise_brand  = franchise_brand;
-  if (developer_name   !== undefined) updates.developer_name   = developer_name;
-  if (developer_phone  !== undefined) updates.developer_phone  = developer_phone;
-  if (developer_email  !== undefined) updates.developer_email  = developer_email;
-  if (notes            !== undefined) updates.notes            = notes;
+  const updates = { updated_at: new Date().toISOString() };
+  if (franchise_brand     !== undefined) updates.franchise_brand     = franchise_brand;
+  if (developer_name      !== undefined) updates.developer_name      = developer_name;
+  if (developer_phone     !== undefined) updates.developer_phone     = developer_phone;
+  if (developer_email     !== undefined) updates.developer_email     = developer_email;
+  if (notes               !== undefined) updates.notes               = notes;
+  if (franchise_interests !== undefined) updates.franchise_interests = franchise_interests;
 
   const { error } = await supabase
     .from('leads')

@@ -23,6 +23,7 @@ export default async function handler(req, res) {
       id, first_name, last_name, email, phone,
       investment_level, status, ghl_contact_id,
       franchise_brand, developer_name, developer_phone, developer_email, notes,
+      franchise_interests,
       fb_form_id, fb_ad_id, fb_campaign_id,
       raw_fields, created_at,
       bookings (

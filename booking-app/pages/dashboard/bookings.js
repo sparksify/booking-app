@@ -8,7 +8,13 @@ import { authOptions } from '../api/auth/[...nextauth]';
 export async function getServerSideProps(context) {
   const session = await getServerSession(context.req, context.res, authOptions);
   if (!session) return { redirect: { destination: '/dashboard/login', permanent: false } };
-  return { props: { session } };
+
+  const { getSupabaseAdmin } = await import('@/lib/supabase');
+  const supabase = getSupabaseAdmin();
+  const { data: settingsRow } = await supabase
+    .from('settings').select('brand_pitches').eq('id', 1).single();
+
+  return { props: { session, brandPitches: settingsRow?.brand_pitches || {} } };
 }
 
 const FILTERS = [
@@ -73,10 +79,10 @@ function makeDemoLead(booking) {
     phone:      booking.phone,
     investment_level: booking.investment_level,
     status:     booking.status,
-    franchise_brand:  'Wet Fuel',
-    developer_name:   'Janet Okafor',
-    developer_phone:  '(972) 555-0182',
-    developer_email:  'janet.okafor@wetfuel.com',
+    franchise_interests: [
+      { id: 'fi1', brand: 'Wet Fuel', developer_name: 'Janet Okafor', developer_phone: '(972) 555-0182', developer_email: 'janet.okafor@wetfuel.com' },
+      { id: 'fi2', brand: 'Squeeze House', developer_name: 'Marcus Webb', developer_phone: '(214) 555-0299', developer_email: 'mwebb@squeezehouse.com' },
+    ],
     notes:            'Very motivated buyer. Has previous business ownership experience. Interested in multi-unit.',
     raw_fields: {
       liquid_capital_to_get_started:                       '$100,000 – $250,000',
@@ -102,7 +108,7 @@ function getField(raw, ...keys) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function BookingsDashboard() {
+export default function BookingsDashboard({ brandPitches = {} }) {
   const { data: session } = useSession();
   const [filter,   setFilter]   = useState('today');
   const [bookings, setBookings] = useState([]);
@@ -285,6 +291,7 @@ export default function BookingsDashboard() {
             loading={panelLoading}
             open={panelOpen}
             isDemo={isDemo}
+            brandPitches={brandPitches}
             onClose={closePanel}
             onStatusChange={status => updateStatus(panelBooking, status)}
           />
@@ -366,79 +373,80 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus 
 
 // ─── CRM Side Panel ───────────────────────────────────────────────────────────
 
-function CRMPanel({ booking, lead, loading, open, isDemo, onClose, onStatusChange }) {
-  const [form,         setForm]         = useState({});
-  const [editMode,     setEditMode]     = useState(false);
-  const [saving,       setSaving]       = useState(false);
-  const [saved,        setSaved]        = useState(false);
+function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onClose, onStatusChange }) {
+  const [notes,        setNotes]        = useState('');
+  const [interests,    setInterests]    = useState([]);  // franchise_interests array
+  const [selectedIdx,  setSelectedIdx]  = useState(null);
+  const [brandSaving,  setBrandSaving]  = useState(false);
+  const [brandSaved,   setBrandSaved]   = useState(false);
   const [notesSaving,  setNotesSaving]  = useState(false);
   const [notesSaved,   setNotesSaved]   = useState(false);
   const [showEmail,    setShowEmail]    = useState(false);
   const [email,        setEmail]        = useState({ to: '', subject: '', body: '' });
   const [emailSent,    setEmailSent]    = useState(false);
   const [cqSent,       setCqSent]       = useState(false);
+  const [pitchOpen,    setPitchOpen]    = useState(false);
+  const [pitchBrandIdx,setPitchBrandIdx]= useState(0);
   const panelRef = useRef(null);
 
   useEffect(() => {
     if (lead) {
-      setForm({
-        franchise_brand:  lead.franchise_brand  || '',
-        developer_name:   lead.developer_name   || '',
-        developer_phone:  lead.developer_phone  || '',
-        developer_email:  lead.developer_email  || '',
-        notes:            lead.notes            || '',
-      });
-      setEmail(e => ({ ...e, to: lead.developer_email || '' }));
+      setNotes(lead.notes || '');
+      const fi = lead.franchise_interests || [];
+      setInterests(fi);
+      setSelectedIdx(fi.length > 0 ? 0 : null);
     }
   }, [lead]);
 
   useEffect(() => {
-    if (!open) { setShowEmail(false); setEmailSent(false); setEditMode(false); }
+    if (!open) { setShowEmail(false); setEmailSent(false); setPitchOpen(false); }
   }, [open]);
 
-  function cancelEdit() {
-    if (lead) {
-      setForm(f => ({
-        ...f,
-        franchise_brand:  lead.franchise_brand  || '',
-        developer_name:   lead.developer_name   || '',
-        developer_phone:  lead.developer_phone  || '',
-        developer_email:  lead.developer_email  || '',
-      }));
+  const selectedFI = selectedIdx !== null ? interests[selectedIdx] : null;
+
+  function updateInterest(idx, field, value) {
+    setInterests(prev => prev.map((fi, i) => i === idx ? { ...fi, [field]: value } : fi));
+    if (field === 'developer_email' && idx === selectedIdx) {
+      setEmail(em => ({ ...em, to: value }));
     }
-    setEditMode(false);
   }
 
-  async function saveFranchise() {
-    if (!lead || isDemo) {
-      setSaved(true);
-      setTimeout(() => { setSaved(false); setEditMode(false); }, 1500);
-      return;
-    }
-    setSaving(true);
+  function addBrand() {
+    const newFI = { id: `fi_${Date.now()}`, brand: '', developer_name: '', developer_phone: '', developer_email: '' };
+    setInterests(prev => [...prev, newFI]);
+    setSelectedIdx(interests.length);
+  }
+
+  function removeBrand(idx) {
+    const updated = interests.filter((_, i) => i !== idx);
+    setInterests(updated);
+    const nextIdx = updated.length === 0 ? null : Math.min(idx, updated.length - 1);
+    setSelectedIdx(nextIdx);
+    saveInterestsToAPI(updated);
+  }
+
+  async function saveInterestsToAPI(data) {
+    if (!lead || isDemo) return;
     await fetch('/api/dashboard/update-lead', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        id:               lead.id,
-        franchise_brand:  form.franchise_brand,
-        developer_name:   form.developer_name,
-        developer_phone:  form.developer_phone,
-        developer_email:  form.developer_email,
-      }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: lead.id, franchise_interests: data }),
     }).catch(console.error);
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => { setSaved(false); setEditMode(false); }, 1500);
+  }
+
+  async function saveBrand() {
+    setBrandSaving(true);
+    await saveInterestsToAPI(interests);
+    setBrandSaving(false);
+    setBrandSaved(true);
+    setTimeout(() => setBrandSaved(false), 2000);
   }
 
   async function saveNotes() {
     if (!lead || isDemo) { setNotesSaved(true); setTimeout(() => setNotesSaved(false), 2000); return; }
     setNotesSaving(true);
     await fetch('/api/dashboard/update-lead', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ id: lead.id, notes: form.notes }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: lead.id, notes }),
     }).catch(console.error);
     setNotesSaving(false);
     setNotesSaved(true);
@@ -452,7 +460,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, onClose, onStatusChang
   }
 
   function sendCQ() {
-    console.log('[CQ] sending candidate questionnaire to:', booking.email);
+    console.log('[CQ] sending to:', booking.email);
     setCqSent(true);
     setTimeout(() => setCqSent(false), 2500);
   }
@@ -470,6 +478,11 @@ function CRMPanel({ booking, lead, loading, open, isDemo, onClose, onStatusChang
     ? slot.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) +
       ' · ' + slot.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
     : '—';
+
+  // Pitch modal data
+  const pitchBrands = interests.filter(fi => fi.brand && brandPitches[fi.brand]);
+  const pitchFI = pitchBrands[pitchBrandIdx] || pitchBrands[0];
+  const pitchText = pitchFI ? brandPitches[pitchFI.brand] : null;
 
   return (
     <>
@@ -561,76 +574,84 @@ function CRMPanel({ booking, lead, loading, open, isDemo, onClose, onStatusChang
                   <QBBtn variant="cq" onClick={sendCQ} disabled={cqSent}>
                     {cqSent ? '✓ CQ Sent' : 'Send CQ'}
                   </QBBtn>
+                  <QBBtn variant="pitch" onClick={() => { setPitchBrandIdx(0); setPitchOpen(true); }}>
+                    📞 Brand Pitch
+                  </QBBtn>
                 </div>
               </PanelSection>
 
-              {/* ── Franchise (Interest + Developer combined, with edit mode) ── */}
-              <PanelSection
-                title="Franchise"
-                editMode={editMode}
-                onEdit={() => setEditMode(true)}
-                onSave={saveFranchise}
-                onCancel={cancelEdit}
-                saving={saving}
-                saved={saved}
-              >
-                {editMode ? (
-                  <>
-                    <EditRow label="Brand / Concept">
-                      <input style={p.input} placeholder="e.g. Wet Fuel"
-                        value={form.franchise_brand || ''}
-                        onChange={e => setForm(f => ({ ...f, franchise_brand: e.target.value }))} />
-                    </EditRow>
-                    <div style={p.divider} />
-                    <EditRow label="Developer Name">
-                      <input style={p.input} placeholder="Developer name"
-                        value={form.developer_name || ''}
-                        onChange={e => setForm(f => ({ ...f, developer_name: e.target.value }))} />
-                    </EditRow>
-                    <EditRow label="Developer Phone">
-                      <input style={p.input} placeholder="(555) 000-0000"
-                        value={form.developer_phone || ''}
-                        onChange={e => setForm(f => ({ ...f, developer_phone: e.target.value }))} />
-                    </EditRow>
-                    <EditRow label="Developer Email">
-                      <input style={p.input} placeholder="developer@brand.com"
-                        value={form.developer_email || ''}
-                        onChange={e => {
-                          setForm(f => ({ ...f, developer_email: e.target.value }));
-                          setEmail(em => ({ ...em, to: e.target.value }));
-                        }} />
-                    </EditRow>
-                  </>
-                ) : (
-                  <>
+              {/* ── Franchise Brands ── */}
+              <PanelSection title="Franchise Brands">
+                {/* Brand chips */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: interests.length > 0 ? 14 : 0 }}>
+                  {interests.map((fi, i) => (
+                    <div key={fi.id || i} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                      <button
+                        onClick={() => setSelectedIdx(i)}
+                        style={selectedIdx === i ? p.brandChipActive : p.brandChip}
+                      >
+                        {fi.brand || <em style={{ opacity: 0.6 }}>New Brand</em>}
+                      </button>
+                      <button
+                        onClick={() => removeBrand(i)}
+                        style={p.brandChipX}
+                        title="Remove"
+                      >×</button>
+                    </div>
+                  ))}
+                  <button onClick={addBrand} style={p.addBrandBtn}>+ Brand</button>
+                </div>
+
+                {/* Selected brand detail — inline editable */}
+                {selectedFI && (
+                  <div style={p.brandCard}>
                     <div style={p.fieldGroupLabel}>Brand / Concept</div>
-                    <Row icon="🏷️" label="">
-                      <span style={p.val}>{form.franchise_brand || <em style={{ color: '#9CA3AF' }}>Not set</em>}</span>
-                    </Row>
-                    <div style={{ ...p.divider, margin: '10px 0' }} />
+                    <div style={{ marginBottom: 10 }}>
+                      <input style={p.input}
+                        placeholder="e.g. Wet Fuel"
+                        value={selectedFI.brand || ''}
+                        onChange={e => updateInterest(selectedIdx, 'brand', e.target.value)} />
+                    </div>
                     <div style={p.fieldGroupLabel}>Developer</div>
-                    <Row icon="👤" label="Name">
-                      <span style={p.val}>{form.developer_name || <em style={{ color: '#9CA3AF' }}>Not set</em>}</span>
-                    </Row>
-                    <Row icon="📞" label="Phone">
-                      {form.developer_phone
-                        ? <a href={`tel:${form.developer_phone}`} style={p.link}>{form.developer_phone}</a>
-                        : <em style={{ color: '#9CA3AF', fontSize: 13 }}>Not set</em>}
-                    </Row>
-                    <Row icon="✉️" label="Email">
-                      {form.developer_email
-                        ? <a href={`mailto:${form.developer_email}`} style={p.link}>{form.developer_email}</a>
-                        : <em style={{ color: '#9CA3AF', fontSize: 13 }}>Not set</em>}
-                    </Row>
-                  </>
+                    <div style={{ marginBottom: 8 }}>
+                      <input style={p.input}
+                        placeholder="Developer name"
+                        value={selectedFI.developer_name || ''}
+                        onChange={e => updateInterest(selectedIdx, 'developer_name', e.target.value)} />
+                    </div>
+                    <div style={{ marginBottom: 8 }}>
+                      <input style={p.input}
+                        placeholder="(555) 000-0000"
+                        value={selectedFI.developer_phone || ''}
+                        onChange={e => updateInterest(selectedIdx, 'developer_phone', e.target.value)} />
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                      <input style={p.input}
+                        placeholder="developer@brand.com"
+                        value={selectedFI.developer_email || ''}
+                        onChange={e => updateInterest(selectedIdx, 'developer_email', e.target.value)} />
+                    </div>
+                    <button onClick={saveBrand} disabled={brandSaving}
+                      style={{ ...p.actionBtn, background: brandSaved ? '#2CA01C' : '#0077C5' }}>
+                      {brandSaving ? 'Saving…' : brandSaved ? '✓ Saved' : 'Save Brand'}
+                    </button>
+                  </div>
                 )}
 
-                {/* Email to developer */}
-                <button onClick={() => setShowEmail(v => !v)} style={p.emailToggleBtn}>
-                  ✉️ {showEmail ? 'Hide email' : 'Email developer'}
-                </button>
+                {!selectedFI && interests.length === 0 && (
+                  <div style={{ color: '#9CA3AF', fontSize: 13, marginBottom: 8 }}>
+                    No brands added yet — click + Brand to add one.
+                  </div>
+                )}
 
-                {showEmail && (
+                {/* Email developer */}
+                {selectedFI?.developer_email && (
+                  <button onClick={() => setShowEmail(v => !v)} style={p.emailToggleBtn}>
+                    ✉️ {showEmail ? 'Hide email' : 'Email developer'}
+                  </button>
+                )}
+
+                {showEmail && selectedFI && (
                   <div style={p.emailBox}>
                     <div style={p.emailHeader}>New Email</div>
                     <div style={p.emailField}>
@@ -647,7 +668,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, onClose, onStatusChang
                     </div>
                     <textarea style={p.emailBody} rows={5} value={email.body}
                       onChange={e => setEmail(em => ({ ...em, body: e.target.value }))}
-                      placeholder={`Hi ${form.developer_name || 'there'},\n\nI wanted to follow up regarding ${booking.first_name} ${booking.last_name}…`}
+                      placeholder={`Hi ${selectedFI.developer_name || 'there'},\n\nI wanted to follow up regarding ${booking.first_name} ${booking.last_name}…`}
                     />
                     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                       <button onClick={sendEmail} disabled={!email.to || emailSent}
@@ -658,7 +679,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, onClose, onStatusChang
                     </div>
                     {isDemo && (
                       <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>
-                        Email integration coming soon — connect Resend or Gmail to activate.
+                        Email integration coming soon — connect Resend to activate.
                       </p>
                     )}
                   </div>
@@ -668,11 +689,11 @@ function CRMPanel({ booking, lead, loading, open, isDemo, onClose, onStatusChang
               {/* ── Notes ── */}
               <PanelSection title="Notes">
                 <textarea style={p.notesArea} rows={5}
-                  value={form.notes || ''}
+                  value={notes}
                   placeholder="Add notes about this client…"
-                  onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                  onChange={e => setNotes(e.target.value)}
                 />
-                <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ marginTop: 10 }}>
                   <button onClick={saveNotes} disabled={notesSaving}
                     style={{ ...p.actionBtn, background: notesSaved ? '#2CA01C' : '#0077C5' }}>
                     {notesSaving ? 'Saving…' : notesSaved ? '✓ Saved' : 'Save Notes'}
@@ -683,6 +704,59 @@ function CRMPanel({ booking, lead, loading, open, isDemo, onClose, onStatusChang
           )}
         </div>
       </div>
+
+      {/* ── Brand Pitch Modal ── */}
+      {pitchOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)',
+          zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24,
+        }} onClick={() => setPitchOpen(false)}>
+          <div style={{
+            background: '#fff', borderRadius: 6, width: '100%', maxWidth: 520,
+            boxShadow: '0 8px 40px rgba(0,0,0,.2)',
+            fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif",
+          }} onClick={e => e.stopPropagation()}>
+            {/* Modal header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #EBEBEB' }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#1A2B3C' }}>📞 Phone Pitch</div>
+                {/* Brand tabs if multiple pitches */}
+                {pitchBrands.length > 1 && (
+                  <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                    {pitchBrands.map((fi, i) => (
+                      <button key={fi.id} onClick={() => setPitchBrandIdx(i)}
+                        style={i === pitchBrandIdx ? p.brandChipActive : p.brandChip}>
+                        {fi.brand}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {pitchFI && <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>{pitchFI.brand}</div>}
+              </div>
+              <button onClick={() => setPitchOpen(false)} style={p.closeBtn}>✕</button>
+            </div>
+            {/* Pitch body */}
+            <div style={{ padding: '20px', maxHeight: '60vh', overflowY: 'auto' }}>
+              {pitchText ? (
+                <div style={{ fontSize: 14, color: '#1A2B3C', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                  {pitchText}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: '#6B7280', textAlign: 'center', padding: '20px 0' }}>
+                  {interests.length === 0
+                    ? 'No brands added to this lead yet.'
+                    : `No pitch configured for ${interests[selectedIdx]?.brand || 'this brand'}.`}
+                  <br />
+                  <a href="/dashboard" style={{ color: '#0077C5', textDecoration: 'none', marginTop: 8, display: 'inline-block' }}>
+                    Set up pitches in Settings →
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -739,6 +813,7 @@ function QBBtn({ variant, onClick, children, disabled }) {
     danger:  { color: '#C23934', bg: '#FDECEA', hoverBg: '#FFCDD2', border: '#EF9A9A' },
     primary: { color: '#0077C5', bg: '#E0EFF9', hoverBg: '#B3D4EE', border: '#90CAF9' },
     cq:      { color: '#5C35A8', bg: '#EEE9FA', hoverBg: '#DDD5F7', border: '#C5B8F0' },
+    pitch:   { color: '#1A7E24', bg: '#E3F4E5', hoverBg: '#C3E6C5', border: '#A8D5AA' },
   }[variant];
   return (
     <button
@@ -850,4 +925,11 @@ const p = {
   cancelBtn:      { padding: '8px 14px', background: '#fff', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#4A5568', cursor: 'pointer', fontFamily: 'inherit' },
 
   notesArea:      { width: '100%', padding: '8px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.6 },
+
+  // Brand chips
+  brandChip:      { padding: '4px 10px', fontSize: 12, fontWeight: 500, borderRadius: 20, border: '1px solid #C8CDD2', background: '#F5F6F7', color: '#4A5568', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  brandChipActive:{ padding: '4px 10px', fontSize: 12, fontWeight: 600, borderRadius: 20, border: '1px solid #0077C5', background: '#0077C5', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  brandChipX:     { padding: '2px 6px', fontSize: 14, lineHeight: 1, background: 'transparent', border: 'none', color: '#9CA3AF', cursor: 'pointer', fontFamily: 'inherit', marginLeft: -2 },
+  addBrandBtn:    { padding: '4px 10px', fontSize: 12, fontWeight: 500, borderRadius: 20, border: '1px dashed #C8CDD2', background: 'transparent', color: '#6B7280', cursor: 'pointer', fontFamily: 'inherit' },
+  brandCard:      { background: '#F8F9FA', border: '1px solid #E5E7EB', borderRadius: 4, padding: '14px 14px 12px', marginBottom: 12 },
 };
