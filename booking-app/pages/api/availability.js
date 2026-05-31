@@ -9,6 +9,23 @@ const DEFAULTS = {
   bufferMinutes: 15,
 };
 
+// Returns UTC offset in minutes for a timezone on a given date (e.g. -300 for CDT)
+function getOffsetMinutes(dateStr, timezone) {
+  const probe = new Date(`${dateStr}T12:00:00Z`);
+  const str = probe.toLocaleString('en-US', { timeZone: timezone, timeZoneName: 'shortOffset' });
+  const match = str.match(/GMT([+-])(\d+)(?::(\d+))?/);
+  if (!match) return 0;
+  const sign  = match[1] === '+' ? 1 : -1;
+  const hours = parseInt(match[2], 10);
+  const mins  = parseInt(match[3] || '0', 10);
+  return sign * (hours * 60 + mins);
+}
+
+function localToUTCMs(dateStr, h, m, offsetMins) {
+  const [y, mo, d] = dateStr.split('-').map(Number);
+  return Date.UTC(y, mo - 1, d, h, m, 0) - offsetMins * 60_000;
+}
+
 /**
  * GET /api/availability?date=YYYY-MM-DD[&investment_level=100k_250k]
  *
@@ -70,13 +87,36 @@ export default async function handler(req, res) {
   }
 
   try {
-    const busyTimes = await getBusyTimes(members, date, settings.timezone);
-    const slots     = generateSlots(settings, busyTimes, date);
-    const visible   = applySlotDisplay(slots, date, settings.maxSlotsPerDay, settings.hiddenSlotsCount);
+    // 1. Get busy times from Google Calendar
+    const googleBusy = await getBusyTimes(members, date, settings.timezone);
+
+    // 2. Also check our own Supabase bookings — this is the reliable source of truth
+    //    for bookings made through this app, regardless of Google Calendar status.
+    const offsetMins = getOffsetMinutes(date, settings.timezone);
+    const timeMin = new Date(localToUTCMs(date,  0,  0, offsetMins)).toISOString();
+    const timeMax = new Date(localToUTCMs(date, 23, 59, offsetMins)).toISOString();
+
+    const { data: existingBookings } = await supabase
+      .from('bookings')
+      .select('slot_start, slot_end')
+      .gte('slot_start', timeMin)
+      .lte('slot_start', timeMax)
+      .neq('status', 'cancelled');
+
+    const supabaseBusy = (existingBookings || []).map(b => ({
+      start: b.slot_start,
+      end:   b.slot_end,
+    }));
+
+    // 3. Merge both sources and generate available slots
+    const allBusy = [...googleBusy, ...supabaseBusy];
+    const slots   = generateSlots(settings, allBusy, date);
+    const visible = applySlotDisplay(slots, date, settings.maxSlotsPerDay, settings.hiddenSlotsCount);
+
     res.setHeader('Cache-Control', 'no-store');
-    return res.json({ slots: visible, _debug_busy_count: busyTimes.length });
+    return res.json({ slots: visible });
   } catch (err) {
-    console.error('[availability] Google Calendar error:', err.message);
+    console.error('[availability] error:', err.message);
     return res.json({ slots: mockSlots(settings, date), demo: true, error: err.message });
   }
 }

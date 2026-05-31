@@ -6,6 +6,18 @@ import { sendCapiEvents, buildCapiEvent } from '@/lib/fbConversionsApi';
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+// Returns UTC offset in minutes for a timezone on a given date (e.g. -300 for CDT)
+function getOffsetMinutes(dateStr, timezone) {
+  const probe = new Date(`${dateStr}T12:00:00Z`);
+  const str = probe.toLocaleString('en-US', { timeZone: timezone, timeZoneName: 'shortOffset' });
+  const match = str.match(/GMT([+-])(\d+)(?::(\d+))?/);
+  if (!match) return 0;
+  const sign  = match[1] === '+' ? 1 : -1;
+  const hours = parseInt(match[2], 10);
+  const mins  = parseInt(match[3] || '0', 10);
+  return sign * (hours * 60 + mins);
+}
+
 /**
  * POST /api/book
  *
@@ -97,7 +109,10 @@ export default async function handler(req, res) {
   }
 
   // ── Save to Supabase ────────────────────────────────────────────────────────
-  const startMs = Date.parse(`${date}T${pad(h)}:${pad(m)}:00`);
+  // Convert local slot time to correct UTC using the settings timezone
+  const [sy, smo, sd] = date.split('-').map(Number);
+  const offsetMins = getOffsetMinutes(date, settings.timezone);
+  const startMs = Date.UTC(sy, smo - 1, sd, h, m, 0) - offsetMins * 60_000;
   const endMs   = startMs + settings.meetingDuration * 60_000;
 
   const { error: dbError } = await supabase.from('bookings').insert({
