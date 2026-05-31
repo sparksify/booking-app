@@ -180,6 +180,7 @@ async function handleWebhook(req, res) {
                   ghl_contact_id: ghlContact.id,
                 }, { leadId: lead.token }).catch(() => {});
               }
+
             }
           } catch (ghlErr) {
             console.error('[fb-webhook] GHL error:', ghlErr.message);

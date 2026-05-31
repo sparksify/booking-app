@@ -5,6 +5,7 @@ import { sendCapiEvents, buildCapiEvent } from '@/lib/fbConversionsApi';
 import { upsertGHLContact, createGHLOpportunity } from '@/lib/ghl';
 import { computeLeadScore, computeShowProbability } from '@/lib/scoring';
 import { logLeadEvent } from '@/lib/leadEvents';
+import { wasEngagedByCloseBot } from '@/lib/closebot';
 
 // Appointment Scheduling pipeline
 const GHL_PIPELINE_ID  = 'tOlnnAijaReLJ30AZaSL';
@@ -123,6 +124,16 @@ export default async function handler(req, res) {
   const startMs = Date.UTC(sy, smo - 1, sd, h, m, 0) - offsetMins * 60_000;
   const endMs   = startMs + settings.meetingDuration * 60_000;
 
+  // ── Attribution: auto-detect CloseBot if no explicit source ─────────────────
+  let resolvedSource = source || (lead_id ? 'facebook_lead' : null);
+  if (!resolvedSource && process.env.CLOSEBOT_API_KEY) {
+    try {
+      const cb = await wasEngagedByCloseBot(phone, `${firstName} ${lastName || ''}`.trim());
+      if (cb) resolvedSource = 'closebot';
+    } catch { /* non-blocking */ }
+  }
+  resolvedSource = resolvedSource || 'direct';
+
   // ── Lead scoring ─────────────────────────────────────────────────────────────
   const bookingForScoring = {
     slot_start:       new Date(startMs).toISOString(),
@@ -149,7 +160,7 @@ export default async function handler(req, res) {
     fb_attribution:    fb_attribution   || null,
     lead_score:        leadScore,
     show_probability:  showProbability,
-    booking_source:    source || (lead_id ? 'facebook_lead' : 'direct'),
+    booking_source:    resolvedSource,
   });
 
   if (dbError) console.error('[book] db insert error:', dbError);
@@ -254,9 +265,8 @@ export default async function handler(req, res) {
 
   // ── Log appointment_booked event ─────────────────────────────────────────────
   if (email) {
-    const bookingSource = source || (lead_id ? 'facebook_lead' : 'direct');
     logLeadEvent(email, 'appointment_booked', {
-      booking_source:   bookingSource,
+      booking_source:   resolvedSource,
       slot_start:       new Date(startMs).toISOString(),
       assigned_to:      assignedEmail || null,
       investment_level: investment_level || null,
