@@ -47,32 +47,45 @@ function localToUTCMs(dateStr, h, m, offsetMins) {
 export async function getBusyTimes(members, dateStr, timezone) {
   if (!members.length) return [];
 
-  const auth = makeOAuthClient({
-    access_token:  members[0].google_access_token,
-    refresh_token: members[0].google_refresh_token,
-  });
-
-  const calendar = google.calendar({ version: 'v3', auth });
-
-  // Build start/end in UTC that correspond to midnight→midnight in the target timezone
   const offsetMins = getOffsetMinutes(dateStr, timezone);
   const timeMin = new Date(localToUTCMs(dateStr,  0,  0, offsetMins)).toISOString();
   const timeMax = new Date(localToUTCMs(dateStr, 23, 59, offsetMins)).toISOString();
 
-  const response = await calendar.freebusy.query({
-    requestBody: {
-      timeMin,
-      timeMax,
-      timeZone: timezone,
-      items: members.map(m => ({ id: m.calendar_id || m.email })),
-    },
-  });
-
   const allBusy = [];
-  const cals = response.data.calendars || {};
-  Object.values(cals).forEach(cal => {
-    if (cal.busy) allBusy.push(...cal.busy);
-  });
+
+  // Query each member's calendar with their own auth token.
+  // Using a shared token with 'primary' only checks one person's calendar —
+  // members on different Google domains must each be queried independently.
+  for (const member of members) {
+    try {
+      const auth = makeOAuthClient({
+        access_token:  member.google_access_token,
+        refresh_token: member.google_refresh_token,
+      });
+      const calendar = google.calendar({ version: 'v3', auth });
+
+      // Use email as calendar ID — 'primary' is ambiguous across different accounts
+      const calendarId = (member.calendar_id && member.calendar_id !== 'primary')
+        ? member.calendar_id
+        : member.email;
+
+      const response = await calendar.freebusy.query({
+        requestBody: {
+          timeMin,
+          timeMax,
+          timeZone: timezone,
+          items: [{ id: calendarId }],
+        },
+      });
+
+      const cals = response.data.calendars || {};
+      Object.values(cals).forEach(cal => {
+        if (cal.busy) allBusy.push(...cal.busy);
+      });
+    } catch (err) {
+      console.error(`[getBusyTimes] error querying ${member.email}:`, err.message);
+    }
+  }
 
   return allBusy; // [{ start: ISO, end: ISO }, ...]
 }
