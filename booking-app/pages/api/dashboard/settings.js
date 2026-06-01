@@ -30,21 +30,24 @@ export default async function handler(req, res) {
       days_ahead, buffer_minutes,
       max_slots_per_day, hidden_slots_count,
       brand_pitches, form_tag_rules, revenue_per_close,
+      show_revenue, show_franchise_metrics,
     } = req.body;
 
     const update = { updated_at: new Date().toISOString() };
-    if (work_start         !== undefined) update.work_start         = work_start;
-    if (work_end           !== undefined) update.work_end           = work_end;
-    if (timezone           !== undefined) update.timezone           = timezone;
-    if (meeting_duration   !== undefined) update.meeting_duration   = meeting_duration;
-    if (meeting_title      !== undefined) update.meeting_title      = meeting_title;
-    if (days_ahead         !== undefined) update.days_ahead         = days_ahead;
-    if (buffer_minutes     !== undefined) update.buffer_minutes     = buffer_minutes;
-    if (max_slots_per_day  !== undefined) update.max_slots_per_day  = max_slots_per_day;
-    if (hidden_slots_count !== undefined) update.hidden_slots_count = hidden_slots_count;
-    if (brand_pitches      !== undefined) update.brand_pitches      = brand_pitches;
-    if (form_tag_rules     !== undefined) update.form_tag_rules     = form_tag_rules;
-    if (revenue_per_close  !== undefined) update.revenue_per_close  = Number(revenue_per_close) || 0;
+    if (work_start              !== undefined) update.work_start              = work_start;
+    if (work_end                !== undefined) update.work_end                = work_end;
+    if (timezone                !== undefined) update.timezone                = timezone;
+    if (meeting_duration        !== undefined) update.meeting_duration        = meeting_duration;
+    if (meeting_title           !== undefined) update.meeting_title           = meeting_title;
+    if (days_ahead              !== undefined) update.days_ahead              = days_ahead;
+    if (buffer_minutes          !== undefined) update.buffer_minutes          = buffer_minutes;
+    if (max_slots_per_day       !== undefined) update.max_slots_per_day       = max_slots_per_day;
+    if (hidden_slots_count      !== undefined) update.hidden_slots_count      = hidden_slots_count;
+    if (brand_pitches           !== undefined) update.brand_pitches           = brand_pitches;
+    if (form_tag_rules          !== undefined) update.form_tag_rules          = form_tag_rules;
+    if (revenue_per_close       !== undefined) update.revenue_per_close       = Number(revenue_per_close) || 0;
+    if (show_revenue            !== undefined) update.show_revenue            = !!show_revenue;
+    if (show_franchise_metrics  !== undefined) update.show_franchise_metrics  = !!show_franchise_metrics;
 
     const { data, error } = await supabase
       .from('settings')
