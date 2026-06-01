@@ -106,7 +106,7 @@ function pad(n) { return String(n).padStart(2, '0'); }
 
 function getDayLabel(dateStr) {
   const today = new Date(); today.setHours(0,0,0,0);
-  const d = new Date(dateStr + 'T12:00:00');
+  const d = new Date(dateStr + 'T00:00:00'); // midnight → avoids 0.5-day rounding trap
   const diff = Math.round((d - today) / 86400000);
   if (diff === 0) return 'Today';
   if (diff === 1) return 'Tomorrow';
