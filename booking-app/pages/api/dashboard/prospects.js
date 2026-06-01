@@ -30,10 +30,12 @@ export default async function handler(req, res) {
   const supabase = getSupabaseAdmin();
 
   // ── 1. Fetch leads (exclude explicitly closed) ────────────────────────────
+  // NOTE: do NOT filter on status at the DB level — leads with status IS NULL
+  // would be excluded by .neq('status','closed') because NULL != 'closed' → NULL
+  // (not TRUE) in PostgreSQL. We handle the closed check in JS below.
   const { data: rawLeads, error: leadsErr } = await supabase
     .from('leads')
-    .select('id, first_name, last_name, email, phone, created_at, score, investment_level, raw_fields, ghl_contact_id, location_city, location_state, location_zip')
-    .neq('status', 'closed')
+    .select('id, first_name, last_name, email, phone, created_at, score, status, investment_level, raw_fields, ghl_contact_id, location_city, location_state, location_zip')
     .order('created_at', { ascending: false })
     .limit(400);
 
@@ -96,8 +98,9 @@ export default async function handler(req, res) {
       || /\$500k|500,000|500k|\$1m|1,000,000|million|250k|250,000|\$250/i.test(invLevel + ' ' + (liquidCapRaw || ''));
 
     // ── Booking status checks ───────────────────────────────────────────────
-    const isClosed = bookings.some(b => (b.status || '').toLowerCase() === 'closed');
-    if (isClosed) return null; // skip closed deals entirely
+    const leadStatusClosed = ['closed', 'lost', 'disqualified'].includes((lead.status || '').toLowerCase());
+    const bookingClosed    = bookings.some(b => (b.status || '').toLowerCase() === 'closed');
+    if (leadStatusClosed || bookingClosed) return null; // skip closed/lost deals entirely
 
     const STATUS_NOSHOW = ['no-show', 'no_show', 'noshow', 'no show'];
     const noShowRecent  = bookings.some(b => {
