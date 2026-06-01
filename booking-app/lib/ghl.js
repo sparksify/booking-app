@@ -65,6 +65,52 @@ export async function upsertGHLContact({
 }
 
 /**
+ * Remove tags from an existing GHL contact by ID.
+ */
+export async function removeGHLTags(contactId, tags) {
+  const apiKey = process.env.GHL_API_KEY;
+  if (!apiKey) throw new Error('GHL_API_KEY not set');
+
+  const res = await fetch(`${GHL_API}/contacts/${contactId}/tags`, {
+    method:  'DELETE',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type':  'application/json',
+      'Version':       GHL_VERSION,
+    },
+    body: JSON.stringify({ tags }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`GHL removeTags failed ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+/**
+ * Add a note to a GHL contact.
+ */
+export async function addGHLNote(contactId, body) {
+  const apiKey     = process.env.GHL_API_KEY;
+  const locationId = process.env.GHL_LOCATION_ID;
+  if (!apiKey || !locationId) return null;
+
+  const res = await fetch(`${GHL_API}/contacts/${contactId}/notes`, {
+    method:  'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type':  'application/json',
+      'Version':       GHL_VERSION,
+    },
+    body: JSON.stringify({ userId: '', body, contactId }),
+  });
+
+  if (!res.ok) return null;
+  return res.json();
+}
+
+/**
  * Add tags to an existing GHL contact by ID.
  */
 export async function addGHLTags(contactId, tags) {

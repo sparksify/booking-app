@@ -446,6 +446,21 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
   const [panelTab,     setPanelTab]     = useState('info');
   const [timeline,     setTimeline]     = useState([]);
   const [tlLoading,    setTlLoading]    = useState(false);
+
+  // GHL tags
+  const [ghlTags,        setGhlTags]        = useState([]);
+  const [ghlTagsLoading, setGhlTagsLoading] = useState(false);
+  const [newTagInput,    setNewTagInput]    = useState('');
+  const [tagSaving,      setTagSaving]      = useState(false);
+
+  // Follow-up modal
+  const [showFollowUp, setShowFollowUp] = useState(false);
+  const [fuDate,       setFuDate]       = useState('');
+  const [fuNote,       setFuNote]       = useState('');
+  const [fuTemp,       setFuTemp]       = useState(3);
+  const [fuSaving,     setFuSaving]     = useState(false);
+  const [fuSaved,      setFuSaved]      = useState(false);
+
   const panelRef = useRef(null);
 
   useEffect(() => {
@@ -457,16 +472,38 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
     }
   }, [lead]);
 
-  // Sync CQ state when a different booking is opened
+  // Sync CQ + tag + follow-up state when a different booking is opened
   useEffect(() => {
     setCqSent(!!booking?.cq_sent_at);
     setCqReceived(!!booking?.cq_received_at);
+    // Reset tags
+    setGhlTags([]);
+    setNewTagInput('');
+    setTagSaving(false);
+    // Reset follow-up
+    setShowFollowUp(false);
+    setFuDate('');
+    setFuNote('');
+    setFuTemp(3);
+    setFuSaved(false);
+    // Fetch GHL tags
+    if (!booking?.email || isDemo) {
+      if (isDemo) setGhlTags(['hot-lead', 'franchise-ready']);
+      return;
+    }
+    setGhlTagsLoading(true);
+    fetch(`/api/dashboard/contact-tags?email=${encodeURIComponent(booking.email)}`)
+      .then(r => r.json())
+      .then(d => { setGhlTags(d.tags || []); setGhlTagsLoading(false); })
+      .catch(() => setGhlTagsLoading(false));
   }, [booking?.id]);
 
   useEffect(() => {
     if (!open) {
       setShowEmail(false); setEmailSent(false); setPitchOpen(false); setBrandEditMode(false);
       setPanelTab('info'); setTimeline([]);
+      setShowFollowUp(false); setFuSaved(false);
+      setNewTagInput('');
     }
   }, [open]);
 
@@ -557,6 +594,55 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
     }).catch(console.error);
     setCqReceived(true);
     setCqRecvSaving(false);
+  }
+
+  // ── GHL tag handlers ────────────────────────────────────────────────────────
+  async function addTag(tag) {
+    const clean = tag.trim();
+    if (!clean || ghlTags.includes(clean)) return;
+    setTagSaving(true);
+    setGhlTags(prev => [...prev, clean]);
+    setNewTagInput('');
+    if (!isDemo) {
+      await fetch('/api/dashboard/contact-tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: booking.email, tags: [clean] }),
+      }).catch(console.error);
+    }
+    setTagSaving(false);
+  }
+
+  async function removeTag(tag) {
+    setGhlTags(prev => prev.filter(t => t !== tag));
+    if (!isDemo) {
+      await fetch('/api/dashboard/contact-tags', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: booking.email, tags: [tag] }),
+      }).catch(console.error);
+    }
+  }
+
+  // ── Follow-up handler ────────────────────────────────────────────────────────
+  async function saveFollowUp() {
+    setFuSaving(true);
+    if (!isDemo) {
+      await fetch('/api/dashboard/schedule-followup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          booking_id: booking.id,
+          email:      booking.email,
+          follow_up_date: fuDate,
+          note:        fuNote || null,
+          temperature: fuTemp,
+        }),
+      }).catch(console.error);
+    }
+    setFuSaving(false);
+    setFuSaved(true);
+    setTimeout(() => { setFuSaved(false); setShowFollowUp(false); }, 2200);
   }
 
   const raw = lead?.raw_fields
@@ -736,6 +822,52 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                 )}
               </PanelSection>
 
+              {/* ── GHL Tags ── */}
+              <PanelSection title="GHL Tags">
+                {ghlTagsLoading ? (
+                  <div style={{ fontSize: 12, color: '#9CA3AF' }}>Loading tags…</div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: ghlTags.length ? 10 : 0 }}>
+                      {ghlTags.length === 0 && (
+                        <span style={{ fontSize: 12, color: '#9CA3AF' }}>No tags yet</span>
+                      )}
+                      {ghlTags.map(tag => (
+                        <span key={tag} style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 2,
+                          background: '#EEF2FF', border: '1px solid #C7D2FE',
+                          color: '#3730A3', borderRadius: 20,
+                          padding: '2px 6px 2px 10px', fontSize: 11, fontWeight: 500,
+                        }}>
+                          {tag}
+                          <button onClick={() => removeTag(tag)} style={{
+                            background: 'none', border: 'none', color: '#818CF8',
+                            cursor: 'pointer', fontSize: 15, lineHeight: 1,
+                            padding: '0 2px', fontFamily: 'inherit',
+                          }}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input
+                        style={{ ...p.input, flex: 1, padding: '5px 8px', fontSize: 12 }}
+                        placeholder="Add tag…"
+                        value={newTagInput}
+                        onChange={e => setNewTagInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter' && newTagInput.trim()) addTag(newTagInput); }}
+                      />
+                      <button
+                        onClick={() => addTag(newTagInput)}
+                        disabled={!newTagInput.trim() || tagSaving}
+                        style={{ ...p.editBtn, whiteSpace: 'nowrap', opacity: !newTagInput.trim() ? 0.5 : 1 }}
+                      >
+                        {tagSaving ? '…' : '+ Add'}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </PanelSection>
+
               {/* ── Booking ── */}
               <PanelSection title="Booking">
                 <Row label="Scheduled">
@@ -754,7 +886,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                     <>
                       <QBBtn variant="warning" onClick={() => onStatusChange('showed')}>Mark Showed</QBBtn>
                       <QBBtn variant="danger"  onClick={() => onStatusChange('no-show')}>Mark No-Show</QBBtn>
-                      <QBBtn variant="followup" onClick={() => {}}>Follow Up</QBBtn>
+                      <QBBtn variant="followup" onClick={() => setShowFollowUp(true)}>Follow Up</QBBtn>
                     </>
                   )}
                   {booking.status === 'showed' && (
@@ -931,6 +1063,19 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
         </div>
       </div>
 
+      {/* ── Follow-up Modal ── */}
+      {showFollowUp && (
+        <FollowUpModal
+          booking={booking}
+          fuDate={fuDate}       setFuDate={setFuDate}
+          fuNote={fuNote}       setFuNote={setFuNote}
+          fuTemp={fuTemp}       setFuTemp={setFuTemp}
+          fuSaving={fuSaving}   fuSaved={fuSaved}
+          onSave={saveFollowUp}
+          onClose={() => setShowFollowUp(false)}
+        />
+      )}
+
       {/* ── Brand Pitch Modal ── */}
       {pitchOpen && (
         <div style={{
@@ -984,6 +1129,127 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
         </div>
       )}
     </>
+  );
+}
+
+// ─── Follow-up Modal ─────────────────────────────────────────────────────────
+
+const TEMP_LABELS = ['', 'Cold', 'Cool', 'Warm', 'Hot', 'On Fire'];
+const TEMP_COLORS = ['', '#60A5FA', '#22D3EE', '#F59E0B', '#F97316', '#EF4444'];
+const TEMP_BG     = ['', '#EFF6FF', '#ECFEFF', '#FFFBEB', '#FFF7ED', '#FEF2F2'];
+
+function FollowUpModal({ booking, fuDate, setFuDate, fuNote, setFuNote, fuTemp, setFuTemp, fuSaving, fuSaved, onSave, onClose }) {
+  const today = new Date().toISOString().split('T')[0];
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
+        zIndex: 210, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 24,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: '#fff', borderRadius: 8, width: '100%', maxWidth: 440,
+          boxShadow: '0 12px 48px rgba(0,0,0,.22)',
+          fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif",
+          overflow: 'hidden',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #EBEBEB' }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#1A2B3C' }}>Schedule Follow-up</div>
+            <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+              {booking.first_name} {booking.last_name} · {booking.email}
+            </div>
+          </div>
+          <button onClick={onClose} style={p.closeBtn}>✕</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: '20px 24px 24px' }}>
+          {fuSaved ? (
+            <div style={{ textAlign: 'center', padding: '32px 0' }}>
+              <div style={{ fontSize: 40 }}>✓</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#15803D', marginTop: 10 }}>Follow-up scheduled!</div>
+              <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 6 }}>Added to your queue for {fuDate}</div>
+            </div>
+          ) : (
+            <>
+              {/* Date */}
+              <div style={{ marginBottom: 18 }}>
+                <label style={p.editLabel}>Follow-up Date</label>
+                <input
+                  type="date"
+                  min={today}
+                  style={{ ...p.input, marginTop: 5, fontSize: 14 }}
+                  value={fuDate}
+                  onChange={e => setFuDate(e.target.value)}
+                />
+              </div>
+
+              {/* Temperature — star rating */}
+              <div style={{ marginBottom: 18 }}>
+                <label style={p.editLabel}>Likelihood to Engage</label>
+                <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'center' }}>
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <button key={n} onClick={() => setFuTemp(n)} style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      fontSize: 30, lineHeight: 1, padding: '0 2px',
+                      color: fuTemp >= n ? TEMP_COLORS[fuTemp] : '#D1D5DB',
+                      transition: 'color .12s, transform .1s',
+                      transform: fuTemp === n ? 'scale(1.2)' : 'scale(1)',
+                    }}>★</button>
+                  ))}
+                </div>
+                <div style={{
+                  marginTop: 6, textAlign: 'center', fontSize: 12, fontWeight: 700,
+                  color: TEMP_COLORS[fuTemp],
+                  background: TEMP_BG[fuTemp],
+                  borderRadius: 20, padding: '3px 12px', display: 'inline-block',
+                  margin: '6px auto 0', width: '100%',
+                }}>
+                  {TEMP_LABELS[fuTemp]}
+                </div>
+              </div>
+
+              {/* Note */}
+              <div style={{ marginBottom: 22 }}>
+                <label style={p.editLabel}>Why follow up?</label>
+                <textarea
+                  style={{ ...p.notesArea, marginTop: 5, fontSize: 13 }}
+                  rows={3}
+                  placeholder="e.g. Wants to revisit after talking to spouse. Interested in multi-unit Pilates Addiction."
+                  value={fuNote}
+                  onChange={e => setFuNote(e.target.value)}
+                />
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={onSave}
+                  disabled={!fuDate || fuSaving}
+                  style={{
+                    ...p.actionBtn,
+                    flex: 1,
+                    background: !fuDate ? '#9CA3AF' : '#0077C5',
+                    cursor: !fuDate ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {fuSaving ? 'Scheduling…' : 'Schedule Follow-up'}
+                </button>
+                <button onClick={onClose} style={p.cancelBtn}>Cancel</button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
