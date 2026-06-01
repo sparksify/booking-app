@@ -123,9 +123,9 @@ export default function LeadsDashboard({ initialLeads, baseUrl }) {
           <div style={s.headerLeft}>
             <span style={s.logo}>⬡ FranchiseBook</span>
             <nav style={s.nav}>
+              <Link href="/dashboard/analytics" style={s.navLink}>Analytics</Link>
               <Link href="/dashboard/bookings"  style={s.navLink}>Bookings</Link>
               <Link href="/dashboard/leads"     style={{ ...s.navLink, ...s.navActive }}>Leads</Link>
-              <Link href="/dashboard/analytics" style={s.navLink}>Analytics</Link>
             </nav>
           </div>
           <div style={s.headerRight}>

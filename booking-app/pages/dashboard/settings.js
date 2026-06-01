@@ -41,6 +41,7 @@ export async function getServerSideProps(context) {
         work_start: 9, work_end: 18, timezone: 'America/Chicago',
         meeting_duration: 30, meeting_title: 'Franchise Discovery Call',
         days_ahead: 14, buffer_minutes: 15,
+        show_revenue: false, show_franchise_metrics: false,
       },
     },
   };
@@ -192,9 +193,9 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
           <div style={s.headerLeft}>
             <span style={s.logo}>⬡ FranchiseBook</span>
             <nav style={s.nav}>
+              <Link href="/dashboard/analytics" style={s.navLink}>Analytics</Link>
               <Link href="/dashboard/bookings"  style={s.navLink}>Bookings</Link>
               <Link href="/dashboard/leads"     style={s.navLink}>Leads</Link>
-              <Link href="/dashboard/analytics" style={s.navLink}>Analytics</Link>
             </nav>
           </div>
           <div style={s.headerRight}>
@@ -334,6 +335,37 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
                 </button>
               </div>
             </form>
+          </Section>
+
+          {/* ── Analytics Display ───────────────────────────────────────── */}
+          <Section title="Analytics Display" subtitle="Choose which sections appear on the Analytics page. Changes take effect on next page load.">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+                <ToggleSwitch
+                  checked={!!settings.show_revenue}
+                  onChange={val => setSettings(p => ({ ...p, show_revenue: val }))}
+                />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1A2B3C' }}>Revenue Metrics</div>
+                  <div style={{ fontSize: 12, color: '#6B7280' }}>Revenue generated, revenue per appointment, revenue per lead, and opportunity loss values. Requires Revenue per Close to be set below.</div>
+                </div>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+                <ToggleSwitch
+                  checked={!!settings.show_franchise_metrics}
+                  onChange={val => setSettings(p => ({ ...p, show_franchise_metrics: val }))}
+                />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1A2B3C' }}>Franchise &amp; CQ Metrics</div>
+                  <div style={{ fontSize: 12, color: '#6B7280' }}>CQ funnel KPIs, best slots for CQ returns, CQ by consultant, and pipeline value. Shown immediately after the Executive Summary.</div>
+                </div>
+              </label>
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <button type="button" style={s.saveBtn} onClick={saveSettings} disabled={saving}>
+                {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save settings'}
+              </button>
+            </div>
           </Section>
 
           {/* ── Brand Pitches ───────────────────────────────────────────── */}
@@ -568,6 +600,27 @@ function FormTagRule({ rule, onUpdate, onAddTag, onRemoveTag, onDelete, styles: 
         />
         <button style={s.saveBtn} onClick={() => { onAddTag(newTag); setNewTag(''); }}>Add</button>
       </div>
+    </div>
+  );
+}
+
+// ─── Toggle Switch ────────────────────────────────────────────────────────────
+
+function ToggleSwitch({ checked, onChange }) {
+  return (
+    <div
+      onClick={() => onChange(!checked)}
+      style={{
+        position: 'relative', width: 40, height: 22, borderRadius: 11, flexShrink: 0,
+        background: checked ? '#0077C5' : '#D1D5DB',
+        cursor: 'pointer', transition: 'background .2s',
+      }}
+    >
+      <div style={{
+        position: 'absolute', top: 3, left: checked ? 20 : 3,
+        width: 16, height: 16, borderRadius: '50%', background: '#fff',
+        boxShadow: '0 1px 3px rgba(0,0,0,.2)', transition: 'left .18s',
+      }} />
     </div>
   );
 }
