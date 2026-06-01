@@ -266,17 +266,44 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {bookings.map((b, i) => (
-                    <BookingRow
-                      key={b.id}
-                      booking={b}
-                      striped={i % 2 === 1}
-                      busy={!!updating[b.id]}
-                      selected={panelBooking?.id === b.id}
-                      onRowClick={() => openPanel(b)}
-                      onStatus={status => updateStatus(b, status)}
-                    />
-                  ))}
+                  {(() => {
+                    const nowMs = Date.now();
+                    let nowInserted = false;
+                    return bookings.flatMap((b, i) => {
+                      const slotMs = b.slot_start ? new Date(b.slot_start).getTime() : 0;
+                      const inProgress = slotMs > 0 && slotMs <= nowMs && nowMs <= slotMs + 90 * 60_000;
+                      const rows = [];
+                      // Insert NOW divider before the first upcoming booking
+                      if (!nowInserted && slotMs > nowMs) {
+                        nowInserted = true;
+                        rows.push(
+                          <tr key="now-divider" style={{ background: 'transparent', pointerEvents: 'none' }}>
+                            <td colSpan={7} style={{ padding: '2px 14px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span className="bk-now-divider-dot" />
+                                <div style={{ flex: 1, height: 1.5, background: '#EF4444', opacity: 0.5 }} />
+                                <span style={{ fontSize: 10, fontWeight: 700, color: '#EF4444', letterSpacing: '.05em', textTransform: 'uppercase', flexShrink: 0 }}>Now</span>
+                                <div style={{ flex: 1, height: 1.5, background: '#EF4444', opacity: 0.5 }} />
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
+                      rows.push(
+                        <BookingRow
+                          key={b.id}
+                          booking={b}
+                          striped={i % 2 === 1}
+                          busy={!!updating[b.id]}
+                          selected={panelBooking?.id === b.id}
+                          onRowClick={() => openPanel(b)}
+                          onStatus={status => updateStatus(b, status)}
+                          inProgress={inProgress}
+                        />
+                      );
+                      return rows;
+                    });
+                  })()}
                 </tbody>
               </table>
             )}
@@ -303,13 +330,13 @@ export default function BookingsDashboard({ brandPitches = {} }) {
 
 // ─── Table Row ────────────────────────────────────────────────────────────────
 
-function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus }) {
+function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus, inProgress }) {
   const slot      = b.slot_start ? new Date(b.slot_start) : null;
   const dateLabel = slot ? slot.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—';
   const timeLabel = slot ? slot.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
   const meta      = STATUS_META[b.status] || STATUS_META.scheduled;
 
-  const rowBg = selected ? '#EBF4FF' : striped ? '#F8F9FA' : '#FFFFFF';
+  const rowBg = selected ? '#EBF4FF' : inProgress ? '#F0FDF4' : striped ? '#F8F9FA' : '#FFFFFF';
 
   return (
     <tr
@@ -351,20 +378,32 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus 
         </span>
       </td>
       <td style={s.td} onClick={e => e.stopPropagation()}>
-        <span style={{
-          display: 'inline-flex', alignItems: 'center', gap: 5,
-          padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-          color: meta.color, background: meta.bg,
-        }}>
-          <span style={{ width: 5, height: 5, borderRadius: '50%', background: meta.dot, display: 'inline-block' }} />
-          {meta.label}
-        </span>
-        {b.meet_link && (
-          <a href={b.meet_link} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
-            style={{ display: 'block', fontSize: 11, color: '#0077C5', marginTop: 3 }}>
-            📹 Join
-          </a>
-        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {inProgress && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+              color: '#15803D', background: '#DCFCE7', border: '1px solid #BBF7D0',
+            }}>
+              <span className="in-progress-dot" />
+              In progress
+            </span>
+          )}
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+            color: meta.color, background: meta.bg,
+          }}>
+            <span style={{ width: 5, height: 5, borderRadius: '50%', background: meta.dot, display: 'inline-block' }} />
+            {meta.label}
+          </span>
+          {b.meet_link && (
+            <a href={b.meet_link} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
+              style={{ display: 'block', fontSize: 11, color: '#0077C5' }}>
+              Join call →
+            </a>
+          )}
+        </div>
       </td>
       <td style={s.td} onClick={e => e.stopPropagation()}>
         {busy ? (
@@ -589,22 +628,22 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
             <>
               {/* ── Contact ── */}
               <PanelSection title="Contact">
-                <Row icon="📞" label="Phone">
+                <Row label="Phone">
                   <a href={`tel:${booking.phone}`} style={p.link}>{booking.phone || '—'}</a>
                 </Row>
-                <Row icon="✉️" label="Email">
+                <Row label="Email">
                   <a href={`mailto:${booking.email}`} style={p.link}>{booking.email}</a>
                 </Row>
-                <Row icon="💰" label="Investment">
+                <Row label="Investment">
                   <span style={p.tag}>{booking.investment_level || '—'}</span>
                 </Row>
                 {liquidCapital && (
-                  <Row icon="🏦" label="Liquid Cap.">
+                  <Row label="Liquid Cap.">
                     <span style={p.val}>{liquidCapital}</span>
                   </Row>
                 )}
                 {ownedBusiness && (
-                  <Row icon="🏢" label="Owned Biz">
+                  <Row label="Owned Biz">
                     <span style={p.val}>{ownedBusiness}</span>
                   </Row>
                 )}
@@ -612,14 +651,14 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
 
               {/* ── Booking ── */}
               <PanelSection title="Booking">
-                <Row icon="📅" label="Scheduled">
+                <Row label="Scheduled">
                   <span style={p.val}>{slotLabel}</span>
                 </Row>
-                <Row icon="👤" label="Consultant">
+                <Row label="Consultant">
                   <span style={p.val}>{booking.assigned_to_email || '—'}</span>
                 </Row>
                 {booking.meet_link && (
-                  <Row icon="📹" label="Meet">
+                  <Row label="Meet">
                     <a href={booking.meet_link} target="_blank" rel="noreferrer" style={p.link}>Join call →</a>
                   </Row>
                 )}
@@ -889,10 +928,9 @@ function PanelSection({ title, editMode, onEdit, onSave, onCancel, saving, saved
   );
 }
 
-function Row({ icon, label, children }) {
+function Row({ label, children }) {
   return (
     <div style={p.row}>
-      <span style={p.rowIcon}>{icon}</span>
       {label && <span style={p.rowLabel}>{label}</span>}
       <span style={p.rowVal}>{children}</span>
     </div>
@@ -1090,7 +1128,7 @@ const s = {
   thead:       { background: '#F5F6F7' },
   th:          { textAlign: 'left', padding: '9px 14px', fontWeight: 600, color: '#6B7280', fontSize: 11, letterSpacing: '.4px', borderBottom: '1px solid #D8DCE0' },
   tr:          { borderBottom: '1px solid #EBEBEB', transition: 'background .1s' },
-  td:          { padding: '13px 14px', verticalAlign: 'middle' },
+  td:          { padding: '18px 14px', verticalAlign: 'middle' },
   empty:       { textAlign: 'center', padding: 56, color: '#9CA3AF', fontSize: 14 },
 };
 
@@ -1098,8 +1136,8 @@ const s = {
 const p = {
   panelHdr:       { display: 'flex', alignItems: 'flex-start', gap: 14, padding: '20px 20px 16px', borderBottom: '1px solid #EBEBEB', flexShrink: 0 },
   avatar:         { width: 46, height: 46, borderRadius: '50%', background: '#151719', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, flexShrink: 0 },
-  clientName:     { fontSize: 16, fontWeight: 600, color: '#1A2B3C', marginBottom: 2 },
-  clientEmail:    { fontSize: 12, color: '#6B7280', marginBottom: 6 },
+  clientName:     { fontSize: 17, fontWeight: 600, color: '#1A2B3C', marginBottom: 2 },
+  clientEmail:    { fontSize: 13, color: '#6B7280', marginBottom: 6 },
   statusBadge:    { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600 },
   closeBtn:       { background: 'none', border: 'none', fontSize: 18, color: '#9CA3AF', cursor: 'pointer', padding: '0 0 0 8px', lineHeight: 1, flexShrink: 0 },
 
@@ -1112,7 +1150,7 @@ const p = {
 
   section:        { padding: '16px 20px', borderBottom: '1px solid #F0F0F0' },
   sectionHdrRow:  { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  sectionTitle:   { fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.6px' },
+  sectionTitle:   { fontSize: 12, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.6px' },
 
   // Edit mode controls in section header
   editBtn:        { fontSize: 12, fontWeight: 500, color: '#0077C5', background: 'transparent', border: '1px solid #B3D4EE', borderRadius: 3, padding: '3px 10px', cursor: 'pointer', fontFamily: 'inherit' },
@@ -1122,11 +1160,10 @@ const p = {
   fieldGroupLabel:{ fontSize: 10, fontWeight: 700, color: '#B0B8C4', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 },
   divider:        { borderTop: '1px solid #F0F0F0', margin: '12px 0' },
 
-  row:            { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, fontSize: 13 },
-  rowIcon:        { fontSize: 14, width: 20, textAlign: 'center', flexShrink: 0 },
-  rowLabel:       { color: '#6B7280', width: 72, flexShrink: 0, fontSize: 12 },
+  row:            { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 11, fontSize: 14 },
+  rowLabel:       { color: '#6B7280', width: 80, flexShrink: 0, fontSize: 13 },
   rowVal:         { color: '#1A2B3C', flex: 1 },
-  link:           { color: '#0077C5', textDecoration: 'none', fontSize: 13 },
+  link:           { color: '#0077C5', textDecoration: 'none', fontSize: 14 },
   tag:            { background: '#EAECEF', borderRadius: 3, padding: '2px 8px', fontSize: 12, color: '#4A5568' },
   val:            { fontSize: 13, color: '#1A2B3C' },
 
