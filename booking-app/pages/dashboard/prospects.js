@@ -238,6 +238,52 @@ const DEMO_HERO = {
   topLead:                  { name: 'Jordan Beck', score: 91 },
 };
 
+// ─── Demo advisor + feed data ─────────────────────────────────────────────────
+
+const DEMO_ADVISOR_DATA = {
+  advisors: [
+    {
+      rep: 'sarah.rep@franchisebook.com',
+      calls: 52, connected: 19, booked: 9,
+      voicemail: 14, no_answer: 19, not_interested: 7, follow_up: 3,
+      convRate: 17, showRate: 78,
+    },
+    {
+      rep: 'steve@sparksify.com',
+      calls: 38, connected: 14, booked: 7,
+      voicemail: 11, no_answer: 13, not_interested: 5, follow_up: 2,
+      convRate: 18, showRate: 71,
+    },
+    {
+      rep: 'john.advisor@franchisebook.com',
+      calls: 29, connected: 8, booked: 2,
+      voicemail: 10, no_answer: 11, not_interested: 5, follow_up: 1,
+      convRate: 7, showRate: 50,
+    },
+  ],
+};
+
+const now_ = Date.now();
+const DEMO_FEED_DATA = {
+  events: [
+    { id: 'fe1',  lead_name: 'Jordan Beck',       event_type: 'booking_page_viewed',      label: 'Viewed the booking page',         created_at: new Date(now_ - 3  * 60000).toISOString(),   rep_email: null },
+    { id: 'fe2',  lead_name: 'Aisha Williams',     event_type: 'form_submitted',            label: 'Submitted inquiry form',           created_at: new Date(now_ - 4  * 3600000).toISOString(), rep_email: null },
+    { id: 'fe3',  lead_name: 'Marcus Thompson',    event_type: 'prospect_call_booked',      label: 'Call — Booked!',                  created_at: new Date(now_ - 6  * 3600000).toISOString(), rep_email: 'sarah.rep@franchisebook.com' },
+    { id: 'fe4',  lead_name: 'David Park',         event_type: 'booking_page_viewed',      label: 'Viewed the booking page',         created_at: new Date(now_ - 8  * 3600000).toISOString(), rep_email: null },
+    { id: 'fe5',  lead_name: 'Robert Sterling',    event_type: 'slot_selected',             label: 'Selected an appointment slot',    created_at: new Date(now_ - 12 * 3600000).toISOString(), rep_email: null },
+    { id: 'fe6',  lead_name: 'Jennifer Caldwell',  event_type: 'prospect_call_left_vm',    label: 'Call — Left voicemail',           created_at: new Date(now_ - 18 * 3600000).toISOString(), rep_email: 'steve@sparksify.com' },
+    { id: 'fe7',  lead_name: 'Sarah Mitchell',     event_type: 'prospect_call_no_answer',  label: 'Call — No answer',                created_at: new Date(now_ - 22 * 3600000).toISOString(), rep_email: 'john.advisor@franchisebook.com' },
+    { id: 'fe8',  lead_name: 'Linda Chen',         event_type: 'recommended_slot_shown',   label: 'Browsed available slots',         created_at: new Date(now_ - 26 * 3600000).toISOString(), rep_email: null },
+    { id: 'fe9',  lead_name: 'Victoria Shah',      event_type: 'form_submitted',            label: 'Submitted inquiry form',           created_at: new Date(now_ - 30 * 3600000).toISOString(), rep_email: null },
+    { id: 'fe10', lead_name: 'David Nguyen',       event_type: 'prospect_call_follow_up',  label: 'Call — Scheduled follow-up',      created_at: new Date(now_ - 36 * 3600000).toISOString(), rep_email: 'sarah.rep@franchisebook.com' },
+    { id: 'fe11', lead_name: 'Michael Grant',      event_type: 'prospect_call_not_interested', label: 'Call — Not interested',       created_at: new Date(now_ - 48 * 3600000).toISOString(), rep_email: 'steve@sparksify.com' },
+    { id: 'fe12', lead_name: 'Catherine Moore',    event_type: 'cq_email_sent',             label: 'CQ email sent',                   created_at: new Date(now_ - 60 * 3600000).toISOString(), rep_email: 'sarah.rep@franchisebook.com' },
+    { id: 'fe13', lead_name: 'Sandra Torres',      event_type: 'booking_page_viewed',      label: 'Viewed the booking page',         created_at: new Date(now_ - 72 * 3600000).toISOString(), rep_email: null },
+    { id: 'fe14', lead_name: 'William Brooks',     event_type: 'prospect_call_booked',      label: 'Call — Booked!',                  created_at: new Date(now_ - 84 * 3600000).toISOString(), rep_email: 'john.advisor@franchisebook.com' },
+    { id: 'fe15', lead_name: 'Thomas Baker',       event_type: 'cq_received',               label: 'CQ returned',                     created_at: new Date(now_ - 96 * 3600000).toISOString(), rep_email: null },
+  ],
+};
+
 function buildDemoData() {
   const buckets = { saves: [], speed_to_lead: [], vip: [], re_engaged: [], near_miss: [], resurrection: [], high_dollar: [], hot: [] };
   for (const l of DEMO_LEADS) {
@@ -250,48 +296,40 @@ function buildDemoData() {
   };
 }
 
-// ─── Bucket config (display order = priority order) ───────────────────────────
+// ─── Bucket config ────────────────────────────────────────────────────────────
 
 const BUCKETS = {
   saves: {
     label: 'Appointment Saves', tagline: '22% rebook rate',
     color: '#DC2626', bg: '#FEF2F2', border: '#FECACA',
-    description: 'No-showed within 7 days — high rebooking intent.',
   },
   speed_to_lead: {
     label: 'Speed to Lead', tagline: 'Call immediately',
     color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE',
-    description: 'Submitted < 6 hours ago with zero contact.',
   },
   vip: {
     label: 'VIP Leads', tagline: '$250k+ with engagement',
     color: '#92400E', bg: '#FEF3C7', border: '#FDE68A',
-    description: 'High investment + recent activity. Highest commission potential.',
   },
   re_engaged: {
     label: 'Re-Engaged', tagline: 'Active in last 24h',
     color: '#075985', bg: '#EFF6FF', border: '#BAE6FD',
-    description: 'Showed activity today — intent is warm.',
   },
   near_miss: {
     label: 'Near Misses', tagline: 'Never rescheduled',
     color: '#B45309', bg: '#FFFBEB', border: '#FCD34D',
-    description: 'Previously booked, no-showed, and never rescheduled.',
   },
   resurrection: {
     label: 'Resurrections', tagline: '90+ day re-engagement',
     color: '#5B21B6', bg: '#FAF5FF', border: '#C4B5FD',
-    description: 'Dormant 90+ days but just showed activity. Window is short.',
   },
   high_dollar: {
     label: 'High Dollar', tagline: 'Premium investment',
     color: '#166534', bg: '#F0FDF4', border: '#BBF7D0',
-    description: '$250k+ liquid capital. No active booking yet.',
   },
   hot: {
     label: 'Hot Leads', tagline: 'Fresh & high-scored',
     color: '#C2410C', bg: '#FFF7ED', border: '#FED7AA',
-    description: 'Recent leads with strong opportunity scores.',
   },
 };
 
@@ -314,16 +352,15 @@ function ageBadge(ageDays) {
 
 function fmtDate(iso) {
   if (!iso) return '—';
-  const d    = new Date(iso);
-  const diff = Date.now() - d;
+  const diff = Date.now() - new Date(iso);
   const mins = Math.round(diff / 60000);
-  if (mins < 2)   return 'Just now';
-  if (mins < 60)  return `${mins}m ago`;
+  if (mins < 2)  return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
   const hrs = Math.round(mins / 60);
-  if (hrs < 24)   return `${hrs}h ago`;
+  if (hrs < 24)  return `${hrs}h ago`;
   const days = Math.round(hrs / 24);
-  if (days <= 7)  return `${days}d ago`;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (days <= 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 function fmtDollars(n) {
@@ -345,17 +382,15 @@ function copyToClipboard(text, setCopied) {
 export default function ProspectsPage() {
   const { data: session } = useSession();
 
-  // Main state
   const [data,         setData]         = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [demoMode,     setDemoMode]     = useState(false);
-  const [view,         setView]         = useState('opportunities'); // opportunities | advisor | feed
+  const [view,         setView]         = useState('opportunities');
   const [activeBucket, setActiveBucket] = useState('all');
   const [queueMode,    setQueueMode]    = useState(false);
   const [queueIndex,   setQueueIndex]   = useState(0);
   const [dispositioned, setDispositioned] = useState(new Set());
 
-  // Lazy tab data
   const [advisorData,    setAdvisorData]    = useState(null);
   const [advisorLoading, setAdvisorLoading] = useState(false);
   const [feedData,       setFeedData]       = useState(null);
@@ -374,19 +409,27 @@ export default function ProspectsPage() {
   function switchView(newView) {
     setView(newView);
     setQueueMode(false);
-    if (newView === 'advisor' && !advisorData && !advisorLoading) {
-      setAdvisorLoading(true);
-      fetch('/api/dashboard/advisor-stats')
-        .then(r => r.json())
-        .then(d => { setAdvisorData(d); setAdvisorLoading(false); })
-        .catch(() => setAdvisorLoading(false));
+    if (newView === 'advisor') {
+      if (demoMode) {
+        setAdvisorData(DEMO_ADVISOR_DATA);
+      } else if (!advisorData && !advisorLoading) {
+        setAdvisorLoading(true);
+        fetch('/api/dashboard/advisor-stats')
+          .then(r => r.json())
+          .then(d => { setAdvisorData(d); setAdvisorLoading(false); })
+          .catch(() => setAdvisorLoading(false));
+      }
     }
-    if (newView === 'feed' && !feedData && !feedLoading) {
-      setFeedLoading(true);
-      fetch('/api/dashboard/activity-feed')
-        .then(r => r.json())
-        .then(d => { setFeedData(d); setFeedLoading(false); })
-        .catch(() => setFeedLoading(false));
+    if (newView === 'feed') {
+      if (demoMode) {
+        setFeedData(DEMO_FEED_DATA);
+      } else if (!feedData && !feedLoading) {
+        setFeedLoading(true);
+        fetch('/api/dashboard/activity-feed')
+          .then(r => r.json())
+          .then(d => { setFeedData(d); setFeedLoading(false); })
+          .catch(() => setFeedLoading(false));
+      }
     }
   }
 
@@ -396,12 +439,23 @@ export default function ProspectsPage() {
     setQueueIndex(0);
     setDispositioned(new Set());
     setActiveBucket('all');
-    if (on) setData(buildDemoData());
-    else loadData();
+    if (on) {
+      setData(buildDemoData());
+      setAdvisorData(DEMO_ADVISOR_DATA);
+      setFeedData(DEMO_FEED_DATA);
+    } else {
+      loadData();
+      setAdvisorData(null);
+      setFeedData(null);
+    }
   }
 
-  const displayData = demoMode ? buildDemoData() : data;
-  const hero        = displayData?.hero || null;
+  const displayData     = demoMode ? buildDemoData() : data;
+  const displayAdvisor  = demoMode ? DEMO_ADVISOR_DATA : advisorData;
+  const displayFeed     = demoMode ? DEMO_FEED_DATA    : feedData;
+  const advisorSpinning = !demoMode && advisorLoading;
+  const feedSpinning    = !demoMode && feedLoading;
+  const hero            = displayData?.hero || null;
 
   const visibleLeads = !displayData ? [] : (
     activeBucket === 'all'
@@ -419,11 +473,11 @@ export default function ProspectsPage() {
     setQueueMode(true);
   }
 
-  function onDisposition(leadId, disp) {
+  function onDisposition(leadId, disp, note) {
     fetch('/api/dashboard/prospect-disposition', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lead_id: leadId, disposition: disp }),
+      body: JSON.stringify({ lead_id: leadId, disposition: disp, notes: note || '' }),
     });
     setDispositioned(prev => new Set([...prev, leadId]));
     setQueueIndex(i => i + 1);
@@ -441,15 +495,14 @@ export default function ProspectsPage() {
   const queueLeads  = visibleLeads;
   const currentLead = queueMode ? queueLeads[queueIndex] : null;
   const queueDone   = queueMode && queueIndex >= queueLeads.length;
-
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const today       = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   return (
     <>
       <Head><title>Prospecting — FranchiseBook</title></Head>
       <style>{`
-        @keyframes spin    { to { transform: rotate(360deg) } }
-        @keyframes fadeIn  { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:translateY(0) } }
+        @keyframes spin   { to { transform: rotate(360deg) } }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:translateY(0) } }
         * { box-sizing: border-box }
         button:hover { opacity: .85 }
       `}</style>
@@ -475,15 +528,11 @@ export default function ProspectsPage() {
         </header>
 
         <main style={s.main}>
-
           {(loading && !demoMode) ? (
-            <div style={s.loadingWrap}>
-              <div style={s.spinner} />
-              <div style={s.loadingText}>Scoring leads…</div>
-            </div>
+            <div style={s.loadingWrap}><div style={s.spinner} /><div style={s.loadingText}>Scoring leads…</div></div>
           ) : (
             <>
-              {/* ── Title row ───────────────────────────────────────────────── */}
+              {/* Title row */}
               <div style={s.pageTitleRow}>
                 <div>
                   <h1 style={s.pageTitle}>Revenue Opportunities</h1>
@@ -501,13 +550,11 @@ export default function ProspectsPage() {
                       {demoMode ? 'Demo ON' : 'Demo data'}
                     </span>
                   </div>
-                  {!demoMode && (
-                    <button style={s.refreshBtn} onClick={loadData}>↻ Refresh</button>
-                  )}
+                  {!demoMode && <button style={s.refreshBtn} onClick={loadData}>↻ Refresh</button>}
                 </div>
               </div>
 
-              {/* ── Hero section ─────────────────────────────────────────────── */}
+              {/* Hero section */}
               {hero && (
                 <div style={s.heroCard}>
                   <div style={s.heroMetrics}>
@@ -526,43 +573,31 @@ export default function ProspectsPage() {
                     <div style={s.heroMetric}>
                       <div style={s.heroValue}>{hero.totalLeads}</div>
                       <div style={s.heroLabel}>Leads Requiring Contact</div>
-                      <div style={s.heroSub}>
-                        {dispositioned.size > 0 ? `${dispositioned.size} worked this session` : 'Sorted by opportunity score'}
-                      </div>
+                      <div style={s.heroSub}>{dispositioned.size > 0 ? `${dispositioned.size} worked this session` : 'Sorted by opportunity score'}</div>
                     </div>
                     <div style={s.heroDivider} />
                     <div style={s.heroMetric}>
                       <div style={{ ...s.heroValue, fontSize: 20, paddingTop: 4 }}>{hero.topLead?.name || '—'}</div>
                       <div style={s.heroLabel}>Highest Probability Lead</div>
-                      <div style={s.heroSub}>
-                        {hero.topLead ? `Opportunity score: ${hero.topLead.score}` : 'No leads yet'}
-                      </div>
+                      <div style={s.heroSub}>{hero.topLead ? `Opportunity score: ${hero.topLead.score}` : 'No leads yet'}</div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* ── View tabs ────────────────────────────────────────────────── */}
+              {/* View tabs */}
               <div style={s.viewTabs}>
-                {[
-                  ['opportunities', 'Revenue Opportunities'],
-                  ['advisor',       'Advisor Performance'],
-                  ['feed',          'Activity Feed'],
-                ].map(([key, label]) => (
-                  <button
-                    key={key}
-                    onClick={() => switchView(key)}
-                    style={{ ...s.viewTab, ...(view === key ? s.viewTabActive : {}) }}
-                  >
+                {[['opportunities', 'Revenue Opportunities'], ['advisor', 'Advisor Performance'], ['feed', 'Activity Feed']].map(([key, label]) => (
+                  <button key={key} onClick={() => switchView(key)} style={{ ...s.viewTab, ...(view === key ? s.viewTabActive : {}) }}>
                     {label}
                   </button>
                 ))}
               </div>
 
-              {/* ── Opportunities view ───────────────────────────────────────── */}
+              {/* ── Opportunities view ──────────────────────────────────────── */}
               {view === 'opportunities' && (
                 <>
-                  {/* 8 Bucket cards */}
+                  {/* 8 bucket cards */}
                   <div style={s.bucketGrid}>
                     {Object.entries(BUCKETS).map(([key, bc]) => {
                       const leads      = (displayData?.buckets || {})[key] || [];
@@ -572,33 +607,18 @@ export default function ProspectsPage() {
                         <div
                           key={key}
                           onClick={() => { setActiveBucket(key); setQueueMode(false); }}
-                          style={{
-                            ...s.bucketCard,
-                            borderLeftColor: bc.color,
-                            background: isActive ? bc.bg : '#fff',
-                            outline: isActive ? `1.5px solid ${bc.border}` : 'none',
-                            cursor: 'pointer',
-                          }}
+                          style={{ ...s.bucketCard, borderLeftColor: bc.color, background: isActive ? bc.bg : '#fff', outline: isActive ? `1.5px solid ${bc.border}` : 'none', cursor: 'pointer' }}
                         >
-                          <div style={{ fontSize: 10, fontWeight: 700, color: bc.color, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
-                            {bc.tagline}
-                          </div>
-                          <div style={{ fontSize: 32, fontWeight: 800, color: leads.length ? '#111827' : '#D1D5DB', lineHeight: 1, marginBottom: 2 }}>
-                            {leads.length}
-                          </div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: bc.color, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{bc.tagline}</div>
+                          <div style={{ fontSize: 32, fontWeight: 800, color: leads.length ? '#111827' : '#D1D5DB', lineHeight: 1, marginBottom: 2 }}>{leads.length}</div>
                           <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 8 }}>{bc.label}</div>
                           {leads.length > 0 ? (
-                            <div style={{ fontSize: 11, fontWeight: 700, color: bc.color }}>
-                              {fmtDollars(opportunity)} est. opportunity
-                            </div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: bc.color }}>{fmtDollars(opportunity)} est. opportunity</div>
                           ) : (
                             <div style={{ fontSize: 10, color: '#9CA3AF' }}>None right now</div>
                           )}
                           {leads.length > 0 && (
-                            <button
-                              onClick={e => { e.stopPropagation(); startQueue(key); }}
-                              style={{ ...s.bucketStartBtn, borderColor: bc.border, color: bc.color }}
-                            >
+                            <button onClick={e => { e.stopPropagation(); startQueue(key); }} style={{ ...s.bucketStartBtn, borderColor: bc.border, color: bc.color }}>
                               Start Prospecting →
                             </button>
                           )}
@@ -607,24 +627,18 @@ export default function ProspectsPage() {
                     })}
                   </div>
 
-                  {/* Bucket filter tabs + Start Prospecting */}
+                  {/* Filter tabs */}
                   {!queueMode && (
                     <div style={s.tabRow}>
                       <div style={s.tabs}>
                         {[['all', 'All', totalCount], ...Object.entries(BUCKETS).map(([k, b]) => [k, b.label, ((displayData?.buckets || {})[k] || []).length])].map(([key, label, count]) => (
-                          <button
-                            key={key}
-                            onClick={() => setActiveBucket(key)}
-                            style={{ ...s.tab, ...(activeBucket === key ? s.tabActive : {}) }}
-                          >
+                          <button key={key} onClick={() => setActiveBucket(key)} style={{ ...s.tab, ...(activeBucket === key ? s.tabActive : {}) }}>
                             {label} <span style={{ fontSize: 11, opacity: .7 }}>({count})</span>
                           </button>
                         ))}
                       </div>
                       {visibleLeads.length > 0 && (
-                        <button style={s.startProspectingBtn} onClick={() => startQueue(activeBucket)}>
-                          Start Prospecting
-                        </button>
+                        <button style={s.startProspectingBtn} onClick={() => startQueue(activeBucket)}>Start Prospecting</button>
                       )}
                     </div>
                   )}
@@ -636,7 +650,7 @@ export default function ProspectsPage() {
                       index={queueIndex}
                       total={queueLeads.length}
                       bucketConfig={BUCKETS[currentLead.bucket]}
-                      onDisposition={disp => onDisposition(currentLead.id, disp)}
+                      onDisposition={(disp, note) => onDisposition(currentLead.id, disp, note)}
                       onSkip={() => onSkip(currentLead.id)}
                       onBack={() => setQueueMode(false)}
                     />
@@ -645,12 +659,8 @@ export default function ProspectsPage() {
                   {queueMode && queueDone && (
                     <div style={s.queueDoneCard}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: '#15803D', marginBottom: 4 }}>Queue complete</div>
-                      <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 20 }}>
-                        You worked through {queueLeads.length} lead{queueLeads.length !== 1 ? 's' : ''} this session.
-                      </div>
-                      <button style={s.startProspectingBtn} onClick={() => { setQueueMode(false); setQueueIndex(0); }}>
-                        ← Back to list
-                      </button>
+                      <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 20 }}>You worked through {queueLeads.length} lead{queueLeads.length !== 1 ? 's' : ''} this session.</div>
+                      <button style={s.startProspectingBtn} onClick={() => { setQueueMode(false); setQueueIndex(0); }}>← Back to list</button>
                     </div>
                   )}
 
@@ -659,9 +669,7 @@ export default function ProspectsPage() {
                     <div style={s.tableWrap}>
                       {visibleLeads.length === 0 ? (
                         <div style={s.empty}>
-                          {activeBucket === 'all'
-                            ? 'No active leads to show.'
-                            : `No leads in ${BUCKETS[activeBucket]?.label || activeBucket} right now.`}
+                          {activeBucket === 'all' ? 'No active leads to show.' : `No leads in ${BUCKETS[activeBucket]?.label || activeBucket} right now.`}
                         </div>
                       ) : (
                         <table style={s.table}>
@@ -681,15 +689,9 @@ export default function ProspectsPage() {
                               const sc = scoreColor(lead.score);
                               const bc = BUCKETS[lead.bucket];
                               return (
-                                <tr
-                                  key={lead.id}
-                                  style={{ background: i % 2 ? '#fff' : '#F9FAFB', cursor: 'pointer' }}
-                                  onClick={() => { setQueueIndex(i); setQueueMode(true); }}
-                                >
+                                <tr key={lead.id} style={{ background: i % 2 ? '#fff' : '#F9FAFB', cursor: 'pointer' }} onClick={() => { setQueueIndex(i); setQueueMode(true); }}>
                                   <td style={s.td}>
-                                    <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: 20, fontSize: 12, fontWeight: 800, color: sc.color, background: sc.bg, minWidth: 36, textAlign: 'center' }}>
-                                      {lead.score}
-                                    </span>
+                                    <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: 20, fontSize: 12, fontWeight: 800, color: sc.color, background: sc.bg, minWidth: 36, textAlign: 'center' }}>{lead.score}</span>
                                   </td>
                                   <td style={s.td}>
                                     <div style={{ fontWeight: 600, color: '#111827', fontSize: 13 }}>{lead.first_name} {lead.last_name}</div>
@@ -704,29 +706,16 @@ export default function ProspectsPage() {
                                     ))}
                                   </td>
                                   <td style={{ ...s.td, maxWidth: 200 }}>
-                                    <div style={{ fontSize: 11, color: '#374151', lineHeight: 1.4 }}>
-                                      {lead.nextAction || '—'}
-                                    </div>
+                                    <div style={{ fontSize: 11, color: '#374151', lineHeight: 1.4 }}>{lead.nextAction || '—'}</div>
                                   </td>
                                   <td style={s.td}>
-                                    {bc && (
-                                      <span style={{ fontSize: 10, fontWeight: 600, color: bc.color, background: bc.bg, border: `1px solid ${bc.border}`, borderRadius: 4, padding: '2px 6px', whiteSpace: 'nowrap' }}>
-                                        {bc.label}
-                                      </span>
-                                    )}
+                                    {bc && <span style={{ fontSize: 10, fontWeight: 600, color: bc.color, background: bc.bg, border: `1px solid ${bc.border}`, borderRadius: 4, padding: '2px 6px', whiteSpace: 'nowrap' }}>{bc.label}</span>}
                                   </td>
                                   <td style={s.td}>
-                                    <span style={{ fontSize: 12, color: lead.ageDays <= 2 ? '#D97706' : '#6B7280', fontWeight: lead.ageDays <= 2 ? 700 : 400 }}>
-                                      {ageBadge(lead.ageDays)}
-                                    </span>
+                                    <span style={{ fontSize: 12, color: lead.ageDays <= 2 ? '#D97706' : '#6B7280', fontWeight: lead.ageDays <= 2 ? 700 : 400 }}>{ageBadge(lead.ageDays)}</span>
                                   </td>
                                   <td style={{ ...s.td, textAlign: 'right' }}>
-                                    <button
-                                      style={s.openBtn}
-                                      onClick={e => { e.stopPropagation(); setQueueIndex(i); setQueueMode(true); }}
-                                    >
-                                      Open →
-                                    </button>
+                                    <button style={s.openBtn} onClick={e => { e.stopPropagation(); setQueueIndex(i); setQueueMode(true); }}>Open →</button>
                                   </td>
                                 </tr>
                               );
@@ -743,9 +732,9 @@ export default function ProspectsPage() {
               {view === 'advisor' && (
                 <div style={{ animation: 'fadeIn .2s ease' }}>
                   <div style={{ marginBottom: 14, fontSize: 13, color: '#6B7280' }}>Prospecting activity — last 30 days</div>
-                  {advisorLoading ? (
+                  {advisorSpinning ? (
                     <div style={s.loadingWrap}><div style={s.spinner} /></div>
-                  ) : !advisorData?.advisors?.length ? (
+                  ) : !displayAdvisor?.advisors?.length ? (
                     <div style={s.emptyCard}>
                       <div style={{ fontWeight: 600, color: '#374151', marginBottom: 6 }}>No advisor data yet</div>
                       <div style={{ fontSize: 13, color: '#9CA3AF' }}>Start prospecting to build call history. Metrics appear here after the first call disposition is logged.</div>
@@ -762,26 +751,22 @@ export default function ProspectsPage() {
                             <th style={s.th}>Conv %</th>
                             <th style={s.th}>Voicemails</th>
                             <th style={s.th}>No Answer</th>
-                            {advisorData.advisors.some(a => a.showRate !== null) && <th style={s.th}>Show Rate</th>}
+                            <th style={s.th}>Show Rate</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {advisorData.advisors.map((a, i) => (
+                          {displayAdvisor.advisors.map((a, i) => (
                             <tr key={a.rep} style={{ background: i % 2 ? '#fff' : '#F9FAFB' }}>
                               <td style={s.td}><div style={{ fontWeight: 600, color: '#111827', fontSize: 13 }}>{a.rep}</div></td>
                               <td style={s.td}>{a.calls}</td>
                               <td style={s.td}>{a.connected}</td>
                               <td style={{ ...s.td, fontWeight: 700, color: a.booked > 0 ? '#15803D' : '#111827' }}>{a.booked}</td>
                               <td style={s.td}>
-                                <span style={{ fontWeight: 700, color: a.convRate >= 10 ? '#15803D' : a.convRate >= 5 ? '#B45309' : '#DC2626' }}>
-                                  {a.convRate}%
-                                </span>
+                                <span style={{ fontWeight: 700, color: a.convRate >= 10 ? '#15803D' : a.convRate >= 5 ? '#B45309' : '#DC2626' }}>{a.convRate}%</span>
                               </td>
                               <td style={{ ...s.td, color: '#6B7280' }}>{a.voicemail}</td>
                               <td style={{ ...s.td, color: '#6B7280' }}>{a.no_answer}</td>
-                              {advisorData.advisors.some(x => x.showRate !== null) && (
-                                <td style={s.td}>{a.showRate !== null ? `${a.showRate}%` : '—'}</td>
-                              )}
+                              <td style={s.td}>{a.showRate !== null && a.showRate !== undefined ? `${a.showRate}%` : '—'}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -795,18 +780,18 @@ export default function ProspectsPage() {
               {view === 'feed' && (
                 <div style={{ animation: 'fadeIn .2s ease' }}>
                   <div style={{ marginBottom: 14, fontSize: 13, color: '#6B7280' }}>Lead activity — last 7 days</div>
-                  {feedLoading ? (
+                  {feedSpinning ? (
                     <div style={s.loadingWrap}><div style={s.spinner} /></div>
-                  ) : !feedData?.events?.length ? (
+                  ) : !displayFeed?.events?.length ? (
                     <div style={s.emptyCard}>
                       <div style={{ fontWeight: 600, color: '#374151', marginBottom: 6 }}>No recent activity</div>
                       <div style={{ fontSize: 13, color: '#9CA3AF' }}>Lead events from the last 7 days appear here as they happen.</div>
                     </div>
                   ) : (
                     <div style={s.feedWrap}>
-                      {feedData.events.map((e, i) => {
-                        const isCall  = e.event_type.startsWith('prospect_call_');
+                      {displayFeed.events.map((e, i) => {
                         const isBooked = e.event_type === 'prospect_call_booked';
+                        const isCall   = e.event_type.startsWith('prospect_call_');
                         const dotColor = isBooked ? '#15803D' : isCall ? '#374151' : '#0369A1';
                         return (
                           <div key={e.id || i} style={s.feedItem}>
@@ -814,9 +799,7 @@ export default function ProspectsPage() {
                             <div style={{ flex: 1 }}>
                               <span style={{ fontWeight: 600, color: '#111827', fontSize: 13 }}>{e.lead_name}</span>
                               <span style={{ color: '#6B7280', fontSize: 13 }}> — {e.label}</span>
-                              {e.rep_email && (
-                                <span style={{ color: '#9CA3AF', fontSize: 11, marginLeft: 8 }}>by {e.rep_email}</span>
-                              )}
+                              {e.rep_email && <span style={{ color: '#9CA3AF', fontSize: 11, marginLeft: 8 }}>by {e.rep_email}</span>}
                               <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{fmtDate(e.created_at)}</div>
                             </div>
                           </div>
@@ -837,13 +820,11 @@ export default function ProspectsPage() {
 // ─── Queue Card ───────────────────────────────────────────────────────────────
 
 function QueueCard({ lead, index, total, bucketConfig, onDisposition, onSkip, onBack }) {
-  const [copiedPhone,  setCopiedPhone]  = useState(false);
-  const [copiedEmail,  setCopiedEmail]  = useState(false);
-  const [ghlSignals,   setGhlSignals]   = useState(null);
-  const [ghlLoading,   setGhlLoading]   = useState(false);
-  const [noteText,     setNoteText]     = useState('');
-  const [showNote,     setShowNote]     = useState(false);
-  const [pendingDisp,  setPendingDisp]  = useState(null);
+  const [copiedPhone, setCopiedPhone] = useState(false);
+  const [copiedEmail, setCopiedEmail] = useState(false);
+  const [ghlSignals,  setGhlSignals]  = useState(null);
+  const [ghlLoading,  setGhlLoading]  = useState(false);
+  const [noteText,    setNoteText]    = useState('');
   const loadedRef = useRef(null);
 
   useEffect(() => {
@@ -853,8 +834,6 @@ function QueueCard({ lead, index, total, bucketConfig, onDisposition, onSkip, on
     setCopiedEmail(false);
     setGhlSignals(null);
     setNoteText('');
-    setShowNote(false);
-    setPendingDisp(null);
 
     if (!lead.ghl_contact_id && !lead.email) return;
     setGhlLoading(true);
@@ -869,52 +848,31 @@ function QueueCard({ lead, index, total, bucketConfig, onDisposition, onSkip, on
 
   const sc = scoreColor(lead.score);
   const bc = bucketConfig;
-
-  function handleDisposition(disp) {
-    if (disp === 'follow_up' || disp === 'not_interested') {
-      setPendingDisp(disp);
-      setShowNote(true);
-    } else {
-      onDisposition(disp);
-    }
-  }
-
-  function confirmDisposition() {
-    onDisposition(pendingDisp);
-    setShowNote(false);
-  }
-
   const progressPct = total > 0 ? Math.round((index / total) * 100) : 0;
 
   return (
     <div style={{ animation: 'fadeIn .2s ease' }}>
-      {/* Progress bar + back button */}
+      {/* Progress bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <button style={s.backBtn} onClick={onBack}>← Back to list</button>
         <div style={{ flex: 1, height: 3, background: '#E5E7EB', borderRadius: 2, overflow: 'hidden' }}>
           <div style={{ height: '100%', width: `${progressPct}%`, background: bc?.color || '#374151', borderRadius: 2, transition: 'width .3s ease' }} />
         </div>
-        <span style={{ fontSize: 12, color: '#6B7280', flexShrink: 0 }}>
-          Lead {index + 1} of {total}
-        </span>
+        <span style={{ fontSize: 12, color: '#6B7280', flexShrink: 0 }}>Lead {index + 1} of {total}</span>
       </div>
 
       <div style={s.queueCard}>
-        {/* Lead header */}
+        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
           <div>
             {bc && <div style={{ fontSize: 10, fontWeight: 700, color: bc.color, textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 6 }}>{bc.label}</div>}
-            <h2 style={{ fontSize: 28, fontWeight: 800, color: '#111827', margin: 0, lineHeight: 1.1 }}>
-              {lead.first_name} {lead.last_name}
-            </h2>
+            <h2 style={{ fontSize: 28, fontWeight: 800, color: '#111827', margin: 0, lineHeight: 1.1 }}>{lead.first_name} {lead.last_name}</h2>
             <div style={{ fontSize: 13, color: '#6B7280', marginTop: 5, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               {lead.location && <span>{lead.location}</span>}
               {(lead.liquid_cap_raw || lead.investment_level) && (
                 <span style={{ fontWeight: 700, color: '#15803D' }}>{lead.liquid_cap_raw || lead.investment_level}</span>
               )}
-              <span style={{ color: lead.ageDays <= 2 ? '#D97706' : '#9CA3AF', fontWeight: lead.ageDays <= 2 ? 700 : 400 }}>
-                {ageBadge(lead.ageDays)} old
-              </span>
+              <span style={{ color: lead.ageDays <= 2 ? '#D97706' : '#9CA3AF', fontWeight: lead.ageDays <= 2 ? 700 : 400 }}>{ageBadge(lead.ageDays)} old</span>
             </div>
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 16 }}>
@@ -935,10 +893,7 @@ function QueueCard({ lead, index, total, bucketConfig, onDisposition, onSkip, on
                 {lead.phone || <span style={{ color: '#D1D5DB', fontSize: 14 }}>No phone on file</span>}
               </div>
               {lead.phone && (
-                <button
-                  onClick={() => copyToClipboard(lead.phone, setCopiedPhone)}
-                  style={{ ...s.copyBtn, background: copiedPhone ? '#DCFCE7' : '#F3F4F6', color: copiedPhone ? '#15803D' : '#374151', border: `1px solid ${copiedPhone ? '#86EFAC' : '#D1D5DB'}` }}
-                >
+                <button onClick={() => copyToClipboard(lead.phone, setCopiedPhone)} style={{ ...s.copyBtn, background: copiedPhone ? '#DCFCE7' : '#F3F4F6', color: copiedPhone ? '#15803D' : '#374151', border: `1px solid ${copiedPhone ? '#86EFAC' : '#D1D5DB'}` }}>
                   {copiedPhone ? '✓' : 'Copy'}
                 </button>
               )}
@@ -951,10 +906,7 @@ function QueueCard({ lead, index, total, bucketConfig, onDisposition, onSkip, on
                 {lead.email || <span style={{ color: '#D1D5DB' }}>No email on file</span>}
               </div>
               {lead.email && (
-                <button
-                  onClick={() => copyToClipboard(lead.email, setCopiedEmail)}
-                  style={{ ...s.copyBtn, background: copiedEmail ? '#DCFCE7' : '#F3F4F6', color: copiedEmail ? '#15803D' : '#374151', border: `1px solid ${copiedEmail ? '#86EFAC' : '#D1D5DB'}` }}
-                >
+                <button onClick={() => copyToClipboard(lead.email, setCopiedEmail)} style={{ ...s.copyBtn, background: copiedEmail ? '#DCFCE7' : '#F3F4F6', color: copiedEmail ? '#15803D' : '#374151', border: `1px solid ${copiedEmail ? '#86EFAC' : '#D1D5DB'}` }}>
                   {copiedEmail ? '✓' : 'Copy'}
                 </button>
               )}
@@ -962,20 +914,18 @@ function QueueCard({ lead, index, total, bucketConfig, onDisposition, onSkip, on
           </div>
         </div>
 
-        {/* Why this lead + GHL signals side by side */}
+        {/* Why this lead + GHL signals */}
         <div style={{ display: 'grid', gridTemplateColumns: (ghlLoading || ghlSignals?.signals?.length) ? '1fr 1fr' : '1fr', gap: 16, marginBottom: 20 }}>
           <div>
             <div style={s.sectionLabel}>Why this lead</div>
             <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 5 }}>
               {(lead.reasons || []).map((r, i) => (
                 <li key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 13, color: '#374151', lineHeight: 1.4 }}>
-                  <span style={{ color: '#D1D5DB', flexShrink: 0 }}>·</span>
-                  {r}
+                  <span style={{ color: '#D1D5DB', flexShrink: 0 }}>·</span>{r}
                 </li>
               ))}
             </ul>
           </div>
-
           {(ghlLoading || ghlSignals?.signals?.length > 0) && (
             <div>
               <div style={s.sectionLabel}>Live CRM signals</div>
@@ -986,10 +936,7 @@ function QueueCard({ lead, index, total, bucketConfig, onDisposition, onSkip, on
                   {(ghlSignals?.signals || []).map((sig, i) => (
                     <li key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 12, color: '#374151', lineHeight: 1.4 }}>
                       <span style={{ color: '#7C3AED', flexShrink: 0 }}>·</span>
-                      <span>
-                        {sig.label}
-                        {sig.date && <span style={{ color: '#9CA3AF', marginLeft: 6 }}>{fmtDate(sig.date)}</span>}
-                      </span>
+                      <span>{sig.label}{sig.date && <span style={{ color: '#9CA3AF', marginLeft: 6 }}>{fmtDate(sig.date)}</span>}</span>
                     </li>
                   ))}
                 </ul>
@@ -1000,55 +947,43 @@ function QueueCard({ lead, index, total, bucketConfig, onDisposition, onSkip, on
 
         {/* Recommended action */}
         <div style={s.recommendBox}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>
-            Recommended action
-          </div>
-          <div style={{ fontSize: 13, color: '#111827', lineHeight: 1.5 }}>
-            {lead.nextAction || lead.recommendedAction || '—'}
-          </div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>Recommended action</div>
+          <div style={{ fontSize: 13, color: '#111827', lineHeight: 1.5 }}>{lead.nextAction || lead.recommendedAction || '—'}</div>
+        </div>
+
+        {/* Notes — always visible */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={s.sectionLabel}>Call notes</div>
+          <textarea
+            style={{
+              width: '100%', border: '1px solid #E5E7EB', borderRadius: 5,
+              padding: '10px 12px', fontSize: 13, fontFamily: 'inherit',
+              resize: 'vertical', minHeight: 76, outline: 'none',
+              color: '#111827', background: '#FEFCE8',
+              lineHeight: 1.5,
+            }}
+            placeholder="What happened on the call? Follow-up details, objections, context for next advisor…"
+            value={noteText}
+            onChange={e => setNoteText(e.target.value)}
+          />
         </div>
 
         <div style={{ borderTop: '1px solid #F3F4F6', marginBottom: 16 }} />
 
-        {/* Note input */}
-        {showNote && (
-          <div style={{ marginBottom: 14 }}>
-            <div style={s.sectionLabel}>Add a note (optional)</div>
-            <textarea
-              style={{ width: '100%', border: '1px solid #D1D5DB', borderRadius: 4, padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', minHeight: 56, outline: 'none', color: '#111827' }}
-              placeholder="What happened on the call?"
-              value={noteText}
-              onChange={e => setNoteText(e.target.value)}
-            />
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button style={{ ...s.dispBtn, background: '#111827', color: '#fff', border: 'none' }} onClick={confirmDisposition}>
-                Confirm & Next →
-              </button>
-              <button style={{ ...s.dispBtn, background: '#F3F4F6', color: '#374151', border: '1px solid #E5E7EB' }} onClick={() => setShowNote(false)}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Disposition buttons */}
-        {!showNote && (
-          <>
-            <div style={s.sectionLabel}>Disposition</div>
-            <div style={s.dispRow}>
-              <button style={{ ...s.dispBtn, ...s.dispNeutral }} onClick={() => handleDisposition('no_answer')}>No Answer</button>
-              <button style={{ ...s.dispBtn, ...s.dispNeutral }} onClick={() => handleDisposition('left_vm')}>Left Voicemail</button>
-              <button style={{ ...s.dispBtn, background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC', fontWeight: 700 }} onClick={() => handleDisposition('booked')}>Booked!</button>
-              <button style={{ ...s.dispBtn, ...s.dispNeutral }} onClick={() => handleDisposition('follow_up')}>Follow Up</button>
-              <button style={{ ...s.dispBtn, background: '#FEE2E2', color: '#B91C1C', border: '1px solid #FECACA' }} onClick={() => handleDisposition('not_interested')}>Not Interested</button>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
-              <button style={{ ...s.dispBtn, background: 'transparent', color: '#9CA3AF', border: '1px solid #E5E7EB', fontSize: 12 }} onClick={onSkip}>
-                Skip → Next lead
-              </button>
-            </div>
-          </>
-        )}
+        {/* Disposition */}
+        <div style={s.sectionLabel}>Disposition</div>
+        <div style={s.dispRow}>
+          <button style={{ ...s.dispBtn, ...s.dispNeutral }} onClick={() => onDisposition('no_answer', noteText)}>No Answer</button>
+          <button style={{ ...s.dispBtn, ...s.dispNeutral }} onClick={() => onDisposition('left_vm', noteText)}>Left Voicemail</button>
+          <button style={{ ...s.dispBtn, background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC', fontWeight: 700 }} onClick={() => onDisposition('booked', noteText)}>Booked!</button>
+          <button style={{ ...s.dispBtn, ...s.dispNeutral }} onClick={() => onDisposition('follow_up', noteText)}>Follow Up</button>
+          <button style={{ ...s.dispBtn, background: '#FEE2E2', color: '#B91C1C', border: '1px solid #FECACA' }} onClick={() => onDisposition('not_interested', noteText)}>Not Interested</button>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
+          <button style={{ ...s.dispBtn, background: 'transparent', color: '#9CA3AF', border: '1px solid #E5E7EB', fontSize: 12 }} onClick={onSkip}>
+            Skip → Next lead
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1080,40 +1015,34 @@ const s = {
   pageSubtitle:{ fontSize: 13, color: '#9CA3AF', margin: 0 },
   refreshBtn:  { fontSize: 12, color: '#6B7280', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 4, padding: '6px 14px', cursor: 'pointer', fontFamily: 'inherit' },
 
-  // Hero
   heroCard:    { background: '#fff', border: '1px solid #E8EAED', borderRadius: 6, padding: '20px 24px', marginBottom: 14 },
-  heroMetrics: { display: 'grid', gridTemplateColumns: '1fr auto 1fr auto 1fr auto 1fr', alignItems: 'center', gap: 0 },
+  heroMetrics: { display: 'grid', gridTemplateColumns: '1fr auto 1fr auto 1fr auto 1fr', alignItems: 'center' },
   heroMetric:  { padding: '0 24px' },
   heroDivider: { width: 1, height: 44, background: '#E8EAED', flexShrink: 0 },
   heroValue:   { fontSize: 28, fontWeight: 800, color: '#111827', lineHeight: 1.1, marginBottom: 3 },
   heroLabel:   { fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 },
   heroSub:     { fontSize: 11, color: '#9CA3AF' },
 
-  // View tabs
-  viewTabs:    { display: 'flex', gap: 0, borderBottom: '2px solid #E8EAED', marginBottom: 16 },
-  viewTab:     { padding: '8px 18px', fontSize: 13, fontWeight: 500, color: '#6B7280', background: 'transparent', border: 'none', borderBottom: '2px solid transparent', marginBottom: -2, cursor: 'pointer', fontFamily: 'inherit', transition: 'color .1s' },
+  viewTabs:      { display: 'flex', borderBottom: '2px solid #E8EAED', marginBottom: 16 },
+  viewTab:       { padding: '8px 18px', fontSize: 13, fontWeight: 500, color: '#6B7280', background: 'transparent', border: 'none', borderBottom: '2px solid transparent', marginBottom: -2, cursor: 'pointer', fontFamily: 'inherit' },
   viewTabActive: { color: '#111827', fontWeight: 700, borderBottomColor: '#111827' },
 
-  // Bucket grid — 4 cols × 2 rows
   bucketGrid:  { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 14 },
-  bucketCard:  { background: '#fff', border: '1px solid #E8EAED', borderLeft: '4px solid #E8EAED', borderRadius: 6, padding: '14px 14px 10px', cursor: 'pointer', transition: 'box-shadow .15s' },
+  bucketCard:  { background: '#fff', border: '1px solid #E8EAED', borderLeft: '4px solid #E8EAED', borderRadius: 6, padding: '14px 14px 10px' },
   bucketStartBtn: { marginTop: 10, width: '100%', padding: '5px 0', background: 'transparent', border: '1px solid', borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.03em' },
 
-  // Filter tabs
   tabRow:      { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 12, flexWrap: 'wrap' },
   tabs:        { display: 'flex', gap: 2, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 5, padding: 3, flexWrap: 'wrap' },
   tab:         { padding: '4px 10px', fontSize: 12, fontWeight: 500, color: '#6B7280', background: 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit' },
   tabActive:   { background: '#111827', color: '#fff', fontWeight: 700 },
   startProspectingBtn: { padding: '9px 20px', background: '#111827', color: '#fff', border: 'none', borderRadius: 5, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
 
-  // Table
   tableWrap:   { background: '#fff', border: '1px solid #E8EAED', borderRadius: 6, overflow: 'hidden' },
   table:       { width: '100%', borderCollapse: 'collapse' },
   th:          { fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '8px 12px', background: '#F9FAFB', borderBottom: '1px solid #E8EAED', textAlign: 'left' },
   td:          { fontSize: 13, color: '#111827', padding: '10px 12px', borderBottom: '1px solid #F3F4F6', verticalAlign: 'middle' },
   openBtn:     { padding: '4px 10px', background: 'transparent', border: '1px solid #E5E7EB', borderRadius: 4, fontSize: 12, color: '#374151', cursor: 'pointer', fontFamily: 'inherit' },
 
-  // Queue
   backBtn:     { padding: '5px 12px', background: 'transparent', border: '1px solid #E5E7EB', borderRadius: 4, fontSize: 12, color: '#6B7280', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
   queueCard:   { background: '#fff', border: '1px solid #E8EAED', borderRadius: 8, padding: '28px 30px', boxShadow: '0 1px 4px rgba(0,0,0,.06)' },
   queueDoneCard: { background: '#fff', border: '1px solid #E8EAED', borderRadius: 8, padding: 36, textAlign: 'center' },
@@ -1129,7 +1058,6 @@ const s = {
   dispBtn:     { padding: '8px 16px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', border: 'none' },
   dispNeutral: { background: '#F3F4F6', color: '#374151', border: '1px solid #E5E7EB' },
 
-  // Activity feed
   feedWrap:    { background: '#fff', border: '1px solid #E8EAED', borderRadius: 6, overflow: 'hidden' },
   feedItem:    { display: 'flex', alignItems: 'flex-start', gap: 14, padding: '14px 20px', borderBottom: '1px solid #F3F4F6' },
   feedDot:     { width: 8, height: 8, borderRadius: '50%', marginTop: 4, flexShrink: 0 },
