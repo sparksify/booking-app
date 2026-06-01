@@ -24,7 +24,7 @@ export default async function handler(req, res) {
   ] = await Promise.all([
     supabase.from('settings').select('revenue_per_close').eq('id', 1).single(),
     supabase.from('leads').select('id, status, created_at, email, fb_lead_id'),
-    supabase.from('bookings').select('id, status, slot_start, assigned_to_email, investment_level, created_at, lead_score, show_probability, booking_source, email, first_name, last_name'),
+    supabase.from('bookings').select('id, status, slot_start, assigned_to_email, investment_level, created_at, lead_score, show_probability, booking_source, email, first_name, last_name, cq_sent_at, cq_received_at'),
     supabase.from('lead_events')
       .select('email, event_type, event_data, created_at')
       .in('event_type', [
@@ -281,6 +281,71 @@ export default async function handler(req, res) {
   });
   const avgLeadScore = scoredCount > 0 ? Math.round(totalScore / scoredCount) : null;
 
+  // ── §13 Franchise / CQ metrics ────────────────────────────────────────────
+  const cqSentBkgs     = allBookings.filter(b => b.cq_sent_at);
+  const cqRecvBkgs     = allBookings.filter(b => b.cq_received_at);
+  const showedBkgs     = allBookings.filter(isShowed);
+
+  // CQ funnel rates
+  const cqRate       = showedBkgs.length > 0 ? Math.round((cqSentBkgs.length / showedBkgs.length) * 100) : 0;
+  const cqReturnRate = cqSentBkgs.length > 0 ? Math.round((cqRecvBkgs.length / cqSentBkgs.length) * 100) : 0;
+  const cqCloseRate  = cqRecvBkgs.length > 0 ? Math.round((allBookings.filter(isClosed).length / cqRecvBkgs.length) * 100) : 0;
+
+  const cqMetrics = {
+    cq_sent:          cqSentBkgs.length,
+    cq_received:      cqRecvBkgs.length,
+    cq_rate:          cqRate,          // % of shows that had a CQ sent
+    cq_return_rate:   cqReturnRate,    // % of CQ sent that came back
+    cq_to_close_rate: cqCloseRate,     // % of CQ received that turned into closes
+  };
+
+  // CQ slot leaderboard — best slots for CQ returns
+  const cqSlotMap = {};
+  allBookings.forEach(b => {
+    if (!b.slot_start) return;
+    const d   = new Date(b.slot_start);
+    const key = `${DOW[d.getDay()]} ${fmtHour(d.getHours())}`;
+    const sl  = cqSlotMap[key] ??= { slot: key, booked: 0, showed: 0, cq_sent: 0, cq_received: 0 };
+    sl.booked++;
+    if (isShowed(b))      sl.showed++;
+    if (b.cq_sent_at)     sl.cq_sent++;
+    if (b.cq_received_at) sl.cq_received++;
+  });
+  const cqSlotLeaderboard = Object.values(cqSlotMap)
+    .map(sl => ({
+      ...sl,
+      cq_rate:        sl.showed   > 0 ? Math.round((sl.cq_sent     / sl.showed)   * 100) : null,
+      cq_return_rate: sl.cq_sent  > 0 ? Math.round((sl.cq_received / sl.cq_sent)  * 100) : null,
+    }))
+    .sort((a, b) => (b.cq_received || 0) - (a.cq_received || 0) || (b.cq_rate || 0) - (a.cq_rate || 0))
+    .slice(0, 8);
+
+  // CQ by consultant
+  const cqRepMap = {};
+  allBookings.forEach(b => {
+    const rep = b.assigned_to_email || 'Unassigned';
+    const r   = cqRepMap[rep] ??= { email: rep, booked: 0, showed: 0, cq_sent: 0, cq_received: 0 };
+    r.booked++;
+    if (isShowed(b))      r.showed++;
+    if (b.cq_sent_at)     r.cq_sent++;
+    if (b.cq_received_at) r.cq_received++;
+  });
+  const cqByRep = Object.values(cqRepMap)
+    .map(r => ({
+      ...r,
+      cq_rate:        r.showed  > 0 ? Math.round((r.cq_sent     / r.showed)  * 100) : null,
+      cq_return_rate: r.cq_sent > 0 ? Math.round((r.cq_received / r.cq_sent) * 100) : null,
+    }))
+    .sort((a, b) => b.cq_received - a.cq_received || b.cq_sent - a.cq_sent);
+
+  // CQ pipeline value (if revenue_per_close is set)
+  const cqPipeline = {
+    sent_not_received:    cqSentBkgs.length - cqRecvBkgs.length,
+    received_not_closed:  cqRecvBkgs.filter(b => !isClosed(b)).length,
+    pipeline_sent:        rpc > 0 ? Math.round((cqSentBkgs.length - cqRecvBkgs.length) * rpc * (closeRate / 100)) : 0,
+    pipeline_received:    rpc > 0 ? Math.round(cqRecvBkgs.filter(b => !isClosed(b)).length * rpc * (closeRate / 100)) : 0,
+  };
+
   // ── Avg time to book (lead → booking) ─────────────────────────────────────
   const leadByEmail = {};
   allLeads.forEach(l => { if (l.email) leadByEmail[l.email] = l; });
@@ -307,6 +372,8 @@ export default async function handler(req, res) {
     calendarAdds,
     revenueByDay, revenueByHour,
     healthDist, avgLeadScore,
+    // §13 franchise
+    cqMetrics, cqSlotLeaderboard, cqByRep, cqPipeline,
   });
 }
 

@@ -437,7 +437,9 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
   const [showEmail,    setShowEmail]    = useState(false);
   const [email,        setEmail]        = useState({ to: '', subject: '', body: '' });
   const [emailSent,    setEmailSent]    = useState(false);
-  const [cqSent,       setCqSent]       = useState(false);
+  const [cqSent,       setCqSent]       = useState(!!booking?.cq_sent_at);
+  const [cqReceived,   setCqReceived]   = useState(!!booking?.cq_received_at);
+  const [cqRecvSaving, setCqRecvSaving] = useState(false);
   const [pitchOpen,    setPitchOpen]    = useState(false);
   const [pitchBrandIdx,setPitchBrandIdx]= useState(0);
   const [panelTab,     setPanelTab]     = useState('info');
@@ -453,6 +455,12 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
       setSelectedIdx(fi.length > 0 ? 0 : null);
     }
   }, [lead]);
+
+  // Sync CQ state when a different booking is opened
+  useEffect(() => {
+    setCqSent(!!booking?.cq_sent_at);
+    setCqReceived(!!booking?.cq_received_at);
+  }, [booking?.id]);
 
   useEffect(() => {
     if (!open) {
@@ -529,14 +537,25 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
   }
 
   async function sendCQ() {
-    if (isDemo) { setCqSent(true); setTimeout(() => setCqSent(false), 2500); return; }
+    if (isDemo) { setCqSent(true); return; }
     setCqSent(true);
     await fetch('/api/dashboard/send-cq', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ bookingId: booking.id, email: booking.email }),
     }).catch(console.error);
-    setTimeout(() => setCqSent(false), 2500);
+  }
+
+  async function markCQReceived() {
+    if (isDemo) { setCqReceived(true); return; }
+    setCqRecvSaving(true);
+    await fetch('/api/dashboard/mark-cq-received', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ bookingId: booking.id, email: booking.email }),
+    }).catch(console.error);
+    setCqReceived(true);
+    setCqRecvSaving(false);
   }
 
   const raw = lead?.raw_fields
@@ -675,7 +694,43 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                   <QBBtn variant="cq" onClick={sendCQ} disabled={cqSent}>
                     {cqSent ? '✓ CQ Sent' : 'Send CQ'}
                   </QBBtn>
+                  {cqSent && !cqReceived && (
+                    <QBBtn variant="pitch" onClick={markCQReceived} disabled={cqRecvSaving}>
+                      {cqRecvSaving ? 'Saving…' : 'CQ Received'}
+                    </QBBtn>
+                  )}
+                  {cqReceived && (
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      padding: '5px 12px', borderRadius: 3, fontSize: 12, fontWeight: 600,
+                      color: '#15803D', background: '#DCFCE7', border: '1px solid #BBF7D0',
+                    }}>
+                      ✓ CQ Received
+                    </span>
+                  )}
                 </div>
+                {/* CQ status timeline */}
+                {(cqSent || cqReceived) && (
+                  <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{ fontSize: 11, color: '#7C3AED', fontWeight: 600 }}>CQ Sent</span>
+                    {cqSent && booking.cq_sent_at && (
+                      <span style={{ fontSize: 11, color: '#9CA3AF' }}>
+                        {new Date(booking.cq_sent_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </span>
+                    )}
+                    {cqReceived && (
+                      <>
+                        <span style={{ fontSize: 10, color: '#D1D5DB' }}>→</span>
+                        <span style={{ fontSize: 11, color: '#15803D', fontWeight: 600 }}>CQ Received</span>
+                        {booking.cq_received_at && (
+                          <span style={{ fontSize: 11, color: '#9CA3AF' }}>
+                            {new Date(booking.cq_received_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
               </PanelSection>
 
               {/* ── Franchise Brands ── */}
@@ -961,6 +1016,7 @@ const EVENT_META = {
   confirmation_email_sent:   { emoji: '✉️', label: 'Confirmation Email Sent',   color: '#6B7280' },
   calendar_add_clicked:      { emoji: '📆', label: 'Calendar Add Clicked',      color: '#1D4ED8' },
   cq_email_sent:             { emoji: '📤', label: 'CQ Email Sent',             color: '#7C3AED' },
+  cq_received:               { emoji: '📥', label: 'CQ Received',               color: '#15803D' },
   appointment_showed:        { emoji: '🟢', label: 'Showed Up',                 color: '#16A34A' },
   appointment_no_show:       { emoji: '🔴', label: 'No Show',                   color: '#DC2626' },
   opportunity_closed:        { emoji: '🏆', label: 'Deal Closed',               color: '#7C3AED' },

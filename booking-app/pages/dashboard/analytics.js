@@ -75,14 +75,17 @@ export default function AnalyticsDashboard() {
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 function Dashboard({ data }) {
-  const hasRevenue   = data.revenue.per_close > 0;
-  const [showRevenue, setShowRevenue] = useState(false);
+  const hasRevenue    = data.revenue.per_close > 0;
+  const [showRevenue,   setShowRevenue]   = useState(false);
+  const [showFranchise, setShowFranchise] = useState(false);
   const showRev = showRevenue && hasRevenue;
 
   return (
     <>
+      {/* Toggle bars */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
       {/* Revenue toggle bar */}
-      <div style={s.toggleBar}>
+      <div style={{ ...s.toggleBar, marginBottom: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: '#4B5563' }}>Revenue Metrics</span>
           {!hasRevenue && (
@@ -104,6 +107,28 @@ function Dashboard({ data }) {
           {showRev ? 'Revenue ON' : 'Revenue OFF'}
         </button>
       </div>
+
+      {/* Franchise Metrics toggle */}
+      <div style={{ ...s.toggleBar, marginBottom: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#4B5563' }}>Franchise Metrics</span>
+          <span style={{ fontSize: 11, color: '#9CA3AF' }}>— CQ funnel, best slots for CQ conversion, pipeline value</span>
+        </div>
+        <button
+          onClick={() => setShowFranchise(p => !p)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px',
+            borderRadius: 20, border: 'none', cursor: 'pointer',
+            background: showFranchise ? '#7C3AED' : '#D1D5DB',
+            color: showFranchise ? '#fff' : '#6B7280',
+            fontSize: 12, fontWeight: 600, transition: 'background .2s', fontFamily: 'inherit',
+          }}
+        >
+          <span style={{ width: 10, height: 10, borderRadius: '50%', background: showFranchise ? '#fff' : '#9CA3AF', display: 'inline-block' }} />
+          {showFranchise ? 'Franchise ON' : 'Franchise OFF'}
+        </button>
+      </div>
+      </div>{/* end toggle bars wrapper */}
 
       {/* §1 Executive Summary */}
       <SecTitle>§1 — Executive Summary</SecTitle>
@@ -217,6 +242,60 @@ function Dashboard({ data }) {
           <OpportunityLoss funnel={data.funnel} revenue={data.revenue} hasRevenue={showRev} />
         </div>
       </div>
+
+      {/* §13 Franchise Metrics */}
+      {showFranchise && (
+        <>
+          <SecTitle>§13 — Franchise Metrics</SecTitle>
+
+          {/* CQ Funnel KPIs */}
+          <div style={s.kpi4}>
+            <KpiCard label="CQ Sent"        value={data.cqMetrics.cq_sent.toLocaleString()}  sub={`of ${data.funnel.showed} showed`}         accent="#7C3AED" icon="📤" />
+            <KpiCard label="CQ Rate"         value={`${data.cqMetrics.cq_rate}%`}             sub="% of shows → CQ sent"                     accent="#7C3AED" icon="📋" />
+            <KpiCard label="CQ Received"     value={data.cqMetrics.cq_received.toLocaleString()} sub={`of ${data.cqMetrics.cq_sent} sent`}   accent="#15803D" icon="📥" warn={data.cqMetrics.cq_sent > 0 && data.cqMetrics.cq_return_rate < 50} />
+            <KpiCard label="Return Rate"     value={`${data.cqMetrics.cq_return_rate}%`}     sub="CQ sent → CQ returned"                    accent="#15803D" icon="✅" />
+          </div>
+
+          {/* CQ Slot Leaderboard + CQ by Consultant */}
+          <div style={s.twoCol}>
+            <div style={s.card}>
+              <CTitle>Best Slots for CQ Returns</CTitle>
+              <CSub>Optimize booking times to maximize questionnaire completions</CSub>
+              <CQSlotTable slots={data.cqSlotLeaderboard} />
+            </div>
+            <div style={s.card}>
+              <CTitle>CQ by Consultant</CTitle>
+              <CSub>Who's driving the most questionnaire returns?</CSub>
+              <CQRepTable reps={data.cqByRep} />
+            </div>
+          </div>
+
+          {/* CQ Pipeline (only if revenue is set) */}
+          {hasRevenue && (data.cqPipeline.sent_not_received > 0 || data.cqPipeline.received_not_closed > 0) && (
+            <>
+              <SecTitle>CQ Pipeline Value</SecTitle>
+              <div style={s.twoCol}>
+                <div style={{ ...s.card, borderTop: '3px solid #7C3AED' }}>
+                  <CTitle>CQ Sent — Awaiting Response</CTitle>
+                  <CSub>{data.cqPipeline.sent_not_received} questionnaires out, not yet returned</CSub>
+                  <div style={{ marginTop: 16, textAlign: 'center' }}>
+                    <div style={{ fontSize: 32, fontWeight: 700, color: '#7C3AED' }}>{fmtCurrency(data.cqPipeline.pipeline_sent)}</div>
+                    <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>projected at current close rate</div>
+                  </div>
+                </div>
+                <div style={{ ...s.card, borderTop: '3px solid #15803D' }}>
+                  <CTitle>CQ Received — Not Yet Closed</CTitle>
+                  <CSub>{data.cqPipeline.received_not_closed} questionnaires back, deals in progress</CSub>
+                  <div style={{ marginTop: 16, textAlign: 'center' }}>
+                    <div style={{ fontSize: 32, fontWeight: 700, color: '#15803D' }}>{fmtCurrency(data.cqPipeline.pipeline_received)}</div>
+                    <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>projected at current close rate</div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </>
+      )}
     </>
   );
 }
@@ -628,6 +707,76 @@ function OpportunityLoss({ funnel, revenue, hasRevenue }) {
         </div>
       )}
     </div>
+  );
+}
+
+function CQSlotTable({ slots }) {
+  if (!slots || slots.length === 0) {
+    return <div style={s.empty}>No CQ data yet — click Send CQ on bookings to start tracking</div>;
+  }
+  return (
+    <table style={s.table}>
+      <thead>
+        <tr>
+          <th style={s.th}>Slot</th>
+          <th style={{ ...s.th, textAlign: 'right' }}>Showed</th>
+          <th style={{ ...s.th, textAlign: 'right' }}>CQ Sent</th>
+          <th style={{ ...s.th, textAlign: 'right' }}>CQ Rate</th>
+          <th style={{ ...s.th, textAlign: 'right' }}>CQ Recv</th>
+          <th style={{ ...s.th, textAlign: 'right' }}>Return %</th>
+        </tr>
+      </thead>
+      <tbody>
+        {slots.map((sl, i) => (
+          <tr key={sl.slot} style={{ background: i === 0 ? '#FAF5FF' : 'transparent' }}>
+            <td style={{ ...s.td, fontWeight: i === 0 ? 700 : 400, color: i === 0 ? '#7C3AED' : '#1A2B3C' }}>
+              {i === 0 && <span style={{ marginRight: 4 }}>★</span>}{sl.slot}
+            </td>
+            <td style={{ ...s.td, textAlign: 'right' }}>{sl.showed}</td>
+            <td style={{ ...s.td, textAlign: 'right' }}>{sl.cq_sent}</td>
+            <td style={{ ...s.td, textAlign: 'right' }}>{sl.cq_rate != null ? <RateBadge rate={sl.cq_rate} small thresholds={[70, 50]} /> : '—'}</td>
+            <td style={{ ...s.td, textAlign: 'right', fontWeight: 600, color: '#15803D' }}>{sl.cq_received}</td>
+            <td style={{ ...s.td, textAlign: 'right' }}>{sl.cq_return_rate != null ? <RateBadge rate={sl.cq_return_rate} small thresholds={[70, 50]} /> : '—'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function CQRepTable({ reps }) {
+  if (!reps || reps.length === 0) return <div style={s.empty}>No data yet</div>;
+  return (
+    <table style={s.table}>
+      <thead>
+        <tr>
+          <th style={s.th}>Consultant</th>
+          <th style={{ ...s.th, textAlign: 'right' }}>Showed</th>
+          <th style={{ ...s.th, textAlign: 'right' }}>CQ Sent</th>
+          <th style={{ ...s.th, textAlign: 'right' }}>CQ Rate</th>
+          <th style={{ ...s.th, textAlign: 'right' }}>CQ Recv</th>
+          <th style={{ ...s.th, textAlign: 'right' }}>Return %</th>
+        </tr>
+      </thead>
+      <tbody>
+        {reps.map((r, i) => {
+          const initials = r.email.split('@')[0].slice(0, 2).toUpperCase();
+          return (
+            <tr key={r.email} style={{ background: i === 0 && r.cq_received > 0 ? '#F0FDF4' : 'transparent' }}>
+              <td style={{ ...s.td, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ ...s.avatar, width: 24, height: 24, fontSize: 10 }}>{initials}</div>
+                <span style={{ fontSize: 12 }}>{r.email.split('@')[0]}</span>
+              </td>
+              <td style={{ ...s.td, textAlign: 'right' }}>{r.showed}</td>
+              <td style={{ ...s.td, textAlign: 'right' }}>{r.cq_sent}</td>
+              <td style={{ ...s.td, textAlign: 'right' }}>{r.cq_rate != null ? <RateBadge rate={r.cq_rate} small thresholds={[70, 50]} /> : '—'}</td>
+              <td style={{ ...s.td, textAlign: 'right', fontWeight: 600, color: '#15803D' }}>{r.cq_received}</td>
+              <td style={{ ...s.td, textAlign: 'right' }}>{r.cq_return_rate != null ? <RateBadge rate={r.cq_return_rate} small thresholds={[70, 50]} /> : '—'}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 

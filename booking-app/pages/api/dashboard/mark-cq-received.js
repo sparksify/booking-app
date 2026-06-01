@@ -8,15 +8,16 @@ import {
 } from '@/lib/ghl';
 import { logLeadEvent } from '@/lib/leadEvents';
 
-// "Appointment Scheduling" pipeline → "Sent CQ Email" stage
-const GHL_STAGE_SENT_CQ = '2d399cc0-7d30-400c-beb0-b4900576e7d3';
+// "Appointment Scheduling" pipeline → "CQ Received" stage
+const GHL_STAGE_CQ_RECEIVED = '4bfcaef2-351b-4172-948c-740f153b84f2';
 
 /**
- * POST /api/dashboard/send-cq
+ * POST /api/dashboard/mark-cq-received
  *
  * Body: { bookingId, email }
  *
- * Moves the GHL opportunity to "Sent CQ Email" stage.
+ * Stamps cq_received_at on the booking, moves GHL opportunity to
+ * "CQ Received" stage, and logs a cq_received lead event.
  */
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -31,8 +32,15 @@ export default async function handler(req, res) {
 
   const supabase = getSupabaseAdmin();
   const errors   = [];
+  const now      = new Date().toISOString();
 
-  // Look up the stored GHL opportunity ID on the booking
+  // Stamp cq_received_at on the booking
+  await supabase
+    .from('bookings')
+    .update({ cq_received_at: now })
+    .eq('id', bookingId);
+
+  // Look up GHL opportunity and move stage
   const { data: booking } = await supabase
     .from('bookings')
     .select('ghl_opportunity_id, ghl_contact_id')
@@ -42,15 +50,12 @@ export default async function handler(req, res) {
   try {
     let oppId = booking?.ghl_opportunity_id ?? null;
 
-    // Fall back: search GHL by email if we don't have a stored ID
     if (!oppId && process.env.GHL_API_KEY) {
       let contactId = booking?.ghl_contact_id ?? null;
-
       if (!contactId) {
         const contact = await lookupGHLContactByEmail(email);
         contactId = contact?.id ?? null;
       }
-
       if (contactId) {
         const opp = await getGHLContactOpportunity(contactId);
         oppId = opp?.id ?? null;
@@ -58,7 +63,7 @@ export default async function handler(req, res) {
     }
 
     if (oppId) {
-      await updateGHLOpportunityStage(oppId, GHL_STAGE_SENT_CQ);
+      await updateGHLOpportunityStage(oppId, GHL_STAGE_CQ_RECEIVED);
     } else {
       errors.push('No GHL opportunity found for this booking');
     }
@@ -66,10 +71,7 @@ export default async function handler(req, res) {
     errors.push(err.message);
   }
 
-  // Stamp cq_sent_at on the booking (fire-and-forget)
-  supabase.from('bookings').update({ cq_sent_at: new Date().toISOString() }).eq('id', bookingId).then(() => {});
+  logLeadEvent(email, 'cq_received', { booking_id: bookingId }).catch(() => {});
 
-  logLeadEvent(email, 'cq_email_sent', { booking_id: bookingId }).catch(() => {});
-
-  res.json({ ok: true, errors: errors.length ? errors : undefined });
+  res.json({ ok: true, cq_received_at: now, errors: errors.length ? errors : undefined });
 }
