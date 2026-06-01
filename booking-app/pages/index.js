@@ -87,7 +87,7 @@ function generateWorkdays(daysAhead) {
   const days = [];
   const now  = new Date();
   let count  = 0;
-  for (let i = 1; count < daysAhead; i++) {
+  for (let i = 0; count < daysAhead; i++) {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
     if (d.getDay() === 0 || d.getDay() === 6) continue;
     days.push({

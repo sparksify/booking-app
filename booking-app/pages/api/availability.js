@@ -83,7 +83,18 @@ export default async function handler(req, res) {
 
   // No connected / matching calendars → return demo slots
   if (!members.length) {
-    return res.json({ slots: mockSlots(settings, date), demo: true });
+    let demoSlots = mockSlots(settings, date);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (date === todayStr) {
+      const cutoffMs  = Date.now() + 30 * 60_000;
+      const offsetMins = getOffsetMinutes(date, settings.timezone || 'America/Chicago');
+      demoSlots = demoSlots.filter(sl => {
+        const [y, mo, d2] = date.split('-').map(Number);
+        const slotUtcMs = Date.UTC(y, mo - 1, d2, sl.h, sl.m, 0) - offsetMins * 60_000;
+        return slotUtcMs >= cutoffMs;
+      });
+    }
+    return res.json({ slots: demoSlots, demo: true });
   }
 
   try {
@@ -110,7 +121,20 @@ export default async function handler(req, res) {
 
     // 3. Merge both sources and generate available slots
     const allBusy = [...googleBusy, ...supabaseBusy];
-    const slots   = generateSlots(settings, allBusy, date);
+    let slots = generateSlots(settings, allBusy, date);
+
+    // 4. For today: strip slots that have already passed (+ 30-min booking buffer)
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (date === todayStr) {
+      const cutoffMs = Date.now() + 30 * 60_000; // must be at least 30 min from now
+      const offsetMins = getOffsetMinutes(date, settings.timezone || 'America/Chicago');
+      slots = slots.filter(sl => {
+        const [y, mo, d2] = date.split('-').map(Number);
+        const slotUtcMs = Date.UTC(y, mo - 1, d2, sl.h, sl.m, 0) - offsetMins * 60_000;
+        return slotUtcMs >= cutoffMs;
+      });
+    }
+
     const visible = applySlotDisplay(slots, date, settings.maxSlotsPerDay, settings.hiddenSlotsCount);
 
     res.setHeader('Cache-Control', 'no-store');
