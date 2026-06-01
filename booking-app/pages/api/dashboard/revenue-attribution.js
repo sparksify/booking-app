@@ -28,9 +28,10 @@ export default async function handler(req, res) {
   if (!session) return res.status(401).json({ error: 'Unauthorized' });
 
   const supabase = getSupabaseAdmin();
-  const now           = new Date();
+  const now            = new Date();
+  const days           = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 365);
   const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const thirtyDaysAgo  = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   const sixHoursAgo   = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
 
   // Settings for revenue per close

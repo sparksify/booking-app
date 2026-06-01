@@ -14,7 +14,9 @@ export default async function handler(req, res) {
   const session = await getServerSession(req, res, authOptions);
   if (!session) return res.status(401).json({ error: 'Unauthorized' });
 
-  const supabase = getSupabaseAdmin();
+  const supabase   = getSupabaseAdmin();
+  const periodDays = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 365);
+  const cutoff     = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000).toISOString();
 
   const [
     { data: settingsRow },
@@ -23,8 +25,8 @@ export default async function handler(req, res) {
     { data: leadEvents },
   ] = await Promise.all([
     supabase.from('settings').select('revenue_per_close').eq('id', 1).single(),
-    supabase.from('leads').select('id, status, created_at, email, fb_lead_id'),
-    supabase.from('bookings').select('id, status, slot_start, assigned_to_email, investment_level, created_at, lead_score, show_probability, booking_source, email, first_name, last_name, cq_sent_at, cq_received_at'),
+    supabase.from('leads').select('id, status, created_at, email, fb_lead_id').gte('created_at', cutoff),
+    supabase.from('bookings').select('id, status, slot_start, assigned_to_email, investment_level, created_at, lead_score, show_probability, booking_source, email, first_name, last_name, cq_sent_at, cq_received_at').gte('created_at', cutoff),
     supabase.from('lead_events')
       .select('email, event_type, event_data, created_at')
       .in('event_type', [
@@ -34,6 +36,7 @@ export default async function handler(req, res) {
         'recommended_slot_rejected',
         'calendar_add_clicked',
       ])
+      .gte('created_at', cutoff)
       .order('created_at', { ascending: false })
       .limit(10000),
   ]);

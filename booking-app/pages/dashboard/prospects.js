@@ -419,6 +419,7 @@ export default function ProspectsPage() {
   const [feedLoading,    setFeedLoading]    = useState(false);
   const [revenueData,    setRevenueData]    = useState(null);
   const [revenueLoading, setRevenueLoading] = useState(false);
+  const [period,         setPeriod]         = useState(30); // days: 7 | 30 | 90
 
   const loadData = useCallback(() => {
     setLoading(true);
@@ -430,42 +431,51 @@ export default function ProspectsPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  function fetchAdvisorData(days) {
+    setAdvisorLoading(true);
+    fetch(`/api/dashboard/advisor-stats?days=${days}`)
+      .then(r => r.json())
+      .then(d => { setAdvisorData(d); setAdvisorLoading(false); })
+      .catch(() => setAdvisorLoading(false));
+  }
+  function fetchFeedData(days) {
+    setFeedLoading(true);
+    fetch(`/api/dashboard/activity-feed?days=${days}`)
+      .then(r => r.json())
+      .then(d => { setFeedData(d); setFeedLoading(false); })
+      .catch(() => setFeedLoading(false));
+  }
+  function fetchRevenueData(days) {
+    setRevenueLoading(true);
+    fetch(`/api/dashboard/revenue-attribution?days=${days}`)
+      .then(r => r.json())
+      .then(d => { setRevenueData(d); setRevenueLoading(false); })
+      .catch(() => setRevenueLoading(false));
+  }
+
   function switchView(newView) {
     setView(newView);
     setQueueMode(false);
     if (newView === 'advisor') {
-      if (demoMode) {
-        setAdvisorData(DEMO_ADVISOR_DATA);
-      } else if (!advisorData && !advisorLoading) {
-        setAdvisorLoading(true);
-        fetch('/api/dashboard/advisor-stats')
-          .then(r => r.json())
-          .then(d => { setAdvisorData(d); setAdvisorLoading(false); })
-          .catch(() => setAdvisorLoading(false));
-      }
+      if (demoMode) setAdvisorData(DEMO_ADVISOR_DATA);
+      else if (!advisorData && !advisorLoading) fetchAdvisorData(period);
     }
     if (newView === 'feed') {
-      if (demoMode) {
-        setFeedData(DEMO_FEED_DATA);
-      } else if (!feedData && !feedLoading) {
-        setFeedLoading(true);
-        fetch('/api/dashboard/activity-feed')
-          .then(r => r.json())
-          .then(d => { setFeedData(d); setFeedLoading(false); })
-          .catch(() => setFeedLoading(false));
-      }
+      if (demoMode) setFeedData(DEMO_FEED_DATA);
+      else if (!feedData && !feedLoading) fetchFeedData(period);
     }
     if (newView === 'revenue') {
-      if (demoMode) {
-        setRevenueData(DEMO_REVENUE_DATA);
-      } else if (!revenueData && !revenueLoading) {
-        setRevenueLoading(true);
-        fetch('/api/dashboard/revenue-attribution')
-          .then(r => r.json())
-          .then(d => { setRevenueData(d); setRevenueLoading(false); })
-          .catch(() => setRevenueLoading(false));
-      }
+      if (demoMode) setRevenueData(DEMO_REVENUE_DATA);
+      else if (!revenueData && !revenueLoading) fetchRevenueData(period);
     }
+  }
+
+  function changePeriod(days) {
+    setPeriod(days);
+    if (demoMode) return;
+    if (view === 'advisor') { setAdvisorData(null); fetchAdvisorData(days); }
+    if (view === 'feed')    { setFeedData(null);    fetchFeedData(days); }
+    if (view === 'revenue') { setRevenueData(null); fetchRevenueData(days); }
   }
 
   function toggleDemo(on) {
@@ -624,13 +634,28 @@ export default function ProspectsPage() {
                 </div>
               )}
 
-              {/* View tabs */}
-              <div style={s.viewTabs}>
-                {[['opportunities', 'Revenue Opportunities'], ['advisor', 'Advisor Performance'], ['feed', 'Activity Feed'], ['revenue', 'Revenue Attribution']].map(([key, label]) => (
-                  <button key={key} onClick={() => switchView(key)} style={{ ...s.viewTab, ...(view === key ? s.viewTabActive : {}) }}>
-                    {label}
-                  </button>
-                ))}
+              {/* View tabs + period selector */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #E8EAED', marginBottom: 16 }}>
+                <div style={{ display: 'flex' }}>
+                  {[['opportunities', 'Revenue Opportunities'], ['advisor', 'Advisor Performance'], ['feed', 'Activity Feed'], ['revenue', 'Revenue Attribution']].map(([key, label]) => (
+                    <button key={key} onClick={() => switchView(key)} style={{ ...s.viewTab, ...(view === key ? s.viewTabActive : {}) }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {view !== 'opportunities' && (
+                  <div style={{ display: 'flex', gap: 2, background: '#F3F4F6', borderRadius: 6, padding: 3, marginBottom: 2, flexShrink: 0 }}>
+                    {[7, 30, 90].map(d => (
+                      <button
+                        key={d}
+                        onClick={() => changePeriod(d)}
+                        style={{ padding: '4px 13px', fontSize: 12, fontWeight: period === d ? 700 : 500, color: period === d ? '#111827' : '#6B7280', background: period === d ? '#fff' : 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit', boxShadow: period === d ? '0 1px 2px rgba(0,0,0,.07)' : 'none', transition: 'all .15s' }}
+                      >
+                        {d}d
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* ── Opportunities view ──────────────────────────────────────── */}

@@ -17,7 +17,8 @@ export default async function handler(req, res) {
   if (!session) return res.status(401).json({ error: 'Unauthorized' });
 
   const supabase = getSupabaseAdmin();
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 365);
+  const thirtyDaysAgo = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
   const [{ data: callEvents }, { data: bookings }] = await Promise.all([
     supabase

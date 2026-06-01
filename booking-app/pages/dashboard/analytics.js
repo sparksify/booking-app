@@ -49,13 +49,23 @@ export default function AnalyticsDashboard({ showRevenueProp, showFranchiseProp 
   const { data: session } = useSession();
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
+  const [period,  setPeriod]  = useState(30);
 
-  useEffect(() => {
-    fetch('/api/analytics')
+  function loadData(days) {
+    setLoading(true);
+    setData(null);
+    fetch(`/api/analytics?days=${days}`)
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+  }
+
+  function changePeriod(days) {
+    setPeriod(days);
+    loadData(days);
+  }
+
+  useEffect(() => { loadData(30); }, []);
 
   return (
     <>
@@ -81,6 +91,25 @@ export default function AnalyticsDashboard({ showRevenueProp, showFranchiseProp 
         </header>
 
         <main style={s.main}>
+          {/* Period selector */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Analytics</div>
+            <div style={{ display: 'flex', gap: 2, background: '#F3F4F6', borderRadius: 6, padding: 3 }}>
+              {[7, 30, 90].map(d => (
+                <button key={d} onClick={() => changePeriod(d)} style={{
+                  padding: '4px 13px', fontSize: 12,
+                  fontWeight: period === d ? 700 : 500,
+                  color: period === d ? '#111827' : '#6B7280',
+                  background: period === d ? '#fff' : 'transparent',
+                  border: 'none', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit',
+                  boxShadow: period === d ? '0 1px 2px rgba(0,0,0,.07)' : 'none',
+                }}>
+                  {d}d
+                </button>
+              ))}
+            </div>
+          </div>
+
           {loading ? (
             <div style={s.loadingWrap}>
               <div style={s.spinner} />
