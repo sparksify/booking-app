@@ -731,7 +731,6 @@ export default function ProspectsPage() {
               {/* ── Advisor Performance view ─────────────────────────────────── */}
               {view === 'advisor' && (
                 <div style={{ animation: 'fadeIn .2s ease' }}>
-                  <div style={{ marginBottom: 14, fontSize: 13, color: '#6B7280' }}>Prospecting activity — last 30 days</div>
                   {advisorSpinning ? (
                     <div style={s.loadingWrap}><div style={s.spinner} /></div>
                   ) : !displayAdvisor?.advisors?.length ? (
@@ -740,38 +739,46 @@ export default function ProspectsPage() {
                       <div style={{ fontSize: 13, color: '#9CA3AF' }}>Start prospecting to build call history. Metrics appear here after the first call disposition is logged.</div>
                     </div>
                   ) : (
-                    <div style={s.tableWrap}>
-                      <table style={s.table}>
-                        <thead>
-                          <tr>
-                            <th style={s.th}>Advisor</th>
-                            <th style={s.th}>Calls Made</th>
-                            <th style={s.th}>Connected</th>
-                            <th style={s.th}>Booked</th>
-                            <th style={s.th}>Conv %</th>
-                            <th style={s.th}>Voicemails</th>
-                            <th style={s.th}>No Answer</th>
-                            <th style={s.th}>Show Rate</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {displayAdvisor.advisors.map((a, i) => (
-                            <tr key={a.rep} style={{ background: i % 2 ? '#fff' : '#F9FAFB' }}>
-                              <td style={s.td}><div style={{ fontWeight: 600, color: '#111827', fontSize: 13 }}>{a.rep}</div></td>
-                              <td style={s.td}>{a.calls}</td>
-                              <td style={s.td}>{a.connected}</td>
-                              <td style={{ ...s.td, fontWeight: 700, color: a.booked > 0 ? '#15803D' : '#111827' }}>{a.booked}</td>
-                              <td style={s.td}>
-                                <span style={{ fontWeight: 700, color: a.convRate >= 10 ? '#15803D' : a.convRate >= 5 ? '#B45309' : '#DC2626' }}>{a.convRate}%</span>
-                              </td>
-                              <td style={{ ...s.td, color: '#6B7280' }}>{a.voicemail}</td>
-                              <td style={{ ...s.td, color: '#6B7280' }}>{a.no_answer}</td>
-                              <td style={s.td}>{a.showRate !== null && a.showRate !== undefined ? `${a.showRate}%` : '—'}</td>
+                    <>
+                      <AdvisorKPIs advisors={displayAdvisor.advisors} />
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                        <VolumeChart advisors={displayAdvisor.advisors} />
+                        <ConvRateChart advisors={displayAdvisor.advisors} />
+                      </div>
+                      <OutcomeChart advisors={displayAdvisor.advisors} />
+                      <div style={s.tableWrap}>
+                        <table style={s.table}>
+                          <thead>
+                            <tr>
+                              <th style={s.th}>Advisor</th>
+                              <th style={s.th}>Calls</th>
+                              <th style={s.th}>Connected</th>
+                              <th style={s.th}>Booked</th>
+                              <th style={s.th}>Conv %</th>
+                              <th style={s.th}>Voicemails</th>
+                              <th style={s.th}>No Answer</th>
+                              <th style={s.th}>Show Rate</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody>
+                            {displayAdvisor.advisors.map((a, i) => (
+                              <tr key={a.rep} style={{ background: i % 2 ? '#fff' : '#F9FAFB' }}>
+                                <td style={s.td}><div style={{ fontWeight: 600, color: '#111827', fontSize: 13 }}>{repLabel(a.rep)}</div></td>
+                                <td style={s.td}>{a.calls}</td>
+                                <td style={s.td}>{a.connected}</td>
+                                <td style={{ ...s.td, fontWeight: 700, color: a.booked > 0 ? '#15803D' : '#111827' }}>{a.booked}</td>
+                                <td style={s.td}>
+                                  <span style={{ fontWeight: 700, color: a.convRate >= 10 ? '#15803D' : a.convRate >= 5 ? '#B45309' : '#DC2626' }}>{a.convRate}%</span>
+                                </td>
+                                <td style={{ ...s.td, color: '#6B7280' }}>{a.voicemail}</td>
+                                <td style={{ ...s.td, color: '#6B7280' }}>{a.no_answer}</td>
+                                <td style={s.td}>{a.showRate != null ? `${a.showRate}%` : '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
                   )}
                 </div>
               )}
@@ -814,6 +821,218 @@ export default function ProspectsPage() {
         </main>
       </div>
     </>
+  );
+}
+
+// ─── Advisor chart components ─────────────────────────────────────────────────
+
+function repLabel(email) {
+  return email.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+}
+
+function AdvisorKPIs({ advisors }) {
+  const totalCalls  = advisors.reduce((s, a) => s + a.calls, 0);
+  const totalBooked = advisors.reduce((s, a) => s + a.booked, 0);
+  const teamConv    = totalCalls > 0 ? Math.round(totalBooked / totalCalls * 100) : 0;
+  const showAdv     = advisors.filter(a => a.showRate != null);
+  const avgShow     = showAdv.length ? Math.round(showAdv.reduce((s, a) => s + a.showRate, 0) / showAdv.length) : null;
+  const kpis = [
+    { label: 'Total Calls (30d)',      value: totalCalls,                   color: '#111827' },
+    { label: 'Appointments Booked',    value: totalBooked,                  color: '#15803D' },
+    { label: 'Team Conv Rate',         value: `${teamConv}%`,               color: teamConv >= 10 ? '#15803D' : teamConv >= 5 ? '#B45309' : '#DC2626' },
+    { label: 'Avg Show Rate',          value: avgShow != null ? `${avgShow}%` : '—', color: '#374151' },
+  ];
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 12 }}>
+      {kpis.map(k => (
+        <div key={k.label} style={{ background: '#fff', border: '1px solid #E8EAED', borderRadius: 6, padding: '16px 18px' }}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: k.color, lineHeight: 1.1, marginBottom: 5 }}>{k.value}</div>
+          <div style={{ fontSize: 10, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{k.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function VolumeChart({ advisors }) {
+  const W = 480, H = 220;
+  const ml = 16, mr = 16, mt = 24, mb = 60;
+  const cw = W - ml - mr, ch = H - mt - mb;
+  const maxVal = Math.max(...advisors.map(a => a.calls), 1);
+  const barsConfig = [
+    { key: 'calls',     label: 'Calls',     color: '#CBD5E1' },
+    { key: 'connected', label: 'Connected', color: '#60A5FA' },
+    { key: 'booked',    label: 'Booked',    color: '#22C55E' },
+  ];
+  const groupW = cw / advisors.length;
+  const barW = Math.min(24, groupW / 4.5);
+  const barSpacing = barW + 5;
+  const groupBarsW = barsConfig.length * barSpacing - 5;
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #E8EAED', borderRadius: 6, padding: '16px 20px 8px' }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 2 }}>Call Volume Funnel</div>
+      <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 8 }}>Calls → Connected → Booked, last 30 days</div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', overflow: 'visible' }}>
+        {[0, 0.25, 0.5, 0.75, 1].map(frac => {
+          const y = mt + (1 - frac) * ch;
+          const val = Math.round(frac * maxVal);
+          return (
+            <g key={frac}>
+              <line x1={ml} y1={y} x2={ml + cw} y2={y} stroke={frac === 0 ? '#E5E7EB' : '#F3F4F6'} strokeWidth={1} />
+              <text x={ml - 4} y={y + 4} textAnchor="end" fontSize={9} fill="#9CA3AF">{val}</text>
+            </g>
+          );
+        })}
+        {advisors.map((a, gi) => {
+          const gx = ml + gi * groupW + (groupW - groupBarsW) / 2;
+          return (
+            <g key={a.rep}>
+              {barsConfig.map((bc, bi) => {
+                const val = a[bc.key] || 0;
+                const bh = (val / maxVal) * ch;
+                const x = gx + bi * barSpacing;
+                const y = mt + ch - bh;
+                return (
+                  <g key={bc.key}>
+                    <rect x={x} y={y} width={barW} height={Math.max(bh, 2)} fill={bc.color} rx={2} />
+                    {val > 0 && <text x={x + barW / 2} y={y - 4} textAnchor="middle" fontSize={9} fontWeight="700" fill={bc.color}>{val}</text>}
+                  </g>
+                );
+              })}
+              <text x={gx + groupBarsW / 2} y={mt + ch + 16} textAnchor="middle" fontSize={11} fontWeight="600" fill="#374151">
+                {repLabel(a.rep).split(' ')[0]}
+              </text>
+              <text x={gx + groupBarsW / 2} y={mt + ch + 30} textAnchor="middle" fontSize={9} fill="#9CA3AF">
+                {repLabel(a.rep).split(' ').slice(1).join(' ')}
+              </text>
+            </g>
+          );
+        })}
+        {barsConfig.map((bc, i) => (
+          <g key={bc.key} transform={`translate(${ml + i * 90}, ${H - 10})`}>
+            <rect y={-8} width={10} height={10} fill={bc.color} rx={1} />
+            <text x={13} y={1} fontSize={9} fill="#6B7280">{bc.label}</text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+function ConvRateChart({ advisors }) {
+  const W = 460, H = 210;
+  const ml = 82, mr = 70, mt = 20, mb = 34;
+  const cw = W - ml - mr, ch = H - mt - mb;
+  const rows = advisors.length;
+  const rowH = ch / rows;
+  const MAX_CONV = 25;
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #E8EAED', borderRadius: 6, padding: '16px 20px 8px' }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 2 }}>Conversion & Show Rates</div>
+      <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 8 }}>Conv rate (solid) · Show rate (blue) · 0–25% scale</div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto' }}>
+        {[0, 5, 10, 15, 20, 25].map(pct => {
+          const x = ml + (pct / MAX_CONV) * cw;
+          return (
+            <g key={pct}>
+              <line x1={x} y1={mt} x2={x} y2={mt + ch} stroke={pct === 0 ? '#D1D5DB' : '#F3F4F6'} strokeWidth={1} />
+              <text x={x} y={mt + ch + 14} textAnchor="middle" fontSize={9} fill="#9CA3AF">{pct}%</text>
+            </g>
+          );
+        })}
+        {advisors.map((a, i) => {
+          const topY    = mt + i * rowH + rowH * 0.08;
+          const convH   = rowH * 0.36;
+          const showH   = rowH * 0.22;
+          const showY   = topY + convH + rowH * 0.08;
+          const convW   = Math.min(1, a.convRate / MAX_CONV) * cw;
+          const showW   = a.showRate != null ? Math.min(1, a.showRate / 100) * cw : 0;
+          const convColor = a.convRate >= 10 ? '#15803D' : a.convRate >= 5 ? '#D97706' : '#DC2626';
+          return (
+            <g key={a.rep}>
+              <text x={ml - 8} y={topY + convH / 2 + 4} textAnchor="end" fontSize={10} fontWeight="600" fill="#374151">
+                {repLabel(a.rep).split(' ')[0]}
+              </text>
+              <rect x={ml} y={topY} width={cw} height={convH} fill="#F3F4F6" rx={3} />
+              <rect x={ml} y={topY} width={convW} height={convH} fill={convColor} rx={3} />
+              <text x={ml + convW + 6} y={topY + convH / 2 + 5} fontSize={13} fontWeight="800" fill={convColor}>{a.convRate}%</text>
+              {a.showRate != null && (
+                <>
+                  <rect x={ml} y={showY} width={cw} height={showH} fill="#F3F4F6" rx={2} />
+                  <rect x={ml} y={showY} width={showW} height={showH} fill="#60A5FA" rx={2} />
+                  <text x={ml + showW + 6} y={showY + showH / 2 + 3} fontSize={10} fill="#3B82F6">{a.showRate}% show</text>
+                </>
+              )}
+            </g>
+          );
+        })}
+        <g transform={`translate(${ml}, ${H - 6})`}>
+          <rect y={-8} width={10} height={10} fill="#15803D" rx={1} />
+          <text x={13} y={1} fontSize={9} fill="#6B7280">Conv rate</text>
+          <rect x={80} y={-8} width={10} height={10} fill="#60A5FA" rx={1} />
+          <text x={93} y={1} fontSize={9} fill="#6B7280">Show rate</text>
+        </g>
+      </svg>
+    </div>
+  );
+}
+
+function OutcomeChart({ advisors }) {
+  const W = 900, H = 155;
+  const ml = 80, mr = 110, mt = 16, mb = 34;
+  const cw = W - ml - mr;
+  const rows = advisors.length;
+  const rowH = (H - mt - mb) / rows;
+  const KEYS   = ['no_answer', 'voicemail', 'not_interested', 'follow_up', 'booked'];
+  const COLORS  = { no_answer: '#E5E7EB', voicemail: '#CBD5E1', not_interested: '#FCA5A5', follow_up: '#FCD34D', booked: '#86EFAC' };
+  const LABELS  = { no_answer: 'No Answer', voicemail: 'Voicemail', not_interested: 'Not Interested', follow_up: 'Follow-Up', booked: 'Booked!' };
+  const TCOLORS = { no_answer: '#6B7280', voicemail: '#475569', not_interested: '#B91C1C', follow_up: '#92400E', booked: '#15803D' };
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #E8EAED', borderRadius: 6, padding: '16px 20px 8px', marginBottom: 12 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 2 }}>Call Outcome Breakdown</div>
+      <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 8 }}>Proportional breakdown of every call disposition per advisor</div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto' }}>
+        {advisors.map((a, i) => {
+          const barY = mt + i * rowH + rowH * 0.15;
+          const barH = rowH * 0.58;
+          let x = ml;
+          const segs = KEYS.map(key => {
+            const val = a[key] || 0;
+            const w = a.calls > 0 ? (val / a.calls) * cw : 0;
+            const out = { key, val, w, x };
+            x += w;
+            return out;
+          });
+          return (
+            <g key={a.rep}>
+              <text x={ml - 8} y={barY + barH / 2 + 4} textAnchor="end" fontSize={10} fontWeight="600" fill="#374151">
+                {repLabel(a.rep).split(' ')[0]}
+              </text>
+              <rect x={ml} y={barY} width={cw} height={barH} fill="#F9FAFB" rx={3} />
+              {segs.map(({ key, val, w, x: sx }) => (
+                <g key={key}>
+                  {w > 0 && <rect x={sx} y={barY} width={w} height={barH} fill={COLORS[key]} />}
+                  {w > 26 && val > 0 && (
+                    <text x={sx + w / 2} y={barY + barH / 2 + 4} textAnchor="middle" fontSize={9} fontWeight="700" fill={TCOLORS[key]}>{val}</text>
+                  )}
+                </g>
+              ))}
+              <rect x={ml} y={barY} width={cw} height={barH} fill="none" stroke="#E5E7EB" strokeWidth={1} rx={3} />
+              <text x={ml + cw + 8} y={barY + barH / 2 + 4} fontSize={11} fontWeight="700" fill="#374151">{a.calls} calls</text>
+            </g>
+          );
+        })}
+        {KEYS.map((key, i) => (
+          <g key={key} transform={`translate(${ml + i * 148}, ${H - 8})`}>
+            <rect y={-8} width={12} height={12} fill={COLORS[key]} rx={1} stroke="#E5E7EB" strokeWidth={0.5} />
+            <text x={16} y={2} fontSize={9} fill="#6B7280">{LABELS[key]}</text>
+          </g>
+        ))}
+      </svg>
+    </div>
   );
 }
 
