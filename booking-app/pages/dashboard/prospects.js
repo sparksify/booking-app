@@ -284,6 +284,28 @@ const DEMO_FEED_DATA = {
   ],
 };
 
+const now__ = Date.now();
+const DEMO_REVENUE_DATA = {
+  totalRevenue:  156000,
+  totalClosings: 5,
+  totalMissed:   84000,
+  missedCount:   12,
+  closings: [
+    { id: 'c1', lead_name: 'William Brooks',    advisor_email: 'sarah.rep@franchisebook.com',    bucket: 'high_dollar',   franchise_brand: 'Pilates Addiction',     commission: 42000, closed_at: new Date(now__ - 2  * 86400000).toISOString() },
+    { id: 'c2', lead_name: 'Marcus Thompson',   advisor_email: 'steve@sparksify.com',            bucket: 'hot',           franchise_brand: 'Freecoat Nails',        commission: 28000, closed_at: new Date(now__ - 5  * 86400000).toISOString() },
+    { id: 'c3', lead_name: 'Linda Chen',        advisor_email: 'sarah.rep@franchisebook.com',    bucket: 'resurrection',  franchise_brand: 'Club Pilates',          commission: 35000, closed_at: new Date(now__ - 9  * 86400000).toISOString() },
+    { id: 'c4', lead_name: 'Jennifer Caldwell', advisor_email: 'john.advisor@franchisebook.com', bucket: 'near_miss',     franchise_brand: 'Sola Salons',           commission: 22000, closed_at: new Date(now__ - 14 * 86400000).toISOString() },
+    { id: 'c5', lead_name: 'Thomas Baker',      advisor_email: 'steve@sparksify.com',            bucket: 'speed_to_lead', franchise_brand: 'The Joint Chiropractic',commission: 29000, closed_at: new Date(now__ - 21 * 86400000).toISOString() },
+  ],
+  missed: [
+    { id: 'm1', lead_name: 'Erin Nakamura',   bucket: 'vip',           investment_level: '$500k+',      ageDays: 3.2,  missedEst: 3000 },
+    { id: 'm2', lead_name: 'Gregory Hoffman', bucket: 'vip',           investment_level: '$250k–$500k', ageDays: 8.5,  missedEst: 3000 },
+    { id: 'm3', lead_name: 'Priya Mehta',     bucket: 'speed_to_lead', investment_level: '$100k–$200k', ageDays: 0.2,  missedEst: 5250 },
+    { id: 'm4', lead_name: 'Derek Cross',     bucket: 'vip',           investment_level: '$500k+',      ageDays: 12.1, missedEst: 3000 },
+    { id: 'm5', lead_name: 'Rachel Kim',      bucket: 're_engaged',    investment_level: '$150k–$250k', ageDays: 22,   missedEst: 3750 },
+  ],
+};
+
 function buildDemoData() {
   const buckets = { saves: [], speed_to_lead: [], vip: [], re_engaged: [], near_miss: [], resurrection: [], high_dollar: [], hot: [] };
   for (const l of DEMO_LEADS) {
@@ -395,6 +417,8 @@ export default function ProspectsPage() {
   const [advisorLoading, setAdvisorLoading] = useState(false);
   const [feedData,       setFeedData]       = useState(null);
   const [feedLoading,    setFeedLoading]    = useState(false);
+  const [revenueData,    setRevenueData]    = useState(null);
+  const [revenueLoading, setRevenueLoading] = useState(false);
 
   const loadData = useCallback(() => {
     setLoading(true);
@@ -431,6 +455,17 @@ export default function ProspectsPage() {
           .catch(() => setFeedLoading(false));
       }
     }
+    if (newView === 'revenue') {
+      if (demoMode) {
+        setRevenueData(DEMO_REVENUE_DATA);
+      } else if (!revenueData && !revenueLoading) {
+        setRevenueLoading(true);
+        fetch('/api/dashboard/revenue-attribution')
+          .then(r => r.json())
+          .then(d => { setRevenueData(d); setRevenueLoading(false); })
+          .catch(() => setRevenueLoading(false));
+      }
+    }
   }
 
   function toggleDemo(on) {
@@ -443,18 +478,22 @@ export default function ProspectsPage() {
       setData(buildDemoData());
       setAdvisorData(DEMO_ADVISOR_DATA);
       setFeedData(DEMO_FEED_DATA);
+      setRevenueData(DEMO_REVENUE_DATA);
     } else {
       loadData();
       setAdvisorData(null);
       setFeedData(null);
+      setRevenueData(null);
     }
   }
 
-  const displayData     = demoMode ? buildDemoData() : data;
-  const displayAdvisor  = demoMode ? DEMO_ADVISOR_DATA : advisorData;
-  const displayFeed     = demoMode ? DEMO_FEED_DATA    : feedData;
+  const displayData     = demoMode ? buildDemoData()      : data;
+  const displayAdvisor  = demoMode ? DEMO_ADVISOR_DATA    : advisorData;
+  const displayFeed     = demoMode ? DEMO_FEED_DATA       : feedData;
+  const displayRevenue  = demoMode ? DEMO_REVENUE_DATA    : revenueData;
   const advisorSpinning = !demoMode && advisorLoading;
   const feedSpinning    = !demoMode && feedLoading;
+  const revenueSpinning = !demoMode && revenueLoading;
   const hero            = displayData?.hero || null;
 
   const visibleLeads = !displayData ? [] : (
@@ -587,7 +626,7 @@ export default function ProspectsPage() {
 
               {/* View tabs */}
               <div style={s.viewTabs}>
-                {[['opportunities', 'Revenue Opportunities'], ['advisor', 'Advisor Performance'], ['feed', 'Activity Feed']].map(([key, label]) => (
+                {[['opportunities', 'Revenue Opportunities'], ['advisor', 'Advisor Performance'], ['feed', 'Activity Feed'], ['revenue', 'Revenue Attribution']].map(([key, label]) => (
                   <button key={key} onClick={() => switchView(key)} style={{ ...s.viewTab, ...(view === key ? s.viewTabActive : {}) }}>
                     {label}
                   </button>
@@ -778,6 +817,57 @@ export default function ProspectsPage() {
                           </tbody>
                         </table>
                       </div>
+
+                      {/* AI Coach */}
+                      <div style={{ marginTop: 14 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 10 }}>AI Coach</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 10 }}>
+                          {generateCoachInsights(displayAdvisor.advisors).map(insight => {
+                            const sColor  = insight.status === 'strong' ? '#15803D' : insight.status === 'needs_attention' ? '#DC2626' : '#B45309';
+                            const sBg     = insight.status === 'strong' ? '#F0FDF4' : insight.status === 'needs_attention' ? '#FEF2F2' : '#FFFBEB';
+                            const sBorder = insight.status === 'strong' ? '#BBF7D0' : insight.status === 'needs_attention' ? '#FECACA' : '#FCD34D';
+                            const sLabel  = insight.status === 'strong' ? '⭐ Top performer' : insight.status === 'needs_attention' ? '⚠ Needs attention' : '📈 Developing';
+                            return (
+                              <div key={insight.rep} style={{ background: '#fff', border: '1px solid #E8EAED', borderRadius: 6, padding: '16px 18px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                                  <div style={{ fontWeight: 700, color: '#111827', fontSize: 13 }}>{repLabel(insight.rep)}</div>
+                                  <span style={{ fontSize: 10, fontWeight: 600, color: sColor, background: sBg, border: `1px solid ${sBorder}`, borderRadius: 4, padding: '2px 8px' }}>{sLabel}</span>
+                                </div>
+                                {insight.strengths.length > 0 && (
+                                  <div style={{ marginBottom: 8 }}>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: '#15803D', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Strengths</div>
+                                    {insight.strengths.map((str, i) => (
+                                      <div key={i} style={{ fontSize: 12, color: '#374151', lineHeight: 1.6, display: 'flex', gap: 6 }}>
+                                        <span style={{ color: '#22C55E', flexShrink: 0 }}>+</span>{str}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {insight.issues.length > 0 && (
+                                  <div style={{ marginBottom: 8 }}>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: '#DC2626', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Issues</div>
+                                    {insight.issues.map((iss, i) => (
+                                      <div key={i} style={{ fontSize: 12, color: '#374151', lineHeight: 1.6, display: 'flex', gap: 6 }}>
+                                        <span style={{ color: '#EF4444', flexShrink: 0 }}>−</span>{iss}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {insight.tips.length > 0 && (
+                                  <div>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Tip</div>
+                                    {insight.tips.map((tip, i) => (
+                                      <div key={i} style={{ fontSize: 12, color: '#374151', lineHeight: 1.6, display: 'flex', gap: 6 }}>
+                                        <span style={{ color: '#60A5FA', flexShrink: 0 }}>→</span>{tip}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </>
                   )}
                 </div>
@@ -816,6 +906,119 @@ export default function ProspectsPage() {
                   )}
                 </div>
               )}
+
+              {/* ── Revenue Attribution view ─────────────────────────────────── */}
+              {view === 'revenue' && (
+                <div style={{ animation: 'fadeIn .2s ease' }}>
+                  {revenueSpinning ? (
+                    <div style={s.loadingWrap}><div style={s.spinner} /></div>
+                  ) : (
+                    <>
+                      {/* KPI row */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
+                        <div style={{ background: '#fff', border: '1px solid #E8EAED', borderRadius: 6, padding: '18px 20px' }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5 }}>Revenue Attributed (30d)</div>
+                          <div style={{ fontSize: 34, fontWeight: 900, color: '#15803D', lineHeight: 1.1 }}>{fmtDollars(displayRevenue?.totalRevenue || 0)}</div>
+                          <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>{displayRevenue?.totalClosings || 0} closed deals</div>
+                        </div>
+                        <div style={{ background: '#fff', border: '1px solid #E8EAED', borderRadius: 6, padding: '18px 20px' }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5 }}>Avg Per Close</div>
+                          <div style={{ fontSize: 34, fontWeight: 900, color: '#111827', lineHeight: 1.1 }}>
+                            {displayRevenue?.totalClosings ? fmtDollars(Math.round((displayRevenue.totalRevenue || 0) / displayRevenue.totalClosings)) : '—'}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>Across all advisors</div>
+                        </div>
+                        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 6, padding: '18px 20px' }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: '#B91C1C', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5 }}>Missed Revenue (30d)</div>
+                          <div style={{ fontSize: 34, fontWeight: 900, color: '#DC2626', lineHeight: 1.1 }}>{fmtDollars(displayRevenue?.totalMissed || 0)}</div>
+                          <div style={{ fontSize: 11, color: '#EF4444', marginTop: 4 }}>{displayRevenue?.missedCount || displayRevenue?.missed?.length || 0} high-value leads, no contact</div>
+                        </div>
+                      </div>
+
+                      {/* Attribution feed */}
+                      {displayRevenue?.closings?.length > 0 && (
+                        <div style={{ marginBottom: 14 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 8 }}>Revenue Attributed — Last 30 Days</div>
+                          <div style={s.tableWrap}>
+                            {displayRevenue.closings.map(c => {
+                              const bc = BUCKETS[c.bucket];
+                              return (
+                                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', borderBottom: '1px solid #F3F4F6' }}>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                                      <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{c.lead_name}</span>
+                                      {bc && <span style={{ fontSize: 10, fontWeight: 600, color: bc.color, background: bc.bg, border: `1px solid ${bc.border}`, borderRadius: 4, padding: '2px 7px' }}>{bc.label}</span>}
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#6B7280', flexWrap: 'wrap' }}>
+                                      <span style={{ background: '#F3F4F6', borderRadius: 3, padding: '2px 7px', color: '#374151' }}>{bc?.label || c.bucket}</span>
+                                      <span style={{ color: '#D1D5DB' }}>→</span>
+                                      <span>Called by <strong style={{ color: '#374151' }}>{repLabel(c.advisor_email)}</strong></span>
+                                      <span style={{ color: '#D1D5DB' }}>→</span>
+                                      <span>Booked</span>
+                                      <span style={{ color: '#D1D5DB' }}>→</span>
+                                      <span style={{ fontWeight: 700, color: '#15803D' }}>Closed</span>
+                                    </div>
+                                    {c.franchise_brand && <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>Franchise: {c.franchise_brand}</div>}
+                                  </div>
+                                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                    <div style={{ fontSize: 24, fontWeight: 900, color: '#15803D' }}>{fmtDollars(c.commission)}</div>
+                                    <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{fmtDate(c.closed_at)}</div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Missed revenue */}
+                      {(displayRevenue?.missed?.length > 0 || displayRevenue?.totalMissed > 0) && (
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#DC2626' }}>Missed Revenue This Month</div>
+                            <div style={{ fontSize: 12, color: '#9CA3AF' }}>High-value leads that received no advisor contact</div>
+                          </div>
+                          <div style={{ background: '#FFF5F5', border: '1px solid #FECACA', borderRadius: 6, overflow: 'hidden' }}>
+                            {(displayRevenue.missed || []).map(m => {
+                              const bc = BUCKETS[m.bucket];
+                              return (
+                                <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '12px 20px', borderBottom: '1px solid #FEE2E2' }}>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                                      <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{m.lead_name}</span>
+                                      {bc && <span style={{ fontSize: 10, fontWeight: 600, color: bc.color, background: bc.bg, border: `1px solid ${bc.border}`, borderRadius: 4, padding: '2px 6px' }}>{bc.label}</span>}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: '#9CA3AF' }}>
+                                      {m.investment_level && `${m.investment_level} · `}
+                                      {m.ageDays < 1 ? `${Math.round(m.ageDays * 24)}h old` : `${m.ageDays}d old`} · No contact recorded
+                                    </div>
+                                  </div>
+                                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                    <div style={{ fontSize: 17, fontWeight: 800, color: '#DC2626' }}>−{fmtDollars(m.missedEst)}</div>
+                                    <div style={{ fontSize: 10, color: '#EF4444' }}>est. missed</div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {(displayRevenue.missedCount || 0) > (displayRevenue.missed?.length || 0) && (
+                              <div style={{ padding: '10px 20px', fontSize: 12, color: '#B91C1C', background: '#FEE2E2', textAlign: 'center', fontWeight: 600 }}>
+                                +{(displayRevenue.missedCount || 0) - (displayRevenue.missed?.length || 0)} more missed leads — total estimated {fmtDollars(displayRevenue.totalMissed)} missed this month
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {!displayRevenue?.closings?.length && !displayRevenue?.missed?.length && (
+                        <div style={s.emptyCard}>
+                          <div style={{ fontWeight: 600, color: '#374151', marginBottom: 6 }}>No revenue data yet</div>
+                          <div style={{ fontSize: 13, color: '#9CA3AF' }}>Mark deals as closed from the prospecting queue to start tracking attributed revenue.</div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </>
           )}
         </main>
@@ -828,6 +1031,53 @@ export default function ProspectsPage() {
 
 function repLabel(email) {
   return email.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+}
+
+function generateCoachInsights(advisors) {
+  if (!advisors?.length) return [];
+  const teamAvgConv = advisors.reduce((s, a) => s + a.convRate, 0) / advisors.length;
+  const showAdv     = advisors.filter(a => a.showRate != null);
+  const teamAvgShow = showAdv.length ? showAdv.reduce((s, a) => s + a.showRate, 0) / showAdv.length : null;
+  const topConv     = Math.max(...advisors.map(a => a.convRate));
+  const topShow     = showAdv.length ? Math.max(...showAdv.map(a => a.showRate)) : null;
+
+  return advisors.map(a => {
+    const strengths = [], issues = [], tips = [];
+
+    if (a.convRate >= teamAvgConv * 1.2)
+      strengths.push(`${a.convRate}% conv rate — ${Math.round(a.convRate - teamAvgConv)}pts above team avg`);
+    else if (a.convRate < teamAvgConv * 0.7)
+      issues.push(`${a.convRate}% conv rate — ${Math.round(teamAvgConv - a.convRate)}pts below team avg (${Math.round(teamAvgConv)}%)`);
+
+    if (teamAvgShow != null && a.showRate != null) {
+      if (a.showRate >= teamAvgShow * 1.1)
+        strengths.push(`Highest show rate on team (${a.showRate}%)`);
+      else if (a.showRate < teamAvgShow * 0.8)
+        issues.push(`Show rate ${a.showRate}% — below team avg (${Math.round(teamAvgShow)}%)`);
+    }
+
+    const naRate = a.calls > 0 ? Math.round(a.no_answer / a.calls * 100) : 0;
+    if (naRate > 40) issues.push(`${naRate}% no-answer rate — try calling 10–11am and 6–7pm for higher pickup`);
+
+    const vmRate = a.calls > 0 ? Math.round(a.voicemail / a.calls * 100) : 0;
+    if (vmRate > 30 && a.convRate < teamAvgConv) tips.push('Pair voicemails with same-day SMS — 2× callback rate');
+
+    if (a.booked === Math.max(...advisors.map(x => x.booked)))
+      strengths.push(`Team leader in appointments booked (${a.booked})`);
+
+    if (a.calls > 30 && a.connected / a.calls < 0.25)
+      tips.push('Low contact rate — prioritize speed-to-lead leads within 5 min of form submit');
+
+    if (a.convRate === topConv) tips.push('Assign first pick of VIP and Re-Engaged leads');
+    if (topShow != null && a.showRate === topShow) tips.push('High show rate — ideal for near-miss and resurrection outreach');
+    if (strengths.length === 0 && issues.length === 0) tips.push('Consistent performer — increase volume to compound results');
+
+    const status = issues.length >= 2 ? 'needs_attention'
+      : strengths.length >= 1        ? 'strong'
+      : 'developing';
+
+    return { rep: a.rep, status, strengths, issues, tips };
+  });
 }
 
 function AdvisorKPIs({ advisors }) {
@@ -1039,11 +1289,15 @@ function OutcomeChart({ advisors }) {
 // ─── Queue Card ───────────────────────────────────────────────────────────────
 
 function QueueCard({ lead, index, total, bucketConfig, onDisposition, onSkip, onBack }) {
-  const [copiedPhone, setCopiedPhone] = useState(false);
-  const [copiedEmail, setCopiedEmail] = useState(false);
-  const [ghlSignals,  setGhlSignals]  = useState(null);
-  const [ghlLoading,  setGhlLoading]  = useState(false);
-  const [noteText,    setNoteText]    = useState('');
+  const [copiedPhone,   setCopiedPhone]   = useState(false);
+  const [copiedEmail,   setCopiedEmail]   = useState(false);
+  const [ghlSignals,    setGhlSignals]    = useState(null);
+  const [ghlLoading,    setGhlLoading]    = useState(false);
+  const [noteText,      setNoteText]      = useState('');
+  const [showCloseForm, setShowCloseForm] = useState(false);
+  const [closeBrand,    setCloseBrand]    = useState('');
+  const [closeComm,     setCloseComm]     = useState('');
+  const [closedDone,    setClosedDone]    = useState(false);
   const loadedRef = useRef(null);
 
   useEffect(() => {
@@ -1053,6 +1307,10 @@ function QueueCard({ lead, index, total, bucketConfig, onDisposition, onSkip, on
     setCopiedEmail(false);
     setGhlSignals(null);
     setNoteText('');
+    setShowCloseForm(false);
+    setCloseBrand('');
+    setCloseComm(String(lead.commissionEstimate || 15000));
+    setClosedDone(false);
 
     if (!lead.ghl_contact_id && !lead.email) return;
     setGhlLoading(true);
@@ -1202,6 +1460,65 @@ function QueueCard({ lead, index, total, bucketConfig, onDisposition, onSkip, on
           <button style={{ ...s.dispBtn, background: 'transparent', color: '#9CA3AF', border: '1px solid #E5E7EB', fontSize: 12 }} onClick={onSkip}>
             Skip → Next lead
           </button>
+        </div>
+
+        {/* Mark as Closed */}
+        <div style={{ marginTop: 20, borderTop: '1px solid #F3F4F6', paddingTop: 16 }}>
+          {closedDone ? (
+            <div style={{ textAlign: 'center', padding: '10px 0', fontSize: 13, fontWeight: 700, color: '#15803D' }}>
+              Deal recorded — revenue attributed!
+            </div>
+          ) : showCloseForm ? (
+            <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 6, padding: '14px 16px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#15803D', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Record a Closing</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginBottom: 10 }}>
+                <input
+                  style={{ padding: '8px 12px', border: '1px solid #D1FAE5', borderRadius: 4, fontSize: 13, fontFamily: 'inherit', outline: 'none', color: '#111827', background: '#fff' }}
+                  placeholder="Franchise brand (e.g. Club Pilates)"
+                  value={closeBrand}
+                  onChange={e => setCloseBrand(e.target.value)}
+                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#fff', border: '1px solid #D1FAE5', borderRadius: 4, padding: '0 10px' }}>
+                  <span style={{ fontSize: 13, color: '#6B7280' }}>$</span>
+                  <input
+                    style={{ padding: '8px 4px', border: 'none', fontSize: 13, fontFamily: 'inherit', width: 90, outline: 'none', color: '#111827' }}
+                    value={closeComm}
+                    onChange={e => setCloseComm(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  style={{ padding: '8px 20px', background: '#15803D', color: '#fff', border: 'none', borderRadius: 4, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                  onClick={() => {
+                    const commission = parseFloat(String(closeComm).replace(/[^0-9.]/g, '')) || 0;
+                    if (!commission) return;
+                    fetch('/api/dashboard/record-closing', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ lead_id: lead.id, bucket: lead.bucket, franchise_brand: closeBrand || null, commission }),
+                    });
+                    setClosedDone(true);
+                  }}
+                >
+                  Record Closing →
+                </button>
+                <button
+                  style={{ padding: '8px 14px', background: 'transparent', border: '1px solid #D1FAE5', borderRadius: 4, fontSize: 13, color: '#374151', cursor: 'pointer', fontFamily: 'inherit' }}
+                  onClick={() => setShowCloseForm(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              style={{ fontSize: 12, color: '#15803D', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0, fontWeight: 600 }}
+              onClick={() => { setShowCloseForm(true); if (!closeComm) setCloseComm(String(lead.commissionEstimate || 15000)); }}
+            >
+              Mark this deal as closed →
+            </button>
+          )}
         </div>
       </div>
     </div>
