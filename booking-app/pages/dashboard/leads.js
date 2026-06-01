@@ -358,15 +358,15 @@ const s = {
   page:         { minHeight: '100vh', background: '#F5F6F7', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif", color: '#1A2B3C', display: 'flex', flexDirection: 'column' },
 
   // QB dark header — precise color
-  header:       { background: '#33485E', padding: '0 20px', height: 50, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50, flexShrink: 0 },
+  header:       { background: '#151719', padding: '0 20px', height: 50, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50, flexShrink: 0 },
   headerLeft:   { display: 'flex', alignItems: 'center', gap: 28 },
   logo:         { fontWeight: 600, fontSize: 15, color: '#FFFFFF', letterSpacing: '-0.2px', flexShrink: 0 },
   nav:          { display: 'flex', gap: 2 },
-  navLink:      { fontSize: 13, color: '#A8BED0', textDecoration: 'none', padding: '7px 14px', borderRadius: 3, fontWeight: 400 },
+  navLink:      { fontSize: 13, color: '#9FA6B2', textDecoration: 'none', padding: '7px 14px', borderRadius: 3, fontWeight: 400 },
   navActive:    { color: '#FFFFFF', background: 'rgba(255,255,255,.13)' },
   headerRight:  { display: 'flex', alignItems: 'center', gap: 12 },
-  headerUser:   { fontSize: 13, color: '#A8BED0' },
-  signOutBtn:   { fontSize: 12, fontWeight: 400, color: '#A8BED0', background: 'transparent', border: '1px solid rgba(255,255,255,.18)', borderRadius: 3, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit' },
+  headerUser:   { fontSize: 13, color: '#9FA6B2' },
+  signOutBtn:   { fontSize: 12, fontWeight: 400, color: '#9FA6B2', background: 'transparent', border: '1px solid rgba(255,255,255,.18)', borderRadius: 3, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit' },
 
   // Status filter bar
   statusBar:    { background: '#fff', borderBottom: '1px solid #D8DCE0', padding: '9px 20px', display: 'flex', gap: 6, overflowX: 'auto', flexShrink: 0 },

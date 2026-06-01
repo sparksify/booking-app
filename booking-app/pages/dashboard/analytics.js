@@ -645,15 +645,15 @@ function RateBadge({ rate, small, thresholds = [70, 50] }) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const s = {
   page:         { minHeight: '100vh', background: '#F0F2F5', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" },
-  header:       { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', height: 50, background: '#33485E', position: 'sticky', top: 0, zIndex: 10 },
+  header:       { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', height: 50, background: '#151719', position: 'sticky', top: 0, zIndex: 10 },
   headerLeft:   { display: 'flex', alignItems: 'center', gap: 28 },
   logo:         { fontWeight: 600, fontSize: 15, color: '#FFFFFF', flexShrink: 0 },
   nav:          { display: 'flex', gap: 2 },
-  navLink:      { fontSize: 13, color: '#A8BED0', textDecoration: 'none', padding: '7px 14px', borderRadius: 3 },
+  navLink:      { fontSize: 13, color: '#9FA6B2', textDecoration: 'none', padding: '7px 14px', borderRadius: 3 },
   navActive:    { color: '#FFFFFF', background: 'rgba(255,255,255,.13)' },
   headerRight:  { display: 'flex', alignItems: 'center', gap: 12 },
-  headerUser:   { fontSize: 13, color: '#A8BED0' },
-  signOutBtn:   { fontSize: 12, color: '#A8BED0', background: 'transparent', border: '1px solid rgba(255,255,255,.18)', borderRadius: 3, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit' },
+  headerUser:   { fontSize: 13, color: '#9FA6B2' },
+  signOutBtn:   { fontSize: 12, color: '#9FA6B2', background: 'transparent', border: '1px solid rgba(255,255,255,.18)', borderRadius: 3, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit' },
 
   main:         { maxWidth: 1280, margin: '0 auto', padding: '20px 20px 60px' },
   empty:        { textAlign: 'center', padding: 24, color: '#9CA3AF', fontSize: 12 },
@@ -691,5 +691,5 @@ const s = {
 
   lossRow:      { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #F3F4F6' },
 
-  avatar:       { width: 28, height: 28, borderRadius: '50%', background: '#33485E', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12, flexShrink: 0 },
+  avatar:       { width: 28, height: 28, borderRadius: '50%', background: '#151719', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12, flexShrink: 0 },
 };

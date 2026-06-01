@@ -1057,15 +1057,15 @@ function QBBtn({ variant, onClick, children, disabled }) {
 const s = {
   page:        { minHeight: '100vh', background: '#F5F6F7', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" },
 
-  header:      { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', height: 50, background: '#33485E' },
+  header:      { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', height: 50, background: '#151719' },
   headerLeft:  { display: 'flex', alignItems: 'center', gap: 28 },
   logo:        { fontWeight: 600, fontSize: 15, color: '#FFFFFF', letterSpacing: '-0.2px', flexShrink: 0 },
   nav:         { display: 'flex', gap: 2 },
-  navLink:     { fontSize: 13, color: '#A8BED0', textDecoration: 'none', padding: '7px 14px', borderRadius: 3, fontWeight: 400 },
+  navLink:     { fontSize: 13, color: '#9FA6B2', textDecoration: 'none', padding: '7px 14px', borderRadius: 3, fontWeight: 400 },
   navActive:   { color: '#FFFFFF', background: 'rgba(255,255,255,.13)' },
   headerRight: { display: 'flex', alignItems: 'center', gap: 16 },
-  settingsLink:{ fontSize: 13, color: '#A8BED0', textDecoration: 'none', fontWeight: 400 },
-  headerUser:  { fontSize: 13, color: '#A8BED0' },
+  settingsLink:{ fontSize: 13, color: '#9FA6B2', textDecoration: 'none', fontWeight: 400 },
+  headerUser:  { fontSize: 13, color: '#9FA6B2' },
 
   body:        { maxWidth: 1160, margin: '0 auto', padding: '24px 20px' },
   titleBar:    { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18 },
@@ -1097,7 +1097,7 @@ const s = {
 // ─── Panel styles ─────────────────────────────────────────────────────────────
 const p = {
   panelHdr:       { display: 'flex', alignItems: 'flex-start', gap: 14, padding: '20px 20px 16px', borderBottom: '1px solid #EBEBEB', flexShrink: 0 },
-  avatar:         { width: 46, height: 46, borderRadius: '50%', background: '#33485E', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, flexShrink: 0 },
+  avatar:         { width: 46, height: 46, borderRadius: '50%', background: '#151719', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, flexShrink: 0 },
   clientName:     { fontSize: 16, fontWeight: 600, color: '#1A2B3C', marginBottom: 2 },
   clientEmail:    { fontSize: 12, color: '#6B7280', marginBottom: 6 },
   statusBadge:    { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600 },

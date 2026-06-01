@@ -48,7 +48,7 @@ const GoogleIcon = () => (
 const st = {
   root:      { minHeight: '100vh', background: '#F5F6F7', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif", display: 'flex', flexDirection: 'column' },
 
-  topBar:    { background: '#33485E', height: 52, display: 'flex', alignItems: 'center', padding: '0 24px' },
+  topBar:    { background: '#151719', height: 52, display: 'flex', alignItems: 'center', padding: '0 24px' },
   topLogo:   { color: '#fff', fontWeight: 600, fontSize: 15, letterSpacing: '-0.3px' },
 
   body:      { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 },

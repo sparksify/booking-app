@@ -652,6 +652,13 @@ function PickingPhase({
                     <span className="pk-slots-date">{selDate.dow}, {selDate.mon} {selDate.day}</span>
                     <span className="pk-slots-badge">{calSlots.length} open</span>
                   </div>
+                  {selDate.dateStr === new Date().toISOString().slice(0, 10) && (
+                    <div className="pk-now-marker">
+                      <span className="pk-now-dot" />
+                      <span className="pk-now-line" />
+                      <span className="pk-now-label">Now</span>
+                    </div>
+                  )}
                   <div className="pk-slots-grid">
                     {calSlots.map(sl => {
                       const isOn = selSlot?.h === sl.h && selSlot?.m === sl.m && selDate?.dateStr === selDate?.dateStr;
