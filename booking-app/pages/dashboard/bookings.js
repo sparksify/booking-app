@@ -196,9 +196,10 @@ export default function BookingsDashboard({ brandPitches = {} }) {
           <div style={s.headerLeft}>
             <span style={s.logo}>⬡ FranchiseBook</span>
             <nav style={s.nav}>
-              <Link href="/dashboard/analytics" style={s.navLink}>Analytics</Link>
-              <Link href="/dashboard/bookings"  style={{ ...s.navLink, ...s.navActive }}>Bookings</Link>
-              <Link href="/dashboard/leads"     style={s.navLink}>Leads</Link>
+              <Link href="/dashboard/analytics"  style={s.navLink}>Analytics</Link>
+              <Link href="/dashboard/bookings"   style={{ ...s.navLink, ...s.navActive }}>Bookings</Link>
+              <Link href="/dashboard/leads"      style={s.navLink}>Leads</Link>
+              <Link href="/dashboard/prospects"  style={s.navLink}>Prospects</Link>
             </nav>
           </div>
           <div style={s.headerRight}>
