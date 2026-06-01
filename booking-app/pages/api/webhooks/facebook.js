@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { getLeadData, parseLeadFields, generateToken } from '@/lib/facebookLeads';
 import { upsertGHLContact } from '@/lib/ghl';
 import { logLeadEvent } from '@/lib/leadEvents';
+import { normalizeLocation } from '@/lib/normalizeLocation';
 
 /**
  * /api/webhooks/facebook
@@ -92,7 +93,17 @@ async function handleWebhook(req, res) {
         const fbLead = await getLeadData(leadgen_id);
         const parsed = parseLeadFields(fbLead.field_data || []);
 
-        // 2. Store in Supabase (upsert in case of duplicate delivery)
+        // 2. Normalize territory / area of interest (async, no API key needed)
+        let locationData = null;
+        if (parsed.territory) {
+          try {
+            locationData = await normalizeLocation(parsed.territory);
+          } catch (locErr) {
+            console.warn('[fb-webhook] location normalization failed:', locErr.message);
+          }
+        }
+
+        // 3. Store in Supabase (upsert in case of duplicate delivery)
         const token = generateToken();
         const { data: lead, error: dbErr } = await supabase
           .from('leads')
@@ -110,6 +121,11 @@ async function handleWebhook(req, res) {
             phone:           parsed.phone           || null,
             investment_level: parsed.investmentLevel || null,
             raw_fields:      parsed.raw,
+            location_raw:       locationData?.raw        || parsed.territory || null,
+            location_city:      locationData?.city       || null,
+            location_state:     locationData?.state      || null,
+            location_zip:       locationData?.zip        || null,
+            location_area_code: locationData?.area_code  || null,
             status:          'new',
             updated_at:      new Date().toISOString(),
           }, {
@@ -137,7 +153,7 @@ async function handleWebhook(req, res) {
           }, { leadId: lead.token }).catch(() => {});
         }
 
-        // 3. Look up form tag rules from settings
+        // 4. Look up form tag rules from settings
         let formTags = ['facebook-lead'];
         if (form_id) formTags.push(`form-${form_id}`);
         try {
@@ -152,7 +168,7 @@ async function handleWebhook(req, res) {
           console.warn('[fb-webhook] could not load form_tag_rules:', e.message);
         }
 
-        // 4. Sync to GoHighLevel
+        // 5. Sync to GoHighLevel
         if (process.env.GHL_LOCATION_ID && process.env.GHL_API_KEY) {
           try {
             const ghlContact = await upsertGHLContact({

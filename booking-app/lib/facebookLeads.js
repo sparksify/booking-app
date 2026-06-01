@@ -7,6 +7,7 @@ const FIELD_ALIASES = {
   email:            ['email', 'email_address'],
   phone:            ['phone_number', 'phone', 'mobile', 'cell'],
   investment_level: ['investment_level', 'investment', 'budget_range', 'budget', 'investment_range'],
+  territory:        ['what_area_or_territory_are_you_most_interested_in', 'area_or_territory', 'territory', 'area_of_interest', 'area_interest', 'interested_area'],
 };
 
 /**
@@ -60,6 +61,7 @@ export function parseLeadFields(fieldData = []) {
     email:           resolve(FIELD_ALIASES.email),
     phone:           resolve(FIELD_ALIASES.phone),
     investmentLevel: resolve(FIELD_ALIASES.investment_level),
+    territory:       resolve(FIELD_ALIASES.territory),
     raw,
   };
 }

@@ -564,6 +564,23 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
   const liquidCapital = getField(raw, 'liquid_capital', 'liquid capital');
   const ownedBusiness = getField(raw, 'owned_business', 'owned or managed', 'managed a business', 'business before');
 
+  // Territory / area of interest — structured if we have city/state, otherwise raw
+  const territory = (() => {
+    const city     = lead?.location_city;
+    const state    = lead?.location_state;
+    const zip      = lead?.location_zip;
+    const areaCode = lead?.location_area_code;
+    const locRaw   = lead?.location_raw;
+    const fbRaw    = getField(raw, 'territory', 'area_of_interest', 'interested_area');
+    if (city || state) {
+      const primary = [city, state].filter(Boolean).join(', ');
+      const sub     = zip || (areaCode ? `Area code ${areaCode}` : null);
+      return { primary, sub };
+    }
+    const fallback = locRaw || fbRaw;
+    return fallback ? { primary: fallback, sub: null } : null;
+  })();
+
   const meta      = STATUS_META[booking.status] || STATUS_META.scheduled;
   const initials  = `${booking.first_name?.[0] || ''}${booking.last_name?.[0] || ''}`.toUpperCase();
   const slot      = booking.slot_start ? new Date(booking.slot_start) : null;
@@ -664,6 +681,16 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                 {ownedBusiness && (
                   <Row label="Owned Biz">
                     <span style={p.val}>{ownedBusiness}</span>
+                  </Row>
+                )}
+                {territory && (
+                  <Row label="Territory">
+                    <span style={p.val}>
+                      {territory.primary}
+                      {territory.sub && (
+                        <span style={{ color: '#9CA3AF', fontSize: 11, marginLeft: 6 }}>{territory.sub}</span>
+                      )}
+                    </span>
                   </Row>
                 )}
               </PanelSection>
@@ -816,15 +843,15 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                       </>
                     ) : (
                       <>
-                        <Row icon="👤" label="Name">
+                        <Row label="Name">
                           <span style={p.val}>{selectedFI.developer_name || <em style={{ color: '#9CA3AF' }}>Not set</em>}</span>
                         </Row>
-                        <Row icon="📞" label="Phone">
+                        <Row label="Phone">
                           {selectedFI.developer_phone
                             ? <a href={`tel:${selectedFI.developer_phone}`} style={p.link}>{selectedFI.developer_phone}</a>
                             : <em style={{ color: '#9CA3AF', fontSize: 13 }}>Not set</em>}
                         </Row>
-                        <Row icon="✉️" label="Email">
+                        <Row label="Email">
                           {selectedFI.developer_email
                             ? <a href={`mailto:${selectedFI.developer_email}`} style={p.link}>{selectedFI.developer_email}</a>
                             : <em style={{ color: '#9CA3AF', fontSize: 13 }}>Not set</em>}
