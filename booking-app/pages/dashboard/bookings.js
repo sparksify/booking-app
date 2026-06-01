@@ -410,7 +410,7 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus,
           <span style={{ fontSize: 12, color: '#9CA3AF' }}>Saving…</span>
         ) : b.status === 'scheduled' ? (
           <div style={{ display: 'flex', gap: 5 }}>
-            <QBBtn variant="success" onClick={() => onStatus('showed')}>Showed</QBBtn>
+            <QBBtn variant="warning" onClick={() => onStatus('showed')}>Showed</QBBtn>
             <QBBtn variant="danger"  onClick={() => onStatus('no-show')}>No-Show</QBBtn>
           </div>
         ) : b.status === 'showed' ? (
@@ -647,11 +647,11 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
           <button
             style={{ ...p.panelTab, ...(panelTab === 'info' ? p.panelTabActive : {}) }}
             onClick={() => setPanelTab('info')}
-          >📋 Info</button>
+          >Info</button>
           <button
             style={{ ...p.panelTab, ...(panelTab === 'timeline' ? p.panelTabActive : {}) }}
             onClick={openTimeline}
-          >🕐 Timeline</button>
+          >Timeline</button>
         </div>
 
         {/* Scrollable body */}
@@ -693,6 +693,49 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                     </span>
                   </Row>
                 )}
+
+                {/* ── CQ tracking ── */}
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #F0F0F0', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <QBBtn variant="cq" onClick={sendCQ} disabled={cqSent}>
+                    {cqSent ? '✓ CQ Sent' : 'Send CQ'}
+                  </QBBtn>
+                  {cqSent && !cqReceived && (
+                    <QBBtn variant="pitch" onClick={markCQReceived} disabled={cqRecvSaving}>
+                      {cqRecvSaving ? 'Saving…' : 'Mark CQ Received'}
+                    </QBBtn>
+                  )}
+                  {cqReceived && (
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      padding: '4px 10px', borderRadius: 3, fontSize: 12, fontWeight: 600,
+                      color: '#15803D', background: '#DCFCE7', border: '1px solid #BBF7D0',
+                    }}>
+                      ✓ CQ Received
+                    </span>
+                  )}
+                </div>
+                {/* CQ datestamp trail */}
+                {(cqSent || cqReceived) && (
+                  <div style={{ marginTop: 8, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, color: '#7C3AED', fontWeight: 600 }}>CQ Sent</span>
+                    {booking.cq_sent_at && (
+                      <span style={{ fontSize: 11, color: '#9CA3AF' }}>
+                        {new Date(booking.cq_sent_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </span>
+                    )}
+                    {cqReceived && (
+                      <>
+                        <span style={{ fontSize: 10, color: '#D1D5DB' }}>→</span>
+                        <span style={{ fontSize: 11, color: '#15803D', fontWeight: 600 }}>Received</span>
+                        <span style={{ fontSize: 11, color: '#9CA3AF' }}>
+                          {booking.cq_received_at
+                            ? new Date(booking.cq_received_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                            : new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                )}
               </PanelSection>
 
               {/* ── Booking ── */}
@@ -711,53 +754,14 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                 <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
                   {booking.status === 'scheduled' && (
                     <>
-                      <QBBtn variant="success" onClick={() => onStatusChange('showed')}>Mark Showed</QBBtn>
+                      <QBBtn variant="warning" onClick={() => onStatusChange('showed')}>Mark Showed</QBBtn>
                       <QBBtn variant="danger"  onClick={() => onStatusChange('no-show')}>Mark No-Show</QBBtn>
                     </>
                   )}
                   {booking.status === 'showed' && (
-                    <QBBtn variant="primary" onClick={() => onStatusChange('closed')}>Mark Closed Won 🏆</QBBtn>
-                  )}
-                  <QBBtn variant="cq" onClick={sendCQ} disabled={cqSent}>
-                    {cqSent ? '✓ CQ Sent' : 'Send CQ'}
-                  </QBBtn>
-                  {cqSent && !cqReceived && (
-                    <QBBtn variant="pitch" onClick={markCQReceived} disabled={cqRecvSaving}>
-                      {cqRecvSaving ? 'Saving…' : 'CQ Received'}
-                    </QBBtn>
-                  )}
-                  {cqReceived && (
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 5,
-                      padding: '5px 12px', borderRadius: 3, fontSize: 12, fontWeight: 600,
-                      color: '#15803D', background: '#DCFCE7', border: '1px solid #BBF7D0',
-                    }}>
-                      ✓ CQ Received
-                    </span>
+                    <QBBtn variant="primary" onClick={() => onStatusChange('closed')}>Mark Closed Won</QBBtn>
                   )}
                 </div>
-                {/* CQ status timeline */}
-                {(cqSent || cqReceived) && (
-                  <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <span style={{ fontSize: 11, color: '#7C3AED', fontWeight: 600 }}>CQ Sent</span>
-                    {cqSent && booking.cq_sent_at && (
-                      <span style={{ fontSize: 11, color: '#9CA3AF' }}>
-                        {new Date(booking.cq_sent_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      </span>
-                    )}
-                    {cqReceived && (
-                      <>
-                        <span style={{ fontSize: 10, color: '#D1D5DB' }}>→</span>
-                        <span style={{ fontSize: 11, color: '#15803D', fontWeight: 600 }}>CQ Received</span>
-                        {booking.cq_received_at && (
-                          <span style={{ fontSize: 11, color: '#9CA3AF' }}>
-                            {new Date(booking.cq_received_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
               </PanelSection>
 
               {/* ── Franchise Brands ── */}
@@ -910,8 +914,8 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
               </PanelSection>
 
               {/* ── Notes ── */}
-              <PanelSection title="Notes">
-                <textarea style={p.notesArea} rows={5}
+              <PanelSection title="Notes" bg="#FFFEF5">
+                <textarea style={{ ...p.notesArea, background: '#FFFDF0' }} rows={5}
                   value={notes}
                   placeholder="Add notes about this client…"
                   onChange={e => setNotes(e.target.value)}
@@ -986,10 +990,10 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
 
 // ─── Panel helper components ──────────────────────────────────────────────────
 
-function PanelSection({ title, editMode, onEdit, onSave, onCancel, saving, saved, children }) {
+function PanelSection({ title, bg, editMode, onEdit, onSave, onCancel, saving, saved, children }) {
   const hasEdit = onEdit !== undefined;
   return (
-    <div style={p.section}>
+    <div style={{ ...p.section, ...(bg ? { background: bg } : {}) }}>
       <div style={p.sectionHdrRow}>
         <div style={p.sectionTitle}>{title}</div>
         {hasEdit && !editMode && (
@@ -1031,22 +1035,22 @@ function EditRow({ label, children }) {
 // ─── Timeline View ────────────────────────────────────────────────────────────
 
 const EVENT_META = {
-  lead_submitted:            { emoji: '📝', label: 'Lead Submitted',            color: '#6B7280' },
-  ghl_contact_created:       { emoji: '🔗', label: 'GHL Contact Created',       color: '#6B7280' },
-  closebot_engaged:          { emoji: '🤖', label: 'CloseBot Engaged',          color: '#7C3AED' },
-  booking_page_viewed:       { emoji: '👁',  label: 'Booking Page Viewed',       color: '#1D4ED8' },
-  recommended_slot_shown:    { emoji: '⭐', label: 'Recommended Slot Shown',    color: '#1D4ED8' },
-  recommended_slot_accepted: { emoji: '✅', label: 'Recommended Slot Accepted', color: '#16A34A' },
-  recommended_slot_rejected: { emoji: '⏭',  label: 'Recommended Slot Skipped', color: '#B45309' },
-  slot_selected:             { emoji: '📅', label: 'Slot Selected',             color: '#1D4ED8' },
-  appointment_booked:        { emoji: '🎉', label: 'Appointment Booked',        color: '#16A34A' },
-  confirmation_email_sent:   { emoji: '✉️', label: 'Confirmation Email Sent',   color: '#6B7280' },
-  calendar_add_clicked:      { emoji: '📆', label: 'Calendar Add Clicked',      color: '#1D4ED8' },
-  cq_email_sent:             { emoji: '📤', label: 'CQ Email Sent',             color: '#7C3AED' },
-  cq_received:               { emoji: '📥', label: 'CQ Received',               color: '#15803D' },
-  appointment_showed:        { emoji: '🟢', label: 'Showed Up',                 color: '#16A34A' },
-  appointment_no_show:       { emoji: '🔴', label: 'No Show',                   color: '#DC2626' },
-  opportunity_closed:        { emoji: '🏆', label: 'Deal Closed',               color: '#7C3AED' },
+  lead_submitted:            { label: 'Lead Submitted',            color: '#9CA3AF' },
+  ghl_contact_created:       { label: 'CRM Contact Created',       color: '#9CA3AF' },
+  closebot_engaged:          { label: 'CloseBot Engaged',          color: '#7C3AED' },
+  booking_page_viewed:       { label: 'Booking Page Viewed',       color: '#3B82F6' },
+  recommended_slot_shown:    { label: 'Recommended Slot Shown',    color: '#3B82F6' },
+  recommended_slot_accepted: { label: 'Slot Recommendation Taken', color: '#16A34A' },
+  recommended_slot_rejected: { label: 'Slot Recommendation Skipped', color: '#D97706' },
+  slot_selected:             { label: 'Slot Selected',             color: '#3B82F6' },
+  appointment_booked:        { label: 'Appointment Booked',        color: '#16A34A' },
+  confirmation_email_sent:   { label: 'Confirmation Email Sent',   color: '#9CA3AF' },
+  calendar_add_clicked:      { label: 'Calendar Add Clicked',      color: '#3B82F6' },
+  cq_email_sent:             { label: 'CQ Sent',                   color: '#7C3AED' },
+  cq_received:               { label: 'CQ Received',               color: '#15803D' },
+  appointment_showed:        { label: 'Showed Up',                 color: '#16A34A' },
+  appointment_no_show:       { label: 'No Show',                   color: '#DC2626' },
+  opportunity_closed:        { label: 'Deal Closed',               color: '#7C3AED' },
 };
 
 const SOURCE_LABELS = {
@@ -1087,58 +1091,38 @@ function TimelineView({ events, loading, bookingSource }) {
           <span style={{ fontSize: 12 }}>Events will appear as the lead interacts with your system.</span>
         </div>
       ) : (
-        <div style={{ position: 'relative' }}>
-          {/* Vertical line */}
-          <div style={{
-            position: 'absolute', left: 14, top: 8, bottom: 8,
-            width: 2, background: '#E5E7EB', borderRadius: 2,
-          }} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            {events.map((ev, i) => {
-              const meta = EVENT_META[ev.event_type] || { emoji: '●', label: ev.event_type.replace(/_/g, ' '), color: '#6B7280' };
-              const ts   = new Date(ev.created_at);
-              const dateStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-              const timeStr = ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-              const isLast = i === events.length - 1;
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {events.map((ev, i) => {
+            const meta   = EVENT_META[ev.event_type] || { label: ev.event_type.replace(/_/g, ' '), color: '#9CA3AF' };
+            const ts     = new Date(ev.created_at);
+            const dateStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const timeStr = ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+            const isLast  = i === events.length - 1;
+            // One-line detail pulled from event_data
+            const detail  = ev.event_data?.slot
+              ? new Date(ev.event_data.slot).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+              : ev.event_data?.source
+                ? ev.event_data.source.replace(/_/g, ' ')
+                : ev.event_data?.note || null;
 
-              return (
-                <div key={ev.id} style={{ display: 'flex', gap: 12, paddingBottom: isLast ? 0 : 18 }}>
-                  {/* Dot */}
-                  <div style={{
-                    width: 30, flexShrink: 0, display: 'flex', justifyContent: 'center', paddingTop: 2,
-                  }}>
-                    <div style={{
-                      width: 22, height: 22, borderRadius: '50%',
-                      background: meta.color + '1A',
-                      border: `2px solid ${meta.color}`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 10, zIndex: 1,
-                    }}>{meta.emoji}</div>
-                  </div>
-                  {/* Content */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1A2B3C' }}>{meta.label}</div>
-                    <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>{dateStr} · {timeStr}</div>
-                    {/* Show relevant event_data fields */}
-                    {ev.event_data && Object.keys(ev.event_data).length > 0 && (
-                      <div style={{
-                        marginTop: 5, fontSize: 11, color: '#6B7280',
-                        background: '#F9FAFB', borderRadius: 4, padding: '5px 8px',
-                        border: '1px solid #E5E7EB',
-                      }}>
-                        {ev.event_data.source && <span>Source: <strong>{ev.event_data.source}</strong></span>}
-                        {ev.event_data.provider && <span>Provider: <strong>{ev.event_data.provider}</strong></span>}
-                        {ev.event_data.booking_source && <span>Via: <strong>{ev.event_data.booking_source}</strong></span>}
-                        {ev.event_data.action && <span>Action: <strong>{ev.event_data.action}</strong></span>}
-                        {ev.event_data.slot && <span>Slot: <strong>{new Date(ev.event_data.slot).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</strong></span>}
-                        {ev.event_data.note && <span> · {ev.event_data.note}</span>}
-                      </div>
-                    )}
+            return (
+              <div key={ev.id} style={{ display: 'flex', gap: 14 }}>
+                {/* Dot + connector line */}
+                <div style={{ width: 16, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 3 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: meta.color, flexShrink: 0 }} />
+                  {!isLast && <div style={{ width: 1, flex: 1, background: '#E5E7EB', marginTop: 4 }} />}
+                </div>
+                {/* Content */}
+                <div style={{ flex: 1, paddingBottom: isLast ? 4 : 20 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: '#111827', lineHeight: 1.3 }}>{meta.label}</div>
+                  <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+                    {dateStr} · {timeStr}
+                    {detail && <span style={{ marginLeft: 6, color: '#6B7280' }}>· {detail}</span>}
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -1149,6 +1133,7 @@ function QBBtn({ variant, onClick, children, disabled }) {
   const [hover, setHover] = useState(false);
   const vs = {
     success: { color: '#1A7E24', bg: '#E3F4E5', hoverBg: '#C3E6C5', border: '#A8D5AA' },
+    warning: { color: '#92400E', bg: '#FEF3C7', hoverBg: '#FDE68A', border: '#FCD34D' },
     danger:  { color: '#C23934', bg: '#FDECEA', hoverBg: '#FFCDD2', border: '#EF9A9A' },
     primary: { color: '#0077C5', bg: '#E0EFF9', hoverBg: '#B3D4EE', border: '#90CAF9' },
     cq:      { color: '#5C35A8', bg: '#EEE9FA', hoverBg: '#DDD5F7', border: '#C5B8F0' },
