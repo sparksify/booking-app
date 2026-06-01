@@ -11,6 +11,144 @@ export async function getServerSideProps(context) {
   return { props: { session } };
 }
 
+// ─── Demo data ────────────────────────────────────────────────────────────────
+
+const DEMO_LEADS = [
+  // ── HOT ───────────────────────────────────────────────────────────────────
+  {
+    id: 'demo-1', first_name: 'Marcus', last_name: 'Thompson',
+    email: 'marcus.thompson@gmail.com', phone: '(512) 555-0192',
+    ghl_contact_id: null, created_at: new Date(Date.now() - 1 * 86400000).toISOString(),
+    investment_level: '$100k–$200k', liquid_cap_raw: '$150,000',
+    location: 'Dallas, TX', score: 94, bucket: 'hot',
+    reasons: ['Lead submitted 1 day ago', 'Liquid capital: $150,000', 'Viewed booking page 3×', 'No advisor contact recorded'],
+    recommendedAction: 'Call now — leads reached within 5 minutes are 21× more likely to book.',
+    ageDays: 1, isHighDollar: false, isResurrection: false, callAttempts: 0, recentEngaged: true, hasBooking: false, noShowRecent: false,
+  },
+  {
+    id: 'demo-2', first_name: 'Jennifer', last_name: 'Caldwell',
+    email: 'jcaldwell@outlook.com', phone: '(623) 555-0847',
+    ghl_contact_id: null, created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
+    investment_level: '$200k–$300k', liquid_cap_raw: '$210,000',
+    location: 'Phoenix, AZ', score: 87, bucket: 'hot',
+    reasons: ['Lead submitted 2 days ago', 'Liquid capital: $210,000', 'Browsed available appointment slots', 'No advisor contact recorded'],
+    recommendedAction: 'Call now — leads reached within 5 minutes are 21× more likely to book.',
+    ageDays: 2, isHighDollar: false, isResurrection: false, callAttempts: 0, recentEngaged: true, hasBooking: false, noShowRecent: false,
+  },
+  {
+    id: 'demo-3', first_name: 'David', last_name: 'Nguyen',
+    email: 'dnguyen@email.com', phone: '(281) 555-0729',
+    ghl_contact_id: null, created_at: new Date(Date.now() - 3 * 86400000).toISOString(),
+    investment_level: '$100k–$200k', liquid_cap_raw: '$125,000',
+    location: 'Houston, TX', score: 81, bucket: 'hot',
+    reasons: ['Lead submitted 3 days ago — still in hot window', 'Liquid capital: $125,000', 'Viewed booking page 2×', 'No advisor contact recorded'],
+    recommendedAction: 'Call today — every day of delay drops show probability by ~8%.',
+    ageDays: 3, isHighDollar: false, isResurrection: false, callAttempts: 0, recentEngaged: false, hasBooking: false, noShowRecent: false,
+  },
+  {
+    id: 'demo-4', first_name: 'Angela', last_name: 'Rivera',
+    email: 'angela.rivera@company.com', phone: '(305) 555-0561',
+    ghl_contact_id: null, created_at: new Date(Date.now() - 6 * 86400000).toISOString(),
+    investment_level: '$100k–$200k', liquid_cap_raw: '$175,000',
+    location: 'Miami, FL', score: 68, bucket: 'hot',
+    reasons: ['Lead submitted 6 days ago — still in hot window', 'Liquid capital: $175,000', 'Viewed booking page 2×', '1 prior contact attempt'],
+    recommendedAction: 'Call today — every day of delay drops show probability by ~8%.',
+    ageDays: 6, isHighDollar: false, isResurrection: false, callAttempts: 1, recentEngaged: false, hasBooking: false, noShowRecent: false,
+  },
+  {
+    id: 'demo-5', first_name: 'Robert', last_name: 'Kim',
+    email: 'rob.kim@gmail.com', phone: '(737) 555-0334',
+    ghl_contact_id: null, created_at: new Date(Date.now() - 5 * 86400000).toISOString(),
+    investment_level: '$75k–$150k', liquid_cap_raw: '$95,000',
+    location: 'Austin, TX', score: 72, bucket: 'hot',
+    reasons: ['Lead submitted 5 days ago — still in hot window', 'Browsed available appointment slots', 'No advisor contact recorded'],
+    recommendedAction: 'Call today — every day of delay drops show probability by ~8%.',
+    ageDays: 5, isHighDollar: false, isResurrection: false, callAttempts: 0, recentEngaged: false, hasBooking: false, noShowRecent: false,
+  },
+
+  // ── APPOINTMENT SAVES ─────────────────────────────────────────────────────
+  {
+    id: 'demo-6', first_name: 'Sarah', last_name: 'Mitchell',
+    email: 'smitchell@gmail.com', phone: '(312) 555-0413',
+    ghl_contact_id: null, created_at: new Date(Date.now() - 18 * 86400000).toISOString(),
+    investment_level: '$150k–$250k', liquid_cap_raw: '$200,000',
+    location: 'Chicago, IL', score: 78, bucket: 'saves',
+    reasons: ['No-showed within the last 7 days', 'Liquid capital: $200,000', 'Previously booked but did not show', '1 prior contact attempt'],
+    recommendedAction: 'Call within 24 hours — 22% of no-shows rebook when contacted immediately after.',
+    ageDays: 18, isHighDollar: false, isResurrection: false, callAttempts: 1, recentEngaged: false, hasBooking: true, noShowRecent: true,
+  },
+  {
+    id: 'demo-7', first_name: 'James', last_name: 'Patterson',
+    email: 'jpatterson@email.com', phone: '(615) 555-0887',
+    ghl_contact_id: null, created_at: new Date(Date.now() - 25 * 86400000).toISOString(),
+    investment_level: '$100k–$200k', liquid_cap_raw: '$150,000',
+    location: 'Nashville, TN', score: 65, bucket: 'saves',
+    reasons: ['No-showed within the last 7 days', 'Liquid capital: $150,000', 'Previously booked but did not show', 'No advisor contact recorded'],
+    recommendedAction: 'Call within 24 hours — 22% of no-shows rebook when contacted immediately after.',
+    ageDays: 25, isHighDollar: false, isResurrection: false, callAttempts: 0, recentEngaged: false, hasBooking: true, noShowRecent: true,
+  },
+
+  // ── RESURRECTIONS ─────────────────────────────────────────────────────────
+  {
+    id: 'demo-8', first_name: 'Linda', last_name: 'Chen',
+    email: 'linda.chen@gmail.com', phone: '(619) 555-0291',
+    ghl_contact_id: null, created_at: new Date(Date.now() - 145 * 86400000).toISOString(),
+    investment_level: '$250k–$500k', liquid_cap_raw: '$310,000',
+    location: 'San Diego, CA', score: 74, bucket: 'resurrection',
+    reasons: ['Lead submitted 145 days ago', 'Liquid capital: $310,000', 'Re-engaged after going dormant 90+ days', 'Showed recent activity after going quiet'],
+    recommendedAction: 'Reach out now — they re-engaged after going dark. Strike while intent is warm.',
+    ageDays: 145, isHighDollar: true, isResurrection: true, callAttempts: 3, recentEngaged: true, hasBooking: false, noShowRecent: false,
+  },
+  {
+    id: 'demo-9', first_name: 'Thomas', last_name: 'Baker',
+    email: 'tbaker@outlook.com', phone: '(720) 555-0658',
+    ghl_contact_id: null, created_at: new Date(Date.now() - 112 * 86400000).toISOString(),
+    investment_level: '$75k–$150k', liquid_cap_raw: '$90,000',
+    location: 'Denver, CO', score: 61, bucket: 'resurrection',
+    reasons: ['Lead submitted 112 days ago', 'Re-engaged after going dormant 90+ days', 'Viewed booking page today', '2 prior contact attempts'],
+    recommendedAction: 'Reach out now — they re-engaged after going dark. Strike while intent is warm.',
+    ageDays: 112, isHighDollar: false, isResurrection: true, callAttempts: 2, recentEngaged: true, hasBooking: false, noShowRecent: false,
+  },
+
+  // ── HIGH DOLLAR ───────────────────────────────────────────────────────────
+  {
+    id: 'demo-10', first_name: 'Michael', last_name: 'Rodriguez',
+    email: 'm.rodriguez@venture.com', phone: '(212) 555-0940',
+    ghl_contact_id: null, created_at: new Date(Date.now() - 8 * 86400000).toISOString(),
+    investment_level: '$500k+', liquid_cap_raw: '$750,000',
+    location: 'New York, NY', score: 82, bucket: 'high_dollar',
+    reasons: ['Lead submitted 8 days ago', 'Liquid capital: $750,000', 'High investment level indicated', 'No advisor contact recorded'],
+    recommendedAction: 'Priority outreach — high investment level means outsized commission potential.',
+    ageDays: 8, isHighDollar: true, isResurrection: false, callAttempts: 0, recentEngaged: false, hasBooking: false, noShowRecent: false,
+  },
+  {
+    id: 'demo-11', first_name: 'Elizabeth', last_name: 'Warren',
+    email: 'ewarren@familyoffice.com', phone: '(480) 555-0374',
+    ghl_contact_id: null, created_at: new Date(Date.now() - 14 * 86400000).toISOString(),
+    investment_level: '$500k+', liquid_cap_raw: '$500,000',
+    location: 'Scottsdale, AZ', score: 76, bucket: 'high_dollar',
+    reasons: ['Lead submitted 14 days ago', 'Liquid capital: $500,000', 'High investment level indicated', '1 prior contact attempt'],
+    recommendedAction: 'Priority outreach — high investment level means outsized commission potential.',
+    ageDays: 14, isHighDollar: true, isResurrection: false, callAttempts: 1, recentEngaged: false, hasBooking: false, noShowRecent: false,
+  },
+  {
+    id: 'demo-12', first_name: 'Christopher', last_name: 'Walsh',
+    email: 'cwalsh@gmail.com', phone: '(404) 555-0812',
+    ghl_contact_id: null, created_at: new Date(Date.now() - 4 * 86400000).toISOString(),
+    investment_level: '$250k–$500k', liquid_cap_raw: '$280,000',
+    location: 'Atlanta, GA', score: 71, bucket: 'high_dollar',
+    reasons: ['Lead submitted 4 days ago — still in hot window', 'Liquid capital: $280,000', 'High investment level indicated', 'Viewed booking page 2×', 'No advisor contact recorded'],
+    recommendedAction: 'Priority outreach — high investment level means outsized commission potential.',
+    ageDays: 4, isHighDollar: true, isResurrection: false, callAttempts: 0, recentEngaged: false, hasBooking: false, noShowRecent: false,
+  },
+];
+
+function buildDemoData() {
+  const buckets = { hot: [], saves: [], resurrection: [], high_dollar: [] };
+  for (const l of DEMO_LEADS) buckets[l.bucket].push(l);
+  return { leads: [...DEMO_LEADS].sort((a, b) => b.score - a.score), buckets };
+}
+
 // ─── Bucket config ────────────────────────────────────────────────────────────
 
 const BUCKETS = {
@@ -104,6 +242,7 @@ export default function ProspectsPage() {
   const { data: session } = useSession();
   const [data,         setData]         = useState(null);
   const [loading,      setLoading]      = useState(true);
+  const [demoMode,     setDemoMode]     = useState(false);
   const [activeBucket, setActiveBucket] = useState('all');
   const [queueMode,    setQueueMode]    = useState(false);
   const [queueIndex,   setQueueIndex]   = useState(0);
@@ -117,17 +256,29 @@ export default function ProspectsPage() {
       .catch(() => setLoading(false));
   }, []);
 
+  function toggleDemo(on) {
+    setDemoMode(on);
+    setQueueMode(false);
+    setQueueIndex(0);
+    setDispositioned(new Set());
+    setActiveBucket('all');
+    if (on) setData(buildDemoData());
+    else loadData();
+  }
+
   useEffect(() => { loadData(); }, [loadData]);
 
+  const displayData = demoMode ? buildDemoData() : data;
+
   // Filtered lead list
-  const visibleLeads = !data ? [] : (
+  const visibleLeads = !displayData ? [] : (
     activeBucket === 'all'
-      ? data.leads
-      : (data.buckets[activeBucket] || [])
+      ? displayData.leads
+      : (displayData.buckets[activeBucket] || [])
   ).filter(l => !dispositioned.has(l.id));
 
-  const totalCount = data
-    ? Object.values(data.buckets).reduce((s, b) => s + b.length, 0)
+  const totalCount = displayData
+    ? Object.values(displayData.buckets).reduce((s, b) => s + b.length, 0)
     : 0;
 
   function startQueue(bucket) {
@@ -162,7 +313,7 @@ export default function ProspectsPage() {
 
   return (
     <>
-      <Head><title>Prospects — FranchiseBook</title></Head>
+      <Head><title>Prospecting — FranchiseBook</title></Head>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg) } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: translateY(0) } }
@@ -178,7 +329,7 @@ export default function ProspectsPage() {
               <Link href="/dashboard/analytics"  style={s.navLink}>Analytics</Link>
               <Link href="/dashboard/bookings"   style={s.navLink}>Bookings</Link>
               <Link href="/dashboard/leads"      style={s.navLink}>Leads</Link>
-              <Link href="/dashboard/prospects"  style={{ ...s.navLink, ...s.navActive }}>Prospects</Link>
+              <Link href="/dashboard/prospects"  style={{ ...s.navLink, ...s.navActive }}>Prospecting</Link>
             </nav>
           </div>
           <div style={s.headerRight}>
@@ -209,7 +360,21 @@ export default function ProspectsPage() {
                       : 'No active leads to prospect at the moment'}
                   </p>
                 </div>
-                <button style={s.refreshBtn} onClick={loadData}>↻ Refresh</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {/* Demo mode toggle */}
+                  <div
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, background: demoMode ? '#FEF3C7' : '#F3F4F6', border: `1px solid ${demoMode ? '#FCD34D' : '#E5E7EB'}`, borderRadius: 6, padding: '5px 12px', cursor: 'pointer' }}
+                    onClick={() => toggleDemo(!demoMode)}
+                  >
+                    <div style={{ position: 'relative', width: 32, height: 18, borderRadius: 9, background: demoMode ? '#D97706' : '#D1D5DB', transition: 'background .2s', flexShrink: 0 }}>
+                      <div style={{ position: 'absolute', top: 2, left: demoMode ? 16 : 2, width: 14, height: 14, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,.2)', transition: 'left .18s' }} />
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: demoMode ? '#92400E' : '#6B7280', whiteSpace: 'nowrap' }}>
+                      {demoMode ? 'Demo data ON' : 'Demo data'}
+                    </span>
+                  </div>
+                  {!demoMode && <button style={s.refreshBtn} onClick={loadData}>↻ Refresh</button>}
+                </div>
               </div>
 
               {/* ── 4 Bucket cards ─────────────────────────────────────────── */}

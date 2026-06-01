@@ -196,7 +196,7 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
               <Link href="/dashboard/analytics"  style={s.navLink}>Analytics</Link>
               <Link href="/dashboard/bookings"   style={s.navLink}>Bookings</Link>
               <Link href="/dashboard/leads"      style={s.navLink}>Leads</Link>
-              <Link href="/dashboard/prospects"  style={s.navLink}>Prospects</Link>
+              <Link href="/dashboard/prospects"  style={s.navLink}>Prospecting</Link>
             </nav>
           </div>
           <div style={s.headerRight}>
