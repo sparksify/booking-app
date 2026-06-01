@@ -73,5 +73,56 @@ export default async function handler(req, res) {
 
   logLeadEvent(email, 'cq_received', { booking_id: bookingId }).catch(() => {});
 
+  // ── Auto-create nurture client ──────────────────────────────────────────────
+  // Pull lead details to populate the nurture record
+  try {
+    const { data: lead } = await supabase
+      .from('leads')
+      .select('id, first_name, last_name, phone, franchise_interests')
+      .eq('email', email)
+      .single();
+
+    // Only create if not already in nurture queue for this email
+    const { data: existing } = await supabase
+      .from('nurture_clients')
+      .select('id')
+      .eq('email', email)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    if (!existing) {
+      const { data: nurtureClient } = await supabase
+        .from('nurture_clients')
+        .insert({
+          booking_id:  bookingId,
+          lead_id:     lead?.id     || null,
+          email,
+          first_name:  lead?.first_name || null,
+          last_name:   lead?.last_name  || null,
+          phone:       lead?.phone      || null,
+          entered_at:  now,
+        })
+        .select()
+        .single();
+
+      // Seed brand rows from franchise_interests
+      const fi = lead?.franchise_interests || [];
+      if (nurtureClient && fi.length > 0) {
+        const brandRows = fi
+          .filter(f => f.brand)
+          .map(f => ({
+            nurture_client_id: nurtureClient.id,
+            brand_name:        f.brand,
+            stage:             1,
+          }));
+        if (brandRows.length) {
+          await supabase.from('nurture_brands').insert(brandRows);
+        }
+      }
+    }
+  } catch (nurtureErr) {
+    errors.push(`Nurture auto-create: ${nurtureErr.message}`);
+  }
+
   res.json({ ok: true, cq_received_at: now, errors: errors.length ? errors : undefined });
 }

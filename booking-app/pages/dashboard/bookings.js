@@ -200,6 +200,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
               <Link href="/dashboard/bookings"   style={{ ...s.navLink, ...s.navActive }}>Bookings</Link>
               <Link href="/dashboard/leads"      style={s.navLink}>Leads</Link>
               <Link href="/dashboard/prospects"  style={s.navLink}>Prospecting</Link>
+              <Link href="/dashboard/nurture"    style={s.navLink}>Nurture</Link>
             </nav>
           </div>
           <div style={s.headerRight}>

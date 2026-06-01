@@ -127,6 +127,7 @@ export default function LeadsDashboard({ initialLeads, baseUrl }) {
               <Link href="/dashboard/bookings"   style={s.navLink}>Bookings</Link>
               <Link href="/dashboard/leads"      style={{ ...s.navLink, ...s.navActive }}>Leads</Link>
               <Link href="/dashboard/prospects"  style={s.navLink}>Prospecting</Link>
+              <Link href="/dashboard/nurture"    style={s.navLink}>Nurture</Link>
             </nav>
           </div>
           <div style={s.headerRight}>

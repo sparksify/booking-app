@@ -567,6 +567,7 @@ export default function ProspectsPage() {
               <Link href="/dashboard/bookings"   style={s.navLink}>Bookings</Link>
               <Link href="/dashboard/leads"      style={s.navLink}>Leads</Link>
               <Link href="/dashboard/prospects"  style={{ ...s.navLink, ...s.navActive }}>Prospecting</Link>
+              <Link href="/dashboard/nurture"    style={s.navLink}>Nurture</Link>
             </nav>
           </div>
           <div style={s.headerRight}>
