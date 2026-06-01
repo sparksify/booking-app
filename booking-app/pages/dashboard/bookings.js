@@ -670,9 +670,6 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                 <Row label="Email">
                   <a href={`mailto:${booking.email}`} style={p.link}>{booking.email}</a>
                 </Row>
-                <Row label="Investment">
-                  <span style={p.tag}>{booking.investment_level || '—'}</span>
-                </Row>
                 {liquidCapital && (
                   <Row label="Liquid Cap.">
                     <span style={p.val}>{liquidCapital}</span>
@@ -756,6 +753,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                     <>
                       <QBBtn variant="warning" onClick={() => onStatusChange('showed')}>Mark Showed</QBBtn>
                       <QBBtn variant="danger"  onClick={() => onStatusChange('no-show')}>Mark No-Show</QBBtn>
+                      <QBBtn variant="followup" onClick={() => {}}>Follow Up</QBBtn>
                     </>
                   )}
                   {booking.status === 'showed' && (
@@ -1136,8 +1134,9 @@ function QBBtn({ variant, onClick, children, disabled }) {
     warning: { color: '#92400E', bg: '#FEF3C7', hoverBg: '#FDE68A', border: '#FCD34D' },
     danger:  { color: '#C23934', bg: '#FDECEA', hoverBg: '#FFCDD2', border: '#EF9A9A' },
     primary: { color: '#0077C5', bg: '#E0EFF9', hoverBg: '#B3D4EE', border: '#90CAF9' },
-    cq:      { color: '#5C35A8', bg: '#EEE9FA', hoverBg: '#DDD5F7', border: '#C5B8F0' },
-    pitch:   { color: '#1A7E24', bg: '#E3F4E5', hoverBg: '#C3E6C5', border: '#A8D5AA' },
+    cq:       { color: '#5C35A8', bg: '#EEE9FA', hoverBg: '#DDD5F7', border: '#C5B8F0' },
+    pitch:    { color: '#1A7E24', bg: '#E3F4E5', hoverBg: '#C3E6C5', border: '#A8D5AA' },
+    followup: { color: '#374151', bg: '#F3F4F6', hoverBg: '#E5E7EB', border: '#D1D5DB' },
   }[variant];
   return (
     <button
