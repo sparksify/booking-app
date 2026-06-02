@@ -101,6 +101,20 @@ export default async function handler(req, res) {
   const digits   = rawPhone.startsWith('1') ? rawPhone.slice(1) : rawPhone;
   const areaCode = digits.length >= 3 ? digits.slice(0, 3) : null;
 
+  // Resolve owner/assigned-to name
+  let owner_name = null;
+  const assignedTo = contact.assignedTo;
+  if (assignedTo) {
+    try {
+      const uRes = await fetch(`${GHL_API}/users/${assignedTo}`, { headers });
+      if (uRes.ok) {
+        const uData = await uRes.json();
+        const u = uData.user || uData;
+        owner_name = u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || null;
+      }
+    } catch { /* non-fatal */ }
+  }
+
   res.json({
     contact: {
       id:            contact.id,
@@ -116,6 +130,7 @@ export default async function handler(req, res) {
       source:        contact.source     || null,
       date_added:    contact.dateAdded  || null,
       custom_fields: customFields,
+      owner_name,
     },
   });
 }

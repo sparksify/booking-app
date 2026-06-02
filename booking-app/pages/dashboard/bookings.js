@@ -949,9 +949,14 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
             <>
               {/* ── Contact ── */}
               <PanelSection title="Contact">
-                <Row label="Phone">
-                  <a href={`tel:${booking.phone}`} style={p.link}>{booking.phone || '—'}</a>
-                </Row>
+                {(() => {
+                  const phone = booking.phone || lead?.phone || ghlContact?.phone || '';
+                  return (
+                    <Row label="Phone">
+                      <a href={`tel:${phone}`} style={phone ? p.link : undefined}>{phone || '—'}</a>
+                    </Row>
+                  );
+                })()}
                 <Row label="Email">
                   <a href={`mailto:${booking.email}`} style={p.link}>{booking.email}</a>
                 </Row>
@@ -1095,7 +1100,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                   <span style={p.val}>{slotLabel}</span>
                 </Row>
                 <Row label="Consultant">
-                  <span style={p.val}>{booking.assigned_to_email || '—'}</span>
+                  <span style={p.val}>{booking.assigned_to_email || ghlContact?.owner_name || '—'}</span>
                 </Row>
                 {booking.meet_link && (
                   <Row label="Meet">
