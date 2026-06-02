@@ -1602,10 +1602,6 @@ function DeveloperContactModal({ brand, onSave, onClose }) {
 function PendingMilestonesBar({ milestones = {}, maxStage, onOpenFunding, onOpenAttorney }) {
   const funding  = milestones.funding;
   const attorney = milestones.attorney;
-  const showFundingItem  = maxStage >= 2;
-  const showAttorneyItem = maxStage >= 3;
-
-  if (!showFundingItem && !showAttorneyItem) return null;
 
   function fmtDate(d) {
     if (!d) return '';
@@ -1614,8 +1610,7 @@ function PendingMilestonesBar({ milestones = {}, maxStage, onOpenFunding, onOpen
 
   return (
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-      {showFundingItem && (
-        funding?.done ? (
+      {funding?.done ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 7, padding: '8px 12px' }}>
             <span style={{ fontSize: 15 }}>✓</span>
             <div>
@@ -1635,30 +1630,27 @@ function PendingMilestonesBar({ milestones = {}, maxStage, onOpenFunding, onOpen
               <div style={{ fontSize: 10, color: '#7C3AED' }}>Click to record introduction</div>
             </div>
           </button>
-        )
       )}
-      {showAttorneyItem && (
-        attorney?.done ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 7, padding: '8px 12px' }}>
-            <span style={{ fontSize: 15 }}>✓</span>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#15803D' }}>Attorney Intro Done</div>
-              {attorney.attorney_name && <div style={{ fontSize: 10, color: '#6B7280' }}>{attorney.attorney_name}{attorney.law_firm ? ` · ${attorney.law_firm}` : ''}</div>}
-            </div>
-            <button onClick={onOpenAttorney} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', fontSize: 11, paddingLeft: 4 }}>Edit</button>
+      {attorney?.done ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 7, padding: '8px 12px' }}>
+          <span style={{ fontSize: 15 }}>✓</span>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#15803D' }}>Attorney Intro Done</div>
+            {attorney.attorney_name && <div style={{ fontSize: 10, color: '#6B7280' }}>{attorney.attorney_name}{attorney.law_firm ? ` · ${attorney.law_firm}` : ''}</div>}
           </div>
-        ) : (
-          <button
-            onClick={onOpenAttorney}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#EFF6FF', border: '2px solid #BFDBFE', borderRadius: 7, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit' }}
-          >
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase', letterSpacing: '.04em' }}>J</span>
-            <div style={{ textAlign: 'left' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8' }}>Attorney Intro Needed</div>
-              <div style={{ fontSize: 10, color: '#3B82F6' }}>Stage 3+ — FDD requires attorney review</div>
-            </div>
-          </button>
-        )
+          <button onClick={onOpenAttorney} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', fontSize: 11, paddingLeft: 4 }}>Edit</button>
+        </div>
+      ) : (
+        <button
+          onClick={onOpenAttorney}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#EFF6FF', border: '2px solid #BFDBFE', borderRadius: 7, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit' }}
+        >
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase', letterSpacing: '.04em' }}>J</span>
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8' }}>Attorney Intro Needed</div>
+            <div style={{ fontSize: 10, color: '#3B82F6' }}>Click to record introduction</div>
+          </div>
+        </button>
       )}
     </div>
   );
@@ -2296,6 +2288,23 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
     setTimeout(() => setNotesSaved(false), 2000);
   }
 
+  async function logBrandNote(brand, text) {
+    const stageLabel = STAGES[brand.stage]?.short || `Stage ${brand.stage}`;
+    const noteBody   = `${brand.brand_name} · ${stageLabel}: ${text}`;
+    const newTP = {
+      id: `tp_${Date.now()}`, nurture_client_id: c.id,
+      medium: 'notes', note: noteBody,
+      created_at: new Date().toISOString(), created_by: 'me',
+    };
+    setTouchpoints(prev => [newTP, ...prev]);
+    if (!isDemo) {
+      await fetch('/api/dashboard/nurture-touchpoint', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nurture_client_id: c.id, medium: 'notes', note: noteBody }),
+      }).catch(console.error);
+    }
+  }
+
   async function archiveClient() {
     onUpdate({ status: 'archived' });
     if (!isDemo) {
@@ -2527,6 +2536,7 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
                 onStageChange={stage => updateBrand(brand.id, brand.brand_name, { stage })}
                 onSentimentChange={sentiment => updateBrand(brand.id, brand.brand_name, { sentiment })}
                 onNoteChange={n => updateBrand(brand.id, brand.brand_name, { note: n })}
+                onNoteSave={text => logBrandNote(brand, text)}
                 onDevChange={fields => updateBrand(brand.id, brand.brand_name, fields)}
               />
             ))}
@@ -2557,9 +2567,9 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
 
 // ─── Brand Card (Queue mode) ───────────────────────────────────────────────────
 
-function BrandCard({ brand, onStageChange, onSentimentChange, onNoteChange, onDevChange }) {
+function BrandCard({ brand, onStageChange, onSentimentChange, onNoteChange, onNoteSave, onDevChange }) {
   const [noteVal,      setNoteVal]      = useState(brand.note || '');
-  const [noteTimer,    setNoteTimer]    = useState(null);
+  const [noteSaved,    setNoteSaved]    = useState(false);
   const [showDevModal, setShowDevModal] = useState(false);
 
   const hasDevInfo = brand.developer_name || brand.developer_phone || brand.developer_email;
@@ -2568,10 +2578,12 @@ function BrandCard({ brand, onStageChange, onSentimentChange, onNoteChange, onDe
     setNoteVal(brand.note || '');
   }, [brand.id]);
 
-  function handleNoteChange(v) {
-    setNoteVal(v);
-    if (noteTimer) clearTimeout(noteTimer);
-    setNoteTimer(setTimeout(() => onNoteChange(v), 1000));
+  function handleSaveNote() {
+    if (!noteVal.trim()) return;
+    onNoteChange(noteVal);               // persist to brand record
+    onNoteSave?.(noteVal.trim());        // log to comms panel
+    setNoteSaved(true);
+    setTimeout(() => setNoteSaved(false), 2000);
   }
 
   return (
@@ -2629,8 +2641,25 @@ function BrandCard({ brand, onStageChange, onSentimentChange, onNoteChange, onDe
         rows={2}
         placeholder={`Notes on ${brand.brand_name}…`}
         value={noteVal}
-        onChange={e => handleNoteChange(e.target.value)}
+        onChange={e => setNoteVal(e.target.value)}
       />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5 }}>
+        <button
+          onClick={handleSaveNote}
+          disabled={!noteVal.trim()}
+          style={{
+            padding: '4px 12px', fontSize: 11, fontWeight: 600, borderRadius: 5,
+            background: noteSaved ? '#15803D' : '#1E3A5F',
+            color: '#fff', border: 'none', cursor: noteVal.trim() ? 'pointer' : 'not-allowed',
+            opacity: noteVal.trim() ? 1 : 0.4, fontFamily: 'inherit',
+          }}
+        >
+          {noteSaved ? 'Saved' : 'Save Note'}
+        </button>
+        {noteSaved && (
+          <span style={{ fontSize: 11, color: '#15803D' }}>Added to communications</span>
+        )}
+      </div>
 
       {/* Developer contact — read-only */}
       <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
