@@ -12,9 +12,12 @@ import { getSupabaseAdmin } from '@/lib/supabase';
  * Body: {
  *   nurture_client_id,
  *   brand_name,
- *   stage?:     1–5,
- *   sentiment?: 'positive'|'neutral'|'concerns'|'passed',
- *   note?:      string,
+ *   stage?:           1–5,
+ *   sentiment?:       'positive'|'neutral'|'concerns'|'passed',
+ *   note?:            string,
+ *   developer_name?:  string,
+ *   developer_phone?: string,
+ *   developer_email?: string,
  * }
  *
  * Returns: { brand }
@@ -25,7 +28,12 @@ export default async function handler(req, res) {
   const session = await getServerSession(req, res, authOptions);
   if (!session) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { nurture_client_id, brand_name, stage, sentiment, note } = req.body;
+  const {
+    nurture_client_id, brand_name,
+    stage, sentiment, note,
+    developer_name, developer_phone, developer_email,
+  } = req.body;
+
   if (!nurture_client_id || !brand_name) {
     return res.status(400).json({ error: 'nurture_client_id and brand_name required' });
   }
@@ -38,9 +46,12 @@ export default async function handler(req, res) {
       {
         nurture_client_id,
         brand_name,
-        ...(stage     !== undefined ? { stage }     : {}),
-        ...(sentiment !== undefined ? { sentiment } : {}),
-        ...(note      !== undefined ? { note }      : {}),
+        ...(stage           !== undefined ? { stage }           : {}),
+        ...(sentiment       !== undefined ? { sentiment }       : {}),
+        ...(note            !== undefined ? { note }            : {}),
+        ...(developer_name  !== undefined ? { developer_name }  : {}),
+        ...(developer_phone !== undefined ? { developer_phone } : {}),
+        ...(developer_email !== undefined ? { developer_email } : {}),
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'nurture_client_id,brand_name' }
