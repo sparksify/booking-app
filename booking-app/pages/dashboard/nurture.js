@@ -2508,7 +2508,7 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
               ...s.primaryBtn, marginTop: 8, width: '100%', fontSize: 14, padding: '10px',
               opacity: !note.trim() ? 0.5 : 1,
               cursor: !note.trim() ? 'not-allowed' : 'pointer',
-              background: medium === 'notes' ? '#D97706' : undefined,
+              background: medium === 'notes' ? '#D97706' : '#1E3A5F',
             }}
           >
             {logging ? 'Saving…' : medium === 'notes' ? 'Save Note' : `Log ${medium.charAt(0).toUpperCase() + medium.slice(1)}`}
