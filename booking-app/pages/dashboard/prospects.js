@@ -564,6 +564,30 @@ export default function ProspectsPage() {
         button:hover { opacity: .85 }
       `}</style>
 
+      {/* ── Full-page queue overlay — covers header + everything ── */}
+      {queueMode && !queueDone && currentLead && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#F3F4F6', overflow: 'auto', padding: '20px 24px' }}>
+          <QueueCard
+            lead={currentLead}
+            index={queueIndex}
+            total={queueLeads.length}
+            bucketConfig={BUCKETS[currentLead.bucket]}
+            onDisposition={(disp, note) => onDisposition(currentLead.id, disp, note)}
+            onSkip={() => onSkip(currentLead.id)}
+            onBack={() => { setQueueMode(false); setQueueIndex(0); }}
+          />
+        </div>
+      )}
+      {queueMode && queueDone && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={s.queueDoneCard}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#15803D', marginBottom: 4 }}>Queue complete</div>
+            <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 20 }}>You worked through {queueLeads.length} lead{queueLeads.length !== 1 ? 's' : ''} this session.</div>
+            <button style={s.startProspectingBtn} onClick={() => { setQueueMode(false); setQueueIndex(0); }}>← Back to list</button>
+          </div>
+        </div>
+      )}
+
       <div style={s.page}>
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
@@ -712,27 +736,6 @@ export default function ProspectsPage() {
                       {visibleLeads.length > 0 && (
                         <button style={s.startProspectingBtn} onClick={() => startQueue(activeBucket)}>Start Prospecting</button>
                       )}
-                    </div>
-                  )}
-
-                  {/* Queue mode */}
-                  {queueMode && !queueDone && currentLead && (
-                    <QueueCard
-                      lead={currentLead}
-                      index={queueIndex}
-                      total={queueLeads.length}
-                      bucketConfig={BUCKETS[currentLead.bucket]}
-                      onDisposition={(disp, note) => onDisposition(currentLead.id, disp, note)}
-                      onSkip={() => onSkip(currentLead.id)}
-                      onBack={() => setQueueMode(false)}
-                    />
-                  )}
-
-                  {queueMode && queueDone && (
-                    <div style={s.queueDoneCard}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#15803D', marginBottom: 4 }}>Queue complete</div>
-                      <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 20 }}>You worked through {queueLeads.length} lead{queueLeads.length !== 1 ? 's' : ''} this session.</div>
-                      <button style={s.startProspectingBtn} onClick={() => { setQueueMode(false); setQueueIndex(0); }}>← Back to list</button>
                     </div>
                   )}
 

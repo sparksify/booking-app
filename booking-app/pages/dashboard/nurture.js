@@ -99,6 +99,7 @@ export default function NurturePage() {
   const [loading,        setLoading]        = useState(true);
   const [isDemo,         setIsDemo]         = useState(false);
   const [queueMode,      setQueueMode]      = useState(false);
+  const [queueWorkIdx,   setQueueWorkIdx]   = useState(null); // null = list view, number = full-page working mode
   const [selectedClient, setSelectedClient] = useState(null);
   const [viewMode,       setViewMode]       = useState('list'); // 'list' | 'kanban'
 
@@ -129,8 +130,10 @@ export default function NurturePage() {
 
   useEffect(() => { load(); }, [load]);
 
-  function enterQueue() { setQueueMode(true); }
-  function exitQueue()  { setQueueMode(false); load(); }
+  function enterQueue()         { setQueueMode(true); setQueueWorkIdx(null); }
+  function exitQueue()          { setQueueMode(false); setQueueWorkIdx(null); load(); }
+  function startQueueWork(idx)  { setQueueWorkIdx(idx ?? 0); }
+  function exitQueueWork()      { setQueueWorkIdx(null); }
 
   function updateClientLocally(id, patch) {
     setClients(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
@@ -145,6 +148,9 @@ export default function NurturePage() {
   const queueClients  = activeClients.filter(c =>
     c.decay === 'urgent' || c.decay === 'warning' || c.days_since_contact === null
   );
+  // Sorted queue (urgent first, then warning, then never-contacted) — shared by QueueView + working mode
+  const decayOrder = { urgent: 0, warning: 1 };
+  const sortedQueue = [...queueClients].sort((a, b) => (decayOrder[a.decay] ?? 2) - (decayOrder[b.decay] ?? 2));
 
   return (
     <>
@@ -234,11 +240,52 @@ export default function NurturePage() {
               <div style={s.spinner} />
               <div style={s.loadingText}>Loading nurture queue…</div>
             </div>
+          ) : queueMode && queueWorkIdx !== null ? (
+            /* ── Full-page working mode: one client at a time ── */
+            <div>
+              {/* Working mode nav bar */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+                <button onClick={exitQueueWork} style={s.ghostBtn}>← Back to queue list</button>
+                {sortedQueue.length > 0 && (
+                  <span style={{ fontSize: 13, color: '#6B7280', fontWeight: 500 }}>
+                    Client {Math.min(queueWorkIdx + 1, sortedQueue.length)} of {sortedQueue.length}
+                  </span>
+                )}
+                <button onClick={exitQueue} style={{ ...s.ghostBtn, color: '#9CA3AF' }}>✕ Exit queue</button>
+              </div>
+
+              {queueWorkIdx < sortedQueue.length ? (
+                <QueueCard
+                  client={sortedQueue[queueWorkIdx]}
+                  isDemo={isDemo}
+                  onNext={() => {
+                    const next = queueWorkIdx + 1;
+                    if (next >= sortedQueue.length) {
+                      setQueueWorkIdx(sortedQueue.length); // show completion
+                    } else {
+                      setQueueWorkIdx(next);
+                    }
+                  }}
+                  onUpdate={(patch) => updateClientLocally(sortedQueue[queueWorkIdx].id, patch)}
+                  onRefresh={load}
+                />
+              ) : (
+                <div style={{ ...s.card, padding: 56, textAlign: 'center' }}>
+                  <div style={{ fontSize: 40 }}>🎉</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginTop: 14 }}>Queue complete!</div>
+                  <div style={{ fontSize: 13, color: '#9CA3AF', marginTop: 6 }}>
+                    You worked through all {sortedQueue.length} client{sortedQueue.length !== 1 ? 's' : ''} in today's queue.
+                  </div>
+                  <button onClick={exitQueue} style={{ ...s.primaryBtn, marginTop: 20 }}>← Back to all clients</button>
+                </div>
+              )}
+            </div>
           ) : queueMode ? (
             <QueueView
               clients={activeClients}
               isDemo={isDemo}
               onExit={exitQueue}
+              onStartWorking={startQueueWork}
               selectedId={selectedClient?.id}
               onSelect={selectClient}
               onUpdate={updateClientLocally}
@@ -1302,7 +1349,7 @@ function EmailModal({ to, name, onClose }) {
 
 // ─── Queue View (Today's Queue — filtered list) ────────────────────────────────
 
-function QueueView({ clients, isDemo, onExit, selectedId, onSelect, onUpdate, onRefresh }) {
+function QueueView({ clients, isDemo, onExit, onStartWorking, selectedId, onSelect, onUpdate, onRefresh }) {
   // Show overdue + due-soon + never-contacted clients
   const dueClients = clients.filter(c =>
     c.decay === 'urgent' || c.decay === 'warning' || c.days_since_contact === null
@@ -1310,22 +1357,28 @@ function QueueView({ clients, isDemo, onExit, selectedId, onSelect, onUpdate, on
 
   // Sort: urgent first, then warning, then never-contacted
   const decayOrder = { urgent: 0, warning: 1 };
-  const sorted = [...dueClients].sort((a, b) => {
-    const aO = decayOrder[a.decay] ?? 2;
-    const bO = decayOrder[b.decay] ?? 2;
-    return aO - bO;
-  });
+  const sorted = [...dueClients].sort((a, b) => (decayOrder[a.decay] ?? 2) - (decayOrder[b.decay] ?? 2));
 
   return (
     <div>
       {/* Queue header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <button onClick={onExit} style={s.ghostBtn}>← Back to all clients</button>
-        {sorted.length > 0 && (
-          <span style={{ fontSize: 13, color: '#6B7280' }}>
-            {sorted.length} client{sorted.length !== 1 ? 's' : ''} need a touch today
-          </span>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {sorted.length > 0 && (
+            <span style={{ fontSize: 13, color: '#6B7280' }}>
+              {sorted.length} client{sorted.length !== 1 ? 's' : ''} need a touch today
+            </span>
+          )}
+          {sorted.length > 0 && (
+            <button
+              onClick={() => onStartWorking(0)}
+              style={{ ...s.primaryBtn, padding: '8px 18px', fontSize: 13 }}
+            >
+              ▶ Start Queue
+            </button>
+          )}
+        </div>
       </div>
 
       {sorted.length === 0 ? (
@@ -1354,13 +1407,16 @@ function QueueView({ clients, isDemo, onExit, selectedId, onSelect, onUpdate, on
                   striped={i % 2 === 1}
                   isSelected={selectedId === c.id}
                   isDemo={isDemo}
-                  onSelect={() => onSelect(c)}
+                  onSelect={() => onStartWorking(i)}
                   onUpdate={onUpdate}
                   onRefresh={onRefresh}
                 />
               ))}
             </tbody>
           </table>
+          <div style={{ padding: '10px 16px', borderTop: '1px solid #F3F4F6', fontSize: 12, color: '#9CA3AF' }}>
+            Click any row to open that client, or use ▶ Start Queue to work through all of them in order.
+          </div>
         </div>
       )}
     </div>
