@@ -7,6 +7,23 @@ import {
   getGHLContactOpportunity,
   updateGHLOpportunityStage,
 } from '@/lib/ghl';
+
+const GHL_API     = 'https://services.leadconnectorhq.com';
+const GHL_VERSION = '2021-07-28';
+
+async function triggerWorkflow(contactId, workflowId) {
+  const apiKey = process.env.GHL_API_KEY;
+  if (!apiKey || !contactId || !workflowId) return;
+  await fetch(`${GHL_API}/contacts/${contactId}/workflow/${workflowId}`, {
+    method:  'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Version':       GHL_VERSION,
+      'Content-Type':  'application/json',
+    },
+    body: JSON.stringify({ eventStartTime: '' }),
+  });
+}
 import { logLeadEvent } from '@/lib/leadEvents';
 
 /**
@@ -39,7 +56,7 @@ export default async function handler(req, res) {
   const session = await getServerSession(req, res, authOptions);
   if (!session) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { bookingId, email, status } = req.body;
+  const { bookingId, email, status, assigned_user_id } = req.body;
   if (!bookingId || !email || !status) {
     return res.status(400).json({ error: 'Missing bookingId, email, or status' });
   }
@@ -131,6 +148,26 @@ export default async function handler(req, res) {
     booking_id: bookingId,
     updated_by: 'dashboard',
   }).catch(() => {});
+
+  // Trigger mapped GHL workflow for no-show (fire-and-forget, non-blocking)
+  if (status === 'no-show' && assigned_user_id) {
+    try {
+      const { data: settingsRow } = await supabase.from('settings').select('workflow_mappings').eq('id', 1).single();
+      const workflowId = settingsRow?.workflow_mappings?.mark_no_show?.[assigned_user_id];
+      if (workflowId) {
+        // Resolve GHL contact ID
+        const { data: bookingRow } = await supabase.from('bookings').select('ghl_contact_id').eq('id', bookingId).single();
+        let ghlContactId = bookingRow?.ghl_contact_id ?? lead?.ghl_contact_id ?? null;
+        if (!ghlContactId) {
+          const c = await lookupGHLContactByEmail(email).catch(() => null);
+          ghlContactId = c?.id ?? null;
+        }
+        if (ghlContactId) {
+          triggerWorkflow(ghlContactId, workflowId).catch(() => {});
+        }
+      }
+    } catch { /* non-fatal */ }
+  }
 
   res.json({ ok: true, status, errors: errors.length ? errors : undefined });
 }

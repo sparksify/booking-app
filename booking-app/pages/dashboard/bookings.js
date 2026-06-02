@@ -181,7 +181,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
     await fetch('/api/dashboard/update-booking-status', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ bookingId: booking.id, email: booking.email, status }),
+      body:    JSON.stringify({ bookingId: booking.id, email: booking.email, status, assigned_user_id: booking.assigned_user_id || null }),
     }).catch(console.error);
     setBookings(bs => bs.map(b => b.id === booking.id ? { ...b, status } : b));
     if (panelBooking?.id === booking.id) setPanelBooking(b => ({ ...b, status }));
@@ -774,7 +774,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
     await fetch('/api/dashboard/send-cq', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ bookingId: booking.id, email: booking.email }),
+      body:    JSON.stringify({ bookingId: booking.id, email: booking.email, assigned_user_id: booking.assigned_user_id || null }),
     }).catch(console.error);
   }
 

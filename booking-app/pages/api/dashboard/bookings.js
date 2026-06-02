@@ -217,6 +217,7 @@ async function fetchCalendly(from, to) {
           contactsByIdx[i] = contact;
           base[i].ghl_contact_id   = contact.id;
           base[i].investment_level = getGHLLiquidCapital(contact);
+          base[i].assigned_user_id = contact.assignedTo || null;
           // Phone from GHL if Calendly didn't capture it
           if (!base[i].phone && contact.phone) base[i].phone = contact.phone;
         } catch { /* non-fatal */ }
@@ -364,6 +365,7 @@ async function fetchGHL(from, to) {
       status:            GHL_STATUS[rawStatus] || 'scheduled',
       investment_level:  liquidCapital,
       assigned_to_email: assignedUserName,
+      assigned_user_id:  ev.assignedUserId || null,
       meet_link:         null,
       created_at:        ev.dateAdded || ev.createdAt || null,
       event_name:        eventName,

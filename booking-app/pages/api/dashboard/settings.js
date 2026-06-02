@@ -30,7 +30,7 @@ export default async function handler(req, res) {
       days_ahead, buffer_minutes,
       max_slots_per_day, hidden_slots_count,
       brand_pitches, form_tag_rules, revenue_per_close,
-      show_revenue, show_franchise_metrics,
+      show_revenue, show_franchise_metrics, workflow_mappings,
     } = req.body;
 
     const update = { updated_at: new Date().toISOString() };
@@ -48,6 +48,7 @@ export default async function handler(req, res) {
     if (revenue_per_close       !== undefined) update.revenue_per_close       = Number(revenue_per_close) || 0;
     if (show_revenue            !== undefined) update.show_revenue            = !!show_revenue;
     if (show_franchise_metrics  !== undefined) update.show_franchise_metrics  = !!show_franchise_metrics;
+    if (workflow_mappings       !== undefined) update.workflow_mappings       = workflow_mappings;
 
     const { data, error } = await supabase
       .from('settings')

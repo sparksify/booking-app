@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { getServerSession } from 'next-auth/next';
 import Head from 'next/head';
@@ -65,6 +65,23 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
   // Form Tag Rules state
   const [tagRules,      setTagRules]      = useState(initialSettings.form_tag_rules || []);
   const [tagRuleSaving, setTagRuleSaving] = useState({});
+
+  // Workflow Automations state
+  const [workflowMappings, setWorkflowMappings] = useState(initialSettings.workflow_mappings || {});
+  const [ghlWorkflows,     setGhlWorkflows]     = useState([]);
+  const [ghlUsers,         setGhlUsers]         = useState([]);
+  const [workflowSaving,   setWorkflowSaving]   = useState(false);
+  const [workflowSaved,    setWorkflowSaved]    = useState(false);
+
+  useEffect(() => {
+    fetch('/api/dashboard/ghl-workflows')
+      .then(r => r.ok ? r.json() : { workflows: [], users: [] })
+      .then(({ workflows, users }) => {
+        setGhlWorkflows(workflows || []);
+        setGhlUsers(users || []);
+      })
+      .catch(() => {});
+  }, []);
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
   const bookingUrl = `${baseUrl}/?first_name={{first_name}}&last_name={{last_name}}&phone={{phone_number}}&email={{email}}&investment_level={{investment_level}}`;
@@ -171,6 +188,25 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ form_tag_rules: tagRules }),
     });
+  }
+
+  // ── Workflow Automations helpers ───────────────────────────────────────────
+  function setWorkflow(action, userId, workflowId) {
+    setWorkflowMappings(prev => ({
+      ...prev,
+      [action]: { ...(prev[action] || {}), [userId]: workflowId },
+    }));
+  }
+
+  async function saveWorkflowMappings() {
+    setWorkflowSaving(true);
+    await fetch('/api/dashboard/settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workflow_mappings: workflowMappings }),
+    });
+    setWorkflowSaving(false);
+    setWorkflowSaved(true);
+    setTimeout(() => setWorkflowSaved(false), 2000);
   }
 
   function formatSlot(iso) {
@@ -427,6 +463,62 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
                 <button style={{ ...s.saveBtn, background: '#1A7E24' }} onClick={saveTagRules}>Save All Rules</button>
               )}
             </div>
+          </Section>
+
+          {/* ── Workflow Automations ─────────────────────────────────────── */}
+          <Section
+            title="Workflow Automations"
+            subtitle="Map each button action to a GoHighLevel workflow, per consultant. The workflow fires automatically when the button is clicked on a meeting."
+          >
+            {ghlWorkflows.length === 0 ? (
+              <div style={{ fontSize: 13, color: '#9CA3AF', padding: '12px 0' }}>Loading workflows from GoHighLevel…</div>
+            ) : (
+              <>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ ...s.table, marginBottom: 0 }}>
+                    <thead>
+                      <tr>
+                        <th style={s.th}>Action</th>
+                        {ghlUsers.map(u => (
+                          <th key={u.id} style={s.th}>{u.name}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { key: 'send_cq',       label: 'Send CQ' },
+                        { key: 'mark_no_show',  label: 'Mark No-Show' },
+                      ].map(action => (
+                        <tr key={action.key} style={s.tr}>
+                          <td style={{ ...s.td, fontWeight: 600, whiteSpace: 'nowrap', color: '#1A2B3C' }}>
+                            {action.label}
+                          </td>
+                          {ghlUsers.map(u => (
+                            <td key={u.id} style={s.td}>
+                              <select
+                                style={{ ...s.select, width: '100%', minWidth: 200 }}
+                                value={(workflowMappings[action.key] || {})[u.id] || ''}
+                                onChange={e => setWorkflow(action.key, u.id, e.target.value)}
+                              >
+                                <option value="">— No workflow —</option>
+                                {ghlWorkflows.map(wf => (
+                                  <option key={wf.id} value={wf.id}>{wf.name}</option>
+                                ))}
+                              </select>
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ marginTop: 16 }}>
+                  <button style={s.saveBtn} onClick={saveWorkflowMappings} disabled={workflowSaving}>
+                    {workflowSaving ? 'Saving…' : workflowSaved ? '✓ Saved' : 'Save Workflow Mappings'}
+                  </button>
+                </div>
+              </>
+            )}
           </Section>
 
           {/* ── Recent Bookings ──────────────────────────────────────────── */}
