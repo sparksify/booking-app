@@ -1364,6 +1364,85 @@ function EmailModal({ to, name, onClose }) {
   );
 }
 
+// ─── SMS Compose Modal ─────────────────────────────────────────────────────────
+
+function SmsModal({ to, name, contactId, onClose }) {
+  const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const [result,  setResult]  = useState(null);
+
+  async function send() {
+    if (!message.trim()) return;
+    setSending(true);
+    try {
+      const res  = await fetch('/api/dashboard/send-sms', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: to, message: message.trim(), contactId }),
+      });
+      const data = await res.json();
+      if (data.ok && !data.fallback) {
+        setResult({ success: true, message: 'SMS sent ✓' });
+        setTimeout(onClose, 1800);
+      } else if (data.fallback || data.smsLink) {
+        window.location.href = data.smsLink || `sms:${to}?body=${encodeURIComponent(message)}`;
+        onClose();
+      } else {
+        setResult({ success: false, message: data.error || 'Send failed' });
+      }
+    } catch {
+      setResult({ success: false, message: 'Network error' });
+    }
+    setSending(false);
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.5)' }} onClick={onClose} />
+      <div style={{ position: 'relative', background: '#fff', borderRadius: 10, width: 480, maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid #E8EAED' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>💬 Send SMS</div>
+          <button onClick={onClose} style={s.closeBtn}>✕</button>
+        </div>
+        <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 5 }}>To</div>
+            <div style={{ fontSize: 13, color: '#374151', background: '#F9FAFB', padding: '8px 10px', borderRadius: 5, border: '1px solid #E5E7EB' }}>
+              {name}{to ? ` · ${to}` : ''}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 5 }}>Message</div>
+            <textarea
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+              placeholder="Type your message…"
+              rows={5}
+              autoFocus
+              style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E7EB', borderRadius: 5, fontSize: 13, color: '#111827', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.6 }}
+            />
+            <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>{message.length} chars</div>
+          </div>
+          {result && (
+            <div style={{ padding: '8px 12px', borderRadius: 5, fontSize: 13, fontWeight: 600, background: result.success ? '#F0FDF4' : '#FEF2F2', color: result.success ? '#15803D' : '#B91C1C' }}>
+              {result.message}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button onClick={onClose} style={s.ghostBtn}>Cancel</button>
+            <button
+              onClick={send}
+              disabled={sending || !message.trim()}
+              style={{ ...s.primaryBtn, background: '#6D28D9', opacity: !message.trim() ? 0.5 : 1 }}
+            >
+              {sending ? 'Sending…' : 'Send SMS'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Funding Introduction Modal ───────────────────────────────────────────────
 
 function FundingModal({ existing, onSave, onClose }) {
@@ -1466,6 +1545,52 @@ function AttorneyModal({ existing, onSave, onClose }) {
               style={{ ...s.primaryBtn, background: '#6D28D9', opacity: !attorneyName.trim() ? 0.5 : 1 }}
             >
               Save Introduction ✓
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Developer Contact Modal ──────────────────────────────────────────────────
+
+function DeveloperContactModal({ brand, onSave, onClose }) {
+  const [name,  setName]  = useState(brand.developer_name  || '');
+  const [phone, setPhone] = useState(brand.developer_phone || '');
+  const [email, setEmail] = useState(brand.developer_email || '');
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.5)' }} onClick={onClose} />
+      <div style={{ position: 'relative', background: '#fff', borderRadius: 10, width: 420, maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid #E8EAED' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>Developer Contact — {brand.brand_name}</div>
+          <button onClick={onClose} style={s.closeBtn}>✕</button>
+        </div>
+        <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 5 }}>Name</div>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="Developer's full name" autoFocus
+              style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 13, color: '#111827', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 5 }}>Phone</div>
+            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="(800) 555-0100" type="tel"
+              style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 13, color: '#111827', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 5 }}>Email</div>
+            <input value={email} onChange={e => setEmail(e.target.value)} placeholder="developer@brand.com" type="email"
+              style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 13, color: '#111827', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+            <button onClick={onClose} style={s.ghostBtn}>Cancel</button>
+            <button
+              onClick={() => onSave({ developer_name: name.trim(), developer_phone: phone.trim(), developer_email: email.trim() })}
+              style={s.primaryBtn}
+            >
+              Save Contact
             </button>
           </div>
         </div>
@@ -1617,6 +1742,162 @@ function QueueView({ clients, isDemo, onExit, onStartWorking, selectedId, onSele
   );
 }
 
+// ─── Communications Panel ─────────────────────────────────────────────────────
+
+function CommunicationsPanel({ client, isDemo, touchpoints, onTouchpointAdded, onLogAndNext, contactId }) {
+  const [medium,    setMedium]    = useState('call');
+  const [note,      setNote]      = useState('');
+  const [logging,   setLogging]   = useState(false);
+  const [loggedMsg, setLoggedMsg] = useState('');
+  const [showEmail, setShowEmail] = useState(false);
+  const [showSms,   setShowSms]   = useState(false);
+
+  async function log(andNext) {
+    if (!note.trim() || logging) return;
+    setLogging(true);
+    const newTP = {
+      id: `tp_${Date.now()}`, nurture_client_id: client.id, medium, note: note.trim(),
+      created_at: new Date().toISOString(), created_by: 'me',
+    };
+    setNote('');
+    onTouchpointAdded(newTP);
+    if (!isDemo) {
+      await fetch('/api/dashboard/nurture-touchpoint', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nurture_client_id: client.id, medium, note: newTP.note }),
+      }).catch(console.error);
+    }
+    setLogging(false);
+    if (andNext) {
+      onLogAndNext();
+    } else {
+      setLoggedMsg(`${medium.charAt(0).toUpperCase() + medium.slice(1)} logged ✓`);
+      setTimeout(() => setLoggedMsg(''), 3000);
+    }
+  }
+
+  return (
+    <div style={s.card}>
+      {/* Header row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div style={s.cardTitle}>Communications</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            onClick={() => setShowEmail(true)}
+            style={{ padding: '5px 12px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 5, fontSize: 11, fontWeight: 600, color: '#1D4ED8', cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            ✉️ Compose Email
+          </button>
+          {client.phone && (
+            <button
+              onClick={() => setShowSms(true)}
+              style={{ padding: '5px 12px', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 5, fontSize: 11, fontWeight: 600, color: '#6D28D9', cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              💬 Send SMS
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Log touchpoint */}
+      <div style={{ paddingBottom: 18, marginBottom: 18, borderBottom: '1px solid #F3F4F6' }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 10 }}>Log Touchpoint</div>
+        {loggedMsg ? (
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <div style={{ fontSize: 22 }}>✓</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#15803D', marginTop: 6 }}>{loggedMsg}</div>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {['call', 'email', 'text'].map(m => (
+                <button key={m} onClick={() => setMedium(m)} style={{
+                  flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 600, borderRadius: 6,
+                  border: `1.5px solid ${medium === m ? '#1D4ED8' : '#E5E7EB'}`,
+                  background: medium === m ? '#EFF6FF' : '#F9FAFB',
+                  color: medium === m ? '#1D4ED8' : '#6B7280',
+                  cursor: 'pointer', textTransform: 'capitalize', fontFamily: 'inherit',
+                }}>
+                  {m === 'call' ? '📞' : m === 'email' ? '✉️' : '💬'} {m}
+                </button>
+              ))}
+            </div>
+            <textarea
+              style={{ ...s.notesArea, marginTop: 10, fontSize: 13 }}
+              rows={3}
+              placeholder={`Notes from this ${medium}…`}
+              value={note}
+              onChange={e => setNote(e.target.value)}
+            />
+            <button
+              onClick={() => log(true)}
+              disabled={!note.trim() || logging}
+              style={{ ...s.primaryBtn, marginTop: 8, width: '100%', fontSize: 14, padding: '10px', opacity: !note.trim() ? 0.5 : 1, cursor: !note.trim() ? 'not-allowed' : 'pointer' }}
+            >
+              {logging ? 'Logging…' : `Log ${medium.charAt(0).toUpperCase() + medium.slice(1)} + Next →`}
+            </button>
+            <button
+              onClick={() => log(false)}
+              disabled={!note.trim() || logging}
+              style={{ width: '100%', marginTop: 6, padding: '6px', background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 12, color: '#6B7280', cursor: !note.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: !note.trim() ? 0.4 : 1 }}
+            >
+              Log only (stay here)
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Touch history */}
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 12 }}>Touch History</div>
+        {touchpoints.length === 0 ? (
+          <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', padding: '16px 0' }}>No touchpoints logged yet</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {touchpoints.slice(0, 12).map((tp, i) => {
+              const isLast = i === Math.min(touchpoints.length, 12) - 1;
+              const ts     = new Date(tp.created_at);
+              const label  = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const icon   = tp.medium === 'call' ? '📞' : tp.medium === 'email' ? '✉️' : '💬';
+              return (
+                <div key={tp.id} style={{ display: 'flex', gap: 10 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                    <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>{icon}</div>
+                    {!isLast && <div style={{ width: 1, flex: 1, background: '#E5E7EB', margin: '3px 0' }} />}
+                  </div>
+                  <div style={{ flex: 1, paddingBottom: isLast ? 0 : 14 }}>
+                    <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 3 }}>
+                      {label} · <span style={{ textTransform: 'capitalize', fontWeight: 500 }}>{tp.medium}</span>
+                    </div>
+                    {tp.note && <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.5 }}>{tp.note}</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Compose modals */}
+      {showEmail && (
+        <EmailModal
+          to={client.email}
+          name={`${client.first_name} ${client.last_name}`}
+          onClose={() => setShowEmail(false)}
+        />
+      )}
+      {showSms && (
+        <SmsModal
+          to={client.phone}
+          name={`${client.first_name} ${client.last_name}`}
+          contactId={contactId}
+          onClose={() => setShowSms(false)}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Queue Card (used in Queue mode full-card layout) ─────────────────────────
 
 // ── Next Action Engine ────────────────────────────────────────────────────────
@@ -1690,10 +1971,6 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
   const [brands,            setBrands]            = useState(c.brands || []);
   const [touchpoints,       setTouchpoints]       = useState(c.touchpoints || []);
   const [milestones,        setMilestones]        = useState(c.milestones || {});
-  const [medium,            setMedium]            = useState('call');
-  const [note,              setNote]              = useState('');
-  const [logging,           setLogging]           = useState(false);
-  const [loggedMsg,         setLoggedMsg]         = useState('');
   const [notesSaving,       setNotesSaving]       = useState(false);
   const [notesSaved,        setNotesSaved]        = useState(false);
   const [clientNotes,       setClientNotes]       = useState(c.notes || '');
@@ -1706,8 +1983,6 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
     setTouchpoints(c.touchpoints || []);
     setMilestones(c.milestones || {});
     setClientNotes(c.notes || '');
-    setNote('');
-    setLoggedMsg('');
     setNotesSaved(false);
     setGhlContact(null);
     // Async fetch GHL contact for tags + prospect info
@@ -1748,49 +2023,6 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
         body: JSON.stringify({ id: c.id, milestones: updated }),
       }).catch(console.error);
     }
-  }
-
-  // Log touchpoint AND advance to next client (primary action)
-  async function logAndNext() {
-    if (!note.trim() || logging) return;
-    setLogging(true);
-    const newTP = {
-      id: `tp_${Date.now()}`, nurture_client_id: c.id, medium, note: note.trim(),
-      created_at: new Date().toISOString(), created_by: 'me',
-    };
-    setTouchpoints(prev => [newTP, ...prev]);
-    setNote('');
-    onUpdate({ last_contacted_at: newTP.created_at, decay: 'good', days_since_contact: 0 });
-    if (!isDemo) {
-      await fetch('/api/dashboard/nurture-touchpoint', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nurture_client_id: c.id, medium, note: note.trim() }),
-      }).catch(console.error);
-    }
-    setLogging(false);
-    onNext();
-  }
-
-  // Log touchpoint only, stay on this client
-  async function logOnly() {
-    if (!note.trim() || logging) return;
-    setLogging(true);
-    const newTP = {
-      id: `tp_${Date.now()}`, nurture_client_id: c.id, medium, note: note.trim(),
-      created_at: new Date().toISOString(), created_by: 'me',
-    };
-    setTouchpoints(prev => [newTP, ...prev]);
-    setNote('');
-    onUpdate({ last_contacted_at: newTP.created_at, decay: 'good', days_since_contact: 0 });
-    if (!isDemo) {
-      await fetch('/api/dashboard/nurture-touchpoint', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nurture_client_id: c.id, medium, note: note.trim() }),
-      }).catch(console.error);
-    }
-    setLogging(false);
-    setLoggedMsg(`${medium.charAt(0).toUpperCase() + medium.slice(1)} logged ✓`);
-    setTimeout(() => setLoggedMsg(''), 3000);
   }
 
   async function updateBrand(brandId, brandName, fields) {
@@ -1840,7 +2072,7 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 16, alignItems: 'start' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: 16, alignItems: 'start' }}>
 
       {/* ── Left column ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1944,27 +2176,18 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
           onOpenAttorney={() => setShowAttorneyModal(true)}
         />
 
-        {/* Franchise brand cards */}
-        <div style={s.card}>
-          <div style={s.cardTitle}>Franchise Progress</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 14 }}>
-            {brands.length === 0 && (
-              <div style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '16px 0' }}>
-                No brands added — seeded from lead's franchise interests.
-              </div>
-            )}
-            {brands.map(brand => (
-              <BrandCard
-                key={brand.id}
-                brand={brand}
-                onStageChange={stage => updateBrand(brand.id, brand.brand_name, { stage })}
-                onSentimentChange={sentiment => updateBrand(brand.id, brand.brand_name, { sentiment })}
-                onNoteChange={note => updateBrand(brand.id, brand.brand_name, { note })}
-                onDevChange={fields => updateBrand(brand.id, brand.brand_name, fields)}
-              />
-            ))}
-          </div>
-        </div>
+        {/* Communications panel */}
+        <CommunicationsPanel
+          client={c}
+          isDemo={isDemo}
+          touchpoints={touchpoints}
+          onTouchpointAdded={(tp) => {
+            setTouchpoints(prev => [tp, ...prev]);
+            onUpdate({ last_contacted_at: tp.created_at, decay: 'good', days_since_contact: 0 });
+          }}
+          onLogAndNext={onNext}
+          contactId={ghlContact?.id}
+        />
 
         {/* Notes */}
         <div style={s.card}>
@@ -1989,88 +2212,27 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
         </div>
       </div>
 
-      {/* ── Right column: touchpoint logger + history ── */}
+      {/* ── Right column: franchise progress ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-        {/* Log touchpoint */}
         <div style={s.card}>
-          <div style={s.cardTitle}>Log Touchpoint</div>
-          {loggedMsg ? (
-            <div style={{ marginTop: 12, textAlign: 'center', padding: '20px 0' }}>
-              <div style={{ fontSize: 24 }}>✓</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#15803D', marginTop: 6 }}>{loggedMsg}</div>
-            </div>
-          ) : (
-            <>
-              <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-                {['call', 'email', 'text'].map(m => (
-                  <button key={m} onClick={() => setMedium(m)} style={{
-                    flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 600, borderRadius: 6,
-                    border: `1.5px solid ${medium === m ? '#1D4ED8' : '#E5E7EB'}`,
-                    background: medium === m ? '#EFF6FF' : '#F9FAFB',
-                    color: medium === m ? '#1D4ED8' : '#6B7280',
-                    cursor: 'pointer', textTransform: 'capitalize', fontFamily: 'inherit',
-                  }}>
-                    {m === 'call' ? '📞' : m === 'email' ? '✉️' : '💬'} {m}
-                  </button>
-                ))}
+          <div style={s.cardTitle}>Franchise Progress</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 14 }}>
+            {brands.length === 0 && (
+              <div style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '16px 0' }}>
+                No brands added — seeded from lead's franchise interests.
               </div>
-              <textarea
-                style={{ ...s.notesArea, marginTop: 10, fontSize: 13 }}
-                rows={4}
-                placeholder={`Notes from this ${medium}…`}
-                value={note}
-                onChange={e => setNote(e.target.value)}
+            )}
+            {brands.map(brand => (
+              <BrandCard
+                key={brand.id}
+                brand={brand}
+                onStageChange={stage => updateBrand(brand.id, brand.brand_name, { stage })}
+                onSentimentChange={sentiment => updateBrand(brand.id, brand.brand_name, { sentiment })}
+                onNoteChange={note => updateBrand(brand.id, brand.brand_name, { note })}
+                onDevChange={fields => updateBrand(brand.id, brand.brand_name, fields)}
               />
-              {/* Primary: Log + Next */}
-              <button
-                onClick={logAndNext}
-                disabled={!note.trim() || logging}
-                style={{ ...s.primaryBtn, marginTop: 8, width: '100%', fontSize: 14, padding: '10px', opacity: !note.trim() ? 0.5 : 1, cursor: !note.trim() ? 'not-allowed' : 'pointer' }}
-              >
-                {logging ? 'Logging…' : `Log ${medium.charAt(0).toUpperCase() + medium.slice(1)} + Next →`}
-              </button>
-              {/* Secondary: Log only */}
-              <button
-                onClick={logOnly}
-                disabled={!note.trim() || logging}
-                style={{ width: '100%', marginTop: 6, padding: '6px', background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 12, color: '#6B7280', cursor: !note.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: !note.trim() ? 0.4 : 1 }}
-              >
-                Log only (stay here)
-              </button>
-            </>
-          )}
-        </div>
-
-        {/* Touchpoint history */}
-        <div style={s.card}>
-          <div style={s.cardTitle}>Touch History</div>
-          {touchpoints.length === 0 ? (
-            <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 12, textAlign: 'center', padding: '16px 0' }}>No touchpoints logged yet</div>
-          ) : (
-            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {touchpoints.slice(0, 8).map((tp, i) => {
-                const isLast = i === Math.min(touchpoints.length, 8) - 1;
-                const ts     = new Date(tp.created_at);
-                const label  = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                const icon   = tp.medium === 'call' ? '📞' : tp.medium === 'email' ? '✉️' : '💬';
-                return (
-                  <div key={tp.id} style={{ display: 'flex', gap: 10 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                      <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>{icon}</div>
-                      {!isLast && <div style={{ width: 1, flex: 1, background: '#E5E7EB', margin: '3px 0' }} />}
-                    </div>
-                    <div style={{ flex: 1, paddingBottom: isLast ? 0 : 14 }}>
-                      <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 3 }}>
-                        {label} · <span style={{ textTransform: 'capitalize', fontWeight: 500 }}>{tp.medium}</span>
-                      </div>
-                      {tp.note && <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.5 }}>{tp.note}</div>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+            ))}
+          </div>
         </div>
       </div>
 
@@ -2096,35 +2258,20 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
 // ─── Brand Card (Queue mode) ───────────────────────────────────────────────────
 
 function BrandCard({ brand, onStageChange, onSentimentChange, onNoteChange, onDevChange }) {
-  const [noteVal,   setNoteVal]   = useState(brand.note || '');
-  const [noteTimer, setNoteTimer] = useState(null);
-  const [devName,   setDevName]   = useState(brand.developer_name  || '');
-  const [devPhone,  setDevPhone]  = useState(brand.developer_phone || '');
-  const [devEmail,  setDevEmail]  = useState(brand.developer_email || '');
-  const [devTimer,  setDevTimer]  = useState(null);
+  const [noteVal,      setNoteVal]      = useState(brand.note || '');
+  const [noteTimer,    setNoteTimer]    = useState(null);
+  const [showDevModal, setShowDevModal] = useState(false);
+
+  const hasDevInfo = brand.developer_name || brand.developer_phone || brand.developer_email;
 
   useEffect(() => {
     setNoteVal(brand.note || '');
-    setDevName(brand.developer_name  || '');
-    setDevPhone(brand.developer_phone || '');
-    setDevEmail(brand.developer_email || '');
   }, [brand.id]);
 
   function handleNoteChange(v) {
     setNoteVal(v);
     if (noteTimer) clearTimeout(noteTimer);
     setNoteTimer(setTimeout(() => onNoteChange(v), 1000));
-  }
-
-  function handleDevChange(field, value) {
-    if (field === 'name')  setDevName(value);
-    if (field === 'phone') setDevPhone(value);
-    if (field === 'email') setDevEmail(value);
-    if (devTimer) clearTimeout(devTimer);
-    const n = field === 'name'  ? value : devName;
-    const p = field === 'phone' ? value : devPhone;
-    const e = field === 'email' ? value : devEmail;
-    setDevTimer(setTimeout(() => onDevChange({ developer_name: n, developer_phone: p, developer_email: e }), 1000));
   }
 
   return (
@@ -2185,22 +2332,42 @@ function BrandCard({ brand, onStageChange, onSentimentChange, onNoteChange, onDe
         onChange={e => handleNoteChange(e.target.value)}
       />
 
-      {/* Developer contact */}
+      {/* Developer contact — read-only */}
       <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 7 }}>Developer Contact</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-          <input placeholder="Developer name"  value={devName}  onChange={e => handleDevChange('name',  e.target.value)} style={s.devInput} />
-          <input placeholder="Developer phone" value={devPhone} onChange={e => handleDevChange('phone', e.target.value)} style={s.devInput} />
-          <div style={{ display: 'flex', gap: 5 }}>
-            <input placeholder="Developer email" value={devEmail} onChange={e => handleDevChange('email', e.target.value)} style={{ ...s.devInput, flex: 1 }} />
-            {devEmail && (
-              <a href={`mailto:${devEmail}`} style={{ padding: '5px 10px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 5, fontSize: 11, fontWeight: 600, color: '#1D4ED8', textDecoration: 'none', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center' }}>
-                ✉️ Email
-              </a>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.05em' }}>Developer Contact</div>
+          <button
+            onClick={() => setShowDevModal(true)}
+            style={{ fontSize: 11, fontWeight: 600, color: '#1D4ED8', background: 'none', border: 'none', cursor: 'pointer', padding: '1px 4px', fontFamily: 'inherit' }}
+          >
+            {hasDevInfo ? 'Edit' : '+ Add'}
+          </button>
+        </div>
+        {hasDevInfo ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {brand.developer_name && (
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{brand.developer_name}</div>
+            )}
+            {brand.developer_phone && (
+              <a href={`tel:${brand.developer_phone}`} style={{ fontSize: 12, color: '#1D4ED8', textDecoration: 'none' }}>{brand.developer_phone}</a>
+            )}
+            {brand.developer_email && (
+              <a href={`mailto:${brand.developer_email}`} style={{ fontSize: 12, color: '#1D4ED8', textDecoration: 'none' }}>{brand.developer_email}</a>
             )}
           </div>
-        </div>
+        ) : (
+          <div style={{ fontSize: 11, color: '#C0C0C0', fontStyle: 'italic' }}>No contact info yet</div>
+        )}
       </div>
+
+      {/* Edit modal */}
+      {showDevModal && (
+        <DeveloperContactModal
+          brand={brand}
+          onSave={(fields) => { onDevChange(fields); setShowDevModal(false); }}
+          onClose={() => setShowDevModal(false)}
+        />
+      )}
     </div>
   );
 }
