@@ -592,6 +592,10 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
   const [timeline,     setTimeline]     = useState([]);
   const [tlLoading,    setTlLoading]    = useState(false);
 
+  // GHL contact intel (fetched for any booking that has a ghl_contact_id)
+  const [ghlContact,        setGhlContact]        = useState(null);
+  const [ghlContactLoading, setGhlContactLoading] = useState(false);
+
   // GHL tags
   const [ghlTags,        setGhlTags]        = useState([]);
   const [ghlTagsLoading, setGhlTagsLoading] = useState(false);
@@ -636,6 +640,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
     // Fetch GHL tags
     if (!booking?.email || isDemo) {
       if (isDemo) setGhlTags(['hot-lead', 'franchise-ready']);
+      setGhlContact(null);
       return;
     }
     setGhlTagsLoading(true);
@@ -643,6 +648,18 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
       .then(r => r.json())
       .then(d => { setGhlTags(d.tags || []); setGhlTagsLoading(false); })
       .catch(() => setGhlTagsLoading(false));
+
+    // Fetch GHL contact intel (works for all bookings — FranchiseBook contacts are also in GHL)
+    const ghlId = booking?.ghl_contact_id;
+    if (ghlId) {
+      setGhlContactLoading(true);
+      fetch(`/api/dashboard/ghl-contact-detail?contactId=${ghlId}`)
+        .then(r => r.json())
+        .then(d => { setGhlContact(d.contact || null); setGhlContactLoading(false); })
+        .catch(() => { setGhlContact(null); setGhlContactLoading(false); });
+    } else {
+      setGhlContact(null);
+    }
   }, [booking?.id]);
 
   useEffect(() => {
@@ -652,6 +669,8 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
       setShowFollowUp(false); setFuSaved(false);
       setNewTagInput('');
       setShowTagInput(false);
+      setGhlContact(null);
+      setGhlContactLoading(false);
     }
   }, [open]);
 
@@ -796,17 +815,21 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
   const raw = lead?.raw_fields
     ? (typeof lead.raw_fields === 'string' ? JSON.parse(lead.raw_fields) : lead.raw_fields)
     : {};
-  const liquidCapital = getField(raw, 'liquid_capital', 'liquid capital');
-  const ownedBusiness = getField(raw, 'owned_business', 'owned or managed', 'managed a business', 'business before');
+  const cf = ghlContact?.custom_fields || {};
+  const liquidCapital = getField(raw, 'liquid_capital', 'liquid capital')
+    || cf['Liquid Cash'] || cf['Cash Available'] || null;
+  const ownedBusiness = getField(raw, 'owned_business', 'owned or managed', 'managed a business', 'business before')
+    || cf['Owned Business'] || null;
 
   // Territory / area of interest — structured if we have city/state, otherwise raw
   const territory = (() => {
-    const city     = lead?.location_city;
-    const state    = lead?.location_state;
-    const zip      = lead?.location_zip;
-    const areaCode = lead?.location_area_code;
+    const city     = lead?.location_city     || ghlContact?.city;
+    const state    = lead?.location_state    || ghlContact?.state;
+    const zip      = lead?.location_zip      || ghlContact?.zip;
+    const areaCode = lead?.location_area_code|| ghlContact?.area_code;
     const locRaw   = lead?.location_raw;
-    const fbRaw    = getField(raw, 'territory', 'area_of_interest', 'interested_area');
+    const fbRaw    = getField(raw, 'territory', 'area_of_interest', 'interested_area')
+      || cf['Areas of Interest'] || cf['Territory Interest'];
     if (city || state) {
       const primary = [city, state].filter(Boolean).join(', ');
       const sub     = zip || (areaCode ? `Area code ${areaCode}` : null);
@@ -969,6 +992,80 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                   </div>
                 )}
               </PanelSection>
+
+              {/* ── GHL Intel ── */}
+              {(ghlContactLoading || (ghlContact && Object.keys(ghlContact.custom_fields || {}).length > 0)) && (
+                <PanelSection title="Intel">
+                  {ghlContactLoading ? (
+                    <div style={{ fontSize: 12, color: '#9CA3AF' }}>Loading intel…</div>
+                  ) : (() => {
+                    const fields = ghlContact.custom_fields || {};
+
+                    // Financial
+                    const financial = [
+                      ['Liquid Cash',    fields['Liquid Cash']],
+                      ['Cash Available', fields['Cash Available']],
+                      ['Net Worth',      fields['Net Worth']],
+                    ].filter(([, v]) => v);
+
+                    // Readiness
+                    const readiness = [
+                      ['Owned Business', fields['Owned Business']],
+                      ['Goal Timeline',  fields['Goal Timeline']],
+                      ['Start Timeline', fields['Start Timeline']],
+                    ].filter(([, v]) => v);
+
+                    // Territory
+                    const territory = [
+                      ['Areas of Interest',  fields['Areas of Interest']],
+                      ['Territory Interest', fields['Territory Interest']],
+                    ].filter(([, v]) => v);
+
+                    // Franchise fit
+                    const franchise = [
+                      ['Franchise Brand',      fields['Franchise Brand'] || fields['Brand Name'] || fields['Franchise Name']],
+                      ['Franchise Investment', fields['Franchise Investment']],
+                      ['Franchise Hook',       fields['Franchise Hook']],
+                    ].filter(([, v]) => v);
+
+                    // Video engagement
+                    const video = [
+                      ['Views',      fields['Video Views']],
+                      ['Plays',      fields['Video Plays']],
+                      ['Watch %',    fields['Watch Point %']],
+                      ['Last Visit', fields['Last Video Visit']],
+                    ].filter(([, v]) => v);
+
+                    const groups = [
+                      { label: '💰 Financial',  rows: financial },
+                      { label: '🎯 Readiness',  rows: readiness },
+                      { label: '📍 Territory',  rows: territory },
+                      { label: '🏢 Franchise',  rows: franchise },
+                      { label: '📹 Video',      rows: video },
+                    ].filter(g => g.rows.length > 0);
+
+                    if (groups.length === 0) return null;
+
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        {groups.map(g => (
+                          <div key={g.label}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: '#B0B8C4', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 7 }}>
+                              {g.label}
+                            </div>
+                            {g.rows.map(([label, value]) => (
+                              <div key={label} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 7, fontSize: 13 }}>
+                                <span style={{ color: '#6B7280', width: 108, flexShrink: 0 }}>{label}</span>
+                                <span style={{ color: '#1A2B3C', flex: 1, fontWeight: 500 }}>{String(value)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </PanelSection>
+              )}
 
               {/* ── GHL Tags ── */}
               <PanelSection title="GHL Tags">
@@ -1496,6 +1593,8 @@ const SOURCE_LABELS = {
   sms:           '💬 SMS',
   email:         '📧 Email',
   retargeting:   '🎯 Retargeting',
+  calendly:      '📅 Calendly',
+  gohighlevel:   '📋 GoHighLevel',
 };
 
 function TimelineView({ events, loading, bookingSource }) {
