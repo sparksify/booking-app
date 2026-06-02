@@ -570,9 +570,6 @@ function KanbanCard({ client: c, stage, isSelected, onSelect, isDemo, onUpdate }
               }}>
                 {b.brand_name}
               </span>
-              {b.sentiment && SENTIMENTS[b.sentiment] && (
-                <span style={{ fontSize: 10, flexShrink: 0 }}>{SENTIMENTS[b.sentiment].emoji}</span>
-              )}
             </div>
           ))}
         </div>
@@ -639,7 +636,7 @@ function ListView({ clients, isDemo, selectedId, onSelect, onEnterQueue, onUpdat
         <table style={s.table}>
           <thead>
             <tr>
-              {['Client', 'Franchise(s) & Stage', 'Last Contact', 'Days In', 'Funding', 'Status', ''].map(h => (
+              {['Client', 'Franchise(s) & Stage', 'Last Contact', 'Days In', 'Funding', 'Status', 'Next Indicated Step'].map(h => (
                 <th key={h} style={s.th}>{h}</th>
               ))}
             </tr>
@@ -739,9 +736,6 @@ function ListRow({ client: c, striped, isSelected, isDemo, onSelect, onUpdate, o
                     {b.stage} · {stage.short}
                   </span>
                 )}
-                {b.sentiment && SENTIMENTS[b.sentiment] && (
-                  <span style={{ fontSize: 13 }}>{SENTIMENTS[b.sentiment].emoji}</span>
-                )}
               </div>
             );
           })}
@@ -798,8 +792,7 @@ function ListRow({ client: c, striped, isSelected, isDemo, onSelect, onUpdate, o
           const na = getNextAction(c, c.funding_intro_done, maxStage);
           return (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 14, flexShrink: 0 }}>{na.icon}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: na.color, lineHeight: 1.3 }}>{na.label}</span>
+              <span style={{ fontSize: 12, fontWeight: 500, color: '#374151', lineHeight: 1.3 }}>{na.label}</span>
             </div>
           );
         })()}
@@ -2386,7 +2379,6 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
                 {brands.map(b => (
                   <div key={b.id} style={{ fontSize: 10, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4 }}>
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{b.brand_name}</span>
-                    {b.sentiment && SENTIMENTS[b.sentiment] && <span style={{ flexShrink: 0 }}>{SENTIMENTS[b.sentiment].emoji}</span>}
                   </div>
                 ))}
               </div>
