@@ -56,19 +56,28 @@ export default async function handler(req, res) {
       const d = await r.json();
       contact = d.contact;
     } else {
-      // Lookup by email — search contacts
+      // Lookup by email — search contacts then fetch full record
       const locationId = process.env.GHL_LOCATION_ID;
       if (!locationId) return res.json({ contact: null });
-      const params = new URLSearchParams({ locationId, email });
-      const r = await fetch(`${GHL_API}/contacts/?${params}`, { headers });
-      if (!r.ok) return res.json({ contact: null });
+      const searchUrl = `${GHL_API}/contacts/?locationId=${locationId}&email=${encodeURIComponent(email)}`;
+      const r = await fetch(searchUrl, { headers });
+      if (!r.ok) {
+        console.error('[ghl-contact-detail] email search failed', r.status);
+        return res.json({ contact: null });
+      }
       const d = await r.json();
       // contacts array — take first match
       const match = (d.contacts || [])[0];
-      if (!match) return res.json({ contact: null });
+      if (!match) {
+        console.log('[ghl-contact-detail] no contact found for email:', email);
+        return res.json({ contact: null });
+      }
       // Fetch full contact record to get customFields + tags
       const r2 = await fetch(`${GHL_API}/contacts/${match.id}`, { headers });
-      if (!r2.ok) return res.json({ contact: null });
+      if (!r2.ok) {
+        console.error('[ghl-contact-detail] full contact fetch failed', r2.status);
+        return res.json({ contact: null });
+      }
       const d2 = await r2.json();
       contact = d2.contact;
     }
