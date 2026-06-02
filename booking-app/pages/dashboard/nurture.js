@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { getServerSession } from 'next-auth/next';
 import Head from 'next/head';
@@ -1742,84 +1742,355 @@ function QueueView({ clients, isDemo, onExit, onStartWorking, selectedId, onSele
   );
 }
 
+// ─── Message Bubble ────────────────────────────────────────────────────────────
+
+function MessageBubble({ msg }) {
+  const ts = new Date(msg.dateAdded);
+  const label = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+                ' · ' + ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+  // Call logs → centered divider row
+  if (msg.type === 'call') {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0' }}>
+        <div style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
+        <span style={{ fontSize: 11, color: '#9CA3AF', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
+          📞 {msg.direction === 'inbound' ? 'Incoming call' : 'Outgoing call'} · {label}
+          {msg.body && <span style={{ color: '#6B7280' }}>— {msg.body}</span>}
+        </span>
+        <div style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
+      </div>
+    );
+  }
+
+  const isOut = msg.direction === 'outbound';
+  const isSms = msg.type === 'sms';
+
+  return (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: isOut ? 'flex-end' : 'flex-start',
+      marginBottom: 2,
+    }}>
+      {/* Type badge + timestamp */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+        {!isOut && (
+          <span style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 500 }}>
+            {isSms ? '💬 SMS' : '✉️ Email'}
+          </span>
+        )}
+        <span style={{ fontSize: 10, color: '#C4C4C4' }}>{label}</span>
+        {isOut && (
+          <span style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 500 }}>
+            {isSms ? 'SMS 💬' : 'Email ✉️'}
+          </span>
+        )}
+      </div>
+
+      {/* Bubble */}
+      <div style={{
+        maxWidth: '80%',
+        padding: '9px 13px',
+        borderRadius: isOut ? '14px 14px 3px 14px' : '14px 14px 14px 3px',
+        background: isOut ? '#1E3A5F' : '#F3F4F6',
+        color: isOut ? '#FFFFFF' : '#1F2937',
+        fontSize: 13,
+        lineHeight: 1.55,
+        wordBreak: 'break-word',
+      }}>
+        {msg.subject && (
+          <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 5, opacity: 0.75 }}>
+            {msg.subject}
+          </div>
+        )}
+        {msg.body || <em style={{ opacity: 0.5 }}>(no body)</em>}
+      </div>
+
+      {/* Delivery status for outbound */}
+      {isOut && msg.status && msg.status !== 'sent' && (
+        <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 2 }}>{msg.status}</div>
+      )}
+    </div>
+  );
+}
+
 // ─── Communications Panel ─────────────────────────────────────────────────────
-// Read-only conversation feed + compose buttons. No logging form here.
+// Inline chat panel: fetches real GHL conversation + shows merged timeline.
+// No modals — compose lives inline at the bottom.
 
 function CommunicationsPanel({ client, touchpoints, contactId }) {
-  const [showEmail, setShowEmail] = useState(false);
-  const [showSms,   setShowSms]   = useState(false);
+  const feedRef = useRef(null);
+
+  // GHL conversation state
+  const [ghlMessages,  setGhlMessages]  = useState([]);
+  const [convId,       setConvId]       = useState(null);
+  const [loadingConv,  setLoadingConv]  = useState(false);
+
+  // Compose state
+  const [composeType,    setComposeType]    = useState('sms'); // 'sms' | 'email'
+  const [composeBody,    setComposeBody]    = useState('');
+  const [composeSubject, setComposeSubject] = useState('');
+  const [sending,        setSending]        = useState(false);
+  const [sendError,      setSendError]      = useState('');
 
   const name = `${client.first_name} ${client.last_name}`;
 
-  function medStyle(medium) {
-    if (medium === 'call')  return { color: '#15803D', bg: '#F0FDF4', border: '#BBF7D0', icon: '📞' };
-    if (medium === 'email') return { color: '#1D4ED8', bg: '#EFF6FF', border: '#BFDBFE', icon: '✉️' };
-    return                         { color: '#6D28D9', bg: '#F5F3FF', border: '#DDD6FE', icon: '💬' };
+  // ── Fetch GHL messages ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!contactId) return;
+    setLoadingConv(true);
+    fetch(`/api/dashboard/nurture-conversation?contactId=${contactId}`)
+      .then(r => r.json())
+      .then(data => {
+        setConvId(data.conversationId || null);
+        setGhlMessages(data.messages || []);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingConv(false));
+  }, [contactId]);
+
+  // ── Merge GHL messages + logged touchpoints into a single timeline ───────────
+  const timeline = useMemo(() => {
+    // Convert touchpoints to the same shape as GHL messages
+    const tpItems = touchpoints.map(tp => ({
+      id:        `tp_${tp.id}`,
+      direction: 'outbound',
+      type:      tp.medium === 'text' ? 'sms' : tp.medium, // 'call' | 'email' | 'sms'
+      body:      tp.note || '',
+      subject:   null,
+      dateAdded: tp.created_at,
+      status:    'logged',
+      source:    'touchpoint',
+    }));
+
+    // Merge and sort by date oldest → newest
+    return [...ghlMessages, ...tpItems].sort(
+      (a, b) => new Date(a.dateAdded) - new Date(b.dateAdded)
+    );
+  }, [ghlMessages, touchpoints]);
+
+  // ── Auto-scroll to bottom when timeline changes ──────────────────────────────
+  useEffect(() => {
+    if (feedRef.current) {
+      feedRef.current.scrollTop = feedRef.current.scrollHeight;
+    }
+  }, [timeline]);
+
+  // ── Send handler ─────────────────────────────────────────────────────────────
+  async function send() {
+    const body = composeBody.trim();
+    if (!body) return;
+    setSending(true);
+    setSendError('');
+
+    // Optimistic message
+    const optimisticMsg = {
+      id:        `opt_${Date.now()}`,
+      direction: 'outbound',
+      type:      composeType,
+      body,
+      subject:   composeSubject.trim() || null,
+      dateAdded: new Date().toISOString(),
+      status:    'sending',
+      source:    'optimistic',
+    };
+    setGhlMessages(prev => [...prev, optimisticMsg]);
+    setComposeBody('');
+    setComposeSubject('');
+
+    try {
+      const endpoint = composeType === 'sms'
+        ? '/api/dashboard/send-sms'
+        : '/api/dashboard/send-email';
+
+      const payload = composeType === 'sms'
+        ? { phone: client.phone, message: body, contactId }
+        : { to: client.email, name, subject: composeSubject.trim() || `Message to ${name}`, body, contactId };
+
+      const r    = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await r.json();
+
+      if (data.ok) {
+        // Replace optimistic entry with confirmed
+        setGhlMessages(prev =>
+          prev.map(m => m.id === optimisticMsg.id
+            ? { ...m, status: 'sent' }
+            : m
+          )
+        );
+      } else if (data.fallback && data.smsLink) {
+        // SMS fallback: open native SMS app
+        window.open(data.smsLink, '_blank');
+        setGhlMessages(prev => prev.filter(m => m.id !== optimisticMsg.id));
+        setSendError('Opened your SMS app as a fallback.');
+      } else {
+        throw new Error(data.error || 'Send failed');
+      }
+    } catch (e) {
+      setSendError(e.message || 'Failed to send');
+      setGhlMessages(prev => prev.filter(m => m.id !== optimisticMsg.id));
+    } finally {
+      setSending(false);
+    }
   }
 
+  function handleKey(e) {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send();
+  }
+
+  const canSms   = !!client.phone;
+  const canEmail = !!client.email;
+
   return (
-    <div style={s.card}>
-      {/* Header + compose buttons */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div style={s.cardTitle}>Communications</div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button
-            onClick={() => setShowEmail(true)}
-            style={{ padding: '5px 12px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 5, fontSize: 11, fontWeight: 600, color: '#1D4ED8', cursor: 'pointer', fontFamily: 'inherit' }}
-          >
-            ✉️ Email
-          </button>
-          {client.phone && (
-            <button
-              onClick={() => setShowSms(true)}
-              style={{ padding: '5px 12px', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 5, fontSize: 11, fontWeight: 600, color: '#6D28D9', cursor: 'pointer', fontFamily: 'inherit' }}
-            >
-              💬 SMS
-            </button>
+    <div style={{ ...s.card, display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', height: 560 }}>
+
+      {/* ── Header ── */}
+      <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid #F0F0F0', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={s.cardTitle}>Communications</div>
+          {loadingConv && (
+            <span style={{ fontSize: 11, color: '#9CA3AF' }}>Loading…</span>
+          )}
+          {!loadingConv && !contactId && (
+            <span style={{ fontSize: 11, color: '#F59E0B' }}>No GHL contact linked</span>
+          )}
+          {!loadingConv && contactId && (
+            <span style={{ fontSize: 11, color: '#10B981' }}>● Live</span>
           )}
         </div>
       </div>
 
-      {/* Conversation feed */}
-      {touchpoints.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#D1D5DB' }}>
-          <div style={{ fontSize: 32, marginBottom: 10 }}>💬</div>
-          <div style={{ fontSize: 13, fontWeight: 500 }}>No communication logged yet</div>
-          <div style={{ fontSize: 11, marginTop: 4 }}>Log a touchpoint on the right to get started</div>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {touchpoints.map(tp => {
-            const ms  = medStyle(tp.medium);
-            const ts  = new Date(tp.created_at);
-            const day = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            const hr  = ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-            return (
-              <div key={tp.id} style={{ background: '#F9FAFB', border: '1px solid #F0F0F0', borderRadius: 8, padding: '10px 12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: tp.note ? 7 : 0 }}>
-                  <span style={{
-                    fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 10,
-                    color: ms.color, background: ms.bg, border: `1px solid ${ms.border}`,
-                    textTransform: 'capitalize', whiteSpace: 'nowrap',
-                  }}>
-                    {ms.icon} {tp.medium}
-                  </span>
-                  <span style={{ fontSize: 11, color: '#9CA3AF', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
-                    {day} · {hr}
-                  </span>
-                </div>
-                {tp.note && (
-                  <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.6 }}>{tp.note}</div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {/* ── Message feed ── */}
+      <div
+        ref={feedRef}
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '12px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+          minHeight: 0,
+        }}
+      >
+        {timeline.length === 0 && !loadingConv && (
+          <div style={{ textAlign: 'center', padding: '48px 0', color: '#D1D5DB' }}>
+            <div style={{ fontSize: 32, marginBottom: 10 }}>💬</div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: '#9CA3AF' }}>No messages yet</div>
+            <div style={{ fontSize: 11, marginTop: 4, color: '#C4C4C4' }}>Send an SMS or email below to start the conversation</div>
+          </div>
+        )}
+        {loadingConv && (
+          <div style={{ textAlign: 'center', padding: '48px 0', color: '#D1D5DB', fontSize: 13 }}>
+            Loading conversation…
+          </div>
+        )}
+        {timeline.map(msg => (
+          <MessageBubble key={msg.id} msg={msg} />
+        ))}
+      </div>
 
-      {/* Compose modals */}
-      {showEmail && <EmailModal to={client.email} name={name} onClose={() => setShowEmail(false)} />}
-      {showSms   && <SmsModal to={client.phone} name={name} contactId={contactId} onClose={() => setShowSms(false)} />}
+      {/* ── Compose area ── */}
+      <div style={{ borderTop: '1px solid #F0F0F0', flexShrink: 0, padding: '10px 12px 12px' }}>
+
+        {/* Type tabs */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+          {canSms && (
+            <button
+              onClick={() => setComposeType('sms')}
+              style={{
+                padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                fontFamily: 'inherit',
+                background: composeType === 'sms' ? '#6D28D9' : '#F5F3FF',
+                color:      composeType === 'sms' ? '#FFFFFF'  : '#6D28D9',
+                border:     composeType === 'sms' ? '1px solid #6D28D9' : '1px solid #DDD6FE',
+              }}
+            >
+              💬 SMS
+            </button>
+          )}
+          {canEmail && (
+            <button
+              onClick={() => setComposeType('email')}
+              style={{
+                padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                fontFamily: 'inherit',
+                background: composeType === 'email' ? '#1D4ED8' : '#EFF6FF',
+                color:      composeType === 'email' ? '#FFFFFF'  : '#1D4ED8',
+                border:     composeType === 'email' ? '1px solid #1D4ED8' : '1px solid #BFDBFE',
+              }}
+            >
+              ✉️ Email
+            </button>
+          )}
+          {!canSms && !canEmail && (
+            <span style={{ fontSize: 11, color: '#9CA3AF' }}>No phone or email on file</span>
+          )}
+        </div>
+
+        {/* Email subject line */}
+        {composeType === 'email' && (
+          <input
+            value={composeSubject}
+            onChange={e => setComposeSubject(e.target.value)}
+            placeholder="Subject"
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              padding: '7px 10px', marginBottom: 6,
+              border: '1px solid #E5E7EB', borderRadius: 6,
+              fontSize: 12, fontFamily: 'inherit', color: '#1F2937',
+              outline: 'none', background: '#FAFAFA',
+            }}
+          />
+        )}
+
+        {/* Message textarea + send button */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+          <textarea
+            value={composeBody}
+            onChange={e => setComposeBody(e.target.value)}
+            onKeyDown={handleKey}
+            placeholder={composeType === 'sms' ? `Text ${client.first_name}… (⌘↵ to send)` : `Email ${client.first_name}… (⌘↵ to send)`}
+            rows={2}
+            style={{
+              flex: 1, resize: 'none',
+              padding: '8px 10px',
+              border: '1px solid #E5E7EB', borderRadius: 8,
+              fontSize: 13, fontFamily: 'inherit', color: '#1F2937',
+              outline: 'none', background: '#FAFAFA',
+              lineHeight: 1.5,
+            }}
+          />
+          <button
+            onClick={send}
+            disabled={sending || !composeBody.trim()}
+            style={{
+              flexShrink: 0,
+              padding: '8px 14px',
+              borderRadius: 8,
+              fontSize: 13, fontWeight: 600,
+              cursor: sending || !composeBody.trim() ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit',
+              background: sending || !composeBody.trim() ? '#E5E7EB' : '#1E3A5F',
+              color:      sending || !composeBody.trim() ? '#9CA3AF'  : '#FFFFFF',
+              border: 'none',
+              transition: 'background 0.15s',
+              alignSelf: 'flex-end',
+            }}
+          >
+            {sending ? '…' : 'Send'}
+          </button>
+        </div>
+
+        {sendError && (
+          <div style={{ fontSize: 11, color: '#F59E0B', marginTop: 6 }}>{sendError}</div>
+        )}
+      </div>
     </div>
   );
 }
