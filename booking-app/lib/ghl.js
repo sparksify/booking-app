@@ -144,7 +144,7 @@ export async function lookupGHLContactByEmail(email) {
   if (!apiKey || !locationId) return null;
 
   const res = await fetch(
-    `${GHL_API}/contacts/?locationId=${locationId}&email=${encodeURIComponent(email)}`,
+    `${GHL_API}/contacts/?locationId=${locationId}&query=${encodeURIComponent(email)}`,
     {
       headers: {
         'Authorization': `Bearer ${apiKey}`,

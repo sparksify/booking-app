@@ -59,7 +59,7 @@ export default async function handler(req, res) {
       // Lookup by email — search contacts then fetch full record
       const locationId = process.env.GHL_LOCATION_ID;
       if (!locationId) return res.json({ contact: null });
-      const searchUrl = `${GHL_API}/contacts/?locationId=${locationId}&email=${encodeURIComponent(email)}`;
+      const searchUrl = `${GHL_API}/contacts/?locationId=${locationId}&query=${encodeURIComponent(email)}`;
       const r = await fetch(searchUrl, { headers });
       if (!r.ok) {
         console.error('[ghl-contact-detail] email search failed', r.status);
