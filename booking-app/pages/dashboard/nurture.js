@@ -102,6 +102,7 @@ export default function NurturePage() {
   const [queueWorkIdx,   setQueueWorkIdx]   = useState(null); // null = list view, number = full-page working mode
   const [selectedClient, setSelectedClient] = useState(null);
   const [viewMode,       setViewMode]       = useState('list'); // 'list' | 'kanban'
+  const [fullPageClient, setFullPageClient] = useState(null);   // kanban card → full-page view
 
   const load = useCallback(() => {
     setLoading(true);
@@ -137,7 +138,8 @@ export default function NurturePage() {
 
   function updateClientLocally(id, patch) {
     setClients(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
-    if (selectedClient?.id === id) setSelectedClient(prev => ({ ...prev, ...patch }));
+    if (selectedClient?.id === id)  setSelectedClient(prev  => ({ ...prev, ...patch }));
+    setFullPageClient(prev => prev?.id === id ? { ...prev, ...patch } : prev);
   }
 
   function selectClient(c) { setSelectedClient(c); }
@@ -163,6 +165,25 @@ export default function NurturePage() {
         .nurture-row-selected { background: #EFF6FF !important; }
         .nurture-kanban-card:hover { background: #F5F8FF !important; border-color: #BFDBFE !important; }
       `}</style>
+
+      {/* ── Kanban card full-page view ── */}
+      {fullPageClient && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#F3F4F6', overflow: 'auto' }}>
+        <div style={{ maxWidth: 1320, margin: '0 auto', padding: '20px 20px 60px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+            <button onClick={() => setFullPageClient(null)} style={s.ghostBtn}>← Back to Kanban</button>
+            <button onClick={() => setFullPageClient(null)} style={{ ...s.ghostBtn, color: '#9CA3AF' }}>✕ Close</button>
+          </div>
+          <QueueCard
+            client={fullPageClient}
+            isDemo={isDemo}
+            onNext={() => setFullPageClient(null)}
+            onUpdate={(patch) => updateClientLocally(fullPageClient.id, patch)}
+            onRefresh={load}
+          />
+        </div>
+        </div>
+      )}
 
       {/* ── Full-page queue working mode — covers header + everything ── */}
       {queueMode && queueWorkIdx !== null && (
@@ -297,6 +318,7 @@ export default function NurturePage() {
               isDemo={isDemo}
               selectedId={selectedClient?.id}
               onSelect={selectClient}
+              onOpenFullPage={(c) => setFullPageClient(c)}
               onUpdate={updateClientLocally}
               onRefresh={load}
             />
@@ -409,7 +431,7 @@ function PipelineGraph({ clients }) {
 
 // ─── Kanban View ───────────────────────────────────────────────────────────────
 
-function KanbanView({ clients, isDemo, selectedId, onSelect, onUpdate, onRefresh }) {
+function KanbanView({ clients, isDemo, selectedId, onSelect, onOpenFullPage, onUpdate, onRefresh }) {
   const active   = clients.filter(c => c.status === 'active');
   const archived = clients.filter(c => c.status !== 'active');
 
@@ -475,7 +497,7 @@ function KanbanView({ clients, isDemo, selectedId, onSelect, onUpdate, onRefresh
                       client={c}
                       stage={stage}
                       isSelected={selectedId === c.id}
-                      onSelect={() => onSelect(c)}
+                      onSelect={() => onOpenFullPage ? onOpenFullPage(c) : onSelect(c)}
                       isDemo={isDemo}
                       onUpdate={onUpdate}
                     />
@@ -803,32 +825,45 @@ function ListRow({ client: c, striped, isSelected, isDemo, onSelect, onUpdate, o
 // ─── Nurture Side Panel ────────────────────────────────────────────────────────
 
 function NurturePanel({ client: c, isDemo, onClose, onUpdate, onRefresh }) {
-  const [brands,       setBrands]       = useState(c.brands || []);
-  const [touchpoints,  setTouchpoints]  = useState(c.touchpoints || []);
-  const [fundingDone,  setFundingDone]  = useState(c.funding_intro_done);
-  const [medium,       setMedium]       = useState('call');
-  const [tpNote,       setTpNote]       = useState('');
-  const [logging,      setLogging]      = useState(false);
-  const [loggedMsg,    setLoggedMsg]    = useState('');
-  const [notesSaving,  setNotesSaving]  = useState(false);
-  const [notesSaved,   setNotesSaved]   = useState(false);
-  const [clientNotes,  setClientNotes]  = useState(c.notes || '');
-  const [showEmail,    setShowEmail]    = useState(false);
+  const [brands,            setBrands]            = useState(c.brands || []);
+  const [touchpoints,       setTouchpoints]       = useState(c.touchpoints || []);
+  const [milestones,        setMilestones]        = useState(c.milestones || {});
+  const [medium,            setMedium]            = useState('call');
+  const [tpNote,            setTpNote]            = useState('');
+  const [logging,           setLogging]           = useState(false);
+  const [loggedMsg,         setLoggedMsg]         = useState('');
+  const [notesSaving,       setNotesSaving]       = useState(false);
+  const [notesSaved,        setNotesSaved]        = useState(false);
+  const [clientNotes,       setClientNotes]       = useState(c.notes || '');
+  const [showEmail,         setShowEmail]         = useState(false);
+  const [showFundingModal,  setShowFundingModal]  = useState(false);
+  const [showAttorneyModal, setShowAttorneyModal] = useState(false);
 
   // Reset when client changes
   useEffect(() => {
     setBrands(c.brands || []);
     setTouchpoints(c.touchpoints || []);
-    setFundingDone(c.funding_intro_done);
+    setMilestones(c.milestones || {});
     setClientNotes(c.notes || '');
     setTpNote('');
     setLoggedMsg('');
     setNotesSaved(false);
   }, [c.id]);
 
-  const decay       = DECAY[c.decay] || DECAY.good;
-  const maxStage    = brands.length ? Math.max(...brands.map(b => b.stage)) : 1;
-  const showFunding = !fundingDone && maxStage >= 2;
+  const decay    = DECAY[c.decay] || DECAY.good;
+  const maxStage = brands.length ? Math.max(...brands.map(b => b.stage)) : 1;
+
+  async function saveMilestone(key, data) {
+    const updated = { ...milestones, [key]: data };
+    setMilestones(updated);
+    onUpdate({ milestones: updated });
+    if (!isDemo) {
+      await fetch('/api/dashboard/nurture-update', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: c.id, milestones: updated }),
+      }).catch(console.error);
+    }
+  }
 
   async function logTouchpoint() {
     if (!tpNote.trim()) return;
@@ -857,18 +892,6 @@ function NurturePanel({ client: c, isDemo, onClose, onUpdate, onRefresh }) {
       await fetch('/api/dashboard/nurture-brand', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nurture_client_id: c.id, brand_name: brandName, ...fields }),
-      }).catch(console.error);
-    }
-  }
-
-  async function toggleFunding() {
-    const next = !fundingDone;
-    setFundingDone(next);
-    onUpdate({ funding_intro_done: next });
-    if (!isDemo) {
-      await fetch('/api/dashboard/nurture-update', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: c.id, funding_intro_done: next }),
       }).catch(console.error);
     }
   }
@@ -964,26 +987,13 @@ function NurturePanel({ client: c, isDemo, onClose, onUpdate, onRefresh }) {
             </div>
           </div>
 
-          {/* Funding prompt */}
-          {showFunding && (
-            <div style={{ background: '#FAF5FF', border: '2px solid #C4B5FD', borderRadius: 7, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#6D28D9' }}>💰 Funding intro needed</div>
-                <div style={{ fontSize: 11, color: '#7C3AED', marginTop: 2 }}>Stage 2+ reached — introduce to a funding partner.</div>
-              </div>
-              <button onClick={toggleFunding} style={{ padding: '5px 12px', background: '#6D28D9', color: '#fff', border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                Done ✓
-              </button>
-            </div>
-          )}
-          {fundingDone && (
-            <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 7, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 14 }}>✓</span>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#15803D' }}>Funding intro done
-                <button onClick={toggleFunding} style={{ color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 0 8px', fontSize: 11 }}>Undo</button>
-              </div>
-            </div>
-          )}
+          {/* Milestones */}
+          <PendingMilestonesBar
+            milestones={milestones}
+            maxStage={maxStage}
+            onOpenFunding={() => setShowFundingModal(true)}
+            onOpenAttorney={() => setShowAttorneyModal(true)}
+          />
 
           {/* Franchise brands */}
           <div style={s.panelSection}>
@@ -1113,6 +1123,22 @@ function NurturePanel({ client: c, isDemo, onClose, onUpdate, onRefresh }) {
           to={c.email}
           name={`${c.first_name} ${c.last_name}`}
           onClose={() => setShowEmail(false)}
+        />
+      )}
+
+      {/* Milestone modals */}
+      {showFundingModal && (
+        <FundingModal
+          existing={milestones.funding}
+          onSave={(data) => saveMilestone('funding', data)}
+          onClose={() => setShowFundingModal(false)}
+        />
+      )}
+      {showAttorneyModal && (
+        <AttorneyModal
+          existing={milestones.attorney}
+          onSave={(data) => saveMilestone('attorney', data)}
+          onClose={() => setShowAttorneyModal(false)}
         />
       )}
     </>
@@ -1351,6 +1377,183 @@ function EmailModal({ to, name, onClose }) {
   );
 }
 
+// ─── Funding Introduction Modal ───────────────────────────────────────────────
+
+function FundingModal({ existing, onSave, onClose }) {
+  const [company, setCompany] = useState(existing?.company || '');
+  const [date,    setDate]    = useState(existing?.date    || new Date().toISOString().slice(0, 10));
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.5)' }} onClick={onClose} />
+      <div style={{ position: 'relative', background: '#fff', borderRadius: 10, width: 460, maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid #E8EAED' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>💰 Funding Introduction</div>
+          <button onClick={onClose} style={s.closeBtn}>✕</button>
+        </div>
+        <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>Funding Company</div>
+            <input
+              value={company}
+              onChange={e => setCompany(e.target.value)}
+              placeholder="e.g. Benetrends, FranFund, Capital One…"
+              autoFocus
+              style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 13, color: '#111827', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>Date of Introduction</div>
+            <input
+              type="date"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 13, color: '#111827', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+            <button onClick={onClose} style={s.ghostBtn}>Cancel</button>
+            <button
+              onClick={() => { if (company.trim()) { onSave({ company: company.trim(), date, done: true }); onClose(); } }}
+              disabled={!company.trim()}
+              style={{ ...s.primaryBtn, background: '#6D28D9', opacity: !company.trim() ? 0.5 : 1 }}
+            >
+              Save Introduction ✓
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Attorney Introduction Modal ──────────────────────────────────────────────
+
+function AttorneyModal({ existing, onSave, onClose }) {
+  const [attorneyName, setAttorneyName] = useState(existing?.attorney_name || '');
+  const [lawFirm,      setLawFirm]      = useState(existing?.law_firm || '');
+  const [date,         setDate]         = useState(existing?.date || new Date().toISOString().slice(0, 10));
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.5)' }} onClick={onClose} />
+      <div style={{ position: 'relative', background: '#fff', borderRadius: 10, width: 460, maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid #E8EAED' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>⚖️ Attorney Introduction</div>
+          <button onClick={onClose} style={s.closeBtn}>✕</button>
+        </div>
+        <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>Attorney Name</div>
+            <input
+              value={attorneyName}
+              onChange={e => setAttorneyName(e.target.value)}
+              placeholder="Attorney's full name"
+              autoFocus
+              style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 13, color: '#111827', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>Law Firm</div>
+            <input
+              value={lawFirm}
+              onChange={e => setLawFirm(e.target.value)}
+              placeholder="Law firm name"
+              style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 13, color: '#111827', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>Date of Introduction</div>
+            <input
+              type="date"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              style={{ width: '100%', padding: '8px 10px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 13, color: '#111827', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+            <button onClick={onClose} style={s.ghostBtn}>Cancel</button>
+            <button
+              onClick={() => { if (attorneyName.trim()) { onSave({ attorney_name: attorneyName.trim(), law_firm: lawFirm.trim(), date, done: true }); onClose(); } }}
+              disabled={!attorneyName.trim()}
+              style={{ ...s.primaryBtn, background: '#6D28D9', opacity: !attorneyName.trim() ? 0.5 : 1 }}
+            >
+              Save Introduction ✓
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Pending Milestones Bar ────────────────────────────────────────────────────
+
+function PendingMilestonesBar({ milestones = {}, maxStage, onOpenFunding, onOpenAttorney }) {
+  const funding  = milestones.funding;
+  const attorney = milestones.attorney;
+  const showFundingItem  = maxStage >= 2;
+  const showAttorneyItem = maxStage >= 3;
+
+  if (!showFundingItem && !showAttorneyItem) return null;
+
+  function fmtDate(d) {
+    if (!d) return '';
+    return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      {showFundingItem && (
+        funding?.done ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 7, padding: '8px 12px' }}>
+            <span style={{ fontSize: 15 }}>✓</span>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#15803D' }}>Funding Intro Done</div>
+              {funding.company && <div style={{ fontSize: 10, color: '#6B7280' }}>{funding.company}{funding.date ? ` · ${fmtDate(funding.date)}` : ''}</div>}
+            </div>
+            <button onClick={onOpenFunding} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', fontSize: 11, paddingLeft: 4 }}>Edit</button>
+          </div>
+        ) : (
+          <button
+            onClick={onOpenFunding}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#FAF5FF', border: '2px solid #C4B5FD', borderRadius: 7, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            <span style={{ fontSize: 14 }}>💰</span>
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9' }}>Funding Intro Needed</div>
+              <div style={{ fontSize: 10, color: '#7C3AED' }}>Click to record introduction</div>
+            </div>
+          </button>
+        )
+      )}
+      {showAttorneyItem && (
+        attorney?.done ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 7, padding: '8px 12px' }}>
+            <span style={{ fontSize: 15 }}>✓</span>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#15803D' }}>Attorney Intro Done</div>
+              {attorney.attorney_name && <div style={{ fontSize: 10, color: '#6B7280' }}>{attorney.attorney_name}{attorney.law_firm ? ` · ${attorney.law_firm}` : ''}</div>}
+            </div>
+            <button onClick={onOpenAttorney} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', fontSize: 11, paddingLeft: 4 }}>Edit</button>
+          </div>
+        ) : (
+          <button
+            onClick={onOpenAttorney}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#EFF6FF', border: '2px solid #BFDBFE', borderRadius: 7, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            <span style={{ fontSize: 14 }}>⚖️</span>
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8' }}>Attorney Intro Needed</div>
+              <div style={{ fontSize: 10, color: '#3B82F6' }}>Stage 3+ — FDD requires attorney review</div>
+            </div>
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
 // ─── Queue View (Today's Queue — filtered list) ────────────────────────────────
 
 function QueueView({ clients, isDemo, onExit, onStartWorking, selectedId, onSelect, onUpdate, onRefresh }) {
@@ -1497,33 +1700,93 @@ function getNextAction(client, fundingDone, maxStage) {
 }
 
 function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
-  const [brands,       setBrands]       = useState(c.brands || []);
-  const [touchpoints,  setTouchpoints]  = useState(c.touchpoints || []);
-  const [fundingDone,  setFundingDone]  = useState(c.funding_intro_done);
-  const [medium,       setMedium]       = useState('call');
-  const [note,         setNote]         = useState('');
-  const [logging,      setLogging]      = useState(false);
-  const [loggedMsg,    setLoggedMsg]    = useState('');
-  const [notesSaving,  setNotesSaving]  = useState(false);
-  const [notesSaved,   setNotesSaved]   = useState(false);
-  const [clientNotes,  setClientNotes]  = useState(c.notes || '');
+  const [brands,            setBrands]            = useState(c.brands || []);
+  const [touchpoints,       setTouchpoints]       = useState(c.touchpoints || []);
+  const [milestones,        setMilestones]        = useState(c.milestones || {});
+  const [medium,            setMedium]            = useState('call');
+  const [note,              setNote]              = useState('');
+  const [logging,           setLogging]           = useState(false);
+  const [loggedMsg,         setLoggedMsg]         = useState('');
+  const [notesSaving,       setNotesSaving]       = useState(false);
+  const [notesSaved,        setNotesSaved]        = useState(false);
+  const [clientNotes,       setClientNotes]       = useState(c.notes || '');
+  const [showFundingModal,  setShowFundingModal]  = useState(false);
+  const [showAttorneyModal, setShowAttorneyModal] = useState(false);
+  const [ghlContact,        setGhlContact]        = useState(null);
 
   useEffect(() => {
     setBrands(c.brands || []);
     setTouchpoints(c.touchpoints || []);
-    setFundingDone(c.funding_intro_done);
+    setMilestones(c.milestones || {});
     setClientNotes(c.notes || '');
     setNote('');
     setLoggedMsg('');
     setNotesSaved(false);
+    setGhlContact(null);
+    // Async fetch GHL contact for tags + prospect info
+    if (c.email && !isDemo) {
+      fetch(`/api/dashboard/ghl-contact-detail?email=${encodeURIComponent(c.email)}`)
+        .then(r => r.json())
+        .then(d => { if (d.contact) setGhlContact(d.contact); })
+        .catch(() => {});
+    }
   }, [c.id]);
 
-  const decay          = DECAY[c.decay] || DECAY.good;
-  const maxStage       = brands.length ? Math.max(...brands.map(b => b.stage)) : 1;
-  const showFundingPmt = !fundingDone && maxStage >= 2;
+  const decay    = DECAY[c.decay] || DECAY.good;
+  const maxStage = brands.length ? Math.max(...brands.map(b => b.stage)) : 1;
+  const lastTP   = touchpoints[0] || null;
+  const na       = getNextAction(c, milestones.funding?.done, maxStage);
 
-  async function logTouchpoint() {
-    if (!note.trim()) return;
+  // Relative date helper
+  function relDate(iso) {
+    if (!iso) return '—';
+    const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+    if (d === 0) return 'Today';
+    if (d === 1) return 'Yesterday';
+    return `${d}d ago`;
+  }
+
+  // GHL prospect data
+  const liquidCap = ghlContact?.custom_fields?.['Liquid Cash'] || ghlContact?.custom_fields?.['Cash Available'] || c.investment_level || null;
+  const territory = ghlContact?.custom_fields?.['Territory Interest'] || ghlContact?.custom_fields?.['Areas of Interest'] || null;
+  const ghlTags   = ghlContact?.tags || [];
+
+  async function saveMilestone(key, data) {
+    const updated = { ...milestones, [key]: data };
+    setMilestones(updated);
+    onUpdate({ milestones: updated });
+    if (!isDemo) {
+      await fetch('/api/dashboard/nurture-update', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: c.id, milestones: updated }),
+      }).catch(console.error);
+    }
+  }
+
+  // Log touchpoint AND advance to next client (primary action)
+  async function logAndNext() {
+    if (!note.trim() || logging) return;
+    setLogging(true);
+    const newTP = {
+      id: `tp_${Date.now()}`, nurture_client_id: c.id, medium, note: note.trim(),
+      created_at: new Date().toISOString(), created_by: 'me',
+    };
+    setTouchpoints(prev => [newTP, ...prev]);
+    setNote('');
+    onUpdate({ last_contacted_at: newTP.created_at, decay: 'good', days_since_contact: 0 });
+    if (!isDemo) {
+      await fetch('/api/dashboard/nurture-touchpoint', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nurture_client_id: c.id, medium, note: note.trim() }),
+      }).catch(console.error);
+    }
+    setLogging(false);
+    onNext();
+  }
+
+  // Log touchpoint only, stay on this client
+  async function logOnly() {
+    if (!note.trim() || logging) return;
     setLogging(true);
     const newTP = {
       id: `tp_${Date.now()}`, nurture_client_id: c.id, medium, note: note.trim(),
@@ -1549,18 +1812,6 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
       await fetch('/api/dashboard/nurture-brand', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nurture_client_id: c.id, brand_name: brandName, ...fields }),
-      }).catch(console.error);
-    }
-  }
-
-  async function toggleFunding() {
-    const next = !fundingDone;
-    setFundingDone(next);
-    onUpdate({ funding_intro_done: next });
-    if (!isDemo) {
-      await fetch('/api/dashboard/nurture-update', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: c.id, funding_intro_done: next }),
       }).catch(console.error);
     }
   }
@@ -1607,51 +1858,104 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
       {/* ── Left column ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-        {/* Client header */}
+        {/* ── 3-question header card ── */}
         <div style={s.card}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          {/* Name + decay badge */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={s.avatar}>{c.first_name?.[0]}{c.last_name?.[0]}</div>
               <div>
                 <div style={{ fontSize: 20, fontWeight: 700, color: '#111827' }}>{c.first_name} {c.last_name}</div>
                 <div style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>{c.email}</div>
                 {c.phone && <div style={{ fontSize: 13, color: '#6B7280' }}>{c.phone}</div>}
-                <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>{c.days_in_process} days in process</div>
+                <div style={{ display: 'flex', gap: 10, marginTop: 3, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11, color: '#9CA3AF' }}>{c.days_in_process}d in process</span>
+                  {liquidCap && <span style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>💵 {liquidCap}</span>}
+                  {territory && <span style={{ fontSize: 11, color: '#374151' }}>📍 {territory}</span>}
+                </div>
               </div>
             </div>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, color: decay.color, background: decay.bg }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, color: decay.color, background: decay.bg, whiteSpace: 'nowrap', flexShrink: 0 }}>
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: decay.dot }} />
               {c.days_since_contact === null ? 'Never contacted' : `${c.days_since_contact}d since last touch`}
             </span>
           </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 14, paddingTop: 14, borderTop: '1px solid #F3F4F6' }}>
-            <a href={`tel:${c.phone}`}      style={{ ...s.contactBtn, background: '#F0FDF4', color: '#15803D', border: '1px solid #BBF7D0' }}>📞 Call</a>
-            <a href={`mailto:${c.email}`}   style={{ ...s.contactBtn, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>✉️ Email</a>
-            <a href={`sms:${c.phone}`}      style={{ ...s.contactBtn, background: '#F5F3FF', color: '#6D28D9', border: '1px solid #DDD6FE' }}>💬 Text</a>
+
+          {/* GHL tags */}
+          {ghlTags.length > 0 && (
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 14 }}>
+              {ghlTags.slice(0, 8).map(tag => (
+                <span key={tag} style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 10, background: '#F3F4F6', color: '#374151', border: '1px solid #E5E7EB' }}>{tag}</span>
+              ))}
+            </div>
+          )}
+
+          {/* 3 questions */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 14 }}>
+
+            {/* 1 · What stage? */}
+            <div style={{ background: STAGES[maxStage]?.bg || '#F9FAFB', border: `1px solid ${STAGES[maxStage]?.border || '#E5E7EB'}`, borderRadius: 8, padding: '10px 12px' }}>
+              <div style={{ fontSize: 9, fontWeight: 800, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 5 }}>1 · What Stage?</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: STAGES[maxStage]?.color || '#374151', marginBottom: 4 }}>
+                S{maxStage} · {STAGES[maxStage]?.short || '—'}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {brands.map(b => (
+                  <div key={b.id} style={{ fontSize: 10, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{b.brand_name}</span>
+                    {b.sentiment && SENTIMENTS[b.sentiment] && <span style={{ flexShrink: 0 }}>{SENTIMENTS[b.sentiment].emoji}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 2 · What happened last? */}
+            <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '10px 12px' }}>
+              <div style={{ fontSize: 9, fontWeight: 800, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 5 }}>2 · What Happened Last?</div>
+              {lastTP ? (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                    <span style={{ fontSize: 12 }}>{lastTP.medium === 'call' ? '📞' : lastTP.medium === 'email' ? '✉️' : '💬'}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#374151', textTransform: 'capitalize' }}>{lastTP.medium}</span>
+                    <span style={{ fontSize: 10, color: '#9CA3AF' }}>· {relDate(lastTP.created_at)}</span>
+                  </div>
+                  {lastTP.note && (
+                    <div style={{ fontSize: 10, color: '#6B7280', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      "{lastTP.note}"
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ fontSize: 10, color: '#9CA3AF', fontStyle: 'italic', lineHeight: 1.5 }}>No touchpoints yet — first outreach needed</div>
+              )}
+            </div>
+
+            {/* 3 · What's next? */}
+            <div style={{ background: na.bg, border: `1px solid ${na.border}`, borderRadius: 8, padding: '10px 12px' }}>
+              <div style={{ fontSize: 9, fontWeight: 800, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 5 }}>3 · What's Next?</div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                <span style={{ fontSize: 16, lineHeight: 1, flexShrink: 0, marginTop: 1 }}>{na.icon}</span>
+                <div style={{ fontSize: 11, fontWeight: 700, color: na.color, lineHeight: 1.4 }}>{na.label}</div>
+              </div>
+              {na.detail && <div style={{ fontSize: 10, color: '#6B7280', marginTop: 6, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{na.detail}</div>}
+            </div>
+          </div>
+
+          {/* Contact buttons */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <a href={`tel:${c.phone}`}    style={{ ...s.contactBtn, background: '#F0FDF4', color: '#15803D', border: '1px solid #BBF7D0' }}>📞 Call</a>
+            <a href={`mailto:${c.email}`} style={{ ...s.contactBtn, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>✉️ Email</a>
+            <a href={`sms:${c.phone}`}    style={{ ...s.contactBtn, background: '#F5F3FF', color: '#6D28D9', border: '1px solid #DDD6FE' }}>💬 Text</a>
           </div>
         </div>
 
-        {/* Funding prompt */}
-        {showFundingPmt && (
-          <div style={{ background: '#FAF5FF', border: '2px solid #C4B5FD', borderRadius: 8, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#6D28D9' }}>💰 Funding intro needed</div>
-              <div style={{ fontSize: 12, color: '#7C3AED', marginTop: 3 }}>{c.first_name} is at Stage 2+ — introduce to a funding partner.</div>
-            </div>
-            <button onClick={toggleFunding} style={{ padding: '7px 16px', background: '#6D28D9', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-              Mark Done ✓
-            </button>
-          </div>
-        )}
-        {fundingDone && (
-          <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 16 }}>✓</span>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#15803D' }}>Funding intro done</div>
-              <button onClick={toggleFunding} style={{ color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 11 }}>Undo</button>
-            </div>
-          </div>
-        )}
+        {/* Pending milestones bar */}
+        <PendingMilestonesBar
+          milestones={milestones}
+          maxStage={maxStage}
+          onOpenFunding={() => setShowFundingModal(true)}
+          onOpenAttorney={() => setShowAttorneyModal(true)}
+        />
 
         {/* Franchise brand cards */}
         <div style={s.card}>
@@ -1689,25 +1993,6 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
             {notesSaving ? 'Saving…' : notesSaved ? '✓ Saved' : 'Save Notes'}
           </button>
         </div>
-
-        {/* ── Next Action ── */}
-        {(() => {
-          const na = getNextAction(c, fundingDone, maxStage);
-          return (
-            <div style={{ background: na.bg, border: `2px solid ${na.border}`, borderRadius: 10, padding: '14px 18px' }}>
-              <div style={{ fontSize: 10, fontWeight: 800, color: na.color, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
-                Next Action
-              </div>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                <span style={{ fontSize: 26, lineHeight: 1, flexShrink: 0 }}>{na.icon}</span>
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 4 }}>{na.label}</div>
-                  <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.55 }}>{na.detail}</div>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
 
         {/* Secondary actions */}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 2 }}>
@@ -1750,12 +2035,21 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
                 value={note}
                 onChange={e => setNote(e.target.value)}
               />
+              {/* Primary: Log + Next */}
               <button
-                onClick={logTouchpoint}
+                onClick={logAndNext}
                 disabled={!note.trim() || logging}
-                style={{ ...s.primaryBtn, marginTop: 8, width: '100%', opacity: !note.trim() ? 0.5 : 1, cursor: !note.trim() ? 'not-allowed' : 'pointer' }}
+                style={{ ...s.primaryBtn, marginTop: 8, width: '100%', fontSize: 14, padding: '10px', opacity: !note.trim() ? 0.5 : 1, cursor: !note.trim() ? 'not-allowed' : 'pointer' }}
               >
-                {logging ? 'Logging…' : `Log ${medium.charAt(0).toUpperCase() + medium.slice(1)}`}
+                {logging ? 'Logging…' : `Log ${medium.charAt(0).toUpperCase() + medium.slice(1)} + Next →`}
+              </button>
+              {/* Secondary: Log only */}
+              <button
+                onClick={logOnly}
+                disabled={!note.trim() || logging}
+                style={{ width: '100%', marginTop: 6, padding: '6px', background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 12, color: '#6B7280', cursor: !note.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: !note.trim() ? 0.4 : 1 }}
+              >
+                Log only (stay here)
               </button>
             </>
           )}
@@ -1792,6 +2086,22 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
           )}
         </div>
       </div>
+
+      {/* Milestone modals */}
+      {showFundingModal && (
+        <FundingModal
+          existing={milestones.funding}
+          onSave={(data) => saveMilestone('funding', data)}
+          onClose={() => setShowFundingModal(false)}
+        />
+      )}
+      {showAttorneyModal && (
+        <AttorneyModal
+          existing={milestones.attorney}
+          onSave={(data) => saveMilestone('attorney', data)}
+          onClose={() => setShowAttorneyModal(false)}
+        />
+      )}
     </div>
   );
 }
@@ -1965,7 +2275,7 @@ const s = {
   contactRow: { display: 'flex', alignItems: 'center', gap: 6 },
   contactIcon:{ fontSize: 13 },
 
-  notesArea:  { width: '100%', padding: '8px 10px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 13, color: '#111827', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.6 },
+  notesArea:  { width: '100%', padding: '8px 10px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 13, color: '#111827', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.6, background: '#FFFDF0' },
 
   devInput:   { width: '100%', padding: '6px 8px', border: '1px solid #E5E7EB', borderRadius: 5, fontSize: 12, color: '#374151', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#fff' },
 

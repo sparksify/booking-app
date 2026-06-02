@@ -12,6 +12,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
  *   status?:             'active'|'closed'|'archived',
  *   funding_intro_done?: boolean,
  *   notes?:              string,
+ *   milestones?:         object  -- merged into existing milestones JSONB
  * }
  *
  * Returns: { client }
@@ -22,13 +23,14 @@ export default async function handler(req, res) {
   const session = await getServerSession(req, res, authOptions);
   if (!session) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { id, status, funding_intro_done, notes } = req.body;
+  const { id, status, funding_intro_done, notes, milestones } = req.body;
   if (!id) return res.status(400).json({ error: 'id required' });
 
   const patch = {};
   if (status             !== undefined) patch.status             = status;
   if (funding_intro_done !== undefined) patch.funding_intro_done = funding_intro_done;
   if (notes              !== undefined) patch.notes              = notes;
+  if (milestones         !== undefined) patch.milestones         = milestones;
 
   if (Object.keys(patch).length === 0) {
     return res.status(400).json({ error: 'No fields to update' });
