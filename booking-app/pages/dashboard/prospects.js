@@ -324,34 +324,42 @@ const BUCKETS = {
   saves: {
     label: 'Appointment Saves', tagline: '22% rebook rate',
     color: '#DC2626', bg: '#FEF2F2', border: '#FECACA',
+    tooltip: 'No-shows from the last 7 days who booked but didn\'t show. Rebook rate is 22% when contacted the same day. These are the highest-priority calls — they already said yes once.',
   },
   speed_to_lead: {
     label: 'Speed to Lead', tagline: 'Call immediately',
     color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE',
+    tooltip: 'Leads submitted within the last 6 hours with no advisor contact yet. Research shows leads reached within 5 minutes are 21× more likely to book. Every minute matters here.',
   },
   vip: {
     label: 'VIP Leads', tagline: '$250k+ with engagement',
     color: '#92400E', bg: '#FEF3C7', border: '#FDE68A',
+    tooltip: 'Leads with $250k+ liquid capital who are actively engaging — viewing the booking page, selecting slots, or returning to the site. These carry the highest commission potential and deserve your best advisor.',
   },
   re_engaged: {
     label: 'Re-Engaged', tagline: 'Active in last 24h',
     color: '#075985', bg: '#EFF6FF', border: '#BAE6FD',
+    tooltip: 'Leads that went quiet but just showed activity in the last 24 hours — visited the site, viewed the booking page, or selected a slot. This is a buying signal. Strike while they\'re warm again.',
   },
   near_miss: {
     label: 'Near Misses', tagline: 'Never rescheduled',
     color: '#B45309', bg: '#FFFBEB', border: '#FCD34D',
+    tooltip: 'Leads who previously booked but never showed or rescheduled. They committed once, which means interest is real. A personal outreach with a new time slot converts these at a solid rate.',
   },
   resurrection: {
     label: 'Resurrections', tagline: '90+ day re-engagement',
     color: '#5B21B6', bg: '#FAF5FF', border: '#C4B5FD',
+    tooltip: 'Leads dormant for 90+ days who just re-engaged — viewed the booking page or returned to the site. Something changed in their life or circumstances. Reach out before they go dark again.',
   },
   high_dollar: {
     label: 'High Dollar', tagline: 'Premium investment',
     color: '#166534', bg: '#F0FDF4', border: '#BBF7D0',
+    tooltip: 'Leads with $250k+ investment capacity — even without active engagement signals. These represent your largest commission opportunities. Worth a personal, unhurried call from your most experienced advisor.',
   },
   hot: {
     label: 'Hot Leads', tagline: 'Fresh & high-scored',
     color: '#C2410C', bg: '#FFF7ED', border: '#FED7AA',
+    tooltip: 'Leads submitted in the last 7 days with a high opportunity score. They\'re fresh, engaged, and in their research phase. Conversion rates drop ~8% per day of delay — call today.',
   },
 };
 
@@ -564,7 +572,7 @@ export default function ProspectsPage() {
             <span style={s.logo}>⬡ FranchiseBook</span>
             <nav style={s.nav}>
               <Link href="/dashboard/analytics"  style={s.navLink}>Analytics</Link>
-              <Link href="/dashboard/bookings"   style={s.navLink}>Bookings</Link>
+              <Link href="/dashboard/bookings"   style={s.navLink}>Meetings</Link>
               <Link href="/dashboard/leads"      style={s.navLink}>Leads</Link>
               <Link href="/dashboard/prospects"  style={{ ...s.navLink, ...s.navActive }}>Prospecting</Link>
               <Link href="/dashboard/nurture"    style={s.navLink}>Nurture</Link>
@@ -625,12 +633,6 @@ export default function ProspectsPage() {
                       <div style={s.heroLabel}>Leads Requiring Contact</div>
                       <div style={s.heroSub}>{dispositioned.size > 0 ? `${dispositioned.size} worked this session` : 'Sorted by opportunity score'}</div>
                     </div>
-                    <div style={s.heroDivider} />
-                    <div style={s.heroMetric}>
-                      <div style={{ ...s.heroValue, fontSize: 20, paddingTop: 4 }}>{hero.topLead?.name || '—'}</div>
-                      <div style={s.heroLabel}>Highest Probability Lead</div>
-                      <div style={s.heroSub}>{hero.topLead ? `Opportunity score: ${hero.topLead.score}` : 'No leads yet'}</div>
-                    </div>
                   </div>
                 </div>
               )}
@@ -662,8 +664,8 @@ export default function ProspectsPage() {
               {/* ── Opportunities view ──────────────────────────────────────── */}
               {view === 'opportunities' && (
                 <>
-                  {/* 8 bucket cards */}
-                  <div style={s.bucketGrid}>
+                  {/* 8 bucket cards — hidden when in queue focus mode */}
+                  {!queueMode && <div style={s.bucketGrid}>
                     {Object.entries(BUCKETS).map(([key, bc]) => {
                       const leads      = (displayData?.buckets || {})[key] || [];
                       const opportunity = leads.reduce((s, l) => s + (l.commissionEstimate || 0), 0);
@@ -676,7 +678,12 @@ export default function ProspectsPage() {
                         >
                           <div style={{ fontSize: 10, fontWeight: 700, color: bc.color, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{bc.tagline}</div>
                           <div style={{ fontSize: 32, fontWeight: 800, color: leads.length ? '#111827' : '#D1D5DB', lineHeight: 1, marginBottom: 2 }}>{leads.length}</div>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 8 }}>{bc.label}</div>
+                          <div
+                            style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 8, position: 'relative', display: 'inline-block', cursor: 'help' }}
+                            title={bc.tooltip}
+                          >
+                            {bc.label} <span style={{ fontSize: 9, color: bc.color, opacity: 0.7 }}>ⓘ</span>
+                          </div>
                           {leads.length > 0 ? (
                             <div style={{ fontSize: 11, fontWeight: 700, color: bc.color }}>{fmtDollars(opportunity)} est. opportunity</div>
                           ) : (
@@ -690,7 +697,7 @@ export default function ProspectsPage() {
                         </div>
                       );
                     })}
-                  </div>
+                  </div>}
 
                   {/* Filter tabs */}
                   {!queueMode && (

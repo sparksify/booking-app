@@ -165,7 +165,7 @@ export default function NurturePage() {
             <span style={s.logo}>⬡ FranchiseBook</span>
             <nav style={s.nav}>
               <Link href="/dashboard/analytics"  style={s.navLink}>Analytics</Link>
-              <Link href="/dashboard/bookings"   style={s.navLink}>Bookings</Link>
+              <Link href="/dashboard/bookings"   style={s.navLink}>Meetings</Link>
               <Link href="/dashboard/leads"      style={s.navLink}>Leads</Link>
               <Link href="/dashboard/prospects"  style={s.navLink}>Prospecting</Link>
               <Link href="/dashboard/nurture"    style={{ ...s.navLink, ...s.navActive }}>Nurture</Link>

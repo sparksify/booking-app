@@ -18,9 +18,10 @@ export async function getServerSideProps(context) {
 }
 
 const FILTERS = [
-  { key: 'today', label: 'Today' },
-  { key: 'week',  label: 'Next 2 Weeks' },
-  { key: 'all',   label: 'All' },
+  { key: 'today',    label: 'Today' },
+  { key: 'tomorrow', label: 'Tomorrow' },
+  { key: 'week',     label: 'Next 2 Weeks' },
+  { key: 'all',      label: 'All' },
 ];
 
 const STATUS_META = {
@@ -116,6 +117,9 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   const [updating, setUpdating] = useState({});
   const [isDemo,   setIsDemo]   = useState(false);
 
+  // Rep filter
+  const [repFilter,    setRepFilter]    = useState([]); // [] = all reps
+
   // Panel state
   const [panelBooking, setPanelBooking] = useState(null);
   const [lead,         setLead]         = useState(null);
@@ -182,13 +186,46 @@ export default function BookingsDashboard({ brandPitches = {} }) {
     setUpdating(u => ({ ...u, [booking.id]: false }));
   }
 
-  const counts = bookings.reduce((acc, b) => {
+  // Unique reps from current bookings
+  const allReps = [...new Set(bookings.map(b => b.assigned_to_email).filter(Boolean))];
+
+  // Filter by rep if any selected
+  const filteredBookings = repFilter.length === 0
+    ? bookings
+    : bookings.filter(b => repFilter.includes(b.assigned_to_email));
+
+  function toggleRep(email) {
+    setRepFilter(prev =>
+      prev.includes(email) ? prev.filter(r => r !== email) : [...prev, email]
+    );
+  }
+
+  function downloadCSV() {
+    const headers = ['Time', 'Date', 'Name', 'Email', 'Phone', 'Investment', 'Consultant', 'Status'];
+    const rows = filteredBookings.map(b => {
+      const slot = b.slot_start ? new Date(b.slot_start) : null;
+      const timeLabel = slot ? slot.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+      const dateLabel = slot ? slot.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+      return [timeLabel, dateLabel, `${b.first_name} ${b.last_name}`, b.email, b.phone || '', b.investment_level || '', b.assigned_to_email || '', b.status]
+        .map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(',');
+    });
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `meetings-${filter}-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const counts = filteredBookings.reduce((acc, b) => {
     acc[b.status] = (acc[b.status] || 0) + 1; return acc;
   }, {});
 
   return (
     <>
-      <Head><title>Bookings — FranchiseBook</title></Head>
+      <Head><title>Meetings — FranchiseBook</title></Head>
       <div style={s.page}>
 
         {/* ── Header ── */}
@@ -197,7 +234,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
             <span style={s.logo}>⬡ FranchiseBook</span>
             <nav style={s.nav}>
               <Link href="/dashboard/analytics"  style={s.navLink}>Analytics</Link>
-              <Link href="/dashboard/bookings"   style={{ ...s.navLink, ...s.navActive }}>Bookings</Link>
+              <Link href="/dashboard/bookings"   style={{ ...s.navLink, ...s.navActive }}>Meetings</Link>
               <Link href="/dashboard/leads"      style={s.navLink}>Leads</Link>
               <Link href="/dashboard/prospects"  style={s.navLink}>Prospecting</Link>
               <Link href="/dashboard/nurture"    style={s.navLink}>Nurture</Link>
@@ -213,8 +250,8 @@ export default function BookingsDashboard({ brandPitches = {} }) {
           {/* Title bar */}
           <div style={s.titleBar}>
             <div>
-              <h1 style={s.pageTitle}>Bookings</h1>
-              <p style={s.pageSubtitle}>Click any row to open the client panel</p>
+              <h1 style={s.pageTitle}>Meetings</h1>
+              <p style={s.pageSubtitle}>Click any row to open the client panel.</p>
             </div>
             <button onClick={load} style={s.refreshBtn}>↻ Refresh</button>
           </div>
@@ -242,21 +279,70 @@ export default function BookingsDashboard({ brandPitches = {} }) {
             ))}
           </div>
 
-          {/* Filter tabs */}
-          <div style={s.tabBar}>
-            {FILTERS.map(f => (
-              <button key={f.key} onClick={() => setFilter(f.key)}
-                style={{ ...s.tab, ...(filter === f.key ? s.tabActive : {}) }}>
-                {f.label}
+          {/* Filter tabs + Rep toggles + CSV */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            {/* Date presets */}
+            <div style={s.tabBar}>
+              {FILTERS.map(f => (
+                <button key={f.key} onClick={() => setFilter(f.key)}
+                  style={{ ...s.tab, ...(filter === f.key ? s.tabActive : {}) }}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Right side: Rep filters + CSV */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {/* Rep toggle chips */}
+              {allReps.length > 0 && (
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, marginRight: 2 }}>Rep:</span>
+                  {allReps.map(email => {
+                    const name = email.split('@')[0];
+                    const active = repFilter.includes(email);
+                    return (
+                      <button
+                        key={email}
+                        onClick={() => toggleRep(email)}
+                        style={{
+                          padding: '4px 11px', fontSize: 11, fontWeight: 600, borderRadius: 20,
+                          border: `1.5px solid ${active ? '#0077C5' : '#D1D5DB'}`,
+                          background: active ? '#EFF6FF' : '#fff',
+                          color: active ? '#0077C5' : '#6B7280',
+                          cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s',
+                        }}
+                      >
+                        {name}
+                      </button>
+                    );
+                  })}
+                  {repFilter.length > 0 && (
+                    <button
+                      onClick={() => setRepFilter([])}
+                      style={{ padding: '4px 8px', fontSize: 10, fontWeight: 600, borderRadius: 20, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#9CA3AF', cursor: 'pointer', fontFamily: 'inherit' }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* CSV download */}
+              <button
+                onClick={downloadCSV}
+                title="Download meetings as CSV"
+                style={{ padding: '5px 12px', fontSize: 12, fontWeight: 600, borderRadius: 6, border: '1px solid #D1D5DB', background: '#fff', color: '#374151', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}
+              >
+                ↓ CSV
               </button>
-            ))}
+            </div>
           </div>
 
           {/* Table */}
           <div style={s.card}>
             {loading ? (
               <div style={s.empty}>Loading…</div>
-            ) : bookings.length === 0 ? (
+            ) : filteredBookings.length === 0 ? (
               <div style={s.empty}>No bookings for this period.</div>
             ) : (
               <table style={s.table}>
@@ -271,7 +357,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                   {(() => {
                     const nowMs = Date.now();
                     let nowInserted = false;
-                    return bookings.flatMap((b, i) => {
+                    return filteredBookings.flatMap((b, i) => {
                       const slotMs = b.slot_start ? new Date(b.slot_start).getTime() : 0;
                       const inProgress = slotMs > 0 && slotMs <= nowMs && nowMs <= slotMs + 90 * 60_000;
                       const rows = [];
@@ -452,6 +538,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
   const [ghlTags,        setGhlTags]        = useState([]);
   const [ghlTagsLoading, setGhlTagsLoading] = useState(false);
   const [newTagInput,    setNewTagInput]    = useState('');
+  const [showTagInput,   setShowTagInput]   = useState(false);
   const [tagSaving,      setTagSaving]      = useState(false);
 
   // Follow-up modal
@@ -480,6 +567,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
     // Reset tags
     setGhlTags([]);
     setNewTagInput('');
+    setShowTagInput(false);
     setTagSaving(false);
     // Reset follow-up
     setShowFollowUp(false);
@@ -505,6 +593,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
       setPanelTab('info'); setTimeline([]);
       setShowFollowUp(false); setFuSaved(false);
       setNewTagInput('');
+      setShowTagInput(false);
     }
   }, [open]);
 
@@ -828,44 +917,67 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                 {ghlTagsLoading ? (
                   <div style={{ fontSize: 12, color: '#9CA3AF' }}>Loading tags…</div>
                 ) : (
-                  <>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: ghlTags.length ? 10 : 0 }}>
-                      {ghlTags.length === 0 && (
-                        <span style={{ fontSize: 12, color: '#9CA3AF' }}>No tags yet</span>
-                      )}
-                      {ghlTags.map(tag => (
-                        <span key={tag} style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 2,
-                          background: '#EEF2FF', border: '1px solid #C7D2FE',
-                          color: '#3730A3', borderRadius: 20,
-                          padding: '2px 6px 2px 10px', fontSize: 11, fontWeight: 500,
-                        }}>
-                          {tag}
-                          <button onClick={() => removeTag(tag)} style={{
-                            background: 'none', border: 'none', color: '#818CF8',
-                            cursor: 'pointer', fontSize: 15, lineHeight: 1,
-                            padding: '0 2px', fontFamily: 'inherit',
-                          }}>×</button>
-                        </span>
-                      ))}
-                    </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <input
-                        style={{ ...p.input, flex: 1, padding: '5px 8px', fontSize: 12 }}
-                        placeholder="Add tag…"
-                        value={newTagInput}
-                        onChange={e => setNewTagInput(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter' && newTagInput.trim()) addTag(newTagInput); }}
-                      />
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                    {/* Existing tag chips */}
+                    {ghlTags.map(tag => (
+                      <span key={tag} style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 2,
+                        background: '#EEF2FF', border: '1px solid #C7D2FE',
+                        color: '#3730A3', borderRadius: 20,
+                        padding: '2px 6px 2px 10px', fontSize: 11, fontWeight: 500,
+                      }}>
+                        {tag}
+                        <button onClick={() => removeTag(tag)} style={{
+                          background: 'none', border: 'none', color: '#818CF8',
+                          cursor: 'pointer', fontSize: 15, lineHeight: 1,
+                          padding: '0 2px', fontFamily: 'inherit',
+                        }}>×</button>
+                      </span>
+                    ))}
+
+                    {/* + bubble shown when input is closed */}
+                    {!showTagInput && (
                       <button
-                        onClick={() => addTag(newTagInput)}
-                        disabled={!newTagInput.trim() || tagSaving}
-                        style={{ ...p.editBtn, whiteSpace: 'nowrap', opacity: !newTagInput.trim() ? 0.5 : 1 }}
-                      >
-                        {tagSaving ? '…' : '+ Add'}
-                      </button>
-                    </div>
-                  </>
+                        onClick={() => setShowTagInput(true)}
+                        style={{
+                          width: 26, height: 26, borderRadius: '50%',
+                          border: '1.5px dashed #CBD5E1', background: 'transparent',
+                          color: '#9CA3AF', cursor: 'pointer', fontSize: 16, lineHeight: '1',
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          fontFamily: 'inherit', padding: 0, flexShrink: 0,
+                        }}
+                        title="Add tag"
+                      >+</button>
+                    )}
+
+                    {/* Input row shown when + was clicked */}
+                    {showTagInput && (
+                      <div style={{ display: 'flex', gap: 5, alignItems: 'center', width: '100%', marginTop: 4 }}>
+                        <input
+                          autoFocus
+                          style={{ ...p.input, flex: 1, padding: '4px 8px', fontSize: 12 }}
+                          placeholder="Tag name…"
+                          value={newTagInput}
+                          onChange={e => setNewTagInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && newTagInput.trim()) { addTag(newTagInput); setShowTagInput(false); setNewTagInput(''); }
+                            if (e.key === 'Escape') { setNewTagInput(''); setShowTagInput(false); }
+                          }}
+                        />
+                        <button
+                          onClick={() => { if (newTagInput.trim()) { addTag(newTagInput); setNewTagInput(''); } setShowTagInput(false); }}
+                          disabled={tagSaving}
+                          style={{ ...p.editBtn, fontSize: 11, padding: '4px 10px', opacity: !newTagInput.trim() ? 0.5 : 1 }}
+                        >
+                          {tagSaving ? '…' : 'Add'}
+                        </button>
+                        <button
+                          onClick={() => { setNewTagInput(''); setShowTagInput(false); }}
+                          style={{ ...p.cancelEditBtn, fontSize: 11, padding: '4px 8px' }}
+                        >✕</button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </PanelSection>
 
