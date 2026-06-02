@@ -552,11 +552,11 @@ function PickingPhase({
         <div className="pk-profile-wrap">
           <div className="pk-headline">
             {answers?.firstName
-              ? `${answers.firstName}, let's get your consultation scheduled.`
-              : 'Choose a Time That Works Best for You'}
+              ? `${answers.firstName}, let's see if this could be a fit.`
+              : 'Let\'s see if this could be a fit.'}
           </div>
-          <div className="pk-meeting-title">{CFG.meetingTitle}</div>
-          <div className="pk-desc">Quick conversation. No pressure. We'll answer your questions and help you see if this is a fit.</div>
+          <div className="pk-meeting-title">Learn More About the Opportunity</div>
+          <div className="pk-desc">15-minute conversation. Ask questions, get details, and see if it's worth exploring further. No pressure.</div>
           <div className="pk-meta-row">
             <span className="pk-meta-item"><IcoClk size={14} /> {CFG.duration} min</span>
             <span className="pk-meta-item"><IcoPhone size={14} /> Phone call</span>
