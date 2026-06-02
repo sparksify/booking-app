@@ -9,6 +9,9 @@ const CAL_API     = 'https://api.calendly.com';
 // Known user URI — override via CALENDLY_USER_URI env var if the account ever changes
 const DEFAULT_CAL_USER = 'https://api.calendly.com/users/c59a21b9-aa46-45a7-8e8a-3e2faa614742';
 
+// GHL calendar to pull appointments from — override via GHL_CALENDAR_ID env var
+const DEFAULT_GHL_CALENDAR_ID = 'Zd3fg5KnNbH5FEIHhq8R';
+
 // Emails used for internal testing — excluded from all booking sources
 const TEST_EMAILS = new Set([
   'ssparks@thefranchiseconsultingcompany.com',
@@ -203,8 +206,11 @@ async function fetchGHL(from, to) {
   const locationId = process.env.GHL_LOCATION_ID;
   if (!apiKey || !locationId) return [];
 
+  const calendarId = process.env.GHL_CALENDAR_ID || DEFAULT_GHL_CALENDAR_ID;
+
   const params = new URLSearchParams({
     locationId,
+    calendarId,
     startTime: String(from.getTime()),
     endTime:   String(to.getTime()),
   });
