@@ -231,13 +231,34 @@ async function fetchGHL(from, to) {
   const data   = await r.json();
   const events = data.events || data.appointments || [];
 
+  const ghlHeaders = { 'Authorization': `Bearer ${apiKey}`, 'Version': GHL_VERSION };
+
+  // Batch-fetch unique assigned users to resolve names
+  const uniqueUserIds = [...new Set(events.map(ev => ev.assignedUserId).filter(Boolean))];
+  const userMap = {};
+  if (uniqueUserIds.length) {
+    try {
+      const uRes = await fetch(`${GHL_API}/users/?locationId=${locationId}`, { headers: ghlHeaders });
+      if (uRes.ok) {
+        const uData = await uRes.json();
+        (uData.users || []).forEach(u => {
+          if (u.id) {
+            // Store display name — prefer full name, fall back to email
+            userMap[u.id] = u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || u.id;
+          }
+        });
+      }
+    } catch {
+      // non-fatal — rep names just won't resolve
+    }
+  }
+
   // Fetch contact details in parallel to get email + phone
   // (GHL calendar events only return contactId, not contact fields)
-  const contactHeaders = { 'Authorization': `Bearer ${apiKey}`, 'Version': GHL_VERSION };
   const contactResults = await Promise.allSettled(
     events.map(ev =>
       ev.contactId
-        ? fetch(`${GHL_API}/contacts/${ev.contactId}`, { headers: contactHeaders })
+        ? fetch(`${GHL_API}/contacts/${ev.contactId}`, { headers: ghlHeaders })
             .then(r => r.ok ? r.json() : null)
             .then(d => d?.contact ?? null)
         : Promise.resolve(null)
@@ -256,29 +277,33 @@ async function fetchGHL(from, to) {
     const rawStatus = (ev.appointmentStatus || ev.status || 'confirmed')
       .toLowerCase().replace(/\s+/g, '_');
 
+    // Resolve assigned rep name
+    const assignedUserId   = ev.assignedUserId || null;
+    const assignedUserName = assignedUserId ? (userMap[assignedUserId] || assignedUserId) : null;
+
     return {
-      id:               `ghl_${ev.id}`,
-      first_name:       contact?.firstName || tfn  || '',
-      last_name:        contact?.lastName  || trest.join(' ') || '',
-      email:            contact?.email     || '',
-      phone:            contact?.phone     || '',
-      slot_start:       ev.startTime || ev.start_time,
-      slot_end:         ev.endTime   || ev.end_time,
-      status:           GHL_STATUS[rawStatus] || 'scheduled',
-      investment_level: null,
-      assigned_to_email: null,
-      meet_link:        null,
-      created_at:       ev.dateAdded || ev.createdAt || null,
-      event_name:       eventName,
-      booking_source:   'gohighlevel',
-      _source_display:  'GoHighLevel',
-      lead_score:       null,
-      show_probability: null,
-      health:           null,
-      lead_status:      null,
-      ghl_contact_id:   ev.contactId || contact?.id || null,
-      cq_sent_at:       null,
-      cq_received_at:   null,
+      id:                `ghl_${ev.id}`,
+      first_name:        contact?.firstName || tfn  || '',
+      last_name:         contact?.lastName  || trest.join(' ') || '',
+      email:             contact?.email     || '',
+      phone:             contact?.phone     || '',
+      slot_start:        ev.startTime || ev.start_time,
+      slot_end:          ev.endTime   || ev.end_time,
+      status:            GHL_STATUS[rawStatus] || 'scheduled',
+      investment_level:  null,
+      assigned_to_email: assignedUserName,
+      meet_link:         null,
+      created_at:        ev.dateAdded || ev.createdAt || null,
+      event_name:        eventName,
+      booking_source:    'gohighlevel',
+      _source_display:   'GoHighLevel',
+      lead_score:        null,
+      show_probability:  null,
+      health:            null,
+      lead_status:       null,
+      ghl_contact_id:    ev.contactId || contact?.id || null,
+      cq_sent_at:        null,
+      cq_received_at:    null,
     };
   });
 }

@@ -300,7 +300,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, marginRight: 2 }}>Rep:</span>
                   {allReps.map(email => {
-                    const name = email.split('@')[0];
+                    const name = email.includes('@') ? email.split('@')[0] : email;
                     const active = repFilter.includes(email);
                     return (
                       <button
@@ -518,7 +518,9 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus,
       </td>
       <td style={s.td}>
         <span style={{ fontSize: 13, color: '#4A5568' }}>
-          {b.assigned_to_email ? b.assigned_to_email.split('@')[0] : '—'}
+          {b.assigned_to_email
+            ? (b.assigned_to_email.includes('@') ? b.assigned_to_email.split('@')[0] : b.assigned_to_email)
+            : '—'}
         </span>
       </td>
       <td style={s.td} onClick={e => e.stopPropagation()}>
@@ -637,34 +639,53 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
     setFuNote('');
     setFuTemp(3);
     setFuSaved(false);
-    // Fetch GHL tags
+    // Fetch GHL contact intel + tags
     if (!booking?.email || isDemo) {
       if (isDemo) setGhlTags(['hot-lead', 'franchise-ready']);
       setGhlContact(null);
       return;
     }
-    setGhlTagsLoading(true);
-    fetch(`/api/dashboard/contact-tags?email=${encodeURIComponent(booking.email)}`)
-      .then(r => r.json())
-      .then(d => { setGhlTags(d.tags || []); setGhlTagsLoading(false); })
-      .catch(() => setGhlTagsLoading(false));
 
-    // Fetch GHL contact intel (works for all bookings — FranchiseBook contacts are also in GHL)
     const ghlId = booking?.ghl_contact_id;
+    const source = booking?._source_display;
+
+    // Helper — processes the contact record once fetched
+    function applyContact(c) {
+      setGhlContact(c);
+      setGhlContactLoading(false);
+      if (c?.tags?.length > 0) setGhlTags(c.tags);
+      else {
+        // Fall back to email-based tags API if contact had no tags
+        setGhlTagsLoading(true);
+        fetch(`/api/dashboard/contact-tags?email=${encodeURIComponent(booking.email)}`)
+          .then(r => r.json())
+          .then(d => { setGhlTags(d.tags || []); setGhlTagsLoading(false); })
+          .catch(() => setGhlTagsLoading(false));
+      }
+    }
+
     if (ghlId) {
+      // GHL / FranchiseBook bookings — direct contact ID lookup
       setGhlContactLoading(true);
       fetch(`/api/dashboard/ghl-contact-detail?contactId=${ghlId}`)
         .then(r => r.json())
-        .then(d => {
-          const c = d.contact || null;
-          setGhlContact(c);
-          setGhlContactLoading(false);
-          // Use tags from the contact record directly — no separate lookup needed
-          if (c?.tags?.length > 0) setGhlTags(c.tags);
-        })
+        .then(d => applyContact(d.contact || null))
+        .catch(() => { setGhlContact(null); setGhlContactLoading(false); });
+    } else if (source === 'Calendly' && booking.email) {
+      // Calendly bookings — look up GHL contact by email
+      setGhlContactLoading(true);
+      fetch(`/api/dashboard/ghl-contact-detail?email=${encodeURIComponent(booking.email)}`)
+        .then(r => r.json())
+        .then(d => applyContact(d.contact || null))
         .catch(() => { setGhlContact(null); setGhlContactLoading(false); });
     } else {
+      // No GHL contact available — still try email-based tags
       setGhlContact(null);
+      setGhlTagsLoading(true);
+      fetch(`/api/dashboard/contact-tags?email=${encodeURIComponent(booking.email)}`)
+        .then(r => r.json())
+        .then(d => { setGhlTags(d.tags || []); setGhlTagsLoading(false); })
+        .catch(() => setGhlTagsLoading(false));
     }
   }, [booking?.id]);
 

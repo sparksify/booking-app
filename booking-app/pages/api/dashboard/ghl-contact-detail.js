@@ -39,8 +39,8 @@ export default async function handler(req, res) {
   const session = await getServerSession(req, res, authOptions);
   if (!session) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { contactId } = req.query;
-  if (!contactId) return res.status(400).json({ error: 'contactId required' });
+  const { contactId, email } = req.query;
+  if (!contactId && !email) return res.status(400).json({ error: 'contactId or email required' });
 
   const apiKey = process.env.GHL_API_KEY;
   if (!apiKey) return res.json({ contact: null });
@@ -49,10 +49,29 @@ export default async function handler(req, res) {
 
   let contact;
   try {
-    const r = await fetch(`${GHL_API}/contacts/${contactId}`, { headers });
-    if (!r.ok) return res.json({ contact: null });
-    const d = await r.json();
-    contact = d.contact;
+    if (contactId) {
+      // Direct lookup by contact ID
+      const r = await fetch(`${GHL_API}/contacts/${contactId}`, { headers });
+      if (!r.ok) return res.json({ contact: null });
+      const d = await r.json();
+      contact = d.contact;
+    } else {
+      // Lookup by email — search contacts
+      const locationId = process.env.GHL_LOCATION_ID;
+      if (!locationId) return res.json({ contact: null });
+      const params = new URLSearchParams({ locationId, email });
+      const r = await fetch(`${GHL_API}/contacts/?${params}`, { headers });
+      if (!r.ok) return res.json({ contact: null });
+      const d = await r.json();
+      // contacts array — take first match
+      const match = (d.contacts || [])[0];
+      if (!match) return res.json({ contact: null });
+      // Fetch full contact record to get customFields + tags
+      const r2 = await fetch(`${GHL_API}/contacts/${match.id}`, { headers });
+      if (!r2.ok) return res.json({ contact: null });
+      const d2 = await r2.json();
+      contact = d2.contact;
+    }
   } catch {
     return res.json({ contact: null });
   }
