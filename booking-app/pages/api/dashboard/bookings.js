@@ -231,17 +231,37 @@ async function fetchGHL(from, to) {
   const data   = await r.json();
   const events = data.events || data.appointments || [];
 
-  return events.map(ev => {
-    const contact   = ev.contact || {};
+  // Fetch contact details in parallel to get email + phone
+  // (GHL calendar events only return contactId, not contact fields)
+  const contactHeaders = { 'Authorization': `Bearer ${apiKey}`, 'Version': GHL_VERSION };
+  const contactResults = await Promise.allSettled(
+    events.map(ev =>
+      ev.contactId
+        ? fetch(`${GHL_API}/contacts/${ev.contactId}`, { headers: contactHeaders })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => d?.contact ?? null)
+        : Promise.resolve(null)
+    )
+  );
+
+  return events.map((ev, i) => {
+    const contact = contactResults[i].status === 'fulfilled' ? contactResults[i].value : null;
+
+    // Title format is "First Last - Event Name" — parse name as fallback
+    const titleParts = (ev.title || '').split(' - ');
+    const titleName  = titleParts[0] || '';
+    const eventName  = titleParts.slice(1).join(' - ') || ev.title || 'GHL Appointment';
+    const [tfn, ...trest] = titleName.trim().split(' ');
+
     const rawStatus = (ev.appointmentStatus || ev.status || 'confirmed')
       .toLowerCase().replace(/\s+/g, '_');
 
     return {
       id:               `ghl_${ev.id}`,
-      first_name:       contact.firstName || '',
-      last_name:        contact.lastName  || '',
-      email:            contact.email     || ev.email || '',
-      phone:            contact.phone     || ev.phone || '',
+      first_name:       contact?.firstName || tfn  || '',
+      last_name:        contact?.lastName  || trest.join(' ') || '',
+      email:            contact?.email     || '',
+      phone:            contact?.phone     || '',
       slot_start:       ev.startTime || ev.start_time,
       slot_end:         ev.endTime   || ev.end_time,
       status:           GHL_STATUS[rawStatus] || 'scheduled',
@@ -249,14 +269,14 @@ async function fetchGHL(from, to) {
       assigned_to_email: null,
       meet_link:        null,
       created_at:       ev.dateAdded || ev.createdAt || null,
-      event_name:       ev.title || 'GHL Appointment',
+      event_name:       eventName,
       booking_source:   'gohighlevel',
       _source_display:  'GoHighLevel',
       lead_score:       null,
       show_probability: null,
       health:           null,
       lead_status:      null,
-      ghl_contact_id:   ev.contactId || contact.id || null,
+      ghl_contact_id:   ev.contactId || contact?.id || null,
       cq_sent_at:       null,
       cq_received_at:   null,
     };
