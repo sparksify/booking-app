@@ -655,7 +655,13 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
       setGhlContactLoading(true);
       fetch(`/api/dashboard/ghl-contact-detail?contactId=${ghlId}`)
         .then(r => r.json())
-        .then(d => { setGhlContact(d.contact || null); setGhlContactLoading(false); })
+        .then(d => {
+          const c = d.contact || null;
+          setGhlContact(c);
+          setGhlContactLoading(false);
+          // Use tags from the contact record directly — no separate lookup needed
+          if (c?.tags?.length > 0) setGhlTags(c.tags);
+        })
         .catch(() => { setGhlContact(null); setGhlContactLoading(false); });
     } else {
       setGhlContact(null);
@@ -992,80 +998,6 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                   </div>
                 )}
               </PanelSection>
-
-              {/* ── GHL Intel ── */}
-              {(ghlContactLoading || (ghlContact && Object.keys(ghlContact.custom_fields || {}).length > 0)) && (
-                <PanelSection title="Intel">
-                  {ghlContactLoading ? (
-                    <div style={{ fontSize: 12, color: '#9CA3AF' }}>Loading intel…</div>
-                  ) : (() => {
-                    const fields = ghlContact.custom_fields || {};
-
-                    // Financial
-                    const financial = [
-                      ['Liquid Cash',    fields['Liquid Cash']],
-                      ['Cash Available', fields['Cash Available']],
-                      ['Net Worth',      fields['Net Worth']],
-                    ].filter(([, v]) => v);
-
-                    // Readiness
-                    const readiness = [
-                      ['Owned Business', fields['Owned Business']],
-                      ['Goal Timeline',  fields['Goal Timeline']],
-                      ['Start Timeline', fields['Start Timeline']],
-                    ].filter(([, v]) => v);
-
-                    // Territory
-                    const territory = [
-                      ['Areas of Interest',  fields['Areas of Interest']],
-                      ['Territory Interest', fields['Territory Interest']],
-                    ].filter(([, v]) => v);
-
-                    // Franchise fit
-                    const franchise = [
-                      ['Franchise Brand',      fields['Franchise Brand'] || fields['Brand Name'] || fields['Franchise Name']],
-                      ['Franchise Investment', fields['Franchise Investment']],
-                      ['Franchise Hook',       fields['Franchise Hook']],
-                    ].filter(([, v]) => v);
-
-                    // Video engagement
-                    const video = [
-                      ['Views',      fields['Video Views']],
-                      ['Plays',      fields['Video Plays']],
-                      ['Watch %',    fields['Watch Point %']],
-                      ['Last Visit', fields['Last Video Visit']],
-                    ].filter(([, v]) => v);
-
-                    const groups = [
-                      { label: '💰 Financial',  rows: financial },
-                      { label: '🎯 Readiness',  rows: readiness },
-                      { label: '📍 Territory',  rows: territory },
-                      { label: '🏢 Franchise',  rows: franchise },
-                      { label: '📹 Video',      rows: video },
-                    ].filter(g => g.rows.length > 0);
-
-                    if (groups.length === 0) return null;
-
-                    return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                        {groups.map(g => (
-                          <div key={g.label}>
-                            <div style={{ fontSize: 10, fontWeight: 700, color: '#B0B8C4', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 7 }}>
-                              {g.label}
-                            </div>
-                            {g.rows.map(([label, value]) => (
-                              <div key={label} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 7, fontSize: 13 }}>
-                                <span style={{ color: '#6B7280', width: 108, flexShrink: 0 }}>{label}</span>
-                                <span style={{ color: '#1A2B3C', flex: 1, fontWeight: 500 }}>{String(value)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </PanelSection>
-              )}
 
               {/* ── GHL Tags ── */}
               <PanelSection title="GHL Tags">
