@@ -46,7 +46,7 @@ export default async function handler(req, res) {
     .from('settings')
     .select('revenue_per_close')
     .single();
-  const revenuePerClose = settingsRow?.revenue_per_close || 15000;
+  const revenuePerClose = settingsRow?.revenue_per_close || 30000;
 
   // ── 1. Fetch leads (no status filter — NULL != 'closed' is NULL in Postgres) ──
   const { data: rawLeads, error: leadsErr } = await supabase

@@ -36,7 +36,7 @@ export default async function handler(req, res) {
 
   // Settings for revenue per close
   const { data: settings } = await supabase.from('settings').select('revenue_per_close').single();
-  const rpc = settings?.revenue_per_close || 15000;
+  const rpc = settings?.revenue_per_close || 30000;
 
   // Fetch closings + leads
   const { data: closings } = await supabase
