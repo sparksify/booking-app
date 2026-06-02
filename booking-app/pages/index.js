@@ -291,6 +291,12 @@ export default function BookingPage() {
   useEffect(() => {
     if (phase !== 'picking') return;
     const now = new Date();
+    // "Today" in local timezone — compare against dateStr (YYYY-MM-DD local)
+    const todayStr = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+    ].join('-');
     const candidates = [];
     const WINDOW_HRS = 7 * 24; // score window: 7 days
 
@@ -301,9 +307,11 @@ export default function BookingPage() {
         const slotDate  = new Date(`${day.dateStr}T${pad(slot.h)}:${pad(slot.m)}:00`);
         const hoursAway = (slotDate - now) / 3600000;
         if (hoursAway < 1.5) continue; // skip slots < 90 min from now
-        // Score: 9-12 best (3), 12-15 good (2), else (1); sooner = bonus
-        const timeScore = slot.h >= 9 && slot.h < 12 ? 3 : slot.h >= 12 && slot.h < 15 ? 2 : 1;
-        const nearScore = Math.max(0, WINDOW_HRS - hoursAway) / WINDOW_HRS;
+        // Score: 9-12 best (2), 12-15 good (1), else (0); sooner = bonus
+        // Same-day gets a large priority boost so today always beats tomorrow
+        const timeScore  = slot.h >= 9 && slot.h < 12 ? 2 : slot.h >= 12 && slot.h < 15 ? 1 : 0;
+        const nearScore  = Math.max(0, WINDOW_HRS - hoursAway) / WINDOW_HRS;
+        const todayBonus = day.dateStr === todayStr ? 10 : 0;
         candidates.push({
           ...slot,
           dateStr: day.dateStr,
@@ -311,7 +319,7 @@ export default function BookingPage() {
           mon: day.mon,
           dayNum: day.day,
           hoursAway,
-          score: timeScore + nearScore,
+          score: timeScore + nearScore + todayBonus,
           dayLabel: getDayLabel(day.dateStr),
         });
       }
