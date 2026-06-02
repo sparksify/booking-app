@@ -139,6 +139,9 @@ const AREA_CODE = {
   '678': { city: 'Atlanta Metro',      state: 'GA' },
   '770': { city: 'Atlanta Suburbs',    state: 'GA' },
   '470': { city: 'Atlanta Metro',      state: 'GA' },
+  '706': { city: 'Augusta / NW Georgia', state: 'GA' },
+  '762': { city: 'Augusta / NW Georgia', state: 'GA' },
+  '912': { city: 'Savannah',           state: 'GA' },
   // Illinois
   '312': { city: 'Chicago',            state: 'IL' },
   '773': { city: 'Chicago',            state: 'IL' },
@@ -279,6 +282,15 @@ const STATE_ABBR = {
   'Virginia':'VA','Washington':'WA','West Virginia':'WV','Wisconsin':'WI','Wyoming':'WY',
   'District of Columbia':'DC',
 };
+
+/**
+ * lookupAreaCode(areaCode) — quick synchronous lookup, no API call
+ * Returns { city, state } or null
+ */
+export function lookupAreaCode(areaCode) {
+  if (!areaCode) return null;
+  return AREA_CODE[String(areaCode)] || null;
+}
 
 /**
  * normalizeLocation(rawInput)

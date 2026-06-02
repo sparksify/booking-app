@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
+import { lookupAreaCode } from '@/lib/normalizeLocation';
 
 const GHL_API     = 'https://services.leadconnectorhq.com';
 const GHL_VERSION = '2021-07-28';
@@ -101,6 +102,19 @@ export default async function handler(req, res) {
   const digits   = rawPhone.startsWith('1') ? rawPhone.slice(1) : rawPhone;
   const areaCode = digits.length >= 3 ? digits.slice(0, 3) : null;
 
+  // Derive city/state from area code if GHL contact doesn't have them
+  const ghlCity  = contact.city  || null;
+  const ghlState = contact.state || null;
+  let derivedCity  = ghlCity;
+  let derivedState = ghlState;
+  if ((!ghlCity || !ghlState) && areaCode) {
+    const ac = lookupAreaCode(areaCode);
+    if (ac) {
+      derivedCity  = derivedCity  || ac.city;
+      derivedState = derivedState || ac.state;
+    }
+  }
+
   // Resolve owner/assigned-to name
   let owner_name = null;
   const assignedTo = contact.assignedTo;
@@ -123,8 +137,8 @@ export default async function handler(req, res) {
       email:         contact.email      || '',
       phone:         contact.phone      || '',
       tags:          contact.tags       || [],
-      city:          contact.city       || null,
-      state:         contact.state      || null,
+      city:          derivedCity,
+      state:         derivedState,
       zip:           contact.postalCode || null,
       area_code:     areaCode,
       source:        contact.source     || null,
