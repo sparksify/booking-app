@@ -1743,157 +1743,83 @@ function QueueView({ clients, isDemo, onExit, onStartWorking, selectedId, onSele
 }
 
 // ─── Communications Panel ─────────────────────────────────────────────────────
+// Read-only conversation feed + compose buttons. No logging form here.
 
-function CommunicationsPanel({ client, isDemo, touchpoints, onTouchpointAdded, onLogAndNext, contactId }) {
-  const [medium,    setMedium]    = useState('call');
-  const [note,      setNote]      = useState('');
-  const [logging,   setLogging]   = useState(false);
-  const [loggedMsg, setLoggedMsg] = useState('');
+function CommunicationsPanel({ client, touchpoints, contactId }) {
   const [showEmail, setShowEmail] = useState(false);
   const [showSms,   setShowSms]   = useState(false);
 
-  async function log(andNext) {
-    if (!note.trim() || logging) return;
-    setLogging(true);
-    const newTP = {
-      id: `tp_${Date.now()}`, nurture_client_id: client.id, medium, note: note.trim(),
-      created_at: new Date().toISOString(), created_by: 'me',
-    };
-    setNote('');
-    onTouchpointAdded(newTP);
-    if (!isDemo) {
-      await fetch('/api/dashboard/nurture-touchpoint', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nurture_client_id: client.id, medium, note: newTP.note }),
-      }).catch(console.error);
-    }
-    setLogging(false);
-    if (andNext) {
-      onLogAndNext();
-    } else {
-      setLoggedMsg(`${medium.charAt(0).toUpperCase() + medium.slice(1)} logged ✓`);
-      setTimeout(() => setLoggedMsg(''), 3000);
-    }
+  const name = `${client.first_name} ${client.last_name}`;
+
+  function medStyle(medium) {
+    if (medium === 'call')  return { color: '#15803D', bg: '#F0FDF4', border: '#BBF7D0', icon: '📞' };
+    if (medium === 'email') return { color: '#1D4ED8', bg: '#EFF6FF', border: '#BFDBFE', icon: '✉️' };
+    return                         { color: '#6D28D9', bg: '#F5F3FF', border: '#DDD6FE', icon: '💬' };
   }
 
   return (
     <div style={s.card}>
-      {/* Header row */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+      {/* Header + compose buttons */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div style={s.cardTitle}>Communications</div>
         <div style={{ display: 'flex', gap: 6 }}>
           <button
             onClick={() => setShowEmail(true)}
             style={{ padding: '5px 12px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 5, fontSize: 11, fontWeight: 600, color: '#1D4ED8', cursor: 'pointer', fontFamily: 'inherit' }}
           >
-            ✉️ Compose Email
+            ✉️ Email
           </button>
           {client.phone && (
             <button
               onClick={() => setShowSms(true)}
               style={{ padding: '5px 12px', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 5, fontSize: 11, fontWeight: 600, color: '#6D28D9', cursor: 'pointer', fontFamily: 'inherit' }}
             >
-              💬 Send SMS
+              💬 SMS
             </button>
           )}
         </div>
       </div>
 
-      {/* Log touchpoint */}
-      <div style={{ paddingBottom: 18, marginBottom: 18, borderBottom: '1px solid #F3F4F6' }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 10 }}>Log Touchpoint</div>
-        {loggedMsg ? (
-          <div style={{ textAlign: 'center', padding: '20px 0' }}>
-            <div style={{ fontSize: 22 }}>✓</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#15803D', marginTop: 6 }}>{loggedMsg}</div>
-          </div>
-        ) : (
-          <>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {['call', 'email', 'text'].map(m => (
-                <button key={m} onClick={() => setMedium(m)} style={{
-                  flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 600, borderRadius: 6,
-                  border: `1.5px solid ${medium === m ? '#1D4ED8' : '#E5E7EB'}`,
-                  background: medium === m ? '#EFF6FF' : '#F9FAFB',
-                  color: medium === m ? '#1D4ED8' : '#6B7280',
-                  cursor: 'pointer', textTransform: 'capitalize', fontFamily: 'inherit',
-                }}>
-                  {m === 'call' ? '📞' : m === 'email' ? '✉️' : '💬'} {m}
-                </button>
-              ))}
-            </div>
-            <textarea
-              style={{ ...s.notesArea, marginTop: 10, fontSize: 13 }}
-              rows={3}
-              placeholder={`Notes from this ${medium}…`}
-              value={note}
-              onChange={e => setNote(e.target.value)}
-            />
-            <button
-              onClick={() => log(true)}
-              disabled={!note.trim() || logging}
-              style={{ ...s.primaryBtn, marginTop: 8, width: '100%', fontSize: 14, padding: '10px', opacity: !note.trim() ? 0.5 : 1, cursor: !note.trim() ? 'not-allowed' : 'pointer' }}
-            >
-              {logging ? 'Logging…' : `Log ${medium.charAt(0).toUpperCase() + medium.slice(1)} + Next →`}
-            </button>
-            <button
-              onClick={() => log(false)}
-              disabled={!note.trim() || logging}
-              style={{ width: '100%', marginTop: 6, padding: '6px', background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 12, color: '#6B7280', cursor: !note.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: !note.trim() ? 0.4 : 1 }}
-            >
-              Log only (stay here)
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* Touch history */}
-      <div>
-        <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 12 }}>Touch History</div>
-        {touchpoints.length === 0 ? (
-          <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', padding: '16px 0' }}>No touchpoints logged yet</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            {touchpoints.slice(0, 12).map((tp, i) => {
-              const isLast = i === Math.min(touchpoints.length, 12) - 1;
-              const ts     = new Date(tp.created_at);
-              const label  = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-              const icon   = tp.medium === 'call' ? '📞' : tp.medium === 'email' ? '✉️' : '💬';
-              return (
-                <div key={tp.id} style={{ display: 'flex', gap: 10 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                    <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>{icon}</div>
-                    {!isLast && <div style={{ width: 1, flex: 1, background: '#E5E7EB', margin: '3px 0' }} />}
-                  </div>
-                  <div style={{ flex: 1, paddingBottom: isLast ? 0 : 14 }}>
-                    <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 3 }}>
-                      {label} · <span style={{ textTransform: 'capitalize', fontWeight: 500 }}>{tp.medium}</span>
-                    </div>
-                    {tp.note && <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.5 }}>{tp.note}</div>}
-                  </div>
+      {/* Conversation feed */}
+      {touchpoints.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '40px 0', color: '#D1D5DB' }}>
+          <div style={{ fontSize: 32, marginBottom: 10 }}>💬</div>
+          <div style={{ fontSize: 13, fontWeight: 500 }}>No communication logged yet</div>
+          <div style={{ fontSize: 11, marginTop: 4 }}>Log a touchpoint on the right to get started</div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {touchpoints.map(tp => {
+            const ms  = medStyle(tp.medium);
+            const ts  = new Date(tp.created_at);
+            const day = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const hr  = ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+            return (
+              <div key={tp.id} style={{ background: '#F9FAFB', border: '1px solid #F0F0F0', borderRadius: 8, padding: '10px 12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: tp.note ? 7 : 0 }}>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 10,
+                    color: ms.color, background: ms.bg, border: `1px solid ${ms.border}`,
+                    textTransform: 'capitalize', whiteSpace: 'nowrap',
+                  }}>
+                    {ms.icon} {tp.medium}
+                  </span>
+                  <span style={{ fontSize: 11, color: '#9CA3AF', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+                    {day} · {hr}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                {tp.note && (
+                  <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.6 }}>{tp.note}</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Compose modals */}
-      {showEmail && (
-        <EmailModal
-          to={client.email}
-          name={`${client.first_name} ${client.last_name}`}
-          onClose={() => setShowEmail(false)}
-        />
-      )}
-      {showSms && (
-        <SmsModal
-          to={client.phone}
-          name={`${client.first_name} ${client.last_name}`}
-          contactId={contactId}
-          onClose={() => setShowSms(false)}
-        />
-      )}
+      {showEmail && <EmailModal to={client.email} name={name} onClose={() => setShowEmail(false)} />}
+      {showSms   && <SmsModal to={client.phone} name={name} contactId={contactId} onClose={() => setShowSms(false)} />}
     </div>
   );
 }
@@ -1971,6 +1897,10 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
   const [brands,            setBrands]            = useState(c.brands || []);
   const [touchpoints,       setTouchpoints]       = useState(c.touchpoints || []);
   const [milestones,        setMilestones]        = useState(c.milestones || {});
+  const [medium,            setMedium]            = useState('call');
+  const [note,              setNote]              = useState('');
+  const [logging,           setLogging]           = useState(false);
+  const [loggedMsg,         setLoggedMsg]         = useState('');
   const [notesSaving,       setNotesSaving]       = useState(false);
   const [notesSaved,        setNotesSaved]        = useState(false);
   const [clientNotes,       setClientNotes]       = useState(c.notes || '');
@@ -1983,6 +1913,8 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
     setTouchpoints(c.touchpoints || []);
     setMilestones(c.milestones || {});
     setClientNotes(c.notes || '');
+    setNote('');
+    setLoggedMsg('');
     setNotesSaved(false);
     setGhlContact(null);
     // Async fetch GHL contact for tags + prospect info
@@ -2023,6 +1955,47 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
         body: JSON.stringify({ id: c.id, milestones: updated }),
       }).catch(console.error);
     }
+  }
+
+  async function logAndNext() {
+    if (!note.trim() || logging) return;
+    setLogging(true);
+    const newTP = {
+      id: `tp_${Date.now()}`, nurture_client_id: c.id, medium, note: note.trim(),
+      created_at: new Date().toISOString(), created_by: 'me',
+    };
+    setTouchpoints(prev => [newTP, ...prev]);
+    setNote('');
+    onUpdate({ last_contacted_at: newTP.created_at, decay: 'good', days_since_contact: 0 });
+    if (!isDemo) {
+      await fetch('/api/dashboard/nurture-touchpoint', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nurture_client_id: c.id, medium, note: newTP.note }),
+      }).catch(console.error);
+    }
+    setLogging(false);
+    onNext();
+  }
+
+  async function logOnly() {
+    if (!note.trim() || logging) return;
+    setLogging(true);
+    const newTP = {
+      id: `tp_${Date.now()}`, nurture_client_id: c.id, medium, note: note.trim(),
+      created_at: new Date().toISOString(), created_by: 'me',
+    };
+    setTouchpoints(prev => [newTP, ...prev]);
+    setNote('');
+    onUpdate({ last_contacted_at: newTP.created_at, decay: 'good', days_since_contact: 0 });
+    if (!isDemo) {
+      await fetch('/api/dashboard/nurture-touchpoint', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nurture_client_id: c.id, medium, note: newTP.note }),
+      }).catch(console.error);
+    }
+    setLogging(false);
+    setLoggedMsg(`${medium.charAt(0).toUpperCase() + medium.slice(1)} logged ✓`);
+    setTimeout(() => setLoggedMsg(''), 3000);
   }
 
   async function updateBrand(brandId, brandName, fields) {
@@ -2176,18 +2149,64 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
           onOpenAttorney={() => setShowAttorneyModal(true)}
         />
 
-        {/* Communications panel */}
+        {/* Communications feed */}
         <CommunicationsPanel
           client={c}
-          isDemo={isDemo}
           touchpoints={touchpoints}
-          onTouchpointAdded={(tp) => {
-            setTouchpoints(prev => [tp, ...prev]);
-            onUpdate({ last_contacted_at: tp.created_at, decay: 'good', days_since_contact: 0 });
-          }}
-          onLogAndNext={onNext}
           contactId={ghlContact?.id}
         />
+      </div>
+
+      {/* ── Right column: log touchpoint + notes + franchise progress ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        {/* Log touchpoint */}
+        <div style={s.card}>
+          <div style={s.cardTitle}>Log Touchpoint</div>
+          {loggedMsg ? (
+            <div style={{ marginTop: 12, textAlign: 'center', padding: '20px 0' }}>
+              <div style={{ fontSize: 24 }}>✓</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#15803D', marginTop: 6 }}>{loggedMsg}</div>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+                {['call', 'email', 'text'].map(m => (
+                  <button key={m} onClick={() => setMedium(m)} style={{
+                    flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 600, borderRadius: 6,
+                    border: `1.5px solid ${medium === m ? '#1D4ED8' : '#E5E7EB'}`,
+                    background: medium === m ? '#EFF6FF' : '#F9FAFB',
+                    color: medium === m ? '#1D4ED8' : '#6B7280',
+                    cursor: 'pointer', textTransform: 'capitalize', fontFamily: 'inherit',
+                  }}>
+                    {m === 'call' ? '📞' : m === 'email' ? '✉️' : '💬'} {m}
+                  </button>
+                ))}
+              </div>
+              <textarea
+                style={{ ...s.notesArea, marginTop: 10, fontSize: 13 }}
+                rows={4}
+                placeholder={`Notes from this ${medium}…`}
+                value={note}
+                onChange={e => setNote(e.target.value)}
+              />
+              <button
+                onClick={logAndNext}
+                disabled={!note.trim() || logging}
+                style={{ ...s.primaryBtn, marginTop: 8, width: '100%', fontSize: 14, padding: '10px', opacity: !note.trim() ? 0.5 : 1, cursor: !note.trim() ? 'not-allowed' : 'pointer' }}
+              >
+                {logging ? 'Logging…' : `Log ${medium.charAt(0).toUpperCase() + medium.slice(1)} + Next →`}
+              </button>
+              <button
+                onClick={logOnly}
+                disabled={!note.trim() || logging}
+                style={{ width: '100%', marginTop: 6, padding: '6px', background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 12, color: '#6B7280', cursor: !note.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: !note.trim() ? 0.4 : 1 }}
+              >
+                Log only (stay here)
+              </button>
+            </>
+          )}
+        </div>
 
         {/* Notes */}
         <div style={s.card}>
@@ -2204,16 +2223,7 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
           </button>
         </div>
 
-        {/* Secondary actions */}
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 2 }}>
-          <button onClick={onNext} style={s.ghostBtn}>Skip →</button>
-          <button onClick={archiveClient} style={s.ghostBtn}>Archive</button>
-          <button onClick={closedWon} style={{ ...s.ghostBtn, color: '#15803D', borderColor: '#86EFAC' }}>🎉 Closed Won</button>
-        </div>
-      </div>
-
-      {/* ── Right column: franchise progress ── */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* Franchise progress */}
         <div style={s.card}>
           <div style={s.cardTitle}>Franchise Progress</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 14 }}>
@@ -2228,11 +2238,18 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
                 brand={brand}
                 onStageChange={stage => updateBrand(brand.id, brand.brand_name, { stage })}
                 onSentimentChange={sentiment => updateBrand(brand.id, brand.brand_name, { sentiment })}
-                onNoteChange={note => updateBrand(brand.id, brand.brand_name, { note })}
+                onNoteChange={n => updateBrand(brand.id, brand.brand_name, { note: n })}
                 onDevChange={fields => updateBrand(brand.id, brand.brand_name, fields)}
               />
             ))}
           </div>
+        </div>
+
+        {/* Secondary actions */}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onNext} style={s.ghostBtn}>Skip →</button>
+          <button onClick={archiveClient} style={s.ghostBtn}>Archive</button>
+          <button onClick={closedWon} style={{ ...s.ghostBtn, color: '#15803D', borderColor: '#86EFAC' }}>🎉 Closed Won</button>
         </div>
       </div>
 
