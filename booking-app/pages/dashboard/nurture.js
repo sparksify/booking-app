@@ -101,6 +101,7 @@ export default function NurturePage() {
   const [queueMode,      setQueueMode]      = useState(false);
   const [queueIdx,       setQueueIdx]       = useState(0);
   const [selectedClient, setSelectedClient] = useState(null);
+  const [viewMode,       setViewMode]       = useState('list'); // 'list' | 'kanban'
 
   const load = useCallback(() => {
     setLoading(true);
@@ -151,6 +152,7 @@ export default function NurturePage() {
         * { box-sizing: border-box; }
         .nurture-row:hover { background: #F0F4FF !important; cursor: pointer; }
         .nurture-row-selected { background: #EFF6FF !important; }
+        .nurture-kanban-card:hover { background: #F5F8FF !important; border-color: #BFDBFE !important; }
       `}</style>
 
       <div style={s.page}>
@@ -181,6 +183,25 @@ export default function NurturePage() {
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               {isDemo && <span style={s.demoBadge}>Preview</span>}
+              {/* View mode toggle */}
+              <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 6, padding: 2 }}>
+                {[['list', '≡ List'], ['kanban', '⊞ Kanban']].map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    onClick={() => setViewMode(mode)}
+                    style={{
+                      padding: '5px 13px', fontSize: 12, fontWeight: 600, borderRadius: 4,
+                      border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                      background: viewMode === mode ? '#fff' : 'transparent',
+                      color: viewMode === mode ? '#111827' : '#6B7280',
+                      boxShadow: viewMode === mode ? '0 1px 3px rgba(0,0,0,.1)' : 'none',
+                      transition: 'all .15s',
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <button onClick={load} style={s.ghostBtn}>↻ Refresh</button>
               {activeClients.length > 0 && (
                 <button onClick={enterQueue} style={s.primaryBtn}>
@@ -228,6 +249,15 @@ export default function NurturePage() {
               onUpdate={updateClientLocally}
               onRefresh={load}
             />
+          ) : viewMode === 'kanban' ? (
+            <KanbanView
+              clients={clients}
+              isDemo={isDemo}
+              selectedId={selectedClient?.id}
+              onSelect={selectClient}
+              onUpdate={updateClientLocally}
+              onRefresh={load}
+            />
           ) : (
             <ListView
               clients={clients}
@@ -259,51 +289,277 @@ export default function NurturePage() {
 // ─── Pipeline Stage Graph ──────────────────────────────────────────────────────
 
 function PipelineGraph({ clients }) {
-  // Count clients by their max_stage
   const counts = [0, 0, 0, 0, 0];
   clients.forEach(c => {
     const idx = (c.max_stage || 1) - 1;
     if (idx >= 0 && idx < 5) counts[idx]++;
   });
-  const maxCount = Math.max(...counts, 1);
+  const total = clients.length;
 
   return (
-    <div style={{ background: '#fff', border: '1px solid #E8EAED', borderRadius: 8, padding: '16px 20px', marginBottom: 12 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 14 }}>
-        Pipeline Distribution — {clients.length} active client{clients.length !== 1 ? 's' : ''}
+    <div style={{ background: '#fff', border: '1px solid #E8EAED', borderRadius: 10, padding: '16px 20px', marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em' }}>
+          Pipeline Distribution
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', background: '#F3F4F6', padding: '3px 10px', borderRadius: 20 }}>
+          {total} active client{total !== 1 ? 's' : ''}
+        </div>
       </div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', height: 80 }}>
+
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: 0 }}>
         {STAGES.slice(1).map((stage, i) => {
-          const count   = counts[i];
-          const pct     = count / maxCount;
-          const barH    = Math.max(pct * 64, count > 0 ? 8 : 3);
+          const count  = counts[i];
+          const active = count > 0;
+          const isLast = i === 4;
+
           return (
-            <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-              {/* Count label */}
-              <div style={{ fontSize: 14, fontWeight: 700, color: count > 0 ? stage.color : '#D1D5DB', lineHeight: 1 }}>
-                {count}
-              </div>
-              {/* Bar */}
-              <div style={{ width: '100%', display: 'flex', alignItems: 'flex-end', height: 60, paddingBottom: 2 }}>
-                <div style={{
-                  width: '100%',
-                  height: barH,
-                  background: count > 0 ? stage.bar : '#F3F4F6',
-                  borderRadius: '4px 4px 0 0',
-                  transition: 'height .3s ease',
-                }} />
-              </div>
-              {/* Stage label */}
+            <div key={i} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+              {/* Stage block */}
               <div style={{
-                fontSize: 9, fontWeight: 600, color: count > 0 ? stage.color : '#D1D5DB',
-                textAlign: 'center', textTransform: 'uppercase', letterSpacing: '.04em',
-                lineHeight: 1.3,
+                flex: 1,
+                background: active ? stage.bg : '#FAFAFA',
+                border: `1px solid ${active ? stage.border : '#EBEBEB'}`,
+                borderLeft: `4px solid ${active ? stage.bar : '#E0E0E0'}`,
+                borderRadius: 8,
+                padding: '12px 16px',
+                transition: 'all .2s',
+                minWidth: 0,
               }}>
-                {i + 1}. {stage.short}
+                <div style={{
+                  fontSize: 9, fontWeight: 800, color: active ? stage.color : '#C0C0C0',
+                  textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6,
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
+                  {i + 1} · {stage.short}
+                </div>
+                <div style={{
+                  fontSize: 30, fontWeight: 800, lineHeight: 1,
+                  color: active ? stage.color : '#D8D8D8',
+                }}>
+                  {count}
+                </div>
+                <div style={{
+                  fontSize: 10, marginTop: 3,
+                  color: active ? stage.color : '#D0D0D0',
+                  fontWeight: 500, opacity: 0.85,
+                }}>
+                  {count === 1 ? 'client' : 'clients'}
+                </div>
+              </div>
+
+              {/* Chevron connector */}
+              {!isLast && (
+                <div style={{
+                  fontSize: 16, color: '#D1D5DB', padding: '0 6px',
+                  flexShrink: 0, lineHeight: 1, userSelect: 'none',
+                }}>
+                  ›
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Kanban View ───────────────────────────────────────────────────────────────
+
+function KanbanView({ clients, isDemo, selectedId, onSelect, onUpdate, onRefresh }) {
+  const active   = clients.filter(c => c.status === 'active');
+  const archived = clients.filter(c => c.status !== 'active');
+
+  return (
+    <div>
+      {/* Stage columns */}
+      <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 24, alignItems: 'flex-start' }}>
+        {STAGES.slice(1).map((stage, i) => {
+          const stageNum     = i + 1;
+          const stageClients = active.filter(c => (c.max_stage || 1) === stageNum);
+
+          return (
+            <div key={stageNum} style={{
+              flexShrink: 0, width: 220,
+              display: 'flex', flexDirection: 'column',
+            }}>
+              {/* Column header */}
+              <div style={{
+                background: '#fff', border: `1px solid ${stage.border}`,
+                borderTop: `3px solid ${stage.bar}`,
+                borderRadius: '8px 8px 0 0',
+                padding: '10px 12px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em' }}>
+                      Stage {stageNum}
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: stage.color, marginTop: 1, lineHeight: 1.2 }}>
+                      {stage.label}
+                    </div>
+                  </div>
+                  <div style={{
+                    width: 26, height: 26, borderRadius: '50%',
+                    background: stageClients.length > 0 ? stage.bg : '#F3F4F6',
+                    border: `1.5px solid ${stageClients.length > 0 ? stage.border : '#E5E7EB'}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 12, fontWeight: 800,
+                    color: stageClients.length > 0 ? stage.color : '#C0C0C0',
+                    flexShrink: 0,
+                  }}>
+                    {stageClients.length}
+                  </div>
+                </div>
+              </div>
+
+              {/* Cards area */}
+              <div style={{
+                flex: 1, background: stageClients.length > 0 ? '#F7F8FA' : '#FAFAFA',
+                border: `1px solid ${stage.border}`, borderTop: 'none',
+                borderRadius: '0 0 8px 8px',
+                padding: 8, display: 'flex', flexDirection: 'column', gap: 7,
+                minHeight: 120,
+              }}>
+                {stageClients.length === 0 ? (
+                  <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 12, color: '#D1D5DB' }}>
+                    No clients here
+                  </div>
+                ) : (
+                  stageClients.map(c => (
+                    <KanbanCard
+                      key={c.id}
+                      client={c}
+                      stage={stage}
+                      isSelected={selectedId === c.id}
+                      onSelect={() => onSelect(c)}
+                      isDemo={isDemo}
+                      onUpdate={onUpdate}
+                    />
+                  ))
+                )}
               </div>
             </div>
           );
         })}
+      </div>
+
+      {/* Archived clients */}
+      {archived.length > 0 && (
+        <details style={{ marginTop: 8 }}>
+          <summary style={{ fontSize: 12, color: '#9CA3AF', cursor: 'pointer', fontWeight: 600, letterSpacing: '.05em', textTransform: 'uppercase' }}>
+            Archived / Closed ({archived.length})
+          </summary>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+            {archived.map(c => (
+              <div
+                key={c.id}
+                onClick={() => onSelect(c)}
+                style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: '#6B7280', cursor: 'pointer', opacity: 0.7 }}
+              >
+                {c.first_name} {c.last_name} · {c.status}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function KanbanCard({ client: c, stage, isSelected, onSelect, isDemo, onUpdate }) {
+  const decay = DECAY[c.decay] || DECAY.good;
+
+  async function markClosed(e) {
+    e.stopPropagation();
+    onUpdate(c.id, { status: 'closed' });
+    if (!isDemo) {
+      await fetch('/api/dashboard/nurture-update', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: c.id, status: 'closed' }),
+      }).catch(console.error);
+    }
+  }
+
+  return (
+    <div
+      className="nurture-kanban-card"
+      onClick={onSelect}
+      style={{
+        background: isSelected ? '#EFF6FF' : '#fff',
+        border: `1px solid ${isSelected ? '#93C5FD' : '#E5E7EB'}`,
+        borderRadius: 7, padding: '10px 11px', cursor: 'pointer',
+        transition: 'all .15s', boxShadow: '0 1px 3px rgba(0,0,0,.04)',
+      }}
+    >
+      {/* Name row */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', lineHeight: 1.3, flex: 1 }}>
+          {c.first_name} {c.last_name}
+        </div>
+        <span style={{
+          width: 8, height: 8, borderRadius: '50%', background: decay.dot,
+          flexShrink: 0, marginTop: 3, display: 'inline-block',
+        }} />
+      </div>
+
+      {/* Last contact */}
+      <div style={{ fontSize: 10, color: decay.color, fontWeight: 600, marginTop: 3 }}>
+        {c.days_since_contact === null ? 'Never contacted' : `${c.days_since_contact}d since last touch`}
+      </div>
+
+      {/* Brand pills */}
+      {(c.brands || []).length > 0 && (
+        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {c.brands.map(b => (
+            <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{
+                fontSize: 10, fontWeight: 600, color: '#374151',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
+              }}>
+                {b.brand_name}
+              </span>
+              {b.sentiment && SENTIMENTS[b.sentiment] && (
+                <span style={{ fontSize: 10, flexShrink: 0 }}>{SENTIMENTS[b.sentiment].emoji}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Badges row */}
+      <div style={{ display: 'flex', gap: 5, marginTop: 8, flexWrap: 'wrap' }}>
+        {!c.funding_intro_done && c.funding_needed && (
+          <span style={{
+            fontSize: 9, fontWeight: 700, color: '#6D28D9', background: '#F5F3FF',
+            padding: '2px 6px', borderRadius: 6, border: '1px solid #DDD6FE',
+          }}>💰 Funding</span>
+        )}
+        {c.funding_intro_done && (
+          <span style={{
+            fontSize: 9, fontWeight: 600, color: '#15803D', background: '#DCFCE7',
+            padding: '2px 6px', borderRadius: 6,
+          }}>✓ Funding</span>
+        )}
+        <span style={{
+          fontSize: 9, fontWeight: 600, color: '#9CA3AF',
+          marginLeft: 'auto',
+        }}>{c.days_in_process}d in</span>
+      </div>
+
+      {/* Quick action */}
+      <div style={{ marginTop: 9, paddingTop: 8, borderTop: '1px solid #F3F4F6' }}>
+        <button
+          onClick={markClosed}
+          style={{
+            width: '100%', padding: '5px 0', fontSize: 10, fontWeight: 600,
+            background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 5,
+            color: '#15803D', cursor: 'pointer', fontFamily: 'inherit',
+          }}
+        >
+          🎉 Closed Won
+        </button>
       </div>
     </div>
   );
