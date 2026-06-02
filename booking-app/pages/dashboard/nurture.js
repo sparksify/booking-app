@@ -100,9 +100,8 @@ export default function NurturePage() {
   const [isDemo,         setIsDemo]         = useState(false);
   const [queueMode,      setQueueMode]      = useState(false);
   const [queueWorkIdx,   setQueueWorkIdx]   = useState(null); // null = list view, number = full-page working mode
-  const [selectedClient, setSelectedClient] = useState(null);
   const [viewMode,       setViewMode]       = useState('list'); // 'list' | 'kanban'
-  const [fullPageClient, setFullPageClient] = useState(null);   // kanban card → full-page view
+  const [fullPageClient, setFullPageClient] = useState(null);   // full-page client view (all entry points)
 
   const load = useCallback(() => {
     setLoading(true);
@@ -138,12 +137,10 @@ export default function NurturePage() {
 
   function updateClientLocally(id, patch) {
     setClients(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
-    if (selectedClient?.id === id)  setSelectedClient(prev  => ({ ...prev, ...patch }));
     setFullPageClient(prev => prev?.id === id ? { ...prev, ...patch } : prev);
   }
 
-  function selectClient(c) { setSelectedClient(c); }
-  function closePanel()    { setSelectedClient(null); }
+  function selectClient(c) { setFullPageClient(c); }
 
   const activeClients  = clients.filter(c => c.status === 'active');
   // Clients due today = overdue (urgent) + due soon (warning) + never contacted
@@ -307,7 +304,7 @@ export default function NurturePage() {
               isDemo={isDemo}
               onExit={exitQueue}
               onStartWorking={startQueueWork}
-              selectedId={selectedClient?.id}
+              selectedId={fullPageClient?.id}
               onSelect={selectClient}
               onUpdate={updateClientLocally}
               onRefresh={load}
@@ -316,7 +313,7 @@ export default function NurturePage() {
             <KanbanView
               clients={clients}
               isDemo={isDemo}
-              selectedId={selectedClient?.id}
+              selectedId={fullPageClient?.id}
               onSelect={selectClient}
               onOpenFullPage={(c) => setFullPageClient(c)}
               onUpdate={updateClientLocally}
@@ -326,7 +323,7 @@ export default function NurturePage() {
             <ListView
               clients={clients}
               isDemo={isDemo}
-              selectedId={selectedClient?.id}
+              selectedId={fullPageClient?.id}
               onSelect={selectClient}
               onEnterQueue={enterQueue}
               onUpdate={updateClientLocally}
@@ -336,16 +333,6 @@ export default function NurturePage() {
         </div>
       </div>
 
-      {/* ── Side Panel ── */}
-      {selectedClient && (
-        <NurturePanel
-          client={selectedClient}
-          isDemo={isDemo}
-          onClose={closePanel}
-          onUpdate={(patch) => updateClientLocally(selectedClient.id, patch)}
-          onRefresh={load}
-        />
-      )}
     </>
   );
 }
