@@ -210,7 +210,6 @@ export default function NurturePage() {
             />
           ) : (
             <div style={{ maxWidth: 480, margin: '80px auto', textAlign: 'center' }}>
-              <div style={{ fontSize: 48 }}>🎉</div>
               <div style={{ fontSize: 20, fontWeight: 700, color: '#111827', marginTop: 16 }}>Queue complete!</div>
               <div style={{ fontSize: 14, color: '#9CA3AF', marginTop: 8 }}>
                 You worked through all {sortedQueue.length} client{sortedQueue.length !== 1 ? 's' : ''} in today's queue.
@@ -585,7 +584,7 @@ function KanbanCard({ client: c, stage, isSelected, onSelect, isDemo, onUpdate }
           <span style={{
             fontSize: 9, fontWeight: 700, color: '#6D28D9', background: '#F5F3FF',
             padding: '2px 6px', borderRadius: 6, border: '1px solid #DDD6FE',
-          }}>💰 Funding</span>
+          }}>Funding</span>
         )}
         {c.funding_intro_done && (
           <span style={{
@@ -609,7 +608,7 @@ function KanbanCard({ client: c, stage, isSelected, onSelect, isDemo, onUpdate }
             color: '#15803D', cursor: 'pointer', fontFamily: 'inherit',
           }}
         >
-          🎉 Closed Won
+          Closed Won
         </button>
       </div>
     </div>
@@ -952,13 +951,13 @@ function NurturePanel({ client: c, isDemo, onClose, onUpdate, onRefresh }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 8 }}>
               {c.phone && (
                 <a href={`tel:${c.phone}`} style={s.contactRow}>
-                  <span style={s.contactIcon}>📞</span>
+                  <span style={s.contactIcon}></span>
                   <span style={{ fontSize: 13, color: '#374151' }}>{c.phone}</span>
                 </a>
               )}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={s.contactRow}>
-                  <span style={s.contactIcon}>✉️</span>
+                  <span style={s.contactIcon}></span>
                   <span style={{ fontSize: 13, color: '#374151' }}>{c.email}</span>
                 </div>
                 <button
@@ -1023,7 +1022,7 @@ function NurturePanel({ client: c, isDemo, onClose, onUpdate, onRefresh }) {
                       color: medium === m ? '#1D4ED8' : '#6B7280',
                       cursor: 'pointer', textTransform: 'capitalize', fontFamily: 'inherit',
                     }}>
-                      {m === 'call' ? '📞' : m === 'email' ? '✉️' : '💬'} {m}
+                      {m}
                     </button>
                   ))}
                 </div>
@@ -1056,11 +1055,10 @@ function NurturePanel({ client: c, isDemo, onClose, onUpdate, onRefresh }) {
                   const isLast = i === Math.min(touchpoints.length, 6) - 1;
                   const ts     = new Date(tp.created_at);
                   const label  = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                  const icon   = tp.medium === 'call' ? '📞' : tp.medium === 'email' ? '✉️' : '💬';
                   return (
                     <div key={tp.id} style={{ display: 'flex', gap: 8 }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                        <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 }}>{icon}</div>
+                        <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#6B7280', textTransform: 'capitalize' }}>{tp.medium?.[0]?.toUpperCase()}</div>
                         {!isLast && <div style={{ width: 1, flex: 1, background: '#E5E7EB', margin: '2px 0' }} />}
                       </div>
                       <div style={{ flex: 1, paddingBottom: isLast ? 0 : 12 }}>
@@ -1097,7 +1095,7 @@ function NurturePanel({ client: c, isDemo, onClose, onUpdate, onRefresh }) {
 
           {/* Actions */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingBottom: 24 }}>
-            <button onClick={closedWon} style={{ ...s.primaryBtn, background: '#15803D', flex: 1 }}>🎉 Closed Won</button>
+            <button onClick={closedWon} style={{ ...s.primaryBtn, background: '#15803D', flex: 1 }}>Closed Won</button>
             <button onClick={archiveClient} style={{ ...s.ghostBtn, flex: 1 }}>Archive</button>
           </div>
 
@@ -1256,7 +1254,7 @@ function PanelBrandCard({ brand, onStageChange, onSentimentChange, onNoteChange,
                 href={`mailto:${devEmail}`}
                 style={{ padding: '5px 10px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 5, fontSize: 11, fontWeight: 600, color: '#1D4ED8', textDecoration: 'none', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center' }}
               >
-                ✉️ Email
+                Email
               </a>
             )}
           </div>
@@ -1400,7 +1398,7 @@ function SmsModal({ to, name, contactId, onClose }) {
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.5)' }} onClick={onClose} />
       <div style={{ position: 'relative', background: '#fff', borderRadius: 10, width: 480, maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid #E8EAED' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>💬 Send SMS</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>Send SMS</div>
           <button onClick={onClose} style={s.closeBtn}>✕</button>
         </div>
         <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1454,7 +1452,7 @@ function FundingModal({ existing, onSave, onClose }) {
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.5)' }} onClick={onClose} />
       <div style={{ position: 'relative', background: '#fff', borderRadius: 10, width: 460, maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid #E8EAED' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>💰 Funding Introduction</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>Funding Introduction</div>
           <button onClick={onClose} style={s.closeBtn}>✕</button>
         </div>
         <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1505,7 +1503,7 @@ function AttorneyModal({ existing, onSave, onClose }) {
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.5)' }} onClick={onClose} />
       <div style={{ position: 'relative', background: '#fff', borderRadius: 10, width: 460, maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid #E8EAED' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>⚖️ Attorney Introduction</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>Attorney Introduction</div>
           <button onClick={onClose} style={s.closeBtn}>✕</button>
         </div>
         <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1631,7 +1629,7 @@ function PendingMilestonesBar({ milestones = {}, maxStage, onOpenFunding, onOpen
             onClick={onOpenFunding}
             style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#FAF5FF', border: '2px solid #C4B5FD', borderRadius: 7, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit' }}
           >
-            <span style={{ fontSize: 14 }}>💰</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9', textTransform: 'uppercase', letterSpacing: '.04em' }}>$</span>
             <div style={{ textAlign: 'left' }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#6D28D9' }}>Funding Intro Needed</div>
               <div style={{ fontSize: 10, color: '#7C3AED' }}>Click to record introduction</div>
@@ -1654,7 +1652,7 @@ function PendingMilestonesBar({ milestones = {}, maxStage, onOpenFunding, onOpen
             onClick={onOpenAttorney}
             style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#EFF6FF', border: '2px solid #BFDBFE', borderRadius: 7, padding: '8px 12px', cursor: 'pointer', fontFamily: 'inherit' }}
           >
-            <span style={{ fontSize: 14 }}>⚖️</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase', letterSpacing: '.04em' }}>J</span>
             <div style={{ textAlign: 'left' }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8' }}>Attorney Intro Needed</div>
               <div style={{ fontSize: 10, color: '#3B82F6' }}>Stage 3+ — FDD requires attorney review</div>
@@ -1702,7 +1700,6 @@ function QueueView({ clients, isDemo, onExit, onStartWorking, selectedId, onSele
 
       {sorted.length === 0 ? (
         <div style={{ ...s.card, padding: 56, textAlign: 'center' }}>
-          <div style={{ fontSize: 36 }}>🎉</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginTop: 12 }}>All caught up!</div>
           <div style={{ fontSize: 13, color: '#9CA3AF', marginTop: 6 }}>
             No clients are overdue or due for a touchpoint today.
@@ -1765,7 +1762,7 @@ function MessageBubble({ msg }) {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: '.05em' }}>
-            📝 Note
+            Note
           </span>
           <span style={{ fontSize: 10, color: '#C4C4C4' }}>{label}</span>
         </div>
@@ -1782,7 +1779,7 @@ function MessageBubble({ msg }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0' }}>
         <div style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
         <span style={{ fontSize: 11, color: '#9CA3AF', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
-          📞 {msg.direction === 'inbound' ? 'Incoming call' : 'Outgoing call'} · {label}
+          {msg.direction === 'inbound' ? 'Incoming call' : 'Outgoing call'} · {label}
           {msg.body && <span style={{ color: '#6B7280' }}>— {msg.body}</span>}
         </span>
         <div style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
@@ -1804,13 +1801,13 @@ function MessageBubble({ msg }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
         {!isOut && (
           <span style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 500 }}>
-            {isSms ? '💬 SMS' : '✉️ Email'}
+            {isSms ? 'SMS' : 'Email'}
           </span>
         )}
         <span style={{ fontSize: 10, color: '#C4C4C4' }}>{label}</span>
         {isOut && (
           <span style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 500 }}>
-            {isSms ? 'SMS 💬' : 'Email ✉️'}
+            {isSms ? 'SMS' : 'Email'}
           </span>
         )}
       </div>
@@ -2007,7 +2004,6 @@ function CommunicationsPanel({ client, touchpoints, contactId }) {
       >
         {timeline.length === 0 && !loadingConv && (
           <div style={{ textAlign: 'center', padding: '48px 0', color: '#D1D5DB' }}>
-            <div style={{ fontSize: 32, marginBottom: 10 }}>💬</div>
             <div style={{ fontSize: 13, fontWeight: 500, color: '#9CA3AF' }}>No messages yet</div>
             <div style={{ fontSize: 11, marginTop: 4, color: '#C4C4C4' }}>Send an SMS or email below to start the conversation</div>
           </div>
@@ -2038,7 +2034,7 @@ function CommunicationsPanel({ client, touchpoints, contactId }) {
                 border:     composeType === 'sms' ? '1px solid #6D28D9' : '1px solid #DDD6FE',
               }}
             >
-              💬 SMS
+              SMS
             </button>
           )}
           {canEmail && (
@@ -2052,7 +2048,7 @@ function CommunicationsPanel({ client, touchpoints, contactId }) {
                 border:     composeType === 'email' ? '1px solid #1D4ED8' : '1px solid #BFDBFE',
               }}
             >
-              ✉️ Email
+              Email
             </button>
           )}
           {!canSms && !canEmail && (
@@ -2255,7 +2251,7 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
     }
   }
 
-  async function logAndNext() {
+  async function saveEntry() {
     if (!note.trim() || logging) return;
     setLogging(true);
     const newTP = {
@@ -2272,28 +2268,8 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
       }).catch(console.error);
     }
     setLogging(false);
-    onNext();
-  }
-
-  async function logOnly() {
-    if (!note.trim() || logging) return;
-    setLogging(true);
-    const newTP = {
-      id: `tp_${Date.now()}`, nurture_client_id: c.id, medium, note: note.trim(),
-      created_at: new Date().toISOString(), created_by: 'me',
-    };
-    setTouchpoints(prev => [newTP, ...prev]);
-    setNote('');
-    onUpdate({ last_contacted_at: newTP.created_at, decay: 'good', days_since_contact: 0 });
-    if (!isDemo) {
-      await fetch('/api/dashboard/nurture-touchpoint', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nurture_client_id: c.id, medium, note: newTP.note }),
-      }).catch(console.error);
-    }
-    setLogging(false);
-    setLoggedMsg(`${medium.charAt(0).toUpperCase() + medium.slice(1)} logged ✓`);
-    setTimeout(() => setLoggedMsg(''), 3000);
+    setLoggedMsg('Saved');
+    setTimeout(() => setLoggedMsg(''), 2000);
   }
 
   async function updateBrand(brandId, brandName, fields) {
@@ -2343,6 +2319,14 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
   }
 
   return (
+    <div>
+      {/* ── Top action bar ── */}
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginBottom: 16 }}>
+        <button onClick={archiveClient} style={s.ghostBtn}>Archive</button>
+        <button onClick={closedWon} style={{ ...s.ghostBtn, color: '#15803D', borderColor: '#86EFAC' }}>Closed Won</button>
+        <button onClick={onNext} style={{ ...s.primaryBtn, padding: '6px 18px' }}>Next →</button>
+      </div>
+
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: 16, alignItems: 'start' }}>
 
       {/* ── Left column ── */}
@@ -2360,8 +2344,8 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
                 {c.phone && <div style={{ fontSize: 13, color: '#6B7280' }}>{c.phone}</div>}
                 <div style={{ display: 'flex', gap: 10, marginTop: 3, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 11, color: '#9CA3AF' }}>{c.days_in_process}d in process</span>
-                  {liquidCap && <span style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>💵 {liquidCap}</span>}
-                  {territory && <span style={{ fontSize: 11, color: '#374151' }}>📍 {territory}</span>}
+                  {liquidCap && <span style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>{liquidCap}</span>}
+                  {territory && <span style={{ fontSize: 11, color: '#374151' }}>{territory}</span>}
                 </div>
               </div>
             </div>
@@ -2405,7 +2389,6 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
               {lastTP ? (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
-                    <span style={{ fontSize: 12 }}>{lastTP.medium === 'call' ? '📞' : lastTP.medium === 'email' ? '✉️' : '💬'}</span>
                     <span style={{ fontSize: 11, fontWeight: 700, color: '#374151', textTransform: 'capitalize' }}>{lastTP.medium}</span>
                     <span style={{ fontSize: 10, color: '#9CA3AF' }}>· {relDate(lastTP.created_at)}</span>
                   </div>
@@ -2424,7 +2407,6 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
             <div style={{ background: na.bg, border: `1px solid ${na.border}`, borderRadius: 8, padding: '10px 12px' }}>
               <div style={{ fontSize: 9, fontWeight: 800, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 5 }}>3 · What's Next?</div>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-                <span style={{ fontSize: 16, lineHeight: 1, flexShrink: 0, marginTop: 1 }}>{na.icon}</span>
                 <div style={{ fontSize: 11, fontWeight: 700, color: na.color, lineHeight: 1.4 }}>{na.label}</div>
               </div>
               {na.detail && <div style={{ fontSize: 10, color: '#6B7280', marginTop: 6, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{na.detail}</div>}
@@ -2433,9 +2415,9 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
 
           {/* Contact buttons */}
           <div style={{ display: 'flex', gap: 8 }}>
-            <a href={`tel:${c.phone}`}    style={{ ...s.contactBtn, background: '#F0FDF4', color: '#15803D', border: '1px solid #BBF7D0' }}>📞 Call</a>
-            <a href={`mailto:${c.email}`} style={{ ...s.contactBtn, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>✉️ Email</a>
-            <a href={`sms:${c.phone}`}    style={{ ...s.contactBtn, background: '#F5F3FF', color: '#6D28D9', border: '1px solid #DDD6FE' }}>💬 Text</a>
+            <a href={`tel:${c.phone}`}    style={{ ...s.contactBtn, background: '#F0FDF4', color: '#15803D', border: '1px solid #BBF7D0' }}>Call</a>
+            <a href={`mailto:${c.email}`} style={{ ...s.contactBtn, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>Email</a>
+            <a href={`sms:${c.phone}`}    style={{ ...s.contactBtn, background: '#F5F3FF', color: '#6D28D9', border: '1px solid #DDD6FE' }}>Text</a>
           </div>
         </div>
 
@@ -2461,85 +2443,71 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
         {/* Log touchpoint / Notes */}
         <div style={s.card}>
           <div style={s.cardTitle}>Disposition</div>
-          {loggedMsg ? (
-            <div style={{ marginTop: 12, textAlign: 'center', padding: '20px 0' }}>
-              <div style={{ fontSize: 24 }}>✓</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#15803D', marginTop: 6 }}>{loggedMsg}</div>
+
+          {/* 4-tab selector */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 5, marginTop: 12 }}>
+            {[
+              { key: 'call',  label: 'Call'  },
+              { key: 'email', label: 'Email' },
+              { key: 'text',  label: 'Text'  },
+              { key: 'notes', label: 'Notes' },
+            ].map(({ key, label }) => {
+              const isActive = medium === key;
+              const activeColor  = key === 'notes' ? '#92400E' : '#1D4ED8';
+              const activeBg     = key === 'notes' ? '#FFFBEB' : '#EFF6FF';
+              const activeBorder = key === 'notes' ? '#FDE68A' : '#BFDBFE';
+              return (
+                <button
+                  key={key}
+                  onClick={() => setMedium(key)}
+                  style={{
+                    padding: '8px 0', fontSize: 12, fontWeight: 700, borderRadius: 6,
+                    border: `1.5px solid ${isActive ? activeBorder : '#E5E7EB'}`,
+                    background: isActive ? activeBg : '#F9FAFB',
+                    color: isActive ? activeColor : '#6B7280',
+                    cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Textarea */}
+          <textarea
+            style={{ ...s.notesArea, marginTop: 10, fontSize: 13,
+              background: medium === 'notes' ? '#FFFBEB' : undefined,
+              borderColor: medium === 'notes' ? '#FDE68A' : undefined,
+            }}
+            rows={4}
+            placeholder={
+              medium === 'call'  ? 'What happened on the call?' :
+              medium === 'email' ? 'What did you send or discuss?' :
+              medium === 'text'  ? 'What was the message?' :
+              'Add a note about this client…'
+            }
+            value={note}
+            onChange={e => setNote(e.target.value)}
+          />
+
+          {/* Single save button */}
+          <button
+            onClick={saveEntry}
+            disabled={!note.trim() || logging}
+            style={{
+              ...s.primaryBtn, marginTop: 8, width: '100%', fontSize: 14, padding: '10px',
+              opacity: !note.trim() ? 0.5 : 1,
+              cursor: !note.trim() ? 'not-allowed' : 'pointer',
+              background: medium === 'notes' ? '#D97706' : undefined,
+            }}
+          >
+            {logging ? 'Saving…' : medium === 'notes' ? 'Save Note' : `Log ${medium.charAt(0).toUpperCase() + medium.slice(1)}`}
+          </button>
+          {loggedMsg && (
+            <div style={{ fontSize: 12, color: '#15803D', textAlign: 'center', marginTop: 8, fontWeight: 600 }}>
+              Saved
             </div>
-          ) : (
-            <>
-              {/* 4-tab selector */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 5, marginTop: 12 }}>
-                {[
-                  { key: 'call',  icon: '📞', label: 'Call'  },
-                  { key: 'email', icon: '✉️', label: 'Email' },
-                  { key: 'text',  icon: '💬', label: 'Text'  },
-                  { key: 'notes', icon: '📝', label: 'Notes' },
-                ].map(({ key, icon, label }) => {
-                  const isActive = medium === key;
-                  const activeColor = key === 'notes' ? '#92400E' : '#1D4ED8';
-                  const activeBg    = key === 'notes' ? '#FFFBEB'  : '#EFF6FF';
-                  const activeBorder= key === 'notes' ? '#FDE68A'  : '#BFDBFE';
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => setMedium(key)}
-                      style={{
-                        padding: '8px 0', fontSize: 11, fontWeight: 700, borderRadius: 6,
-                        border: `1.5px solid ${isActive ? activeBorder : '#E5E7EB'}`,
-                        background: isActive ? activeBg : '#F9FAFB',
-                        color: isActive ? activeColor : '#6B7280',
-                        cursor: 'pointer', fontFamily: 'inherit',
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                      }}
-                    >
-                      <span style={{ fontSize: 16 }}>{icon}</span>
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Textarea */}
-              <textarea
-                style={{ ...s.notesArea, marginTop: 10, fontSize: 13,
-                  background: medium === 'notes' ? '#FFFBEB' : undefined,
-                  borderColor: medium === 'notes' ? '#FDE68A' : undefined,
-                }}
-                rows={4}
-                placeholder={
-                  medium === 'call'  ? 'What happened on the call?' :
-                  medium === 'email' ? 'What did you send or discuss?' :
-                  medium === 'text'  ? 'What was the message?' :
-                  'Add a note about this client…'
-                }
-                value={note}
-                onChange={e => setNote(e.target.value)}
-              />
-
-              {/* Action buttons */}
-              <button
-                onClick={logAndNext}
-                disabled={!note.trim() || logging}
-                style={{
-                  ...s.primaryBtn, marginTop: 8, width: '100%', fontSize: 14, padding: '10px',
-                  opacity: !note.trim() ? 0.5 : 1,
-                  cursor: !note.trim() ? 'not-allowed' : 'pointer',
-                  background: medium === 'notes' ? '#D97706' : undefined,
-                }}
-              >
-                {logging ? 'Saving…' : medium === 'notes'
-                  ? 'Save Note + Next →'
-                  : `Log ${medium.charAt(0).toUpperCase() + medium.slice(1)} + Next →`}
-              </button>
-              <button
-                onClick={logOnly}
-                disabled={!note.trim() || logging}
-                style={{ width: '100%', marginTop: 6, padding: '6px', background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 12, color: '#6B7280', cursor: !note.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: !note.trim() ? 0.4 : 1 }}
-              >
-                {medium === 'notes' ? 'Save note (stay here)' : 'Log only (stay here)'}
-              </button>
-            </>
           )}
         </div>
 
@@ -2565,12 +2533,6 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
           </div>
         </div>
 
-        {/* Secondary actions */}
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={onNext} style={s.ghostBtn}>Skip →</button>
-          <button onClick={archiveClient} style={s.ghostBtn}>Archive</button>
-          <button onClick={closedWon} style={{ ...s.ghostBtn, color: '#15803D', borderColor: '#86EFAC' }}>🎉 Closed Won</button>
-        </div>
       </div>
 
       {/* Milestone modals */}
@@ -2588,6 +2550,7 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
           onClose={() => setShowAttorneyModal(false)}
         />
       )}
+    </div>
     </div>
   );
 }
