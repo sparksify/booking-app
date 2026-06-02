@@ -1749,6 +1749,33 @@ function MessageBubble({ msg }) {
   const label = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
                 ' · ' + ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
+  // Notes → yellow sticky-note bubble, full width
+  if (msg.type === 'notes') {
+    const ts = new Date(msg.dateAdded);
+    const label = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+                  ' · ' + ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return (
+      <div style={{
+        background: '#FFFBEB',
+        border: '1px solid #FDE68A',
+        borderLeft: '3px solid #F59E0B',
+        borderRadius: 7,
+        padding: '9px 12px',
+        margin: '2px 0',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+            📝 Note
+          </span>
+          <span style={{ fontSize: 10, color: '#C4C4C4' }}>{label}</span>
+        </div>
+        <div style={{ fontSize: 13, color: '#78350F', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+          {msg.body}
+        </div>
+      </div>
+    );
+  }
+
   // Call logs → centered divider row
   if (msg.type === 'call') {
     return (
@@ -1856,7 +1883,7 @@ function CommunicationsPanel({ client, touchpoints, contactId }) {
     const tpItems = touchpoints.map(tp => ({
       id:        `tp_${tp.id}`,
       direction: 'outbound',
-      type:      tp.medium === 'text' ? 'sms' : tp.medium, // 'call' | 'email' | 'sms'
+      type:      tp.medium === 'text' ? 'sms' : tp.medium, // 'call' | 'email' | 'sms' | 'notes'
       body:      tp.note || '',
       subject:   null,
       dateAdded: tp.created_at,
@@ -2431,9 +2458,9 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
       {/* ── Right column: log touchpoint + notes + franchise progress ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-        {/* Log touchpoint */}
+        {/* Log touchpoint / Notes */}
         <div style={s.card}>
-          <div style={s.cardTitle}>Log Touchpoint</div>
+          <div style={s.cardTitle}>Disposition</div>
           {loggedMsg ? (
             <div style={{ marginTop: 12, textAlign: 'center', padding: '20px 0' }}>
               <div style={{ fontSize: 24 }}>✓</div>
@@ -2441,57 +2468,79 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
             </div>
           ) : (
             <>
-              <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-                {['call', 'email', 'text'].map(m => (
-                  <button key={m} onClick={() => setMedium(m)} style={{
-                    flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 600, borderRadius: 6,
-                    border: `1.5px solid ${medium === m ? '#1D4ED8' : '#E5E7EB'}`,
-                    background: medium === m ? '#EFF6FF' : '#F9FAFB',
-                    color: medium === m ? '#1D4ED8' : '#6B7280',
-                    cursor: 'pointer', textTransform: 'capitalize', fontFamily: 'inherit',
-                  }}>
-                    {m === 'call' ? '📞' : m === 'email' ? '✉️' : '💬'} {m}
-                  </button>
-                ))}
+              {/* 4-tab selector */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 5, marginTop: 12 }}>
+                {[
+                  { key: 'call',  icon: '📞', label: 'Call'  },
+                  { key: 'email', icon: '✉️', label: 'Email' },
+                  { key: 'text',  icon: '💬', label: 'Text'  },
+                  { key: 'notes', icon: '📝', label: 'Notes' },
+                ].map(({ key, icon, label }) => {
+                  const isActive = medium === key;
+                  const activeColor = key === 'notes' ? '#92400E' : '#1D4ED8';
+                  const activeBg    = key === 'notes' ? '#FFFBEB'  : '#EFF6FF';
+                  const activeBorder= key === 'notes' ? '#FDE68A'  : '#BFDBFE';
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setMedium(key)}
+                      style={{
+                        padding: '8px 0', fontSize: 11, fontWeight: 700, borderRadius: 6,
+                        border: `1.5px solid ${isActive ? activeBorder : '#E5E7EB'}`,
+                        background: isActive ? activeBg : '#F9FAFB',
+                        color: isActive ? activeColor : '#6B7280',
+                        cursor: 'pointer', fontFamily: 'inherit',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                      }}
+                    >
+                      <span style={{ fontSize: 16 }}>{icon}</span>
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
+
+              {/* Textarea */}
               <textarea
-                style={{ ...s.notesArea, marginTop: 10, fontSize: 13 }}
+                style={{ ...s.notesArea, marginTop: 10, fontSize: 13,
+                  background: medium === 'notes' ? '#FFFBEB' : undefined,
+                  borderColor: medium === 'notes' ? '#FDE68A' : undefined,
+                }}
                 rows={4}
-                placeholder={`Notes from this ${medium}…`}
+                placeholder={
+                  medium === 'call'  ? 'What happened on the call?' :
+                  medium === 'email' ? 'What did you send or discuss?' :
+                  medium === 'text'  ? 'What was the message?' :
+                  'Add a note about this client…'
+                }
                 value={note}
                 onChange={e => setNote(e.target.value)}
               />
+
+              {/* Action buttons */}
               <button
                 onClick={logAndNext}
                 disabled={!note.trim() || logging}
-                style={{ ...s.primaryBtn, marginTop: 8, width: '100%', fontSize: 14, padding: '10px', opacity: !note.trim() ? 0.5 : 1, cursor: !note.trim() ? 'not-allowed' : 'pointer' }}
+                style={{
+                  ...s.primaryBtn, marginTop: 8, width: '100%', fontSize: 14, padding: '10px',
+                  opacity: !note.trim() ? 0.5 : 1,
+                  cursor: !note.trim() ? 'not-allowed' : 'pointer',
+                  background: medium === 'notes' ? '#D97706' : undefined,
+                }}
               >
-                {logging ? 'Logging…' : `Log ${medium.charAt(0).toUpperCase() + medium.slice(1)} + Next →`}
+                {logging ? 'Saving…' : medium === 'notes'
+                  ? 'Save Note + Next →'
+                  : `Log ${medium.charAt(0).toUpperCase() + medium.slice(1)} + Next →`}
               </button>
               <button
                 onClick={logOnly}
                 disabled={!note.trim() || logging}
                 style={{ width: '100%', marginTop: 6, padding: '6px', background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 12, color: '#6B7280', cursor: !note.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: !note.trim() ? 0.4 : 1 }}
               >
-                Log only (stay here)
+                {medium === 'notes' ? 'Save note (stay here)' : 'Log only (stay here)'}
               </button>
             </>
           )}
-        </div>
-
-        {/* Notes */}
-        <div style={s.card}>
-          <div style={s.cardTitle}>Notes</div>
-          <textarea
-            style={{ ...s.notesArea, marginTop: 10 }}
-            rows={4}
-            value={clientNotes}
-            placeholder="Notes about this client's journey, concerns, preferences…"
-            onChange={e => setClientNotes(e.target.value)}
-          />
-          <button onClick={saveNotes} disabled={notesSaving} style={{ ...s.primaryBtn, marginTop: 8, background: notesSaved ? '#15803D' : '#0077C5' }}>
-            {notesSaving ? 'Saving…' : notesSaved ? '✓ Saved' : 'Save Notes'}
-          </button>
         </div>
 
         {/* Franchise progress */}
