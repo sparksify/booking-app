@@ -164,6 +164,44 @@ export default function NurturePage() {
         .nurture-kanban-card:hover { background: #F5F8FF !important; border-color: #BFDBFE !important; }
       `}</style>
 
+      {/* ── Full-page queue working mode — covers header + everything ── */}
+      {queueMode && queueWorkIdx !== null && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#F3F4F6', overflow: 'auto', padding: '20px 24px' }}>
+          {/* Minimal top bar */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+            <button onClick={exitQueueWork} style={s.ghostBtn}>← Back to queue list</button>
+            {sortedQueue.length > 0 && (
+              <span style={{ fontSize: 13, color: '#6B7280', fontWeight: 500 }}>
+                Client {Math.min(queueWorkIdx + 1, sortedQueue.length)} of {sortedQueue.length}
+              </span>
+            )}
+            <button onClick={exitQueue} style={{ ...s.ghostBtn, color: '#9CA3AF' }}>✕ Exit queue</button>
+          </div>
+
+          {queueWorkIdx < sortedQueue.length ? (
+            <QueueCard
+              client={sortedQueue[queueWorkIdx]}
+              isDemo={isDemo}
+              onNext={() => {
+                const next = queueWorkIdx + 1;
+                setQueueWorkIdx(next >= sortedQueue.length ? sortedQueue.length : next);
+              }}
+              onUpdate={(patch) => updateClientLocally(sortedQueue[queueWorkIdx].id, patch)}
+              onRefresh={load}
+            />
+          ) : (
+            <div style={{ maxWidth: 480, margin: '80px auto', textAlign: 'center' }}>
+              <div style={{ fontSize: 48 }}>🎉</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#111827', marginTop: 16 }}>Queue complete!</div>
+              <div style={{ fontSize: 14, color: '#9CA3AF', marginTop: 8 }}>
+                You worked through all {sortedQueue.length} client{sortedQueue.length !== 1 ? 's' : ''} in today's queue.
+              </div>
+              <button onClick={exitQueue} style={{ ...s.primaryBtn, marginTop: 24, padding: '10px 24px' }}>← Back to all clients</button>
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={s.page}>
         {/* ── Header ── */}
         <header style={s.header}>
@@ -239,46 +277,6 @@ export default function NurturePage() {
             <div style={s.loadingWrap}>
               <div style={s.spinner} />
               <div style={s.loadingText}>Loading nurture queue…</div>
-            </div>
-          ) : queueMode && queueWorkIdx !== null ? (
-            /* ── Full-page working mode: one client at a time ── */
-            <div>
-              {/* Working mode nav bar */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-                <button onClick={exitQueueWork} style={s.ghostBtn}>← Back to queue list</button>
-                {sortedQueue.length > 0 && (
-                  <span style={{ fontSize: 13, color: '#6B7280', fontWeight: 500 }}>
-                    Client {Math.min(queueWorkIdx + 1, sortedQueue.length)} of {sortedQueue.length}
-                  </span>
-                )}
-                <button onClick={exitQueue} style={{ ...s.ghostBtn, color: '#9CA3AF' }}>✕ Exit queue</button>
-              </div>
-
-              {queueWorkIdx < sortedQueue.length ? (
-                <QueueCard
-                  client={sortedQueue[queueWorkIdx]}
-                  isDemo={isDemo}
-                  onNext={() => {
-                    const next = queueWorkIdx + 1;
-                    if (next >= sortedQueue.length) {
-                      setQueueWorkIdx(sortedQueue.length); // show completion
-                    } else {
-                      setQueueWorkIdx(next);
-                    }
-                  }}
-                  onUpdate={(patch) => updateClientLocally(sortedQueue[queueWorkIdx].id, patch)}
-                  onRefresh={load}
-                />
-              ) : (
-                <div style={{ ...s.card, padding: 56, textAlign: 'center' }}>
-                  <div style={{ fontSize: 40 }}>🎉</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginTop: 14 }}>Queue complete!</div>
-                  <div style={{ fontSize: 13, color: '#9CA3AF', marginTop: 6 }}>
-                    You worked through all {sortedQueue.length} client{sortedQueue.length !== 1 ? 's' : ''} in today's queue.
-                  </div>
-                  <button onClick={exitQueue} style={{ ...s.primaryBtn, marginTop: 20 }}>← Back to all clients</button>
-                </div>
-              )}
             </div>
           ) : queueMode ? (
             <QueueView
