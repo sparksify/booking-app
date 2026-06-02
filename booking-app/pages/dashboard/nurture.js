@@ -99,7 +99,6 @@ export default function NurturePage() {
   const [loading,        setLoading]        = useState(true);
   const [isDemo,         setIsDemo]         = useState(false);
   const [queueMode,      setQueueMode]      = useState(false);
-  const [queueIdx,       setQueueIdx]       = useState(0);
   const [selectedClient, setSelectedClient] = useState(null);
   const [viewMode,       setViewMode]       = useState('list'); // 'list' | 'kanban'
 
@@ -130,7 +129,7 @@ export default function NurturePage() {
 
   useEffect(() => { load(); }, [load]);
 
-  function enterQueue() { setQueueIdx(0); setQueueMode(true); }
+  function enterQueue() { setQueueMode(true); }
   function exitQueue()  { setQueueMode(false); load(); }
 
   function updateClientLocally(id, patch) {
@@ -141,7 +140,11 @@ export default function NurturePage() {
   function selectClient(c) { setSelectedClient(c); }
   function closePanel()    { setSelectedClient(null); }
 
-  const activeClients = clients.filter(c => c.status === 'active');
+  const activeClients  = clients.filter(c => c.status === 'active');
+  // Clients due today = overdue (urgent) + due soon (warning) + never contacted
+  const queueClients  = activeClients.filter(c =>
+    c.decay === 'urgent' || c.decay === 'warning' || c.days_since_contact === null
+  );
 
   return (
     <>
@@ -203,11 +206,13 @@ export default function NurturePage() {
                 ))}
               </div>
               <button onClick={load} style={s.ghostBtn}>↻ Refresh</button>
-              {activeClients.length > 0 && (
-                <button onClick={enterQueue} style={s.primaryBtn}>
-                  Work Queue ({activeClients.length})
-                </button>
-              )}
+              <button
+                onClick={enterQueue}
+                style={{ ...s.primaryBtn, opacity: queueClients.length === 0 ? 0.5 : 1 }}
+                disabled={queueClients.length === 0}
+              >
+                Today's Queue {queueClients.length > 0 ? `(${queueClients.length})` : ''}
+              </button>
             </div>
           </div>
 
@@ -223,16 +228,6 @@ export default function NurturePage() {
             <PipelineGraph clients={activeClients} />
           )}
 
-          {/* Stats bar */}
-          {stats && (
-            <div style={s.statsRow}>
-              <StatCard label="Active Clients"  value={stats.total}          color="#1D4ED8" />
-              <StatCard label="Overdue (14d+)"  value={stats.urgent}         color="#B91C1C" warn={stats.urgent > 0} />
-              <StatCard label="Due This Week"   value={stats.warning}        color="#92400E" warn={stats.warning > 0} />
-              <StatCard label="Funding Needed"  value={stats.funding_needed} color="#6D28D9" warn={stats.funding_needed > 0} />
-            </div>
-          )}
-
           {/* Main content */}
           {loading ? (
             <div style={s.loadingWrap}>
@@ -242,10 +237,10 @@ export default function NurturePage() {
           ) : queueMode ? (
             <QueueView
               clients={activeClients}
-              idx={queueIdx}
-              setIdx={setQueueIdx}
               isDemo={isDemo}
               onExit={exitQueue}
+              selectedId={selectedClient?.id}
+              onSelect={selectClient}
               onUpdate={updateClientLocally}
               onRefresh={load}
             />
@@ -374,14 +369,14 @@ function KanbanView({ clients, isDemo, selectedId, onSelect, onUpdate, onRefresh
   return (
     <div>
       {/* Stage columns */}
-      <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 24, alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', gap: 10, paddingBottom: 24, alignItems: 'flex-start' }}>
         {STAGES.slice(1).map((stage, i) => {
           const stageNum     = i + 1;
           const stageClients = active.filter(c => (c.max_stage || 1) === stageNum);
 
           return (
             <div key={stageNum} style={{
-              flexShrink: 0, width: 220,
+              flex: '1 1 0', minWidth: 0,
               display: 'flex', flexDirection: 'column',
             }}>
               {/* Column header */}
@@ -1305,50 +1300,74 @@ function EmailModal({ to, name, onClose }) {
   );
 }
 
-// ─── Queue View ────────────────────────────────────────────────────────────────
+// ─── Queue View (Today's Queue — filtered list) ────────────────────────────────
 
-function QueueView({ clients, idx, setIdx, isDemo, onExit, onUpdate, onRefresh }) {
-  const client = clients[idx];
+function QueueView({ clients, isDemo, onExit, selectedId, onSelect, onUpdate, onRefresh }) {
+  // Show overdue + due-soon + never-contacted clients
+  const dueClients = clients.filter(c =>
+    c.decay === 'urgent' || c.decay === 'warning' || c.days_since_contact === null
+  );
 
-  if (!client) {
-    return (
-      <div style={{ textAlign: 'center', padding: 64 }}>
-        <div style={{ fontSize: 40 }}>🎉</div>
-        <div style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginTop: 12 }}>Queue complete!</div>
-        <div style={{ fontSize: 13, color: '#9CA3AF', marginTop: 6 }}>All clients touched for today.</div>
-        <button onClick={onExit} style={{ ...s.primaryBtn, marginTop: 20 }}>Back to List</button>
-      </div>
-    );
-  }
-
-  function next() {
-    if (idx < clients.length - 1) setIdx(i => i + 1);
-    else onExit();
-  }
-  function prev() { if (idx > 0) setIdx(i => i - 1); }
+  // Sort: urgent first, then warning, then never-contacted
+  const decayOrder = { urgent: 0, warning: 1 };
+  const sorted = [...dueClients].sort((a, b) => {
+    const aO = decayOrder[a.decay] ?? 2;
+    const bO = decayOrder[b.decay] ?? 2;
+    return aO - bO;
+  });
 
   return (
     <div>
+      {/* Queue header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <button onClick={onExit} style={s.ghostBtn}>← Back to list</button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={prev} disabled={idx === 0} style={{ ...s.ghostBtn, opacity: idx === 0 ? 0.3 : 1 }}>← Prev</button>
-          <span style={{ fontSize: 13, color: '#6B7280' }}>{idx + 1} of {clients.length}</span>
-          <button onClick={next} style={s.ghostBtn}>{idx < clients.length - 1 ? 'Next →' : 'Done ✓'}</button>
-        </div>
+        <button onClick={onExit} style={s.ghostBtn}>← Back to all clients</button>
+        {sorted.length > 0 && (
+          <span style={{ fontSize: 13, color: '#6B7280' }}>
+            {sorted.length} client{sorted.length !== 1 ? 's' : ''} need a touch today
+          </span>
+        )}
       </div>
-      <QueueCard
-        client={client}
-        isDemo={isDemo}
-        onNext={next}
-        onUpdate={(patch) => onUpdate(client.id, patch)}
-        onRefresh={onRefresh}
-      />
+
+      {sorted.length === 0 ? (
+        <div style={{ ...s.card, padding: 56, textAlign: 'center' }}>
+          <div style={{ fontSize: 36 }}>🎉</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginTop: 12 }}>All caught up!</div>
+          <div style={{ fontSize: 13, color: '#9CA3AF', marginTop: 6 }}>
+            No clients are overdue or due for a touchpoint today.
+          </div>
+        </div>
+      ) : (
+        <div style={s.card}>
+          <table style={s.table}>
+            <thead>
+              <tr>
+                {['Client', 'Franchise(s) & Stage', 'Last Contact', 'Days In', 'Funding', ''].map(h => (
+                  <th key={h} style={s.th}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((c, i) => (
+                <ListRow
+                  key={c.id}
+                  client={c}
+                  striped={i % 2 === 1}
+                  isSelected={selectedId === c.id}
+                  isDemo={isDemo}
+                  onSelect={() => onSelect(c)}
+                  onUpdate={onUpdate}
+                  onRefresh={onRefresh}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── Queue Card ────────────────────────────────────────────────────────────────
+// ─── Queue Card (used in Queue mode full-card layout) ─────────────────────────
 
 function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
   const [brands,       setBrands]       = useState(c.brands || []);
