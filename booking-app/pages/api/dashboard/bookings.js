@@ -9,6 +9,12 @@ const CAL_API     = 'https://api.calendly.com';
 // Known user URI — override via CALENDLY_USER_URI env var if the account ever changes
 const DEFAULT_CAL_USER = 'https://api.calendly.com/users/c59a21b9-aa46-45a7-8e8a-3e2faa614742';
 
+// Emails used for internal testing — excluded from all booking sources
+const TEST_EMAILS = new Set([
+  'ssparks@thefranchiseconsultingcompany.com',
+  'steve@sparksify.com',
+]);
+
 /**
  * GET /api/dashboard/bookings
  *
@@ -89,10 +95,10 @@ export default async function handler(req, res) {
     };
   });
 
-  // Merge + sort by slot_start ascending
-  const all = [...sbBks, ...calBks, ...ghlBks].sort(
-    (a, b) => new Date(a.slot_start).getTime() - new Date(b.slot_start).getTime()
-  );
+  // Merge + filter test emails + sort by slot_start ascending
+  const all = [...sbBks, ...calBks, ...ghlBks]
+    .filter(b => !TEST_EMAILS.has((b.email || '').toLowerCase()))
+    .sort((a, b) => new Date(a.slot_start).getTime() - new Date(b.slot_start).getTime());
 
   res.json({ bookings: all });
 }
