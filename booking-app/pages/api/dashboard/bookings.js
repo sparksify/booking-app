@@ -201,6 +201,15 @@ const GHL_STATUS = {
   cancelled: 'cancelled', canceled: 'cancelled', invalid: 'cancelled',
 };
 
+// Custom field IDs for liquid capital (either field works)
+const LIQUID_CAPITAL_FIELD_IDS = new Set(['MquK4nPLhrQTUbvnHzTZ', '40JagvBXAiZeP1Ieepol']);
+
+function getGHLLiquidCapital(contact) {
+  if (!contact?.customFields) return null;
+  const cf = contact.customFields.find(f => LIQUID_CAPITAL_FIELD_IDS.has(f.id));
+  return cf?.value || null;
+}
+
 async function fetchGHL(from, to) {
   const apiKey     = process.env.GHL_API_KEY;
   const locationId = process.env.GHL_LOCATION_ID;
@@ -233,28 +242,27 @@ async function fetchGHL(from, to) {
 
   const ghlHeaders = { 'Authorization': `Bearer ${apiKey}`, 'Version': GHL_VERSION };
 
-  // Batch-fetch unique assigned users to resolve names
+  // Fetch each unique assigned user by ID (more reliable than the users list endpoint)
   const uniqueUserIds = [...new Set(events.map(ev => ev.assignedUserId).filter(Boolean))];
   const userMap = {};
   if (uniqueUserIds.length) {
-    try {
-      const uRes = await fetch(`${GHL_API}/users/?locationId=${locationId}`, { headers: ghlHeaders });
-      if (uRes.ok) {
-        const uData = await uRes.json();
-        (uData.users || []).forEach(u => {
-          if (u.id) {
-            // Store display name — prefer full name, fall back to email
-            userMap[u.id] = u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || u.id;
-          }
-        });
+    const userResults = await Promise.allSettled(
+      uniqueUserIds.map(uid =>
+        fetch(`${GHL_API}/users/${uid}`, { headers: ghlHeaders })
+          .then(r => r.ok ? r.json() : null)
+      )
+    );
+    uniqueUserIds.forEach((uid, i) => {
+      const d = userResults[i].status === 'fulfilled' ? userResults[i].value : null;
+      if (d) {
+        const u = d.user || d; // handle both { user: {...} } and flat response
+        const name = u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email;
+        if (name) userMap[uid] = name;
       }
-    } catch {
-      // non-fatal — rep names just won't resolve
-    }
+    });
   }
 
-  // Fetch contact details in parallel to get email + phone
-  // (GHL calendar events only return contactId, not contact fields)
+  // Fetch full contact record in parallel — includes email, phone, customFields
   const contactResults = await Promise.allSettled(
     events.map(ev =>
       ev.contactId
@@ -277,9 +285,12 @@ async function fetchGHL(from, to) {
     const rawStatus = (ev.appointmentStatus || ev.status || 'confirmed')
       .toLowerCase().replace(/\s+/g, '_');
 
-    // Resolve assigned rep name
+    // Resolve assigned rep name — fall back to raw ID only if lookup failed
     const assignedUserId   = ev.assignedUserId || null;
-    const assignedUserName = assignedUserId ? (userMap[assignedUserId] || assignedUserId) : null;
+    const assignedUserName = assignedUserId ? (userMap[assignedUserId] || null) : null;
+
+    // Pull liquid capital from GHL custom fields
+    const liquidCapital = getGHLLiquidCapital(contact);
 
     return {
       id:                `ghl_${ev.id}`,
@@ -290,7 +301,7 @@ async function fetchGHL(from, to) {
       slot_start:        ev.startTime || ev.start_time,
       slot_end:          ev.endTime   || ev.end_time,
       status:            GHL_STATUS[rawStatus] || 'scheduled',
-      investment_level:  null,
+      investment_level:  liquidCapital,
       assigned_to_email: assignedUserName,
       meet_link:         null,
       created_at:        ev.dateAdded || ev.createdAt || null,
