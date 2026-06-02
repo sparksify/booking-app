@@ -156,15 +156,13 @@ async function fetchCalendly(from, to) {
     })
   );
 
-  return events.map((ev, i) => {
+  // Build base bookings first so we have emails
+  const base = events.map((ev, i) => {
     const inv = invResults[i].status === 'fulfilled' ? invResults[i].value : null;
     const fullName = inv?.name || '';
     const [fn, ...rest] = fullName.split(' ');
-
-    // Phone sometimes comes through Calendly's questions_and_answers
     const phone = (inv?.questions_and_answers || [])
       .find(q => q.question?.toLowerCase().includes('phone'))?.answer || '';
-
     return {
       id:               `cal_${ev.uri.split('/').pop()}`,
       first_name:       fn || '',
@@ -190,6 +188,39 @@ async function fetchCalendly(from, to) {
       cq_received_at:   null,
     };
   });
+
+  // Enrich with GHL contact data (liquid capital + contact ID) by email
+  const ghlApiKey    = process.env.GHL_API_KEY;
+  const ghlLocationId = process.env.GHL_LOCATION_ID;
+  if (ghlApiKey && ghlLocationId) {
+    const ghlHeaders = { 'Authorization': `Bearer ${ghlApiKey}`, 'Version': GHL_VERSION };
+    await Promise.allSettled(
+      base.map(async (bk, i) => {
+        if (!bk.email) return;
+        try {
+          // Search GHL contact by email
+          const sr = await fetch(
+            `${GHL_API}/contacts/?locationId=${ghlLocationId}&query=${encodeURIComponent(bk.email)}`,
+            { headers: ghlHeaders }
+          );
+          if (!sr.ok) return;
+          const sd = await sr.json();
+          const match = (sd.contacts || [])[0];
+          if (!match) return;
+          // Fetch full record for customFields
+          const cr = await fetch(`${GHL_API}/contacts/${match.id}`, { headers: ghlHeaders });
+          if (!cr.ok) return;
+          const cd = await cr.json();
+          const contact = cd.contact;
+          if (!contact) return;
+          base[i].ghl_contact_id   = contact.id;
+          base[i].investment_level = getGHLLiquidCapital(contact);
+        } catch { /* non-fatal */ }
+      })
+    );
+  }
+
+  return base;
 }
 
 // ─── GoHighLevel Calendar ─────────────────────────────────────────────────────

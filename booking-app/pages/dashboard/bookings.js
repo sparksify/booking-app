@@ -203,7 +203,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   }
 
   function downloadCSV() {
-    const headers = ['Time', 'Date', 'Name', 'Email', 'Phone', 'Investment', 'Consultant', 'Status'];
+    const headers = ['Time', 'Date', 'Name', 'Email', 'Phone', 'Liquid Capital', 'Consultant', 'Status'];
     const rows = filteredBookings.map(b => {
       const slot = b.slot_start ? new Date(b.slot_start) : null;
       const timeLabel = slot ? slot.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
@@ -391,7 +391,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
               <table style={s.table}>
                 <thead>
                   <tr style={s.thead}>
-                    {['Time', 'Client', 'Score', 'Investment', 'Consultant', 'Status', 'Actions'].map(h => (
+                    {['Time', 'Client', 'Score', 'Liquid Capital', 'Consultant', 'Status', 'Actions'].map(h => (
                       <th key={h} style={s.th}>{h}</th>
                     ))}
                   </tr>
