@@ -119,6 +119,8 @@ export default function BookingsDashboard({ brandPitches = {} }) {
 
   // Rep filter
   const [repFilter,    setRepFilter]    = useState([]); // [] = all reps
+  // Source filter
+  const [sourceFilter, setSourceFilter] = useState([]); // [] = all sources
 
   // Panel state
   const [panelBooking, setPanelBooking] = useState(null);
@@ -189,10 +191,10 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   // Unique reps from current bookings
   const allReps = [...new Set(bookings.map(b => b.assigned_to_email).filter(Boolean))];
 
-  // Filter by rep if any selected
-  const filteredBookings = repFilter.length === 0
-    ? bookings
-    : bookings.filter(b => repFilter.includes(b.assigned_to_email));
+  // Filter by rep + source
+  const filteredBookings = bookings
+    .filter(b => repFilter.length === 0 || repFilter.includes(b.assigned_to_email))
+    .filter(b => sourceFilter.length === 0 || sourceFilter.includes(b._source_display || 'FranchiseBook'));
 
   function toggleRep(email) {
     setRepFilter(prev =>
@@ -327,6 +329,47 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                 </div>
               )}
 
+              {/* Source filter chips — only shown when multiple sources exist */}
+              {(() => {
+                const sources = [...new Set(bookings.map(b => b._source_display || 'FranchiseBook'))];
+                if (sources.length <= 1) return null;
+                const srcStyle = {
+                  Calendly:     { active: '#6D28D9', activeBg: '#F5F3FF', border: '#DDD6FE' },
+                  GoHighLevel:  { active: '#047857', activeBg: '#ECFDF5', border: '#A7F3D0' },
+                  FranchiseBook:{ active: '#0077C5', activeBg: '#EFF6FF', border: '#BFDBFE' },
+                };
+                return (
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, marginRight: 2 }}>Source:</span>
+                    {sources.map(src => {
+                      const active = sourceFilter.includes(src);
+                      const c = srcStyle[src] || { active: '#374151', activeBg: '#F3F4F6', border: '#D1D5DB' };
+                      return (
+                        <button
+                          key={src}
+                          onClick={() => setSourceFilter(prev =>
+                            prev.includes(src) ? prev.filter(s => s !== src) : [...prev, src]
+                          )}
+                          style={{
+                            padding: '4px 11px', fontSize: 11, fontWeight: 600, borderRadius: 20,
+                            border: `1.5px solid ${active ? c.border : '#D1D5DB'}`,
+                            background: active ? c.activeBg : '#fff',
+                            color: active ? c.active : '#6B7280',
+                            cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s',
+                          }}
+                        >{src}</button>
+                      );
+                    })}
+                    {sourceFilter.length > 0 && (
+                      <button
+                        onClick={() => setSourceFilter([])}
+                        style={{ padding: '4px 8px', fontSize: 10, fontWeight: 600, borderRadius: 20, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#9CA3AF', cursor: 'pointer', fontFamily: 'inherit' }}
+                      >Clear</button>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* CSV download */}
               <button
                 onClick={downloadCSV}
@@ -438,6 +481,19 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus,
       <td style={s.td}>
         <div style={{ fontWeight: 600, color: '#0077C5', fontSize: 13 }}>{b.first_name} {b.last_name}</div>
         <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>{b.email}</div>
+        {b._source_display && b._source_display !== 'FranchiseBook' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5 }}>
+            <span style={{
+              padding: '2px 7px', borderRadius: 3, fontSize: 10, fontWeight: 700,
+              ...(b._source_display === 'Calendly'
+                ? { color: '#6D28D9', background: '#F5F3FF', border: '1px solid #DDD6FE' }
+                : { color: '#047857', background: '#ECFDF5', border: '1px solid #A7F3D0' }),
+            }}>{b._source_display}</span>
+            {b.event_name && (
+              <span style={{ fontSize: 11, color: '#6B7280' }}>{b.event_name}</span>
+            )}
+          </div>
+        )}
       </td>
       <td style={s.td}>
         {b.health ? (
@@ -496,6 +552,8 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus,
       <td style={s.td} onClick={e => e.stopPropagation()}>
         {busy ? (
           <span style={{ fontSize: 12, color: '#9CA3AF' }}>Saving…</span>
+        ) : b._source_display && b._source_display !== 'FranchiseBook' ? (
+          <span style={{ fontSize: 11, color: '#C8CDD2' }}>—</span>
         ) : b.status === 'scheduled' ? (
           <div style={{ display: 'flex', gap: 5 }}>
             <QBBtn variant="warning" onClick={() => onStatus('showed')}>Showed</QBBtn>
