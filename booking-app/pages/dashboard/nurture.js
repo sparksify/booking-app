@@ -166,7 +166,8 @@ export default function NurturePage() {
 
       {/* ── Full-page queue working mode — covers header + everything ── */}
       {queueMode && queueWorkIdx !== null && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#F3F4F6', overflow: 'auto', padding: '20px 24px' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#F3F4F6', overflow: 'auto' }}>
+        <div style={{ maxWidth: 1320, margin: '0 auto', padding: '20px 20px 60px' }}>
           {/* Minimal top bar */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
             <button onClick={exitQueueWork} style={s.ghostBtn}>← Back to queue list</button>
@@ -199,6 +200,7 @@ export default function NurturePage() {
               <button onClick={exitQueue} style={{ ...s.primaryBtn, marginTop: 24, padding: '10px 24px' }}>← Back to all clients</button>
             </div>
           )}
+        </div>
         </div>
       )}
 
@@ -781,14 +783,18 @@ function ListRow({ client: c, striped, isSelected, isDemo, onSelect, onUpdate, o
         </span>
       </td>
 
-      {/* Actions */}
-      <td style={s.td}>
-        {!readOnly && (
-          <div style={{ display: 'flex', gap: 5 }}>
-            <button onClick={markClosed} style={s.actionChip}>Closed Won</button>
-            <button onClick={archive}   style={s.ghostChip}>Archive</button>
-          </div>
-        )}
+      {/* Next Action */}
+      <td style={{ ...s.td, maxWidth: 220 }}>
+        {!readOnly && (() => {
+          const maxStage = (c.brands || []).length ? Math.max(...(c.brands || []).map(b => b.stage)) : 1;
+          const na = getNextAction(c, c.funding_intro_done, maxStage);
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 14, flexShrink: 0 }}>{na.icon}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: na.color, lineHeight: 1.3 }}>{na.label}</span>
+            </div>
+          );
+        })()}
       </td>
     </tr>
   );
@@ -1423,6 +1429,73 @@ function QueueView({ clients, isDemo, onExit, onStartWorking, selectedId, onSele
 
 // ─── Queue Card (used in Queue mode full-card layout) ─────────────────────────
 
+// ── Next Action Engine ────────────────────────────────────────────────────────
+// Given a client's current state, returns the single clearest next thing to do.
+function getNextAction(client, fundingDone, maxStage) {
+  const stage = maxStage || 1;
+  const name  = client.first_name || 'This client';
+
+  // Never contacted — highest priority
+  if (client.days_since_contact === null) {
+    return {
+      icon: '📞',
+      label: 'First Outreach Call',
+      detail: `${name} has never been contacted. Introduce yourself, understand their goals, timeline, and liquid capital. Let them know what to expect from the process.`,
+      color: '#B91C1C', bg: '#FEF2F2', border: '#FCA5A5',
+    };
+  }
+
+  // Funding intro — urgent if stage 2+
+  if (!fundingDone && stage >= 2) {
+    return {
+      icon: '💰',
+      label: 'Introduce to Funding Partner',
+      detail: `${name} is at Stage ${stage} and hasn't been connected to a funding source yet. Make the intro to your SBA lender or funding partner so financing doesn't become a blocker.`,
+      color: '#6D28D9', bg: '#F5F3FF', border: '#C4B5FD',
+    };
+  }
+
+  // Stage-based next actions
+  switch (stage) {
+    case 1: return {
+      icon: '📞',
+      label: 'Schedule Developer Intro Call',
+      detail: `Set up the first call between ${name} and the franchise developer. Confirm which brand(s) they\'re most excited about and get the developer relationship started.`,
+      color: '#9F1239', bg: '#FFF1F2', border: '#FECDD3',
+    };
+    case 2: return {
+      icon: '📊',
+      label: 'Unit Economics Follow-Up',
+      detail: `Walk ${name} through the unit economics. Help them understand the investment return, ramp-up period, and realistic breakeven timeline for the brands they\'re considering.`,
+      color: '#C2410C', bg: '#FFF7ED', border: '#FED7AA',
+    };
+    case 3: return {
+      icon: '📄',
+      label: 'FDD Review & Attorney Intro',
+      detail: `Check in on ${name}\'s FDD review progress. If they haven\'t retained a franchise attorney yet, make that introduction now — it\'s a key step before Confirmation Day.`,
+      color: '#6D28D9', bg: '#F5F3FF', border: '#DDD6FE',
+    };
+    case 4: return {
+      icon: '📅',
+      label: 'Invite to Confirmation Day',
+      detail: `Coordinate ${name}\'s Confirmation Day visit — travel, agenda, and remaining questions. This is the final step before they commit. Make sure they feel confident.`,
+      color: '#1D4ED8', bg: '#EFF6FF', border: '#BFDBFE',
+    };
+    case 5: return {
+      icon: '🏁',
+      label: 'Close the Deal',
+      detail: `${name} is committed — confirm the signing timeline, coordinate with the franchisor on next steps, and support them through final paperwork and launch prep.`,
+      color: '#15803D', bg: '#F0FDF4', border: '#BBF7D0',
+    };
+    default: return {
+      icon: '📞',
+      label: 'Touch Base Call',
+      detail: `Check in on ${name}\'s progress, answer any questions, and confirm next steps together.`,
+      color: '#374151', bg: '#F9FAFB', border: '#E5E7EB',
+    };
+  }
+}
+
 function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
   const [brands,       setBrands]       = useState(c.brands || []);
   const [touchpoints,  setTouchpoints]  = useState(c.touchpoints || []);
@@ -1617,11 +1690,30 @@ function QueueCard({ client: c, isDemo, onNext, onUpdate, onRefresh }) {
           </button>
         </div>
 
-        {/* Footer actions */}
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={closedWon}    style={{ ...s.primaryBtn, background: '#15803D' }}>🎉 Mark Closed Won</button>
-          <button onClick={archiveClient} style={s.ghostBtn}>Archive client</button>
-          <button onClick={onNext}       style={s.ghostBtn}>Skip →</button>
+        {/* ── Next Action ── */}
+        {(() => {
+          const na = getNextAction(c, fundingDone, maxStage);
+          return (
+            <div style={{ background: na.bg, border: `2px solid ${na.border}`, borderRadius: 10, padding: '14px 18px' }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: na.color, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
+                Next Action
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <span style={{ fontSize: 26, lineHeight: 1, flexShrink: 0 }}>{na.icon}</span>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 4 }}>{na.label}</div>
+                  <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.55 }}>{na.detail}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Secondary actions */}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 2 }}>
+          <button onClick={onNext} style={s.ghostBtn}>Skip →</button>
+          <button onClick={archiveClient} style={s.ghostBtn}>Archive</button>
+          <button onClick={closedWon} style={{ ...s.ghostBtn, color: '#15803D', borderColor: '#86EFAC' }}>🎉 Closed Won</button>
         </div>
       </div>
 

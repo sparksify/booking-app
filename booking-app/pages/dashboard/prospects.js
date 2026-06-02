@@ -566,7 +566,8 @@ export default function ProspectsPage() {
 
       {/* ── Full-page queue overlay — covers header + everything ── */}
       {queueMode && !queueDone && currentLead && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#F3F4F6', overflow: 'auto', padding: '20px 24px' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#F3F4F6', overflow: 'auto' }}>
+          <div style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 20px 60px' }}>
           <QueueCard
             lead={currentLead}
             index={queueIndex}
@@ -576,6 +577,7 @@ export default function ProspectsPage() {
             onSkip={() => onSkip(currentLead.id)}
             onBack={() => { setQueueMode(false); setQueueIndex(0); }}
           />
+          </div>
         </div>
       )}
       {queueMode && queueDone && (
