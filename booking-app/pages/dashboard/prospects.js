@@ -322,46 +322,83 @@ function buildDemoData() {
 
 const BUCKETS = {
   saves: {
-    label: 'Appointment Saves', tagline: '22% rebook rate',
-    color: '#DC2626', bg: '#FEF2F2', border: '#FECACA',
+    label: 'Appointment Saves', tagline: 'Rebook Rate',
+    color: '#DC2626', bg: '#FFF1F2', border: '#FECDD3', iconBg: '#FFE4E6', icon: 'calendar',
     tooltip: 'No-shows from the last 7 days who booked but didn\'t show. Rebook rate is 22% when contacted the same day. These are the highest-priority calls — they already said yes once.',
   },
   speed_to_lead: {
-    label: 'Speed to Lead', tagline: 'Call immediately',
-    color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE',
+    label: 'Speed to Lead', tagline: 'Call Immediately',
+    color: '#8B5CF6', bg: '#F3EEFF', border: '#C4B5FD', iconBg: '#EDE9FE', icon: 'phone',
     tooltip: 'Leads submitted within the last 6 hours with no advisor contact yet. Research shows leads reached within 5 minutes are 21× more likely to book. Every minute matters here.',
   },
   vip: {
-    label: 'VIP Leads', tagline: '$250k+ with engagement',
-    color: '#92400E', bg: '#FEF3C7', border: '#FDE68A',
+    label: 'VIP Leads', tagline: '$250k+ With Engagement',
+    color: '#D97706', bg: '#FFFBEB', border: '#FDE68A', iconBg: '#FEF3C7', icon: 'star',
     tooltip: 'Leads with $250k+ liquid capital who are actively engaging — viewing the booking page, selecting slots, or returning to the site. These carry the highest commission potential and deserve your best advisor.',
   },
   re_engaged: {
-    label: 'Re-Engaged', tagline: 'Active in last 24h',
-    color: '#075985', bg: '#EFF6FF', border: '#BAE6FD',
+    label: 'Re-Engaged', tagline: 'Active in Last 24h',
+    color: '#0EA5E9', bg: '#EFF8FF', border: '#7DD3FC', iconBg: '#E0F2FE', icon: 'zap',
     tooltip: 'Leads that went quiet but just showed activity in the last 24 hours — visited the site, viewed the booking page, or selected a slot. This is a buying signal. Strike while they\'re warm again.',
   },
   near_miss: {
-    label: 'Near Misses', tagline: 'Never rescheduled',
-    color: '#B45309', bg: '#FFFBEB', border: '#FCD34D',
+    label: 'Near Misses', tagline: 'Never Rescheduled',
+    color: '#EA580C', bg: '#FFF7F0', border: '#FDBA74', iconBg: '#FFEDD5', icon: 'clock',
     tooltip: 'Leads who previously booked but never showed or rescheduled. They committed once, which means interest is real. A personal outreach with a new time slot converts these at a solid rate.',
   },
   resurrection: {
-    label: 'Resurrections', tagline: '90+ day re-engagement',
-    color: '#5B21B6', bg: '#FAF5FF', border: '#C4B5FD',
+    label: 'Resurrections', tagline: '90+ Day Re-Engagement',
+    color: '#4F46E5', bg: '#EEF2FF', border: '#C7D2FE', iconBg: '#E0E7FF', icon: 'refresh-cw',
     tooltip: 'Leads dormant for 90+ days who just re-engaged — viewed the booking page or returned to the site. Something changed in their life or circumstances. Reach out before they go dark again.',
   },
   high_dollar: {
-    label: 'High Dollar', tagline: 'Premium investment',
-    color: '#166534', bg: '#F0FDF4', border: '#BBF7D0',
+    label: 'High Dollar', tagline: 'Premium Investment',
+    color: '#10B981', bg: '#ECFDF5', border: '#6EE7B7', iconBg: '#D1FAE5', icon: 'gem',
     tooltip: 'Leads with $250k+ investment capacity — even without active engagement signals. These represent your largest commission opportunities. Worth a personal, unhurried call from your most experienced advisor.',
   },
   hot: {
-    label: 'Hot Leads', tagline: 'Fresh & high-scored',
-    color: '#C2410C', bg: '#FFF7ED', border: '#FED7AA',
+    label: 'Hot Leads', tagline: 'Fresh & High-Scored',
+    color: '#F97316', bg: '#FFF7ED', border: '#FED7AA', iconBg: '#FFEDD5', icon: 'flame',
     tooltip: 'Leads submitted in the last 7 days with a high opportunity score. They\'re fresh, engaged, and in their research phase. Conversion rates drop ~8% per day of delay — call today.',
   },
 };
+
+// ─── Bucket icons (flat SVG) ──────────────────────────────────────────────────
+
+function BucketIcon({ name, color, bg, size = 34 }) {
+  const ic = Math.round(size * 0.52);
+  const p = { width: ic, height: ic, fill: 'none', stroke: color, strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', viewBox: '0 0 24 24', style: { display: 'block' } };
+  let icon = null;
+  if (name === 'calendar')   icon = <svg {...p}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
+  if (name === 'phone')      icon = <svg {...p}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 6.29 6.29l.96-.96a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>;
+  if (name === 'star')       icon = <svg {...p}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>;
+  if (name === 'zap')        icon = <svg {...p}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
+  if (name === 'clock')      icon = <svg {...p}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+  if (name === 'refresh-cw') icon = <svg {...p}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>;
+  if (name === 'gem')        icon = <svg {...p}><polyline points="6 3 18 3 22 9 12 22 2 9"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="12" y1="3" x2="12" y2="9"/></svg>;
+  if (name === 'flame')      icon = <svg {...p}><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>;
+  return (
+    <div style={{ width: size, height: size, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      {icon}
+    </div>
+  );
+}
+
+// ─── Hero icons ───────────────────────────────────────────────────────────────
+
+function HeroIcon({ name, size = 46 }) {
+  const ic = Math.round(size * 0.44);
+  const p = { width: ic, height: ic, fill: 'none', stroke: '#2563EB', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', viewBox: '0 0 24 24', style: { display: 'block' } };
+  const wrap = (child) => (
+    <div style={{ width: size, height: size, borderRadius: '50%', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      {child}
+    </div>
+  );
+  if (name === 'dollar')   return wrap(<svg {...p}><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>);
+  if (name === 'calendar') return wrap(<svg {...p}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>);
+  if (name === 'users')    return wrap(<svg {...p}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>);
+  return null;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -686,21 +723,36 @@ export default function ProspectsPage() {
                 <div style={s.heroCard}>
                   <div style={s.heroMetrics}>
                     <div style={s.heroMetric}>
-                      <div style={s.heroValue}>{fmtDollars(hero.totalOpportunity)}</div>
-                      <div style={s.heroLabel}>Commission Opportunity</div>
-                      <div style={s.heroSub}>Based on historical conv. rates</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <HeroIcon name="dollar" size={48} />
+                        <div>
+                          <div style={s.heroValue}>{fmtDollars(hero.totalOpportunity)}</div>
+                          <div style={s.heroLabel}>Commission Opportunity</div>
+                          <div style={s.heroSub}>Based on historical conv. rates</div>
+                        </div>
+                      </div>
                     </div>
                     <div style={s.heroDivider} />
                     <div style={s.heroMetric}>
-                      <div style={s.heroValue}>{hero.recoverableAppointments}</div>
-                      <div style={s.heroLabel}>Appointments Recoverable</div>
-                      <div style={s.heroSub}>Estimated today</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <HeroIcon name="calendar" size={48} />
+                        <div>
+                          <div style={s.heroValue}>{hero.recoverableAppointments}</div>
+                          <div style={s.heroLabel}>Appointments Recoverable</div>
+                          <div style={s.heroSub}>Estimated today</div>
+                        </div>
+                      </div>
                     </div>
                     <div style={s.heroDivider} />
                     <div style={s.heroMetric}>
-                      <div style={s.heroValue}>{hero.totalLeads}</div>
-                      <div style={s.heroLabel}>Leads Requiring Contact</div>
-                      <div style={s.heroSub}>{dispositioned.size > 0 ? `${dispositioned.size} worked this session` : 'Sorted by opportunity score'}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <HeroIcon name="users" size={48} />
+                        <div>
+                          <div style={s.heroValue}>{hero.totalLeads}</div>
+                          <div style={s.heroLabel}>Leads Requiring Contact</div>
+                          <div style={s.heroSub}>{dispositioned.size > 0 ? `${dispositioned.size} worked this session` : 'Sorted by opportunity score'}</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -745,10 +797,13 @@ export default function ProspectsPage() {
                           onClick={() => { setActiveBucket(key); setQueueMode(false); }}
                           style={{ ...s.bucketCard, borderLeftColor: bc.color, background: isActive ? bc.bg : '#fff', outline: isActive ? `1.5px solid ${bc.border}` : 'none', cursor: 'pointer' }}
                         >
-                          <div style={{ fontSize: 10, fontWeight: 700, color: bc.color, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{bc.tagline}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 12 }}>
+                            <BucketIcon name={bc.icon} color={bc.color} bg={bc.iconBg} size={34} />
+                            <div style={{ fontSize: 10, fontWeight: 700, color: bc.color, textTransform: 'uppercase', letterSpacing: '0.08em', lineHeight: 1.3 }}>{bc.tagline}</div>
+                          </div>
                           <div style={{ fontSize: 32, fontWeight: 800, color: leads.length ? '#111827' : '#D1D5DB', lineHeight: 1, marginBottom: 2 }}>{leads.length}</div>
                           <div
-                            style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 8, position: 'relative', display: 'inline-block', cursor: 'help' }}
+                            style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 8, cursor: 'help' }}
                             title={bc.tooltip}
                           >
                             {bc.label} <span style={{ fontSize: 9, color: bc.color, opacity: 0.7 }}>ⓘ</span>
