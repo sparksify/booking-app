@@ -8,12 +8,10 @@ import { authOptions } from '../api/auth/[...nextauth]';
 export async function getServerSideProps(context) {
   const session = await getServerSession(context.req, context.res, authOptions);
   if (!session) return { redirect: { destination: '/dashboard/login', permanent: false } };
-
   const { getSupabaseAdmin } = await import('@/lib/supabase');
   const supabase = getSupabaseAdmin();
   const { data: settingsRow } = await supabase
     .from('settings').select('brand_pitches').eq('id', 1).single();
-
   return { props: { session, brandPitches: settingsRow?.brand_pitches || {} } };
 }
 
@@ -25,109 +23,92 @@ const FILTERS = [
 ];
 
 const STATUS_META = {
-  scheduled: { label: 'Scheduled',  color: '#0077C5', bg: '#E0EFF9', dot: '#0077C5' },
-  showed:    { label: 'Showed',     color: '#1A7E24', bg: '#E3F4E5', dot: '#2CA01C' },
-  'no-show': { label: 'No Show',    color: '#C23934', bg: '#FDECEA', dot: '#D4351B' },
-  closed:    { label: 'Closed Won', color: '#5C35A8', bg: '#EEE9FA', dot: '#6B37BF' },
+  scheduled: { label: 'Scheduled',  color: '#2563EB', bg: '#EFF6FF', dot: '#2563EB' },
+  showed:    { label: 'Showed',     color: '#059669', bg: '#D1FAE5', dot: '#059669' },
+  'no-show': { label: 'No Show',    color: '#DC2626', bg: '#FEE2E2', dot: '#DC2626' },
+  closed:    { label: 'Closed Won', color: '#7C3AED', bg: '#EDE9FE', dot: '#7C3AED' },
 };
 
-// ── Demo data ─────────────────────────────────────────────────────────────────
 const DEMO = [
-  {
-    id: 'd1', first_name: 'Marcus', last_name: 'Thompson', email: 'marcus.t@email.com',
-    phone: '(512) 555-0192',
-    slot_start: (() => { const d = new Date(); d.setHours(9, 0); return d.toISOString(); })(),
-    status: 'scheduled', investment_level: '$100k–$200k', assigned_to_email: 'steve@sparksify.com',
-    meet_link: 'https://meet.google.com/abc-defg-hij',
-  },
-  {
-    id: 'd2', first_name: 'Jennifer', last_name: 'Caldwell', email: 'jcaldwell@gmail.com',
-    phone: '(214) 555-0847',
-    slot_start: (() => { const d = new Date(); d.setHours(10, 30); return d.toISOString(); })(),
-    status: 'showed', investment_level: '$50k–$100k', assigned_to_email: 'steve@sparksify.com',
-    meet_link: null,
-  },
-  {
-    id: 'd3', first_name: 'Robert', last_name: 'Kim', email: 'rob.kim@outlook.com',
-    phone: '(713) 555-0334',
-    slot_start: (() => { const d = new Date(); d.setHours(11, 45); return d.toISOString(); })(),
-    status: 'no-show', investment_level: '$200k+', assigned_to_email: 'steve@sparksify.com',
-    meet_link: null,
-  },
-  {
-    id: 'd4', first_name: 'Angela', last_name: 'Rivera', email: 'angela.r@company.com',
-    phone: '(469) 555-0561',
-    slot_start: (() => { const d = new Date(); d.setHours(13, 0); return d.toISOString(); })(),
-    status: 'closed', investment_level: '$100k–$200k', assigned_to_email: 'steve@sparksify.com',
-    meet_link: 'https://meet.google.com/xyz-uvwx-rst',
-  },
-  {
-    id: 'd5', first_name: 'David', last_name: 'Nguyen', email: 'dnguyen@email.com',
-    phone: '(281) 555-0729',
-    slot_start: (() => { const d = new Date(); d.setHours(14, 30); return d.toISOString(); })(),
-    status: 'scheduled', investment_level: '$50k–$100k', assigned_to_email: 'steve@sparksify.com',
-    meet_link: 'https://meet.google.com/lmn-opqr-stu',
-  },
+  { id: 'd1', first_name: 'Marcus',   last_name: 'Thompson', email: 'marcus.t@email.com',     phone: '(512) 555-0192', slot_start: (() => { const d = new Date(); d.setHours(9,  0); return d.toISOString(); })(), status: 'scheduled', investment_level: '$100k–$200k', assigned_to_email: 'steve@sparksify.com', meet_link: 'https://meet.google.com/abc-defg-hij', _source_display: 'Calendly',      event_name: 'Franchise Intro Call' },
+  { id: 'd2', first_name: 'Jennifer', last_name: 'Caldwell',  email: 'jcaldwell@gmail.com',    phone: '(214) 555-0847', slot_start: (() => { const d = new Date(); d.setHours(10,30); return d.toISOString(); })(), status: 'showed',    investment_level: '$50k–$100k',  assigned_to_email: 'steve@sparksify.com', meet_link: null,                                                 _source_display: 'Calendly',      event_name: 'Franchise Intro Call' },
+  { id: 'd3', first_name: 'Robert',   last_name: 'Kim',       email: 'rob.kim@outlook.com',    phone: '(713) 555-0334', slot_start: (() => { const d = new Date(); d.setHours(11,45); return d.toISOString(); })(), status: 'no-show',  investment_level: '$200k+',      assigned_to_email: 'steve@sparksify.com', meet_link: null,                                                 _source_display: 'GoHighLevel',   event_name: 'Franchise Intro Call' },
+  { id: 'd4', first_name: 'Angela',   last_name: 'Rivera',    email: 'angela.r@company.com',   phone: '(469) 555-0561', slot_start: (() => { const d = new Date(); d.setHours(13, 0); return d.toISOString(); })(), status: 'closed',   investment_level: '$100k–$200k', assigned_to_email: 'steve@sparksify.com', meet_link: 'https://meet.google.com/xyz-uvwx-rst', _source_display: 'FranchiseBook', event_name: 'Franchise Discovery Call' },
+  { id: 'd5', first_name: 'David',    last_name: 'Nguyen',    email: 'dnguyen@email.com',      phone: '(281) 555-0729', slot_start: (() => { const d = new Date(); d.setHours(14,30); return d.toISOString(); })(), status: 'scheduled', investment_level: '$50k–$100k',  assigned_to_email: 'steve@sparksify.com', meet_link: 'https://meet.google.com/lmn-opqr-stu', _source_display: 'GoHighLevel',   event_name: 'Franchise Intro Call' },
 ];
 
-// ── Demo lead detail ──────────────────────────────────────────────────────────
 function makeDemoLead(booking) {
   return {
-    id: booking.id,
-    first_name: booking.first_name,
-    last_name:  booking.last_name,
-    email:      booking.email,
-    phone:      booking.phone,
-    investment_level: booking.investment_level,
-    status:     booking.status,
+    id: booking.id, first_name: booking.first_name, last_name: booking.last_name,
+    email: booking.email, phone: booking.phone, investment_level: booking.investment_level,
+    status: booking.status,
     franchise_interests: [
       { id: 'fi1', brand: 'Wet Fuel', developer_name: 'Janet Okafor', developer_phone: '(972) 555-0182', developer_email: 'janet.okafor@wetfuel.com' },
       { id: 'fi2', brand: 'Squeeze House', developer_name: 'Marcus Webb', developer_phone: '(214) 555-0299', developer_email: 'mwebb@squeezehouse.com' },
     ],
-    notes:            'Very motivated buyer. Has previous business ownership experience. Interested in multi-unit.',
-    raw_fields: {
-      liquid_capital_to_get_started:                       '$100,000 – $250,000',
-      have_you_ever_owned_or_managed_a_business_before:    'Yes',
-    },
-    bookings:    [booking],
-    created_at:  new Date().toISOString(),
+    notes: 'Very motivated buyer. Has previous business ownership experience. Interested in multi-unit.',
+    raw_fields: { liquid_capital_to_get_started: '$100,000 – $250,000', have_you_ever_owned_or_managed_a_business_before: 'Yes' },
+    bookings: [booking], created_at: new Date().toISOString(),
   };
 }
 
-// Helper — search raw_fields by keyword match
 function getField(raw, ...keys) {
   if (!raw) return null;
   for (const key of keys) {
     const slug = key.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const found = Object.entries(raw).find(([k]) =>
-      k.toLowerCase().replace(/[^a-z0-9]/g, '').includes(slug)
-    );
+    const found = Object.entries(raw).find(([k]) => k.toLowerCase().replace(/[^a-z0-9]/g, '').includes(slug));
     if (found) return found[1];
   }
   return null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Sidebar line icons ───────────────────────────────────────────────────────
+function SideIcon({ name }) {
+  const p = { width: 17, height: 17, fill: 'none', stroke: 'currentColor', strokeWidth: 1.75, strokeLinecap: 'round', strokeLinejoin: 'round', viewBox: '0 0 24 24', style: { display: 'block' } };
+  if (name === 'dashboard') return <svg {...p}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>;
+  if (name === 'leads')     return <svg {...p}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+  if (name === 'clients')   return <svg {...p}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
+  if (name === 'meetings')  return <svg {...p}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
+  if (name === 'tasks')     return <svg {...p}><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>;
+  if (name === 'calendar')  return <svg {...p}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="8.01" y2="14"/><line x1="12" y1="14" x2="12.01" y2="14"/><line x1="16" y1="14" x2="16.01" y2="14"/></svg>;
+  if (name === 'reports')   return <svg {...p}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>;
+  if (name === 'settings')  return <svg {...p}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>;
+  if (name === 'help')      return <svg {...p}><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+  return null;
+}
 
+// ─── Source badge ─────────────────────────────────────────────────────────────
+function SourceBadge({ source }) {
+  const styles = {
+    Calendly:      { color: '#6D28D9', background: '#F5F3FF', border: '1px solid #DDD6FE' },
+    GoHighLevel:   { color: '#047857', background: '#ECFDF5', border: '1px solid #A7F3D0' },
+    FranchiseBook: { color: '#1D4ED8', background: '#DBEAFE', border: '1px solid #BFDBFE' },
+  };
+  const src = source || 'FranchiseBook';
+  const st = styles[src] || { color: '#374151', background: '#F3F4F6', border: '1px solid #E5E7EB' };
+  return (
+    <span style={{ ...st, padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', display: 'inline-block' }}>
+      {src}
+    </span>
+  );
+}
+
+// ─── Main dashboard ───────────────────────────────────────────────────────────
 export default function BookingsDashboard({ brandPitches = {} }) {
   const { data: session } = useSession();
-  const [filter,   setFilter]   = useState('week');
-  const [bookings, setBookings] = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [updating, setUpdating] = useState({});
-  const [isDemo,   setIsDemo]   = useState(false);
-  const [search,   setSearch]   = useState('');
-
-  // Rep filter
-  const [repFilter,    setRepFilter]    = useState([]); // [] = all reps
-  // Source filter
-  const [sourceFilter, setSourceFilter] = useState([]); // [] = all sources
-
-  // Panel state
+  const [filter,       setFilter]       = useState('week');
+  const [bookings,     setBookings]     = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [updating,     setUpdating]     = useState({});
+  const [isDemo,       setIsDemo]       = useState(false);
+  const [search,       setSearch]       = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('');
+  const [repFilter,    setRepFilter]    = useState([]);
   const [panelBooking, setPanelBooking] = useState(null);
   const [lead,         setLead]         = useState(null);
   const [panelLoading, setPanelLoading] = useState(false);
-  const [panelOpen,    setPanelOpen]    = useState(false); // drives animation
+  const [panelOpen,    setPanelOpen]    = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -144,7 +125,6 @@ export default function BookingsDashboard({ brandPitches = {} }) {
 
   useEffect(() => { load(); }, [load]);
 
-  // Close panel on Escape
   useEffect(() => {
     const handler = e => { if (e.key === 'Escape') closePanel(); };
     document.addEventListener('keydown', handler);
@@ -152,14 +132,8 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   }, []);
 
   function openPanel(booking) {
-    setPanelBooking(booking);
-    setLead(null);
-    setPanelOpen(true);
-
-    if (isDemo) {
-      setLead(makeDemoLead(booking));
-      return;
-    }
+    setPanelBooking(booking); setLead(null); setPanelOpen(true);
+    if (isDemo) { setLead(makeDemoLead(booking)); return; }
     setPanelLoading(true);
     fetch(`/api/dashboard/lead-detail?email=${encodeURIComponent(booking.email)}`)
       .then(r => r.json())
@@ -180,124 +154,150 @@ export default function BookingsDashboard({ brandPitches = {} }) {
     }
     setUpdating(u => ({ ...u, [booking.id]: true }));
     await fetch('/api/dashboard/update-booking-status', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ bookingId: booking.id, email: booking.email, status, assigned_user_id: booking.assigned_user_id || null }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bookingId: booking.id, email: booking.email, status, assigned_user_id: booking.assigned_user_id || null }),
     }).catch(console.error);
     setBookings(bs => bs.map(b => b.id === booking.id ? { ...b, status } : b));
     if (panelBooking?.id === booking.id) setPanelBooking(b => ({ ...b, status }));
     setUpdating(u => ({ ...u, [booking.id]: false }));
   }
 
-  // Unique reps from current bookings
-  const allReps = [...new Set(bookings.map(b => b.assigned_to_email).filter(Boolean))];
-
-  // Filter by rep + source
-  const filteredBookings = bookings
-    .filter(b => repFilter.length === 0 || repFilter.includes(b.assigned_to_email))
-    .filter(b => sourceFilter.length === 0 || sourceFilter.includes(b._source_display || 'FranchiseBook'));
-
-  // Search filter
-  const displayBookings = filteredBookings.filter(b => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return `${b.first_name} ${b.last_name}`.toLowerCase().includes(q) ||
-           (b.email || '').toLowerCase().includes(q);
-  });
-
-  function toggleRep(email) {
-    setRepFilter(prev =>
-      prev.includes(email) ? prev.filter(r => r !== email) : [...prev, email]
-    );
-  }
-
   function downloadCSV() {
     const headers = ['Time', 'Date', 'Name', 'Email', 'Phone', 'Liquid Capital', 'Consultant', 'Status'];
     const rows = filteredBookings.map(b => {
       const slot = b.slot_start ? new Date(b.slot_start) : null;
-      const timeLabel = slot ? slot.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
-      const dateLabel = slot ? slot.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-      return [timeLabel, dateLabel, `${b.first_name} ${b.last_name}`, b.email, b.phone || '', b.investment_level || '', b.assigned_to_email || '', b.status]
-        .map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(',');
+      return [
+        slot ? slot.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+        slot ? slot.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+        `${b.first_name} ${b.last_name}`, b.email, b.phone || '',
+        b.investment_level || '', b.assigned_to_email || '', b.status,
+      ].map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(',');
     });
-    const csv = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const blob = new Blob([[headers.join(','), ...rows].join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
+    const a = document.createElement('a'); a.href = url;
     a.download = `meetings-${filter}-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    a.click(); URL.revokeObjectURL(url);
   }
 
-  const counts = filteredBookings.reduce((acc, b) => {
-    acc[b.status] = (acc[b.status] || 0) + 1; return acc;
-  }, {});
+  const allReps = [...new Set(bookings.map(b => b.assigned_to_email).filter(Boolean))];
 
+  const filteredBookings = bookings
+    .filter(b => repFilter.length === 0 || repFilter.includes(b.assigned_to_email))
+    .filter(b => !sourceFilter || (b._source_display || 'FranchiseBook') === sourceFilter)
+    .filter(b => !statusFilter || b.status === statusFilter);
+
+  const displayBookings = filteredBookings.filter(b => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return `${b.first_name} ${b.last_name}`.toLowerCase().includes(q) || (b.email || '').toLowerCase().includes(q);
+  });
+
+  const counts = filteredBookings.reduce((acc, b) => { acc[b.status] = (acc[b.status] || 0) + 1; return acc; }, {});
   const showRateDenom = (counts.showed || 0) + (counts['no-show'] || 0);
-  const showRate = showRateDenom > 0
-    ? Math.round((counts.showed || 0) / showRateDenom * 100) + '%'
-    : '—';
+  const showRate = showRateDenom > 0 ? Math.round((counts.showed || 0) / showRateDenom * 100) + '%' : '0%';
 
-  const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-  const sessionInitial = session?.user?.email?.[0]?.toUpperCase() || 'U';
+  const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
+  const userName = session?.user?.name || session?.user?.email?.split('@')[0] || 'User';
+  const sessionInitial = (session?.user?.email?.[0] || 'U').toUpperCase();
+
+  // Next up: first future scheduled meeting
+  const now = new Date();
+  const nextUp = displayBookings.find(b => b.status === 'scheduled' && b.slot_start && new Date(b.slot_start) > now);
+  let nextUpTimeNum = '', nextUpAMPM = '', nextUpInLabel = '';
+  if (nextUp) {
+    const slot = new Date(nextUp.slot_start);
+    const full = slot.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    const parts = full.split(' ');
+    nextUpTimeNum = parts[0];
+    nextUpAMPM = parts[1] || '';
+    const mins = Math.round((slot - now) / 60000);
+    nextUpInLabel = mins < 60 ? `in ${mins} min` : `in ${Math.floor(mins / 60)}h ${mins % 60}m`;
+  }
 
   return (
     <>
       <Head><title>Meetings — FranchiseBook</title></Head>
       <div style={s.page}>
 
-        {/* ── Left Sidebar ── */}
+        {/* ── White Sidebar ── */}
         <aside style={s.sidebar}>
+          {/* Logo */}
           <div style={s.sideLogoWrap}>
-            <div style={s.sideLogo}>
+            <div style={s.sideLogoRow}>
               <div style={s.sideLogoIcon}>F</div>
-              FranchiseBook
+              <span style={s.sideLogoText}>FranchiseBook</span>
             </div>
           </div>
+
+          {/* Nav */}
           <nav style={s.sideNav}>
             {[
-              { href: '/dashboard/analytics', label: 'Analytics',   icon: '📊' },
-              { href: '/dashboard/leads',      label: 'Leads',       icon: '👥' },
-              { href: '/dashboard/bookings',   label: 'Meetings',    icon: '📅', active: true },
-              { href: '/dashboard/prospects',  label: 'Prospecting', icon: '🔍' },
-              { href: '/dashboard/nurture',    label: 'Nurture',     icon: '💌' },
-              { href: '/dashboard/settings',   label: 'Settings',    icon: '⚙️' },
+              { href: '/dashboard/analytics', label: 'Dashboard',   icon: 'dashboard' },
+              { href: '/dashboard/leads',      label: 'Leads',       icon: 'leads' },
+              { href: '/dashboard/prospects',  label: 'Clients',     icon: 'clients' },
+              { href: '/dashboard/bookings',   label: 'Meetings',    icon: 'meetings', active: true },
+              { href: '#',                     label: 'Tasks',       icon: 'tasks' },
+              { href: '#',                     label: 'Calendar',    icon: 'calendar' },
+              { href: '#',                     label: 'Reports',     icon: 'reports' },
+              { href: '/dashboard/settings',   label: 'Settings',    icon: 'settings' },
             ].map(({ href, label, icon, active }) => (
-              <Link key={href} href={href}
-                style={{ ...s.sideNavItem, ...(active ? s.sideNavActive : {}) }}>
-                <span style={s.sideNavIcon}>{icon}</span>
-                {label}
+              <Link key={label} href={href}
+                style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>
+                <span style={{ color: active ? '#2563EB' : '#9CA3AF', display: 'flex', alignItems: 'center' }}>
+                  <SideIcon name={icon} />
+                </span>
+                <span>{label}</span>
               </Link>
             ))}
           </nav>
-          <div style={s.sideUserWrap}>
-            <div style={s.sideUserAvatar}>{sessionInitial}</div>
-            <div style={s.sideUserEmail}>{session?.user?.email || ''}</div>
+
+          {/* Bottom */}
+          <div style={s.sideBottom}>
+            <div style={s.sideHelpRow}>
+              <span style={{ color: '#9CA3AF', display: 'flex' }}><SideIcon name="help" /></span>
+              <span style={{ fontSize: 13, color: '#6B7280' }}>Help</span>
+            </div>
+            <div style={s.sideUserRow}>
+              <div style={s.sideUserAvatar}>{sessionInitial}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userName}</div>
+                <div style={{ fontSize: 11, color: '#9CA3AF' }}>Rep</div>
+              </div>
+              <span style={{ color: '#9CA3AF', fontSize: 14 }}>›</span>
+            </div>
           </div>
         </aside>
 
-        {/* ── Main Content ── */}
+        {/* ── Main ── */}
         <div style={s.main}>
 
           {/* Top Bar */}
           <div style={s.topBar}>
-            <div style={s.topTitleWrap}>
-              <span style={s.topTitle}>Today's Meetings</span>
-              <span style={s.topDate}>{todayLabel}</span>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={s.topTitle}>Today's Meetings</span>
+                <span style={{ fontSize: 18 }}>📅</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                <span style={s.topDate}>{todayLabel} ▾</span>
+                <button style={s.topNavArrow}>‹</button>
+                <button style={s.topNavArrow}>›</button>
+              </div>
             </div>
             <div style={s.topActions}>
-              <div style={s.searchWrap}>
-                <span style={s.searchIcon}>⌕</span>
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', fontSize: 14, pointerEvents: 'none' }}>🔍</span>
                 <input
                   style={s.searchInput}
-                  placeholder="Search meetings…"
+                  placeholder="Search meetings, clients, email..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                 />
               </div>
+              <button style={s.topBtn}>≡ Filters</button>
               <button onClick={load} style={s.topBtn}>↻ Refresh</button>
-              <button onClick={downloadCSV} style={s.topBtn}>↓ CSV</button>
+              <button onClick={downloadCSV} style={s.topBtnPrimary}>+ Export ▾</button>
             </div>
           </div>
 
@@ -307,79 +307,75 @@ export default function BookingsDashboard({ brandPitches = {} }) {
             {/* Demo banner */}
             {isDemo && (
               <div style={s.demoBanner}>
-                Preview mode — no real bookings found. Showing sample data. Click any row to try the panel.
+                Preview mode — no real bookings found. Showing sample data.
               </div>
             )}
 
-            {/* Stats row (5 cards) */}
-            <div style={s.statsRow}>
+            {/* Stats row — connected */}
+            <div style={s.statsCard}>
               {[
-                { label: 'Scheduled', color: '#3B82F6', num: counts.scheduled  || 0 },
-                { label: 'Showed',    color: '#10B981', num: counts.showed      || 0 },
-                { label: 'No Shows',  color: '#EF4444', num: counts['no-show']  || 0 },
-                { label: 'Closed',    color: '#8B5CF6', num: counts.closed      || 0 },
-                { label: 'Show Rate', color: '#F59E0B', num: showRate },
-              ].map(({ label, color, num }) => (
-                <div key={label} style={s.statCard}>
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
-                    <div style={{ ...s.statAccent, background: color }} />
-                    <span style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.5px' }}>{label}</span>
+                { label: 'Scheduled', num: counts.scheduled   || 0, iconBg: '#DBEAFE', iconColor: '#2563EB', icon: '📅' },
+                { label: 'Showed',    num: counts.showed      || 0, iconBg: '#D1FAE5', iconColor: '#059669', icon: '✓'  },
+                { label: 'No-Shows',  num: counts['no-show']  || 0, iconBg: '#FEE2E2', iconColor: '#DC2626', icon: '✕'  },
+                { label: 'Closed',    num: counts.closed      || 0, iconBg: '#EDE9FE', iconColor: '#7C3AED', icon: '🏆' },
+                { label: 'Show Rate', num: showRate,               iconBg: '#DBEAFE', iconColor: '#2563EB', icon: '📈' },
+              ].map((st, i) => (
+                <div key={st.label} style={{ ...s.statCell, ...(i < 4 ? { borderRight: '1px solid #E5E7EB' } : {}) }}>
+                  <div style={{ ...s.statIconCircle, background: st.iconBg, color: st.iconColor }}>
+                    <span style={{ fontSize: 16 }}>{st.icon}</span>
                   </div>
-                  <div style={s.statNum}>{num}</div>
+                  <div>
+                    <div style={s.statNum}>{st.num}</div>
+                    <div style={s.statLabel}>{st.label}</div>
+                  </div>
                 </div>
               ))}
             </div>
 
-            {/* Next Up card */}
-            {(() => {
-              const now = new Date();
-              const nextUp = displayBookings.find(b =>
-                b.status === 'scheduled' && b.slot_start && new Date(b.slot_start) > now
-              );
-              if (!nextUp) return null;
-              const slot = new Date(nextUp.slot_start);
-              const minsUntil = Math.round((slot - now) / 60000);
-              const timeStr = slot.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-              const inLabel = minsUntil < 60
-                ? `in ${minsUntil} min`
-                : `in ${Math.floor(minsUntil / 60)}h ${minsUntil % 60}m`;
+            {/* Next Up */}
+            {nextUp && (() => {
               const initials = `${nextUp.first_name?.[0] || ''}${nextUp.last_name?.[0] || ''}`.toUpperCase();
               return (
                 <div style={s.nextUp}>
-                  <div style={{ flexShrink: 0 }}>
-                    <div style={s.nextUpLabel}>Next Up</div>
-                    <div style={s.nextUpTime}>{timeStr}</div>
-                    <div style={s.nextUpIn}>{inLabel}</div>
+                  {/* Time */}
+                  <div style={s.nextUpTimeCol}>
+                    <div style={s.nextUpLabel}>NEXT UP</div>
+                    <div style={s.nextUpTime}>
+                      {nextUpTimeNum}
+                      <span style={s.nextUpAMPM}> {nextUpAMPM}</span>
+                    </div>
+                    <div style={s.nextUpIn}>{nextUpInLabel}</div>
                   </div>
-                  <div style={s.nextUpDiv} />
+
+                  <div style={s.nextUpDivider} />
+
+                  {/* Avatar + Info */}
                   <div style={s.nextUpAvatar}>{initials}</div>
                   <div style={s.nextUpInfo}>
-                    <div style={s.nextUpName}>{nextUp.first_name} {nextUp.last_name}</div>
-                    <div style={s.nextUpMeta}>
-                      {nextUp.email}
-                      {nextUp._source_display && (
-                        <span style={{ marginLeft: 8 }}><SourceBadge source={nextUp._source_display} /></span>
-                      )}
-                      {nextUp.assigned_to_email && (
-                        <span style={{ marginLeft: 6, color: '#9CA3AF' }}>
-                          · {nextUp.assigned_to_email.split('@')[0]}
-                        </span>
-                      )}
+                    <div style={{ marginBottom: 4 }}>
+                      <SourceBadge source={nextUp._source_display || 'FranchiseBook'} />
                     </div>
+                    <div style={s.nextUpName}>{nextUp.first_name} {nextUp.last_name}</div>
+                    {nextUp.event_name && <div style={s.nextUpSub}>{nextUp.event_name}</div>}
+                    {nextUp.assigned_to_email && (
+                      <div style={s.nextUpRep}>
+                        <span style={{ marginRight: 4 }}>👤</span>
+                        {nextUp.assigned_to_email.split('@')[0]}
+                      </div>
+                    )}
                   </div>
+
+                  {/* Actions */}
                   <div style={s.nextUpActions}>
-                    <button
-                      onClick={() => openPanel(nextUp)}
-                      style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, borderRadius: 6, border: '1.5px solid #3B82F6', background: '#fff', color: '#3B82F6', cursor: 'pointer', fontFamily: 'inherit' }}
-                    >
+                    <button onClick={() => openPanel(nextUp)} style={s.nextUpBtnOutline}>
                       Open Details
                     </button>
                     <button
                       onClick={() => updateStatus(nextUp, 'showed')}
                       disabled={!!updating[nextUp.id]}
-                      style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, borderRadius: 6, border: 'none', background: '#3B82F6', color: '#fff', cursor: updating[nextUp.id] ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: updating[nextUp.id] ? 0.7 : 1 }}
+                      style={{ ...s.nextUpBtnFill, opacity: updating[nextUp.id] ? 0.7 : 1 }}
                     >
-                      {updating[nextUp.id] ? 'Saving…' : 'Mark Showed'}
+                      ✓ Mark Showed
                     </button>
                   </div>
                 </div>
@@ -388,98 +384,98 @@ export default function BookingsDashboard({ brandPitches = {} }) {
 
             {/* Filter bar */}
             <div style={s.filterBar}>
-              {/* Date tabs */}
-              <div style={s.tabSet}>
-                {FILTERS.map(f => (
+              {/* Pills */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                {/* All Meetings */}
+                <button
+                  onClick={() => setFilter('all')}
+                  style={filter === 'all' ? s.filterPillActive : s.filterPillOutline}
+                >
+                  All Meetings
+                  {filter === 'all' && (
+                    <span style={s.filterPillBadge}>{displayBookings.length}</span>
+                  )}
+                </button>
+
+                {/* Date filters */}
+                {[
+                  { key: 'today',    label: 'Today' },
+                  { key: 'tomorrow', label: 'Tomorrow' },
+                  { key: 'week',     label: 'Next 2 Weeks' },
+                ].map(f => (
                   <button key={f.key} onClick={() => setFilter(f.key)}
-                    style={{ ...s.tab, ...(filter === f.key ? s.tabActive : {}) }}>
+                    style={filter === f.key ? s.filterPillActive : s.filterPillOutline}>
                     {f.label}
-                    {filter === f.key && displayBookings.length > 0 && (
-                      <span style={s.tabCount}>{displayBookings.length}</span>
-                    )}
                   </button>
                 ))}
+
+                {/* Source dropdown */}
+                <div style={{ position: 'relative', display: 'inline-block' }}>
+                  <select
+                    value={sourceFilter}
+                    onChange={e => setSourceFilter(e.target.value)}
+                    style={s.filterSelect}
+                  >
+                    <option value="">All Sources</option>
+                    <option value="Calendly">Calendly</option>
+                    <option value="GoHighLevel">GoHighLevel</option>
+                    <option value="FranchiseBook">FranchiseBook</option>
+                  </select>
+                  <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6B7280', fontSize: 10 }}>▼</span>
+                </div>
+
+                {/* Status dropdown */}
+                <div style={{ position: 'relative', display: 'inline-block' }}>
+                  <select
+                    value={statusFilter}
+                    onChange={e => setStatusFilter(e.target.value)}
+                    style={s.filterSelect}
+                  >
+                    <option value="">All Statuses</option>
+                    <option value="scheduled">Scheduled</option>
+                    <option value="showed">Showed</option>
+                    <option value="no-show">No Show</option>
+                    <option value="closed">Closed Won</option>
+                  </select>
+                  <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6B7280', fontSize: 10 }}>▼</span>
+                </div>
+
+                <button style={s.filterMoreBtn}>≡ More Filters</button>
               </div>
 
-              {/* Right: rep + source chips + CSV removed (moved to top bar) */}
-              <div style={s.tabBarRight}>
-                {/* Rep toggle chips */}
-                {allReps.length > 0 && (
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, marginRight: 2 }}>Rep:</span>
-                    {allReps.map(email => {
-                      const name = email.includes('@') ? email.split('@')[0] : email;
-                      const active = repFilter.includes(email);
-                      return (
-                        <button key={email} onClick={() => toggleRep(email)} style={{
-                          padding: '4px 11px', fontSize: 11, fontWeight: 600, borderRadius: 20,
-                          border: `1.5px solid ${active ? '#3B82F6' : '#E5E7EB'}`,
-                          background: active ? '#EFF6FF' : '#fff',
-                          color: active ? '#3B82F6' : '#6B7280',
-                          cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s',
-                        }}>{name}</button>
-                      );
-                    })}
-                    {repFilter.length > 0 && (
-                      <button onClick={() => setRepFilter([])} style={{ padding: '4px 8px', fontSize: 10, fontWeight: 600, borderRadius: 20, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#9CA3AF', cursor: 'pointer', fontFamily: 'inherit' }}>
-                        Clear
+              {/* Rep chips (right side) */}
+              {allReps.length > 1 && (
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600 }}>Rep:</span>
+                  {allReps.map(email => {
+                    const name = email.split('@')[0];
+                    const active = repFilter.includes(email);
+                    return (
+                      <button key={email}
+                        onClick={() => setRepFilter(prev => prev.includes(email) ? prev.filter(r => r !== email) : [...prev, email])}
+                        style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 20, border: `1.5px solid ${active ? '#2563EB' : '#E5E7EB'}`, background: active ? '#EFF6FF' : '#fff', color: active ? '#2563EB' : '#6B7280', cursor: 'pointer', fontFamily: 'inherit' }}>
+                        {name}
                       </button>
-                    )}
-                  </div>
-                )}
-
-                {/* Source filter chips */}
-                {(() => {
-                  const ALL_SOURCES = ['Calendly', 'GoHighLevel', 'FranchiseBook'];
-                  const presentSources = new Set(bookings.map(b => b._source_display || 'FranchiseBook'));
-                  const srcStyle = {
-                    Calendly:      { active: '#6D28D9', activeBg: '#F5F3FF', border: '#DDD6FE' },
-                    GoHighLevel:   { active: '#047857', activeBg: '#ECFDF5', border: '#A7F3D0' },
-                    FranchiseBook: { active: '#1D4ED8', activeBg: '#EFF6FF', border: '#BFDBFE' },
-                  };
-                  return (
-                    <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, marginRight: 2 }}>Source:</span>
-                      {ALL_SOURCES.map(src => {
-                        const active = sourceFilter.includes(src);
-                        const hasData = presentSources.has(src);
-                        const c = srcStyle[src] || { active: '#374151', activeBg: '#F3F4F6', border: '#D1D5DB' };
-                        return (
-                          <button key={src} onClick={() => hasData && setSourceFilter(prev =>
-                            prev.includes(src) ? prev.filter(s => s !== src) : [...prev, src]
-                          )} style={{
-                            padding: '4px 11px', fontSize: 11, fontWeight: 600, borderRadius: 20,
-                            border: `1.5px solid ${active ? c.border : '#E5E7EB'}`,
-                            background: active ? c.activeBg : '#fff',
-                            color: active ? c.active : hasData ? '#6B7280' : '#D1D5DB',
-                            cursor: hasData ? 'pointer' : 'default',
-                            fontFamily: 'inherit', transition: 'all .15s',
-                            opacity: hasData ? 1 : 0.5,
-                          }}>{src}</button>
-                        );
-                      })}
-                      {sourceFilter.length > 0 && (
-                        <button onClick={() => setSourceFilter([])} style={{ padding: '4px 8px', fontSize: 10, fontWeight: 600, borderRadius: 20, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#9CA3AF', cursor: 'pointer', fontFamily: 'inherit' }}>
-                          Clear
-                        </button>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
+                    );
+                  })}
+                  {repFilter.length > 0 && (
+                    <button onClick={() => setRepFilter([])} style={{ fontSize: 11, color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Table */}
-            <div style={s.card}>
+            <div style={s.tableCard}>
               {loading ? (
-                <div style={s.empty}>Loading…</div>
+                <div style={s.tableEmpty}>Loading…</div>
               ) : displayBookings.length === 0 ? (
-                <div style={s.empty}>No meetings for this period.</div>
+                <div style={s.tableEmpty}>No meetings for this period.</div>
               ) : (
                 <table style={s.table}>
                   <thead>
-                    <tr style={s.thead}>
-                      {['Time', 'Client', 'Source', 'Rep', 'Liquid Capital', 'Status', 'Actions'].map(h => (
+                    <tr>
+                      {['Time', 'Client', 'Source / Type', 'Rep', 'Liquid Capital', 'Status', 'Actions'].map(h => (
                         <th key={h} style={s.th}>{h}</th>
                       ))}
                     </tr>
@@ -488,30 +484,26 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                     {(() => {
                       const nowMs = Date.now();
                       const inProgressId = (() => {
-                        const candidates = displayBookings.filter(b => {
-                          const slotMs = b.slot_start ? new Date(b.slot_start).getTime() : 0;
-                          return slotMs > 0 && slotMs <= nowMs && nowMs <= slotMs + 90 * 60_000;
+                        const cands = displayBookings.filter(b => {
+                          const ms = b.slot_start ? new Date(b.slot_start).getTime() : 0;
+                          return ms > 0 && ms <= nowMs && nowMs <= ms + 90 * 60_000;
                         });
-                        if (!candidates.length) return null;
-                        return candidates.reduce((a, b) =>
-                          new Date(b.slot_start) > new Date(a.slot_start) ? b : a
-                        ).id;
+                        if (!cands.length) return null;
+                        return cands.reduce((a, b) => new Date(b.slot_start) > new Date(a.slot_start) ? b : a).id;
                       })();
                       let nowInserted = false;
                       return displayBookings.flatMap((b, i) => {
                         const slotMs = b.slot_start ? new Date(b.slot_start).getTime() : 0;
-                        const inProgress = b.id === inProgressId;
                         const rows = [];
                         if (!nowInserted && slotMs > nowMs) {
                           nowInserted = true;
                           rows.push(
-                            <tr key="now-divider" style={{ background: 'transparent', pointerEvents: 'none' }}>
-                              <td colSpan={7} style={{ padding: '2px 14px' }}>
+                            <tr key="now-divider" style={{ pointerEvents: 'none' }}>
+                              <td colSpan={7} style={{ padding: '2px 16px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  <span className="bk-now-divider-dot" />
-                                  <div style={{ flex: 1, height: 1.5, background: '#EF4444', opacity: 0.5 }} />
+                                  <div style={{ flex: 1, height: 1, background: '#EF4444', opacity: 0.4 }} />
                                   <span style={{ fontSize: 10, fontWeight: 700, color: '#EF4444', letterSpacing: '.05em', textTransform: 'uppercase', flexShrink: 0 }}>Now</span>
-                                  <div style={{ flex: 1, height: 1.5, background: '#EF4444', opacity: 0.5 }} />
+                                  <div style={{ flex: 1, height: 1, background: '#EF4444', opacity: 0.4 }} />
                                 </div>
                               </td>
                             </tr>
@@ -526,7 +518,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                             selected={panelBooking?.id === b.id}
                             onRowClick={() => openPanel(b)}
                             onStatus={status => updateStatus(b, status)}
-                            inProgress={inProgress}
+                            inProgress={b.id === inProgressId}
                           />
                         );
                         return rows;
@@ -539,7 +531,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
           </div>
         </div>
 
-        {/* ── CRM Side Panel ── */}
+        {/* ── CRM Panel ── */}
         {panelBooking && (
           <CRMPanel
             booking={panelBooking}
@@ -557,195 +549,147 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   );
 }
 
-// ─── Source Badge ─────────────────────────────────────────────────────────────
-
-function SourceBadge({ source }) {
-  if (!source || source === 'FranchiseBook') return (
-    <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700, color: '#1D4ED8', background: '#DBEAFE', border: '1px solid #BFDBFE', whiteSpace: 'nowrap' }}>
-      FranchiseBook
-    </span>
-  );
-  if (source === 'Calendly') return (
-    <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700, color: '#6D28D9', background: '#F5F3FF', border: '1px solid #DDD6FE', whiteSpace: 'nowrap' }}>
-      Calendly
-    </span>
-  );
-  if (source === 'GoHighLevel') return (
-    <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700, color: '#047857', background: '#ECFDF5', border: '1px solid #A7F3D0', whiteSpace: 'nowrap' }}>
-      GoHighLevel
-    </span>
-  );
-  return (
-    <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700, color: '#374151', background: '#F3F4F6', border: '1px solid #E5E7EB', whiteSpace: 'nowrap' }}>
-      {source}
-    </span>
-  );
-}
-
 // ─── Table Row ────────────────────────────────────────────────────────────────
-
 function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus, inProgress }) {
   const slot      = b.slot_start ? new Date(b.slot_start) : null;
-  const dateLabel = slot ? slot.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—';
-  const timeLabel = slot ? slot.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+  const timeLabel = slot ? slot.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—';
+  const dateLabel = slot ? slot.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '';
   const meta      = STATUS_META[b.status] || STATUS_META.scheduled;
   const initials  = `${b.first_name?.[0] || ''}${b.last_name?.[0] || ''}`.toUpperCase();
 
-  const rowBg = selected ? '#EFF6FF' : inProgress ? '#F0FDF4' : striped ? '#FAFAFA' : '#FFFFFF';
+  const rowBg = selected ? '#EFF6FF' : inProgress ? '#F0FDF4' : striped ? '#FAFAFA' : '#fff';
+  const firstTdBorder = selected ? { borderLeft: '3px solid #2563EB' } : { borderLeft: '3px solid transparent' };
 
   return (
     <tr style={{ ...s.tr, background: rowBg, cursor: 'pointer' }} onClick={onRowClick}>
 
       {/* Time */}
-      <td style={s.td}>
+      <td style={{ ...s.td, ...firstTdBorder }}>
         <div style={{ fontWeight: 700, color: '#111827', fontSize: 14 }}>{timeLabel}</div>
         <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{dateLabel}</div>
         {inProgress && (
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4,
-            padding: '2px 7px', borderRadius: 20, fontSize: 10, fontWeight: 700,
-            color: '#15803D', background: '#DCFCE7', border: '1px solid #BBF7D0',
-          }}>
-            <span className="in-progress-dot" />Live
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4, padding: '2px 7px', borderRadius: 20, fontSize: 10, fontWeight: 700, color: '#15803D', background: '#DCFCE7', border: '1px solid #BBF7D0' }}>
+            ● Live
           </span>
         )}
       </td>
 
       {/* Client */}
       <td style={s.td}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <div style={{
-            width: 30, height: 30, borderRadius: '50%',
-            background: '#3B82F6', color: '#fff',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, fontWeight: 700, flexShrink: 0,
-          }}>
-            {initials}
-          </div>
-          <div>
-            <div style={{ fontWeight: 600, color: '#3B82F6', fontSize: 13 }}>{b.first_name} {b.last_name}</div>
-            <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>{b.email}</div>
-          </div>
-        </div>
+        <div style={{ fontWeight: 600, color: '#2563EB', fontSize: 13 }}>{b.first_name} {b.last_name}</div>
+        <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{b.email}</div>
       </td>
 
-      {/* Source */}
+      {/* Source / Type */}
       <td style={s.td}>
         <SourceBadge source={b._source_display || 'FranchiseBook'} />
-        {b.event_name && (
-          <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>{b.event_name}</div>
-        )}
+        {b.event_name && <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>{b.event_name}</div>}
       </td>
 
       {/* Rep */}
       <td style={s.td}>
         {b.assigned_to_email ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{
-              width: 24, height: 24, borderRadius: '50%',
-              background: '#8B5CF6', color: '#fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 9, fontWeight: 700, flexShrink: 0,
-            }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#8B5CF6', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
               {b.assigned_to_email[0]?.toUpperCase()}
             </div>
-            <span style={{ fontSize: 12, color: '#374151' }}>
-              {b.assigned_to_email.includes('@') ? b.assigned_to_email.split('@')[0] : b.assigned_to_email}
+            <span style={{ fontSize: 13, color: '#374151' }}>
+              {b.assigned_to_email.split('@')[0]}
             </span>
           </div>
-        ) : (
-          <span style={{ color: '#D1D5DB', fontSize: 12 }}>—</span>
-        )}
+        ) : <span style={{ color: '#D1D5DB' }}>—</span>}
       </td>
 
       {/* Liquid Capital */}
       <td style={s.td}>
-        <span style={{ fontSize: 12, color: '#374151', background: '#F3F4F6', padding: '3px 8px', borderRadius: 4 }}>
-          {b.investment_level || '—'}
-        </span>
+        {b.investment_level
+          ? <span style={{ fontSize: 12, color: '#374151' }}>{b.investment_level}</span>
+          : <span style={{ color: '#D1D5DB' }}>—</span>}
       </td>
 
       {/* Status */}
-      <td style={s.td} onClick={e => e.stopPropagation()}>
-        <span style={{
-          display: 'inline-flex', alignItems: 'center', gap: 5,
-          padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-          color: meta.color, background: meta.bg,
-        }}>
-          <span style={{ width: 5, height: 5, borderRadius: '50%', background: meta.dot, display: 'inline-block' }} />
+      <td style={s.td}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: meta.color, background: meta.bg, border: `1px solid ${meta.dot}33` }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: meta.dot, display: 'inline-block', flexShrink: 0 }} />
           {meta.label}
         </span>
-        {b.meet_link && (
-          <a href={b.meet_link} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
-            style={{ display: 'block', fontSize: 11, color: '#3B82F6', marginTop: 4 }}>
-            Join call →
-          </a>
-        )}
       </td>
 
-      {/* Actions */}
+      {/* Actions — icon buttons */}
       <td style={s.td} onClick={e => e.stopPropagation()}>
-        {busy ? (
-          <span style={{ fontSize: 12, color: '#9CA3AF' }}>Saving…</span>
-        ) : b._source_display && b._source_display !== 'FranchiseBook' ? (
-          <span style={{ fontSize: 11, color: '#D1D5DB' }}>—</span>
-        ) : b.status === 'scheduled' ? (
-          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-            <QBBtn variant="warning" onClick={() => onStatus('showed')}>Showed</QBBtn>
-            <QBBtn variant="danger"  onClick={() => onStatus('no-show')}>No-Show</QBBtn>
-          </div>
-        ) : b.status === 'showed' ? (
-          <QBBtn variant="primary" onClick={() => onStatus('closed')}>Close Won</QBBtn>
-        ) : (
-          <span style={{ fontSize: 12, color: '#D1D5DB' }}>—</span>
-        )}
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          {/* Eye — open panel */}
+          <button
+            onClick={onRowClick}
+            title="View details"
+            style={s.iconBtn}
+          >
+            <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+
+          {/* Calendar — join call */}
+          <a
+            href={b.meet_link || '#'}
+            target={b.meet_link ? '_blank' : undefined}
+            rel="noreferrer"
+            onClick={e => { if (!b.meet_link) e.preventDefault(); }}
+            title={b.meet_link ? 'Join call' : 'No link'}
+            style={{ ...s.iconBtn, opacity: b.meet_link ? 1 : 0.35, textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+          </a>
+
+          {/* Ellipsis */}
+          <button title="More" style={s.iconBtn}>
+            <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24">
+              <circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/>
+            </svg>
+          </button>
+        </div>
       </td>
     </tr>
   );
 }
 
 // ─── CRM Side Panel ───────────────────────────────────────────────────────────
-
 function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onClose, onStatusChange }) {
-  const [notes,        setNotes]        = useState('');
-  const [interests,    setInterests]    = useState([]);  // franchise_interests array
-  const [selectedIdx,  setSelectedIdx]  = useState(null);
-  const [brandEditMode,setBrandEditMode]= useState(false);
-  const [brandSaving,  setBrandSaving]  = useState(false);
-  const [brandSaved,   setBrandSaved]   = useState(false);
-  const [notesSaving,  setNotesSaving]  = useState(false);
-  const [notesSaved,   setNotesSaved]   = useState(false);
-  const [showEmail,    setShowEmail]    = useState(false);
-  const [email,        setEmail]        = useState({ to: '', subject: '', body: '' });
-  const [emailSent,    setEmailSent]    = useState(false);
-  const [cqSent,       setCqSent]       = useState(!!booking?.cq_sent_at);
-  const [cqReceived,   setCqReceived]   = useState(!!booking?.cq_received_at);
-  const [cqRecvSaving, setCqRecvSaving] = useState(false);
-  const [pitchOpen,    setPitchOpen]    = useState(false);
-  const [pitchBrandIdx,setPitchBrandIdx]= useState(0);
-  const [panelTab,     setPanelTab]     = useState('info');
-  const [timeline,     setTimeline]     = useState([]);
-  const [tlLoading,    setTlLoading]    = useState(false);
-
-  // GHL contact intel (fetched for any booking that has a ghl_contact_id)
+  const [notes,         setNotes]         = useState('');
+  const [interests,     setInterests]     = useState([]);
+  const [selectedIdx,   setSelectedIdx]   = useState(null);
+  const [brandEditMode, setBrandEditMode] = useState(false);
+  const [brandSaving,   setBrandSaving]   = useState(false);
+  const [brandSaved,    setBrandSaved]    = useState(false);
+  const [notesSaving,   setNotesSaving]   = useState(false);
+  const [notesSaved,    setNotesSaved]    = useState(false);
+  const [showEmail,     setShowEmail]     = useState(false);
+  const [email,         setEmail]         = useState({ to: '', subject: '', body: '' });
+  const [emailSent,     setEmailSent]     = useState(false);
+  const [cqSent,        setCqSent]        = useState(!!booking?.cq_sent_at);
+  const [cqReceived,    setCqReceived]    = useState(!!booking?.cq_received_at);
+  const [cqRecvSaving,  setCqRecvSaving]  = useState(false);
+  const [pitchOpen,     setPitchOpen]     = useState(false);
+  const [pitchBrandIdx, setPitchBrandIdx] = useState(0);
+  const [panelTab,      setPanelTab]      = useState('info');
+  const [timeline,      setTimeline]      = useState([]);
+  const [tlLoading,     setTlLoading]     = useState(false);
   const [ghlContact,        setGhlContact]        = useState(null);
   const [ghlContactLoading, setGhlContactLoading] = useState(false);
-
-  // GHL tags
   const [ghlTags,        setGhlTags]        = useState([]);
   const [ghlTagsLoading, setGhlTagsLoading] = useState(false);
   const [newTagInput,    setNewTagInput]    = useState('');
   const [showTagInput,   setShowTagInput]   = useState(false);
   const [tagSaving,      setTagSaving]      = useState(false);
-
-  // Follow-up modal
   const [showFollowUp, setShowFollowUp] = useState(false);
   const [fuDate,       setFuDate]       = useState('');
   const [fuNote,       setFuNote]       = useState('');
   const [fuTemp,       setFuTemp]       = useState(3);
   const [fuSaving,     setFuSaving]     = useState(false);
   const [fuSaved,      setFuSaved]      = useState(false);
-
   const panelRef = useRef(null);
 
   useEffect(() => {
@@ -757,67 +701,41 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
     }
   }, [lead]);
 
-  // Sync CQ + tag + follow-up state when a different booking is opened
   useEffect(() => {
     setCqSent(!!booking?.cq_sent_at);
     setCqReceived(!!booking?.cq_received_at);
-    // Reset tags
-    setGhlTags([]);
-    setNewTagInput('');
-    setShowTagInput(false);
-    setTagSaving(false);
-    // Reset follow-up
-    setShowFollowUp(false);
-    setFuDate('');
-    setFuNote('');
-    setFuTemp(3);
-    setFuSaved(false);
-    // Fetch GHL contact intel + tags
+    setGhlTags([]); setNewTagInput(''); setShowTagInput(false); setTagSaving(false);
+    setShowFollowUp(false); setFuDate(''); setFuNote(''); setFuTemp(3); setFuSaved(false);
     if (!booking?.email || isDemo) {
       if (isDemo) setGhlTags(['hot-lead', 'franchise-ready']);
-      setGhlContact(null);
-      return;
+      setGhlContact(null); return;
     }
-
     const ghlId = booking?.ghl_contact_id;
     const source = booking?._source_display;
-
-    // Helper — processes the contact record once fetched
     function applyContact(c) {
-      setGhlContact(c);
-      setGhlContactLoading(false);
+      setGhlContact(c); setGhlContactLoading(false);
       if (c?.tags?.length > 0) setGhlTags(c.tags);
       else {
-        // Fall back to email-based tags API if contact had no tags
         setGhlTagsLoading(true);
         fetch(`/api/dashboard/contact-tags?email=${encodeURIComponent(booking.email)}`)
-          .then(r => r.json())
-          .then(d => { setGhlTags(d.tags || []); setGhlTagsLoading(false); })
+          .then(r => r.json()).then(d => { setGhlTags(d.tags || []); setGhlTagsLoading(false); })
           .catch(() => setGhlTagsLoading(false));
       }
     }
-
     if (ghlId) {
-      // GHL / FranchiseBook bookings — direct contact ID lookup
       setGhlContactLoading(true);
       fetch(`/api/dashboard/ghl-contact-detail?contactId=${ghlId}`)
-        .then(r => r.json())
-        .then(d => applyContact(d.contact || null))
+        .then(r => r.json()).then(d => applyContact(d.contact || null))
         .catch(() => { setGhlContact(null); setGhlContactLoading(false); });
     } else if (source === 'Calendly' && booking.email) {
-      // Calendly bookings — look up GHL contact by email
       setGhlContactLoading(true);
       fetch(`/api/dashboard/ghl-contact-detail?email=${encodeURIComponent(booking.email)}`)
-        .then(r => r.json())
-        .then(d => applyContact(d.contact || null))
+        .then(r => r.json()).then(d => applyContact(d.contact || null))
         .catch(() => { setGhlContact(null); setGhlContactLoading(false); });
     } else {
-      // No GHL contact available — still try email-based tags
-      setGhlContact(null);
-      setGhlTagsLoading(true);
+      setGhlContact(null); setGhlTagsLoading(true);
       fetch(`/api/dashboard/contact-tags?email=${encodeURIComponent(booking.email)}`)
-        .then(r => r.json())
-        .then(d => { setGhlTags(d.tags || []); setGhlTagsLoading(false); })
+        .then(r => r.json()).then(d => { setGhlTags(d.tags || []); setGhlTagsLoading(false); })
         .catch(() => setGhlTagsLoading(false));
     }
   }, [booking?.id]);
@@ -825,12 +743,8 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
   useEffect(() => {
     if (!open) {
       setShowEmail(false); setEmailSent(false); setPitchOpen(false); setBrandEditMode(false);
-      setPanelTab('info'); setTimeline([]);
-      setShowFollowUp(false); setFuSaved(false);
-      setNewTagInput('');
-      setShowTagInput(false);
-      setGhlContact(null);
-      setGhlContactLoading(false);
+      setPanelTab('info'); setTimeline([]); setShowFollowUp(false); setFuSaved(false);
+      setNewTagInput(''); setShowTagInput(false); setGhlContact(null); setGhlContactLoading(false);
     }
   }, [open]);
 
@@ -839,591 +753,260 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
     if (timeline.length > 0 || tlLoading) return;
     setTlLoading(true);
     fetch(`/api/lead-events?email=${encodeURIComponent(booking.email)}`)
-      .then(r => r.json())
-      .then(d => { setTimeline(d.events || []); setTlLoading(false); })
+      .then(r => r.json()).then(d => { setTimeline(d.events || []); setTlLoading(false); })
       .catch(() => setTlLoading(false));
   }
 
   const selectedFI = selectedIdx !== null ? interests[selectedIdx] : null;
-
   function updateInterest(idx, field, value) {
     setInterests(prev => prev.map((fi, i) => i === idx ? { ...fi, [field]: value } : fi));
-    if (field === 'developer_email' && idx === selectedIdx) {
-      setEmail(em => ({ ...em, to: value }));
-    }
+    if (field === 'developer_email' && idx === selectedIdx) setEmail(em => ({ ...em, to: value }));
   }
-
   function addBrand() {
     const newFI = { id: `fi_${Date.now()}`, brand: '', developer_name: '', developer_phone: '', developer_email: '' };
-    setInterests(prev => [...prev, newFI]);
-    setSelectedIdx(interests.length);
+    setInterests(prev => [...prev, newFI]); setSelectedIdx(interests.length);
   }
-
   function removeBrand(idx) {
     const updated = interests.filter((_, i) => i !== idx);
     setInterests(updated);
-    const nextIdx = updated.length === 0 ? null : Math.min(idx, updated.length - 1);
-    setSelectedIdx(nextIdx);
+    setSelectedIdx(updated.length === 0 ? null : Math.min(idx, updated.length - 1));
     saveInterestsToAPI(updated);
   }
-
   async function saveInterestsToAPI(data) {
     if (!lead || isDemo) return;
-    await fetch('/api/dashboard/update-lead', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: lead.id, franchise_interests: data }),
-    }).catch(console.error);
+    await fetch('/api/dashboard/update-lead', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: lead.id, franchise_interests: data }) }).catch(console.error);
   }
-
   async function saveBrand() {
-    setBrandSaving(true);
-    await saveInterestsToAPI(interests);
-    setBrandSaving(false);
-    setBrandSaved(true);
-    setTimeout(() => setBrandSaved(false), 2000);
+    setBrandSaving(true); await saveInterestsToAPI(interests); setBrandSaving(false);
+    setBrandSaved(true); setTimeout(() => setBrandSaved(false), 2000);
   }
-
   async function saveNotes() {
     if (!lead || isDemo) { setNotesSaved(true); setTimeout(() => setNotesSaved(false), 2000); return; }
     setNotesSaving(true);
-    await fetch('/api/dashboard/update-lead', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: lead.id, notes }),
-    }).catch(console.error);
-    setNotesSaving(false);
-    setNotesSaved(true);
-    setTimeout(() => setNotesSaved(false), 2000);
+    await fetch('/api/dashboard/update-lead', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: lead.id, notes }) }).catch(console.error);
+    setNotesSaving(false); setNotesSaved(true); setTimeout(() => setNotesSaved(false), 2000);
   }
-
-  function sendEmail() {
-    console.log('[email] sending to:', email.to, 'subject:', email.subject);
-    setEmailSent(true);
-    setTimeout(() => { setEmailSent(false); setShowEmail(false); }, 2500);
-  }
-
+  function sendEmail() { setEmailSent(true); setTimeout(() => { setEmailSent(false); setShowEmail(false); }, 2500); }
   async function sendCQ() {
     if (isDemo) { setCqSent(true); return; }
     setCqSent(true);
-    await fetch('/api/dashboard/send-cq', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ bookingId: booking.id, email: booking.email, assigned_user_id: booking.assigned_user_id || null }),
-    }).catch(console.error);
+    await fetch('/api/dashboard/send-cq', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: booking.id, email: booking.email, assigned_user_id: booking.assigned_user_id || null }) }).catch(console.error);
   }
-
   async function markCQReceived() {
     if (isDemo) { setCqReceived(true); return; }
     setCqRecvSaving(true);
-    await fetch('/api/dashboard/mark-cq-received', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ bookingId: booking.id, email: booking.email }),
-    }).catch(console.error);
-    setCqReceived(true);
-    setCqRecvSaving(false);
+    await fetch('/api/dashboard/mark-cq-received', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: booking.id, email: booking.email }) }).catch(console.error);
+    setCqReceived(true); setCqRecvSaving(false);
   }
-
-  // ── GHL tag handlers ────────────────────────────────────────────────────────
   async function addTag(tag) {
-    const clean = tag.trim();
-    if (!clean || ghlTags.includes(clean)) return;
-    setTagSaving(true);
-    setGhlTags(prev => [...prev, clean]);
-    setNewTagInput('');
-    if (!isDemo) {
-      await fetch('/api/dashboard/contact-tags', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: booking.email, tags: [clean] }),
-      }).catch(console.error);
-    }
+    const clean = tag.trim(); if (!clean || ghlTags.includes(clean)) return;
+    setTagSaving(true); setGhlTags(prev => [...prev, clean]); setNewTagInput('');
+    if (!isDemo) await fetch('/api/dashboard/contact-tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: booking.email, tags: [clean] }) }).catch(console.error);
     setTagSaving(false);
   }
-
   async function removeTag(tag) {
     setGhlTags(prev => prev.filter(t => t !== tag));
-    if (!isDemo) {
-      await fetch('/api/dashboard/contact-tags', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: booking.email, tags: [tag] }),
-      }).catch(console.error);
-    }
+    if (!isDemo) await fetch('/api/dashboard/contact-tags', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: booking.email, tags: [tag] }) }).catch(console.error);
   }
-
-  // ── Follow-up handler ────────────────────────────────────────────────────────
   async function saveFollowUp() {
     setFuSaving(true);
-    if (!isDemo) {
-      await fetch('/api/dashboard/schedule-followup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          booking_id: booking.id,
-          email:      booking.email,
-          follow_up_date: fuDate,
-          note:        fuNote || null,
-          temperature: fuTemp,
-        }),
-      }).catch(console.error);
-    }
-    setFuSaving(false);
-    setFuSaved(true);
-    setTimeout(() => { setFuSaved(false); setShowFollowUp(false); }, 2200);
+    if (!isDemo) await fetch('/api/dashboard/schedule-followup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ booking_id: booking.id, email: booking.email, follow_up_date: fuDate, note: fuNote || null, temperature: fuTemp }) }).catch(console.error);
+    setFuSaving(false); setFuSaved(true); setTimeout(() => { setFuSaved(false); setShowFollowUp(false); }, 2200);
   }
 
-  const raw = lead?.raw_fields
-    ? (typeof lead.raw_fields === 'string' ? JSON.parse(lead.raw_fields) : lead.raw_fields)
-    : {};
+  const raw = lead?.raw_fields ? (typeof lead.raw_fields === 'string' ? JSON.parse(lead.raw_fields) : lead.raw_fields) : {};
   const cf = ghlContact?.custom_fields || {};
-  const liquidCapital = getField(raw, 'liquid_capital', 'liquid capital')
-    || cf['Liquid Cash'] || cf['Cash Available'] || null;
-  const ownedBusiness = getField(raw, 'owned_business', 'owned or managed', 'managed a business', 'business before')
-    || cf['Owned Business'] || null;
-
-  // Territory / area of interest — structured if we have city/state, otherwise raw
+  const liquidCapital = getField(raw, 'liquid_capital', 'liquid capital') || cf['Liquid Cash'] || cf['Cash Available'] || null;
+  const ownedBusiness = getField(raw, 'owned_business', 'owned or managed', 'managed a business', 'business before') || cf['Owned Business'] || null;
   const territory = (() => {
-    const city     = lead?.location_city     || ghlContact?.city;
-    const state    = lead?.location_state    || ghlContact?.state;
-    const zip      = lead?.location_zip      || ghlContact?.zip;
-    const areaCode = lead?.location_area_code|| ghlContact?.area_code;
-    const locRaw   = lead?.location_raw;
-    const fbRaw    = getField(raw, 'territory', 'area_of_interest', 'interested_area')
-      || cf['Areas of Interest'] || cf['Territory Interest'];
-    if (city || state) {
-      const primary = [city, state].filter(Boolean).join(', ');
-      const sub     = zip || (areaCode ? `Area code ${areaCode}` : null);
-      return { primary, sub };
-    }
-    const fallback = locRaw || fbRaw;
-    return fallback ? { primary: fallback, sub: null } : null;
+    const city = lead?.location_city || ghlContact?.city;
+    const state = lead?.location_state || ghlContact?.state;
+    const zip = lead?.location_zip || ghlContact?.zip;
+    const areaCode = lead?.location_area_code || ghlContact?.area_code;
+    const locRaw = lead?.location_raw;
+    const fbRaw = getField(raw, 'territory', 'area_of_interest', 'interested_area') || cf['Areas of Interest'] || cf['Territory Interest'];
+    if (city || state) { const primary = [city, state].filter(Boolean).join(', '); const sub = zip || (areaCode ? `Area code ${areaCode}` : null); return { primary, sub }; }
+    const fallback = locRaw || fbRaw; return fallback ? { primary: fallback, sub: null } : null;
   })();
 
-  const meta      = STATUS_META[booking.status] || STATUS_META.scheduled;
-  const initials  = `${booking.first_name?.[0] || ''}${booking.last_name?.[0] || ''}`.toUpperCase();
-  const slot      = booking.slot_start ? new Date(booking.slot_start) : null;
-  const slotLabel = slot
-    ? slot.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) +
-      ' · ' + slot.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-    : '—';
-
-  // Pitch modal data
+  const meta = STATUS_META[booking.status] || STATUS_META.scheduled;
+  const initials = `${booking.first_name?.[0] || ''}${booking.last_name?.[0] || ''}`.toUpperCase();
+  const slot = booking.slot_start ? new Date(booking.slot_start) : null;
+  const slotLabel = slot ? slot.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ' · ' + slot.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—';
   const pitchBrands = interests.filter(fi => fi.brand && brandPitches[fi.brand]);
   const pitchFI = pitchBrands[pitchBrandIdx] || pitchBrands[0];
   const pitchText = pitchFI ? brandPitches[pitchFI.brand] : null;
 
   return (
     <>
-      {/* Backdrop */}
-      <div onClick={onClose} style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,.25)',
-        zIndex: 100, opacity: open ? 1 : 0,
-        transition: 'opacity .25s ease',
-        pointerEvents: open ? 'auto' : 'none',
-      }} />
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.2)', zIndex: 100, opacity: open ? 1 : 0, transition: 'opacity .25s', pointerEvents: open ? 'auto' : 'none' }} />
+      <div ref={panelRef} style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 440, background: '#fff', boxShadow: '-4px 0 24px rgba(0,0,0,.10)', zIndex: 101, display: 'flex', flexDirection: 'column', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform .25s cubic-bezier(.4,0,.2,1)', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" }}>
 
-      {/* Panel */}
-      <div ref={panelRef} style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0,
-        width: 440, background: '#fff',
-        boxShadow: '-4px 0 24px rgba(0,0,0,.12)',
-        zIndex: 101, display: 'flex', flexDirection: 'column',
-        transform: open ? 'translateX(0)' : 'translateX(100%)',
-        transition: 'transform .25s cubic-bezier(.4,0,.2,1)',
-        fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif",
-      }}>
-
-        {/* Panel header */}
+        {/* Header */}
         <div style={p.panelHdr}>
           <div style={p.avatar}>{initials}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={p.clientName}>{booking.first_name} {booking.last_name}</div>
-            <div style={p.clientEmail}>{booking.email}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 12, color: '#6B7280' }}>{booking.email} {booking.phone ? `· ${booking.phone}` : ''}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>
+              <SourceBadge source={booking._source_display || 'FranchiseBook'} />
               <span style={{ ...p.statusBadge, color: meta.color, background: meta.bg }}>
                 <span style={{ width: 5, height: 5, borderRadius: '50%', background: meta.dot, display: 'inline-block' }} />
                 {meta.label}
               </span>
-              {booking.health && (
-                <span style={{ ...p.statusBadge, color: booking.health.color, background: booking.health.bg }}>
-                  {booking.health.emoji} {booking.health.label} Confidence
-                </span>
-              )}
-              {booking.lead_score != null && (
-                <span style={{ fontSize: 11, color: '#6B7280' }}>
-                  Score <strong style={{ color: booking.lead_score >= 75 ? '#1A7E24' : booking.lead_score >= 50 ? '#856404' : '#C23934' }}>{booking.lead_score}</strong>
-                  {' · '}{booking.show_probability}% show prob
-                </span>
-              )}
+              {booking.health && <span style={{ ...p.statusBadge, color: booking.health.color, background: booking.health.bg }}>{booking.health.emoji} {booking.health.label}</span>}
             </div>
-            {booking._source_display === 'Calendly' && booking.event_name && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
-                <span style={{
-                  fontSize: 10, fontWeight: 700, color: '#0F766E', background: '#CCFBF1',
-                  border: '1px solid #99F6E4', borderRadius: 4, padding: '1px 6px', letterSpacing: '.02em',
-                }}>Calendly</span>
-                <span style={{ fontSize: 12, color: '#374151' }}>{booking.event_name}</span>
-              </div>
-            )}
           </div>
-          <button onClick={onClose} style={p.closeBtn} aria-label="Close">✕</button>
+          <button onClick={onClose} style={p.closeBtn}>✕</button>
         </div>
 
         {/* Tab bar */}
         <div style={p.tabBar}>
-          <button
-            style={{ ...p.panelTab, ...(panelTab === 'info' ? p.panelTabActive : {}) }}
-            onClick={() => setPanelTab('info')}
-          >Info</button>
-          <button
-            style={{ ...p.panelTab, ...(panelTab === 'timeline' ? p.panelTabActive : {}) }}
-            onClick={openTimeline}
-          >Timeline</button>
+          <button style={{ ...p.panelTab, ...(panelTab === 'info' ? p.panelTabActive : {}) }} onClick={() => setPanelTab('info')}>Info</button>
+          <button style={{ ...p.panelTab, ...(panelTab === 'timeline' ? p.panelTabActive : {}) }} onClick={openTimeline}>Timeline</button>
         </div>
 
-        {/* Scrollable body */}
+        {/* Body */}
         <div style={p.scrollBody}>
           {panelTab === 'timeline' ? (
             <TimelineView events={timeline} loading={tlLoading} bookingSource={booking.booking_source} />
           ) : loading ? (
-            <div style={p.loadingMsg}>Loading client details…</div>
+            <div style={p.loadingMsg}>Loading…</div>
           ) : (
             <>
-              {/* ── Contact ── */}
-              <PanelSection title="Contact">
-                {(() => {
-                  const phone = booking.phone || lead?.phone || ghlContact?.phone || '';
-                  return (
-                    <Row label="Phone">
-                      <a href={`tel:${phone}`} style={phone ? p.link : undefined}>{phone || '—'}</a>
-                    </Row>
-                  );
-                })()}
-                <Row label="Email">
-                  <a href={`mailto:${booking.email}`} style={p.link}>{booking.email}</a>
-                </Row>
-                {liquidCapital && (
-                  <Row label="Liquid Cap.">
-                    <span style={p.val}>{liquidCapital}</span>
-                  </Row>
+              {/* Quick Actions */}
+              <div style={p.quickActions}>
+                <div style={p.sectionTitle}>Quick Actions</div>
+                {booking.status === 'scheduled' && (
+                  <>
+                    <button style={{ ...p.qaBtn, background: '#2563EB', color: '#fff', border: 'none', marginBottom: 8 }} onClick={() => onStatusChange('showed')}>
+                      ✓ Mark Showed
+                    </button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={() => setShowFollowUp(true)}>
+                        📅 Reschedule
+                      </button>
+                      <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={() => { setPanelTab('info'); }}>
+                        + Add Note
+                      </button>
+                    </div>
+                    <button style={{ ...p.qaBtn, background: '#fff', color: '#6B7280', border: '1px solid #E5E7EB', marginTop: 8 }} onClick={() => onStatusChange('no-show')}>
+                      ··· Mark No-Show
+                    </button>
+                  </>
                 )}
-                {ownedBusiness && (
-                  <Row label="Owned Biz">
-                    <span style={p.val}>{ownedBusiness}</span>
-                  </Row>
+                {booking.status === 'showed' && (
+                  <button style={{ ...p.qaBtn, background: '#7C3AED', color: '#fff', border: 'none' }} onClick={() => onStatusChange('closed')}>
+                    🏆 Mark Closed Won
+                  </button>
                 )}
-                {territory && (
-                  <Row label="Territory">
-                    <span style={p.val}>
-                      {territory.primary}
-                      {territory.sub && (
-                        <span style={{ color: '#9CA3AF', fontSize: 11, marginLeft: 6 }}>{territory.sub}</span>
-                      )}
-                    </span>
-                  </Row>
-                )}
-
-                {/* ── CQ tracking ── */}
-                <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #F0F0F0', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <QBBtn variant="cq" onClick={sendCQ} disabled={cqSent}>
-                    {cqSent ? '✓ CQ Sent' : 'Send CQ'}
-                  </QBBtn>
-                  {cqSent && !cqReceived && (
-                    <QBBtn variant="pitch" onClick={markCQReceived} disabled={cqRecvSaving}>
-                      {cqRecvSaving ? 'Saving…' : 'Mark CQ Received'}
-                    </QBBtn>
-                  )}
-                  {cqReceived && (
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 5,
-                      padding: '4px 10px', borderRadius: 3, fontSize: 12, fontWeight: 600,
-                      color: '#15803D', background: '#DCFCE7', border: '1px solid #BBF7D0',
-                    }}>
-                      ✓ CQ Received
-                    </span>
-                  )}
-                </div>
-                {/* CQ datestamp trail */}
-                {(cqSent || cqReceived) && (
-                  <div style={{ marginTop: 8, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 11, color: '#7C3AED', fontWeight: 600 }}>CQ Sent</span>
-                    {booking.cq_sent_at && (
-                      <span style={{ fontSize: 11, color: '#9CA3AF' }}>
-                        {new Date(booking.cq_sent_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      </span>
-                    )}
-                    {cqReceived && (
-                      <>
-                        <span style={{ fontSize: 10, color: '#D1D5DB' }}>→</span>
-                        <span style={{ fontSize: 11, color: '#15803D', fontWeight: 600 }}>Received</span>
-                        <span style={{ fontSize: 11, color: '#9CA3AF' }}>
-                          {booking.cq_received_at
-                            ? new Date(booking.cq_received_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                            : new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </span>
-                      </>
-                    )}
+                {(booking.status === 'no-show' || booking.status === 'closed') && (
+                  <div style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '8px 0' }}>
+                    {booking.status === 'closed' ? '🏆 Deal closed' : 'No further actions'}
                   </div>
                 )}
+              </div>
+
+              {/* Contact */}
+              <PanelSection title="Contact">
+                {(() => { const phone = booking.phone || lead?.phone || ghlContact?.phone || ''; return <Row label="Phone"><a href={`tel:${phone}`} style={phone ? p.link : undefined}>{phone || '—'}</a></Row>; })()}
+                <Row label="Email"><a href={`mailto:${booking.email}`} style={p.link}>{booking.email}</a></Row>
+                <Row label="Scheduled"><span style={p.val}>{slotLabel}</span></Row>
+                <Row label="Consultant"><span style={p.val}>{booking.assigned_to_email || ghlContact?.owner_name || '—'}</span></Row>
+                {liquidCapital && <Row label="Liquid Cap."><span style={p.val}>{liquidCapital}</span></Row>}
+                {ownedBusiness && <Row label="Owned Biz"><span style={p.val}>{ownedBusiness}</span></Row>}
+                {territory && <Row label="Territory"><span style={p.val}>{territory.primary}{territory.sub && <span style={{ color: '#9CA3AF', fontSize: 11, marginLeft: 6 }}>{territory.sub}</span>}</span></Row>}
+                {booking.meet_link && <Row label="Meet Link"><a href={booking.meet_link} target="_blank" rel="noreferrer" style={p.link}>Join call →</a></Row>}
+
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #F0F0F0', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <QBBtn variant="cq" onClick={sendCQ} disabled={cqSent}>{cqSent ? '✓ CQ Sent' : 'Send CQ'}</QBBtn>
+                  {cqSent && !cqReceived && <QBBtn variant="pitch" onClick={markCQReceived} disabled={cqRecvSaving}>{cqRecvSaving ? 'Saving…' : 'Mark CQ Received'}</QBBtn>}
+                  {cqReceived && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 3, fontSize: 12, fontWeight: 600, color: '#15803D', background: '#DCFCE7', border: '1px solid #BBF7D0' }}>✓ CQ Received</span>}
+                </div>
               </PanelSection>
 
-              {/* ── GHL Tags ── */}
+              {/* GHL Tags */}
               <PanelSection title="GHL Tags">
-                {ghlTagsLoading ? (
-                  <div style={{ fontSize: 12, color: '#9CA3AF' }}>Loading tags…</div>
-                ) : (
+                {ghlTagsLoading ? <div style={{ fontSize: 12, color: '#9CA3AF' }}>Loading tags…</div> : (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-                    {/* Existing tag chips */}
                     {ghlTags.map(tag => (
-                      <span key={tag} style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 2,
-                        background: '#EEF2FF', border: '1px solid #C7D2FE',
-                        color: '#3730A3', borderRadius: 20,
-                        padding: '2px 6px 2px 10px', fontSize: 11, fontWeight: 500,
-                      }}>
+                      <span key={tag} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, background: '#EEF2FF', border: '1px solid #C7D2FE', color: '#3730A3', borderRadius: 20, padding: '2px 6px 2px 10px', fontSize: 11, fontWeight: 500 }}>
                         {tag}
-                        <button onClick={() => removeTag(tag)} style={{
-                          background: 'none', border: 'none', color: '#818CF8',
-                          cursor: 'pointer', fontSize: 15, lineHeight: 1,
-                          padding: '0 2px', fontFamily: 'inherit',
-                        }}>×</button>
+                        <button onClick={() => removeTag(tag)} style={{ background: 'none', border: 'none', color: '#818CF8', cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: '0 2px', fontFamily: 'inherit' }}>×</button>
                       </span>
                     ))}
-
-                    {/* + bubble shown when input is closed */}
-                    {!showTagInput && (
-                      <button
-                        onClick={() => setShowTagInput(true)}
-                        style={{
-                          width: 26, height: 26, borderRadius: '50%',
-                          border: '1.5px dashed #CBD5E1', background: 'transparent',
-                          color: '#9CA3AF', cursor: 'pointer', fontSize: 16, lineHeight: '1',
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          fontFamily: 'inherit', padding: 0, flexShrink: 0,
-                        }}
-                        title="Add tag"
-                      >+</button>
-                    )}
-
-                    {/* Input row shown when + was clicked */}
+                    {!showTagInput && <button onClick={() => setShowTagInput(true)} style={{ width: 26, height: 26, borderRadius: '50%', border: '1.5px dashed #CBD5E1', background: 'transparent', color: '#9CA3AF', cursor: 'pointer', fontSize: 16, lineHeight: '1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', padding: 0 }} title="Add tag">+</button>}
                     {showTagInput && (
                       <div style={{ display: 'flex', gap: 5, alignItems: 'center', width: '100%', marginTop: 4 }}>
-                        <input
-                          autoFocus
-                          style={{ ...p.input, flex: 1, padding: '4px 8px', fontSize: 12 }}
-                          placeholder="Tag name…"
-                          value={newTagInput}
-                          onChange={e => setNewTagInput(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' && newTagInput.trim()) { addTag(newTagInput); setShowTagInput(false); setNewTagInput(''); }
-                            if (e.key === 'Escape') { setNewTagInput(''); setShowTagInput(false); }
-                          }}
-                        />
-                        <button
-                          onClick={() => { if (newTagInput.trim()) { addTag(newTagInput); setNewTagInput(''); } setShowTagInput(false); }}
-                          disabled={tagSaving}
-                          style={{ ...p.editBtn, fontSize: 11, padding: '4px 10px', opacity: !newTagInput.trim() ? 0.5 : 1 }}
-                        >
-                          {tagSaving ? '…' : 'Add'}
-                        </button>
-                        <button
-                          onClick={() => { setNewTagInput(''); setShowTagInput(false); }}
-                          style={{ ...p.cancelEditBtn, fontSize: 11, padding: '4px 8px' }}
-                        >✕</button>
+                        <input autoFocus style={{ ...p.input, flex: 1, padding: '4px 8px', fontSize: 12 }} placeholder="Tag name…" value={newTagInput} onChange={e => setNewTagInput(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter' && newTagInput.trim()) { addTag(newTagInput); setShowTagInput(false); setNewTagInput(''); } if (e.key === 'Escape') { setNewTagInput(''); setShowTagInput(false); } }} />
+                        <button onClick={() => { if (newTagInput.trim()) { addTag(newTagInput); setNewTagInput(''); } setShowTagInput(false); }} disabled={tagSaving} style={{ ...p.editBtn, fontSize: 11, padding: '4px 10px' }}>{tagSaving ? '…' : 'Add'}</button>
+                        <button onClick={() => { setNewTagInput(''); setShowTagInput(false); }} style={{ ...p.cancelEditBtn, fontSize: 11, padding: '4px 8px' }}>✕</button>
                       </div>
                     )}
                   </div>
                 )}
               </PanelSection>
 
-              {/* ── Booking ── */}
-              <PanelSection title="Booking">
-                <Row label="Scheduled">
-                  <span style={p.val}>{slotLabel}</span>
-                </Row>
-                <Row label="Consultant">
-                  <span style={p.val}>{booking.assigned_to_email || ghlContact?.owner_name || '—'}</span>
-                </Row>
-                {booking.meet_link && (
-                  <Row label="Meet">
-                    <a href={booking.meet_link} target="_blank" rel="noreferrer" style={p.link}>Join call →</a>
-                  </Row>
-                )}
-                <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                  {booking.status === 'scheduled' && (
-                    <>
-                      <QBBtn variant="warning" onClick={() => onStatusChange('showed')}>Mark Showed</QBBtn>
-                      <QBBtn variant="danger"  onClick={() => onStatusChange('no-show')}>Mark No-Show</QBBtn>
-                      <QBBtn variant="followup" onClick={() => setShowFollowUp(true)}>Follow Up</QBBtn>
-                    </>
-                  )}
-                  {booking.status === 'showed' && (
-                    <QBBtn variant="primary" onClick={() => onStatusChange('closed')}>Mark Closed Won</QBBtn>
-                  )}
-                </div>
-              </PanelSection>
-
-              {/* ── Franchise Brands ── */}
+              {/* Franchise Brands */}
               <PanelSection title="Franchise Brands">
-                {/* Brand chips */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: interests.length > 0 ? 14 : 0 }}>
                   {interests.map((fi, i) => (
-                    <div key={fi.id || i} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-                      <button
-                        onClick={() => { setSelectedIdx(i); setBrandEditMode(false); }}
-                        style={selectedIdx === i ? p.brandChipActive : p.brandChip}
-                      >
-                        {fi.brand || <em style={{ opacity: 0.6 }}>New Brand</em>}
-                      </button>
-                      <button
-                        onClick={() => removeBrand(i)}
-                        style={p.brandChipX}
-                        title="Remove"
-                      >×</button>
+                    <div key={fi.id || i} style={{ display: 'flex', alignItems: 'center' }}>
+                      <button onClick={() => { setSelectedIdx(i); setBrandEditMode(false); }} style={selectedIdx === i ? p.brandChipActive : p.brandChip}>{fi.brand || <em style={{ opacity: 0.6 }}>New Brand</em>}</button>
+                      <button onClick={() => removeBrand(i)} style={p.brandChipX} title="Remove">×</button>
                     </div>
                   ))}
                   <button onClick={addBrand} style={p.addBrandBtn}>+ Brand</button>
                 </div>
-
-                {/* Selected brand detail */}
                 {selectedFI && (
                   <div style={p.brandCard}>
-                    {/* Card header row: brand name + action buttons */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#1A2B3C' }}>
-                        {selectedFI.brand || <em style={{ color: '#9CA3AF', fontWeight: 400 }}>Unnamed brand</em>}
-                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#1A2B3C' }}>{selectedFI.brand || <em style={{ color: '#9CA3AF', fontWeight: 400 }}>Unnamed brand</em>}</div>
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <button
-                          onClick={() => { setPitchBrandIdx(interests.indexOf(selectedFI)); setPitchOpen(true); }}
-                          style={{ ...p.editBtn, color: '#1A7E24', borderColor: '#A8D5AA', background: '#E3F4E5' }}
-                        >
-                          📞 Brand Pitch
-                        </button>
-                        {!brandEditMode
-                          ? <button onClick={() => setBrandEditMode(true)} style={p.editBtn}>Edit</button>
-                          : <>
-                              <button onClick={async () => { await saveBrand(); setBrandEditMode(false); }}
-                                disabled={brandSaving}
-                                style={{ ...p.saveEditBtn, background: brandSaved ? '#2CA01C' : '#0077C5' }}>
-                                {brandSaving ? 'Saving…' : brandSaved ? '✓' : 'Save'}
-                              </button>
-                              <button onClick={() => setBrandEditMode(false)} style={p.cancelEditBtn}>Cancel</button>
-                            </>
-                        }
+                        <button onClick={() => { setPitchBrandIdx(interests.indexOf(selectedFI)); setPitchOpen(true); }} style={{ ...p.editBtn, color: '#1A7E24', borderColor: '#A8D5AA', background: '#E3F4E5' }}>📞 Brand Pitch</button>
+                        {!brandEditMode ? <button onClick={() => setBrandEditMode(true)} style={p.editBtn}>Edit</button>
+                          : <><button onClick={async () => { await saveBrand(); setBrandEditMode(false); }} disabled={brandSaving} style={{ ...p.saveEditBtn, background: brandSaved ? '#2CA01C' : '#0077C5' }}>{brandSaving ? 'Saving…' : brandSaved ? '✓' : 'Save'}</button><button onClick={() => setBrandEditMode(false)} style={p.cancelEditBtn}>Cancel</button></>}
                       </div>
                     </div>
-
-                    {/* Brand / concept field */}
-                    {brandEditMode ? (
-                      <div style={{ marginBottom: 10 }}>
-                        <label style={p.editLabel}>Brand / Concept</label>
-                        <input style={p.input} placeholder="e.g. Wet Fuel"
-                          value={selectedFI.brand || ''}
-                          onChange={e => updateInterest(selectedIdx, 'brand', e.target.value)} />
-                      </div>
-                    ) : null}
-
-                    {/* Developer info */}
                     <div style={p.fieldGroupLabel}>Developer</div>
                     {brandEditMode ? (
                       <>
-                        <div style={{ marginBottom: 8 }}>
-                          <input style={p.input} placeholder="Developer name"
-                            value={selectedFI.developer_name || ''}
-                            onChange={e => updateInterest(selectedIdx, 'developer_name', e.target.value)} />
-                        </div>
-                        <div style={{ marginBottom: 8 }}>
-                          <input style={p.input} placeholder="(555) 000-0000"
-                            value={selectedFI.developer_phone || ''}
-                            onChange={e => updateInterest(selectedIdx, 'developer_phone', e.target.value)} />
-                        </div>
-                        <div style={{ marginBottom: 4 }}>
-                          <input style={p.input} placeholder="developer@brand.com"
-                            value={selectedFI.developer_email || ''}
-                            onChange={e => updateInterest(selectedIdx, 'developer_email', e.target.value)} />
-                        </div>
+                        <div style={{ marginBottom: 8 }}><input style={p.input} placeholder="e.g. Wet Fuel" value={selectedFI.brand || ''} onChange={e => updateInterest(selectedIdx, 'brand', e.target.value)} /></div>
+                        <div style={{ marginBottom: 8 }}><input style={p.input} placeholder="Developer name" value={selectedFI.developer_name || ''} onChange={e => updateInterest(selectedIdx, 'developer_name', e.target.value)} /></div>
+                        <div style={{ marginBottom: 8 }}><input style={p.input} placeholder="(555) 000-0000" value={selectedFI.developer_phone || ''} onChange={e => updateInterest(selectedIdx, 'developer_phone', e.target.value)} /></div>
+                        <div><input style={p.input} placeholder="developer@brand.com" value={selectedFI.developer_email || ''} onChange={e => updateInterest(selectedIdx, 'developer_email', e.target.value)} /></div>
                       </>
                     ) : (
                       <>
-                        <Row label="Name">
-                          <span style={p.val}>{selectedFI.developer_name || <em style={{ color: '#9CA3AF' }}>Not set</em>}</span>
-                        </Row>
-                        <Row label="Phone">
-                          {selectedFI.developer_phone
-                            ? <a href={`tel:${selectedFI.developer_phone}`} style={p.link}>{selectedFI.developer_phone}</a>
-                            : <em style={{ color: '#9CA3AF', fontSize: 13 }}>Not set</em>}
-                        </Row>
-                        <Row label="Email">
-                          {selectedFI.developer_email
-                            ? <a href={`mailto:${selectedFI.developer_email}`} style={p.link}>{selectedFI.developer_email}</a>
-                            : <em style={{ color: '#9CA3AF', fontSize: 13 }}>Not set</em>}
-                        </Row>
+                        <Row label="Name"><span style={p.val}>{selectedFI.developer_name || <em style={{ color: '#9CA3AF' }}>Not set</em>}</span></Row>
+                        <Row label="Phone">{selectedFI.developer_phone ? <a href={`tel:${selectedFI.developer_phone}`} style={p.link}>{selectedFI.developer_phone}</a> : <em style={{ color: '#9CA3AF', fontSize: 13 }}>Not set</em>}</Row>
+                        <Row label="Email">{selectedFI.developer_email ? <a href={`mailto:${selectedFI.developer_email}`} style={p.link}>{selectedFI.developer_email}</a> : <em style={{ color: '#9CA3AF', fontSize: 13 }}>Not set</em>}</Row>
                       </>
                     )}
                   </div>
                 )}
-
-                {!selectedFI && interests.length === 0 && (
-                  <div style={{ color: '#9CA3AF', fontSize: 13, marginBottom: 8 }}>
-                    No brands added yet — click + Brand to add one.
-                  </div>
-                )}
-
-                {/* Email developer */}
-                {selectedFI?.developer_email && (
-                  <button onClick={() => setShowEmail(v => !v)} style={p.emailToggleBtn}>
-                    ✉️ {showEmail ? 'Hide email' : 'Email developer'}
-                  </button>
-                )}
-
+                {!selectedFI && interests.length === 0 && <div style={{ color: '#9CA3AF', fontSize: 13, marginBottom: 8 }}>No brands added yet — click + Brand to add one.</div>}
+                {selectedFI?.developer_email && <button onClick={() => setShowEmail(v => !v)} style={p.emailToggleBtn}>✉️ {showEmail ? 'Hide email' : 'Email developer'}</button>}
                 {showEmail && selectedFI && (
                   <div style={p.emailBox}>
                     <div style={p.emailHeader}>New Email</div>
-                    <div style={p.emailField}>
-                      <span style={p.emailLabel}>To</span>
-                      <input style={p.emailInput} value={email.to}
-                        onChange={e => setEmail(em => ({ ...em, to: e.target.value }))}
-                        placeholder="developer@brand.com" />
-                    </div>
-                    <div style={p.emailField}>
-                      <span style={p.emailLabel}>Subject</span>
-                      <input style={p.emailInput} value={email.subject}
-                        onChange={e => setEmail(em => ({ ...em, subject: e.target.value }))}
-                        placeholder={`Re: ${booking.first_name} ${booking.last_name}`} />
-                    </div>
-                    <textarea style={p.emailBody} rows={5} value={email.body}
-                      onChange={e => setEmail(em => ({ ...em, body: e.target.value }))}
-                      placeholder={`Hi ${selectedFI.developer_name || 'there'},\n\nI wanted to follow up regarding ${booking.first_name} ${booking.last_name}…`}
-                    />
+                    <div style={p.emailField}><span style={p.emailLabel}>To</span><input style={p.emailInput} value={email.to} onChange={e => setEmail(em => ({ ...em, to: e.target.value }))} placeholder="developer@brand.com" /></div>
+                    <div style={p.emailField}><span style={p.emailLabel}>Subject</span><input style={p.emailInput} value={email.subject} onChange={e => setEmail(em => ({ ...em, subject: e.target.value }))} placeholder={`Re: ${booking.first_name} ${booking.last_name}`} /></div>
+                    <textarea style={p.emailBody} rows={5} value={email.body} onChange={e => setEmail(em => ({ ...em, body: e.target.value }))} placeholder={`Hi ${selectedFI.developer_name || 'there'},\n\nI wanted to follow up…`} />
                     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                      <button onClick={sendEmail} disabled={!email.to || emailSent}
-                        style={{ ...p.actionBtn, background: emailSent ? '#2CA01C' : '#0077C5', opacity: !email.to ? 0.5 : 1 }}>
-                        {emailSent ? '✓ Sent!' : 'Send Email'}
-                      </button>
+                      <button onClick={sendEmail} disabled={!email.to || emailSent} style={{ ...p.actionBtn, background: emailSent ? '#2CA01C' : '#0077C5', opacity: !email.to ? 0.5 : 1 }}>{emailSent ? '✓ Sent!' : 'Send Email'}</button>
                       <button onClick={() => setShowEmail(false)} style={p.cancelBtn}>Cancel</button>
                     </div>
-                    {isDemo && (
-                      <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>
-                        Email integration coming soon — connect Resend to activate.
-                      </p>
-                    )}
                   </div>
                 )}
               </PanelSection>
 
-              {/* ── Notes ── */}
+              {/* Notes */}
               <PanelSection title="Notes" bg="#FFFEF5">
-                <textarea style={{ ...p.notesArea, background: '#FFFDF0' }} rows={5}
-                  value={notes}
-                  placeholder="Add notes about this client…"
-                  onChange={e => setNotes(e.target.value)}
-                />
+                <textarea style={{ ...p.notesArea, background: '#FFFDF0' }} rows={5} value={notes} placeholder="Add notes about this client…" onChange={e => setNotes(e.target.value)} />
                 <div style={{ marginTop: 10 }}>
-                  <button onClick={saveNotes} disabled={notesSaving}
-                    style={{ ...p.actionBtn, background: notesSaved ? '#2CA01C' : '#0077C5' }}>
-                    {notesSaving ? 'Saving…' : notesSaved ? '✓ Saved' : 'Save Notes'}
-                  </button>
+                  <button onClick={saveNotes} disabled={notesSaving} style={{ ...p.actionBtn, background: notesSaved ? '#2CA01C' : '#0077C5' }}>{notesSaving ? 'Saving…' : notesSaved ? '✓ Saved' : 'Save Notes'}</button>
                 </div>
               </PanelSection>
             </>
@@ -1431,67 +1014,22 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
         </div>
       </div>
 
-      {/* ── Follow-up Modal ── */}
-      {showFollowUp && (
-        <FollowUpModal
-          booking={booking}
-          fuDate={fuDate}       setFuDate={setFuDate}
-          fuNote={fuNote}       setFuNote={setFuNote}
-          fuTemp={fuTemp}       setFuTemp={setFuTemp}
-          fuSaving={fuSaving}   fuSaved={fuSaved}
-          onSave={saveFollowUp}
-          onClose={() => setShowFollowUp(false)}
-        />
-      )}
+      {showFollowUp && <FollowUpModal booking={booking} fuDate={fuDate} setFuDate={setFuDate} fuNote={fuNote} setFuNote={setFuNote} fuTemp={fuTemp} setFuTemp={setFuTemp} fuSaving={fuSaving} fuSaved={fuSaved} onSave={saveFollowUp} onClose={() => setShowFollowUp(false)} />}
 
-      {/* ── Brand Pitch Modal ── */}
       {pitchOpen && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)',
-          zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 24,
-        }} onClick={() => setPitchOpen(false)}>
-          <div style={{
-            background: '#fff', borderRadius: 6, width: '100%', maxWidth: 520,
-            boxShadow: '0 8px 40px rgba(0,0,0,.2)',
-            fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif",
-          }} onClick={e => e.stopPropagation()}>
-            {/* Modal header */}
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={() => setPitchOpen(false)}>
+          <div style={{ background: '#fff', borderRadius: 6, width: '100%', maxWidth: 520, boxShadow: '0 8px 40px rgba(0,0,0,.2)', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #EBEBEB' }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 600, color: '#1A2B3C' }}>📞 Phone Pitch</div>
-                {/* Brand tabs if multiple pitches */}
-                {pitchBrands.length > 1 && (
-                  <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                    {pitchBrands.map((fi, i) => (
-                      <button key={fi.id} onClick={() => setPitchBrandIdx(i)}
-                        style={i === pitchBrandIdx ? p.brandChipActive : p.brandChip}>
-                        {fi.brand}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {pitchBrands.length > 1 && <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>{pitchBrands.map((fi, i) => <button key={fi.id} onClick={() => setPitchBrandIdx(i)} style={i === pitchBrandIdx ? p.brandChipActive : p.brandChip}>{fi.brand}</button>)}</div>}
                 {pitchFI && <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>{pitchFI.brand}</div>}
               </div>
               <button onClick={() => setPitchOpen(false)} style={p.closeBtn}>✕</button>
             </div>
-            {/* Pitch body */}
             <div style={{ padding: '20px', maxHeight: '60vh', overflowY: 'auto' }}>
-              {pitchText ? (
-                <div style={{ fontSize: 14, color: '#1A2B3C', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
-                  {pitchText}
-                </div>
-              ) : (
-                <div style={{ fontSize: 13, color: '#6B7280', textAlign: 'center', padding: '20px 0' }}>
-                  {interests.length === 0
-                    ? 'No brands added to this lead yet.'
-                    : `No pitch configured for ${interests[selectedIdx]?.brand || 'this brand'}.`}
-                  <br />
-                  <a href="/dashboard" style={{ color: '#0077C5', textDecoration: 'none', marginTop: 8, display: 'inline-block' }}>
-                    Set up pitches in Settings →
-                  </a>
-                </div>
-              )}
+              {pitchText ? <div style={{ fontSize: 14, color: '#1A2B3C', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{pitchText}</div>
+                : <div style={{ fontSize: 13, color: '#6B7280', textAlign: 'center', padding: '20px 0' }}>No pitch configured.<br /><a href="/dashboard" style={{ color: '#0077C5', textDecoration: 'none' }}>Set up pitches in Settings →</a></div>}
             </div>
           </div>
         </div>
@@ -1500,45 +1038,20 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
   );
 }
 
-// ─── Follow-up Modal ─────────────────────────────────────────────────────────
-
+// ─── Follow-up Modal ──────────────────────────────────────────────────────────
 const TEMP_LABELS = ['', 'Cold', 'Cool', 'Warm', 'Hot', 'On Fire'];
 const TEMP_COLORS = ['', '#60A5FA', '#22D3EE', '#F59E0B', '#F97316', '#EF4444'];
 const TEMP_BG     = ['', '#EFF6FF', '#ECFEFF', '#FFFBEB', '#FFF7ED', '#FEF2F2'];
 
 function FollowUpModal({ booking, fuDate, setFuDate, fuNote, setFuNote, fuTemp, setFuTemp, fuSaving, fuSaved, onSave, onClose }) {
   const today = new Date().toISOString().split('T')[0];
-
   return (
-    <div
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
-        zIndex: 210, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 24,
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          background: '#fff', borderRadius: 8, width: '100%', maxWidth: 440,
-          boxShadow: '0 12px 48px rgba(0,0,0,.22)',
-          fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif",
-          overflow: 'hidden',
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 210, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 8, width: '100%', maxWidth: 440, boxShadow: '0 12px 48px rgba(0,0,0,.22)', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif", overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #EBEBEB' }}>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#1A2B3C' }}>Schedule Follow-up</div>
-            <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
-              {booking.first_name} {booking.last_name} · {booking.email}
-            </div>
-          </div>
+          <div><div style={{ fontSize: 15, fontWeight: 700, color: '#1A2B3C' }}>Schedule Follow-up</div><div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{booking.first_name} {booking.last_name} · {booking.email}</div></div>
           <button onClick={onClose} style={p.closeBtn}>✕</button>
         </div>
-
-        {/* Body */}
         <div style={{ padding: '20px 24px 24px' }}>
           {fuSaved ? (
             <div style={{ textAlign: 'center', padding: '32px 0' }}>
@@ -1548,69 +1061,17 @@ function FollowUpModal({ booking, fuDate, setFuDate, fuNote, setFuNote, fuTemp, 
             </div>
           ) : (
             <>
-              {/* Date */}
-              <div style={{ marginBottom: 18 }}>
-                <label style={p.editLabel}>Follow-up Date</label>
-                <input
-                  type="date"
-                  min={today}
-                  style={{ ...p.input, marginTop: 5, fontSize: 14 }}
-                  value={fuDate}
-                  onChange={e => setFuDate(e.target.value)}
-                />
-              </div>
-
-              {/* Temperature — star rating */}
+              <div style={{ marginBottom: 18 }}><label style={p.editLabel}>Follow-up Date</label><input type="date" min={today} style={{ ...p.input, marginTop: 5, fontSize: 14 }} value={fuDate} onChange={e => setFuDate(e.target.value)} /></div>
               <div style={{ marginBottom: 18 }}>
                 <label style={p.editLabel}>Likelihood to Engage</label>
                 <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'center' }}>
-                  {[1, 2, 3, 4, 5].map(n => (
-                    <button key={n} onClick={() => setFuTemp(n)} style={{
-                      background: 'none', border: 'none', cursor: 'pointer',
-                      fontSize: 30, lineHeight: 1, padding: '0 2px',
-                      color: fuTemp >= n ? TEMP_COLORS[fuTemp] : '#D1D5DB',
-                      transition: 'color .12s, transform .1s',
-                      transform: fuTemp === n ? 'scale(1.2)' : 'scale(1)',
-                    }}>★</button>
-                  ))}
+                  {[1,2,3,4,5].map(n => <button key={n} onClick={() => setFuTemp(n)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 30, lineHeight: 1, padding: '0 2px', color: fuTemp >= n ? TEMP_COLORS[fuTemp] : '#D1D5DB', transition: 'color .12s, transform .1s', transform: fuTemp === n ? 'scale(1.2)' : 'scale(1)' }}>★</button>)}
                 </div>
-                <div style={{
-                  marginTop: 6, textAlign: 'center', fontSize: 12, fontWeight: 700,
-                  color: TEMP_COLORS[fuTemp],
-                  background: TEMP_BG[fuTemp],
-                  borderRadius: 20, padding: '3px 12px', display: 'inline-block',
-                  margin: '6px auto 0', width: '100%',
-                }}>
-                  {TEMP_LABELS[fuTemp]}
-                </div>
+                <div style={{ marginTop: 6, textAlign: 'center', fontSize: 12, fontWeight: 700, color: TEMP_COLORS[fuTemp], background: TEMP_BG[fuTemp], borderRadius: 20, padding: '3px 12px', display: 'inline-block', margin: '6px auto 0', width: '100%' }}>{TEMP_LABELS[fuTemp]}</div>
               </div>
-
-              {/* Note */}
-              <div style={{ marginBottom: 22 }}>
-                <label style={p.editLabel}>Why follow up?</label>
-                <textarea
-                  style={{ ...p.notesArea, marginTop: 5, fontSize: 13 }}
-                  rows={3}
-                  placeholder="e.g. Wants to revisit after talking to spouse. Interested in multi-unit Pilates Addiction."
-                  value={fuNote}
-                  onChange={e => setFuNote(e.target.value)}
-                />
-              </div>
-
-              {/* Actions */}
+              <div style={{ marginBottom: 22 }}><label style={p.editLabel}>Why follow up?</label><textarea style={{ ...p.notesArea, marginTop: 5, fontSize: 13 }} rows={3} placeholder="e.g. Wants to revisit after talking to spouse." value={fuNote} onChange={e => setFuNote(e.target.value)} /></div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  onClick={onSave}
-                  disabled={!fuDate || fuSaving}
-                  style={{
-                    ...p.actionBtn,
-                    flex: 1,
-                    background: !fuDate ? '#9CA3AF' : '#0077C5',
-                    cursor: !fuDate ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {fuSaving ? 'Scheduling…' : 'Schedule Follow-up'}
-                </button>
+                <button onClick={onSave} disabled={!fuDate || fuSaving} style={{ ...p.actionBtn, flex: 1, background: !fuDate ? '#9CA3AF' : '#0077C5', cursor: !fuDate ? 'not-allowed' : 'pointer' }}>{fuSaving ? 'Scheduling…' : 'Schedule Follow-up'}</button>
                 <button onClick={onClose} style={p.cancelBtn}>Cancel</button>
               </div>
             </>
@@ -1621,52 +1082,23 @@ function FollowUpModal({ booking, fuDate, setFuDate, fuNote, setFuNote, fuTemp, 
   );
 }
 
-// ─── Panel helper components ──────────────────────────────────────────────────
-
-function PanelSection({ title, bg, editMode, onEdit, onSave, onCancel, saving, saved, children }) {
-  const hasEdit = onEdit !== undefined;
+// ─── Panel helpers ────────────────────────────────────────────────────────────
+function PanelSection({ title, bg, children }) {
   return (
     <div style={{ ...p.section, ...(bg ? { background: bg } : {}) }}>
-      <div style={p.sectionHdrRow}>
-        <div style={p.sectionTitle}>{title}</div>
-        {hasEdit && !editMode && (
-          <button onClick={onEdit} style={p.editBtn}>Edit</button>
-        )}
-        {hasEdit && editMode && (
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={onSave} disabled={saving}
-              style={{ ...p.saveEditBtn, background: saved ? '#2CA01C' : '#0077C5' }}>
-              {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save'}
-            </button>
-            <button onClick={onCancel} style={p.cancelEditBtn}>Cancel</button>
-          </div>
-        )}
-      </div>
+      <div style={p.sectionTitle}>{title}</div>
       {children}
     </div>
   );
 }
-
 function Row({ label, children }) {
-  return (
-    <div style={p.row}>
-      {label && <span style={p.rowLabel}>{label}</span>}
-      <span style={p.rowVal}>{children}</span>
-    </div>
-  );
+  return <div style={p.row}>{label && <span style={p.rowLabel}>{label}</span>}<span style={p.rowVal}>{children}</span></div>;
 }
-
 function EditRow({ label, children }) {
-  return (
-    <div style={p.editRow}>
-      <label style={p.editLabel}>{label}</label>
-      {children}
-    </div>
-  );
+  return <div style={{ marginBottom: 10 }}><label style={p.editLabel}>{label}</label>{children}</div>;
 }
 
-// ─── Timeline View ────────────────────────────────────────────────────────────
-
+// ─── Timeline ─────────────────────────────────────────────────────────────────
 const EVENT_META = {
   lead_submitted:            { label: 'Lead Submitted',            color: '#9CA3AF' },
   ghl_contact_created:       { label: 'CRM Contact Created',       color: '#9CA3AF' },
@@ -1685,73 +1117,32 @@ const EVENT_META = {
   appointment_no_show:       { label: 'No Show',                   color: '#DC2626' },
   opportunity_closed:        { label: 'Deal Closed',               color: '#7C3AED' },
 };
-
-const SOURCE_LABELS = {
-  direct:        '🌐 Direct',
-  facebook_lead: '📘 Facebook Lead',
-  closebot:      '🤖 CloseBot',
-  sms:           '💬 SMS',
-  email:         '📧 Email',
-  retargeting:   '🎯 Retargeting',
-  calendly:      '📅 Calendly',
-  gohighlevel:   '📋 GoHighLevel',
-};
+const SOURCE_LABELS = { direct: '🌐 Direct', facebook_lead: '📘 Facebook Lead', closebot: '🤖 CloseBot', sms: '💬 SMS', email: '📧 Email', retargeting: '🎯 Retargeting', calendly: '📅 Calendly', gohighlevel: '📋 GoHighLevel' };
 
 function TimelineView({ events, loading, bookingSource }) {
-  if (loading) {
-    return <div style={{ padding: 24, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>Loading timeline…</div>;
-  }
-
+  if (loading) return <div style={{ padding: 24, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>Loading timeline…</div>;
   return (
     <div style={{ padding: '16px 20px' }}>
-      {/* Booking source chip */}
-      {bookingSource && (
-        <div style={{ marginBottom: 18 }}>
-          <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 6, letterSpacing: '.4px', fontWeight: 600 }}>BOOKING SOURCE</div>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            padding: '5px 12px', borderRadius: 20,
-            background: '#F0F4FF', border: '1px solid #C7D7F8',
-            fontSize: 13, fontWeight: 600, color: '#1D4ED8',
-          }}>
-            {SOURCE_LABELS[bookingSource] || bookingSource}
-          </div>
-        </div>
-      )}
-
-      {/* Event stream */}
+      {bookingSource && <div style={{ marginBottom: 18 }}><div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 6, letterSpacing: '.4px', fontWeight: 600 }}>BOOKING SOURCE</div><div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, background: '#F0F4FF', border: '1px solid #C7D7F8', fontSize: 13, fontWeight: 600, color: '#1D4ED8' }}>{SOURCE_LABELS[bookingSource] || bookingSource}</div></div>}
       {events.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '32px 0', color: '#9CA3AF', fontSize: 13 }}>
-          No events recorded yet.<br />
-          <span style={{ fontSize: 12 }}>Events will appear as the lead interacts with your system.</span>
-        </div>
+        <div style={{ textAlign: 'center', padding: '32px 0', color: '#9CA3AF', fontSize: 13 }}>No events recorded yet.<br /><span style={{ fontSize: 12 }}>Events appear as the lead interacts with your system.</span></div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           {events.map((ev, i) => {
-            const meta   = EVENT_META[ev.event_type] || { label: ev.event_type.replace(/_/g, ' '), color: '#9CA3AF' };
-            const ts     = new Date(ev.created_at);
-            const dateStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            const timeStr = ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-            const isLast  = i === events.length - 1;
-            // One-line detail pulled from event_data
-            const detail  = ev.event_data?.slot
-              ? new Date(ev.event_data.slot).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-              : ev.event_data?.source
-                ? ev.event_data.source.replace(/_/g, ' ')
-                : ev.event_data?.note || null;
-
+            const meta = EVENT_META[ev.event_type] || { label: ev.event_type.replace(/_/g, ' '), color: '#9CA3AF' };
+            const ts = new Date(ev.created_at);
+            const isLast = i === events.length - 1;
+            const detail = ev.event_data?.slot ? new Date(ev.event_data.slot).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ev.event_data?.source ? ev.event_data.source.replace(/_/g, ' ') : ev.event_data?.note || null;
             return (
               <div key={ev.id} style={{ display: 'flex', gap: 14 }}>
-                {/* Dot + connector line */}
                 <div style={{ width: 16, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 3 }}>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: meta.color, flexShrink: 0 }} />
                   {!isLast && <div style={{ width: 1, flex: 1, background: '#E5E7EB', marginTop: 4 }} />}
                 </div>
-                {/* Content */}
                 <div style={{ flex: 1, paddingBottom: isLast ? 4 : 20 }}>
                   <div style={{ fontSize: 13, fontWeight: 500, color: '#111827', lineHeight: 1.3 }}>{meta.label}</div>
                   <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
-                    {dateStr} · {timeStr}
+                    {ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                     {detail && <span style={{ marginLeft: 6, color: '#6B7280' }}>· {detail}</span>}
                   </div>
                 </div>
@@ -1767,158 +1158,141 @@ function TimelineView({ events, loading, bookingSource }) {
 function QBBtn({ variant, onClick, children, disabled }) {
   const [hover, setHover] = useState(false);
   const vs = {
-    success: { color: '#1A7E24', bg: '#E3F4E5', hoverBg: '#C3E6C5', border: '#A8D5AA' },
-    warning: { color: '#92400E', bg: '#FEF3C7', hoverBg: '#FDE68A', border: '#FCD34D' },
-    danger:  { color: '#C23934', bg: '#FDECEA', hoverBg: '#FFCDD2', border: '#EF9A9A' },
-    primary: { color: '#0077C5', bg: '#E0EFF9', hoverBg: '#B3D4EE', border: '#90CAF9' },
+    success:  { color: '#1A7E24', bg: '#E3F4E5', hoverBg: '#C3E6C5', border: '#A8D5AA' },
+    warning:  { color: '#92400E', bg: '#FEF3C7', hoverBg: '#FDE68A', border: '#FCD34D' },
+    danger:   { color: '#C23934', bg: '#FDECEA', hoverBg: '#FFCDD2', border: '#EF9A9A' },
+    primary:  { color: '#0077C5', bg: '#E0EFF9', hoverBg: '#B3D4EE', border: '#90CAF9' },
     cq:       { color: '#5C35A8', bg: '#EEE9FA', hoverBg: '#DDD5F7', border: '#C5B8F0' },
     pitch:    { color: '#1A7E24', bg: '#E3F4E5', hoverBg: '#C3E6C5', border: '#A8D5AA' },
     followup: { color: '#374151', bg: '#F3F4F6', hoverBg: '#E5E7EB', border: '#D1D5DB' },
   }[variant];
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        padding: '5px 12px', fontSize: 12, fontWeight: 600, borderRadius: 3,
-        border: `1px solid ${vs.border}`, color: vs.color,
-        background: hover ? vs.hoverBg : vs.bg,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        transition: 'background .15s', whiteSpace: 'nowrap',
-        opacity: disabled ? 0.5 : 1,
-      }}
-    >
-      {children}
-    </button>
-  );
+  return <button onClick={onClick} disabled={disabled} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} style={{ padding: '5px 12px', fontSize: 12, fontWeight: 600, borderRadius: 3, border: `1px solid ${vs.border}`, color: vs.color, background: hover ? vs.hoverBg : vs.bg, cursor: disabled ? 'not-allowed' : 'pointer', transition: 'background .15s', whiteSpace: 'nowrap', opacity: disabled ? 0.5 : 1 }}>{children}</button>;
 }
 
 // ─── Page styles ──────────────────────────────────────────────────────────────
 const s = {
-  // Overall layout
-  page: { display: 'flex', minHeight: '100vh', background: '#F0F2F5', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" },
+  page: { display: 'flex', minHeight: '100vh', background: '#F4F5F7', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" },
 
-  // Left sidebar
-  sidebar:        { width: 220, flexShrink: 0, background: '#1A2035', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh', overflowY: 'auto' },
-  sideLogoWrap:   { padding: '22px 18px 18px', borderBottom: '1px solid rgba(255,255,255,.07)' },
-  sideLogo:       { fontWeight: 700, fontSize: 15, color: '#FFFFFF', letterSpacing: '-0.3px', display: 'flex', alignItems: 'center', gap: 9 },
-  sideLogoIcon:   { width: 28, height: 28, borderRadius: 7, background: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#fff', flexShrink: 0 },
-  sideNav:        { flex: 1, padding: '10px 10px', display: 'flex', flexDirection: 'column', gap: 1 },
-  sideNavItem:    { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 7, fontSize: 13, fontWeight: 500, color: '#8B95A5', textDecoration: 'none', transition: 'all .15s' },
-  sideNavActive:  { background: 'rgba(59,130,246,.18)', color: '#93C5FD', fontWeight: 600 },
-  sideNavIcon:    { fontSize: 15, width: 20, textAlign: 'center', flexShrink: 0 },
-  sideUserWrap:   { padding: '12px 14px', borderTop: '1px solid rgba(255,255,255,.07)', display: 'flex', alignItems: 'center', gap: 9 },
-  sideUserAvatar: { width: 28, height: 28, borderRadius: '50%', background: '#3B82F6', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 },
-  sideUserEmail:  { fontSize: 11, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  // White sidebar
+  sidebar:          { width: 210, flexShrink: 0, background: '#fff', borderRight: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh' },
+  sideLogoWrap:     { padding: '20px 16px 16px', borderBottom: '1px solid #F3F4F6' },
+  sideLogoRow:      { display: 'flex', alignItems: 'center', gap: 9 },
+  sideLogoIcon:     { width: 30, height: 30, borderRadius: 8, background: '#2563EB', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, flexShrink: 0 },
+  sideLogoText:     { fontWeight: 700, fontSize: 14, color: '#111827', letterSpacing: '-0.2px' },
+  sideNav:          { flex: 1, padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 1, overflowY: 'auto' },
+  sideNavItem:      { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 7, fontSize: 13, fontWeight: 500, color: '#6B7280', textDecoration: 'none', transition: 'all .15s' },
+  sideNavItemActive:{ background: '#EFF6FF', color: '#2563EB', fontWeight: 600 },
+  sideBottom:       { borderTop: '1px solid #F3F4F6', padding: '8px 8px 16px' },
+  sideHelpRow:      { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 7, cursor: 'pointer' },
+  sideUserRow:      { display: 'flex', alignItems: 'center', gap: 9, padding: '10px 10px', borderRadius: 7, cursor: 'pointer', marginTop: 2 },
+  sideUserAvatar:   { width: 30, height: 30, borderRadius: '50%', background: '#2563EB', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 },
 
-  // Main area
-  main:           { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' },
-  topBar:         { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', height: 58, background: '#fff', borderBottom: '1px solid #E5E7EB', flexShrink: 0, gap: 12 },
-  topTitleWrap:   { display: 'flex', alignItems: 'baseline', gap: 12 },
-  topTitle:       { fontSize: 17, fontWeight: 700, color: '#111827' },
-  topDate:        { fontSize: 13, color: '#9CA3AF', fontWeight: 400 },
-  topActions:     { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 },
-  searchWrap:     { position: 'relative' },
-  searchInput:    { padding: '7px 12px 7px 30px', border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 13, color: '#374151', background: '#F9FAFB', fontFamily: 'inherit', outline: 'none', width: 190 },
-  searchIcon:     { position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', fontSize: 14, pointerEvents: 'none', lineHeight: 1 },
-  topBtn:         { padding: '6px 13px', fontSize: 13, fontWeight: 500, borderRadius: 7, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' },
+  // Main
+  main:      { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' },
+  topBar:    { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', background: '#fff', borderBottom: '1px solid #E5E7EB', flexShrink: 0, gap: 16 },
+  topTitle:  { fontSize: 20, fontWeight: 700, color: '#111827' },
+  topDate:   { fontSize: 13, color: '#6B7280', fontWeight: 400, cursor: 'default' },
+  topNavArrow:{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#6B7280', fontSize: 14, fontFamily: 'inherit', padding: 0 },
+  topActions:{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 },
+  searchInput:{ padding: '8px 12px 8px 32px', border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 13, color: '#374151', background: '#F9FAFB', fontFamily: 'inherit', outline: 'none', width: 260 },
+  topBtn:    { padding: '7px 14px', fontSize: 13, fontWeight: 500, borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' },
+  topBtnPrimary:{ padding: '7px 16px', fontSize: 13, fontWeight: 600, borderRadius: 8, border: 'none', background: '#2563EB', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
 
-  body:           { flex: 1, padding: '20px 24px', overflowY: 'auto' },
+  body:      { flex: 1, padding: '20px 24px', overflowY: 'auto' },
+  demoBanner:{ background: '#FFFBF0', border: '1px solid #F5A623', borderLeft: '4px solid #F5A623', borderRadius: 6, padding: '10px 14px', fontSize: 13, color: '#7D4E00', marginBottom: 16 },
 
-  demoBanner:     { background: '#FFFBF0', border: '1px solid #F5A623', borderLeft: '4px solid #F5A623', borderRadius: 6, padding: '10px 14px', fontSize: 13, color: '#7D4E00', marginBottom: 16 },
-
-  // Stats
-  statsRow:       { display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12, marginBottom: 18 },
-  statCard:       { background: '#fff', borderRadius: 10, padding: '14px 16px', border: '1px solid #E5E7EB', boxShadow: '0 1px 3px rgba(0,0,0,.04)' },
-  statNum:        { fontSize: 26, fontWeight: 700, color: '#111827', lineHeight: 1 },
-  statAccent:     { width: 3, height: 28, borderRadius: 2, marginRight: 10, flexShrink: 0 },
+  // Stats — one connected row
+  statsCard:     { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, display: 'flex', marginBottom: 16, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,.04)' },
+  statCell:      { flex: 1, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 12 },
+  statIconCircle:{ width: 42, height: 42, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  statNum:       { fontSize: 22, fontWeight: 700, color: '#111827', lineHeight: 1, marginBottom: 3 },
+  statLabel:     { fontSize: 12, color: '#6B7280', fontWeight: 500 },
 
   // Next Up
-  nextUp:         { background: '#fff', borderRadius: 10, border: '1px solid #E5E7EB', boxShadow: '0 1px 3px rgba(0,0,0,.04)', padding: '14px 20px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 18, borderLeft: '4px solid #3B82F6' },
-  nextUpLabel:    { fontSize: 10, fontWeight: 700, color: '#3B82F6', textTransform: 'uppercase', letterSpacing: '.8px', marginBottom: 3 },
-  nextUpTime:     { fontSize: 24, fontWeight: 700, color: '#111827', lineHeight: 1 },
-  nextUpIn:       { fontSize: 12, color: '#9CA3AF', marginTop: 3 },
-  nextUpDiv:      { width: 1, height: 44, background: '#E5E7EB', flexShrink: 0 },
-  nextUpAvatar:   { width: 38, height: 38, borderRadius: '50%', background: '#3B82F6', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 },
+  nextUp:         { background: '#F0F7FF', border: '1px solid #BFDBFE', borderLeft: '4px solid #2563EB', borderRadius: 10, padding: '16px 20px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 20 },
+  nextUpTimeCol:  { flexShrink: 0, minWidth: 110 },
+  nextUpLabel:    { fontSize: 10, fontWeight: 800, color: '#2563EB', textTransform: 'uppercase', letterSpacing: '.8px', marginBottom: 4 },
+  nextUpTime:     { fontSize: 36, fontWeight: 800, color: '#111827', lineHeight: 1 },
+  nextUpAMPM:     { fontSize: 18, fontWeight: 500 },
+  nextUpIn:       { fontSize: 13, color: '#2563EB', fontWeight: 600, marginTop: 4 },
+  nextUpDivider:  { width: 1, height: 54, background: '#BFDBFE', flexShrink: 0 },
+  nextUpAvatar:   { width: 46, height: 46, borderRadius: '50%', background: '#2563EB', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, flexShrink: 0 },
   nextUpInfo:     { flex: 1, minWidth: 0 },
-  nextUpName:     { fontSize: 15, fontWeight: 700, color: '#111827' },
-  nextUpMeta:     { fontSize: 12, color: '#6B7280', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  nextUpName:     { fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 2 },
+  nextUpSub:      { fontSize: 12, color: '#6B7280', marginBottom: 2 },
+  nextUpRep:      { fontSize: 12, color: '#6B7280', display: 'flex', alignItems: 'center' },
   nextUpActions:  { display: 'flex', gap: 8, flexShrink: 0 },
+  nextUpBtnOutline:{ padding: '9px 18px', fontSize: 13, fontWeight: 600, borderRadius: 8, border: '1.5px solid #2563EB', background: '#fff', color: '#2563EB', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  nextUpBtnFill:   { padding: '9px 18px', fontSize: 13, fontWeight: 600, borderRadius: 8, border: 'none', background: '#2563EB', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
 
-  // Filter bar
-  filterBar:      { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 10 },
-  tabSet:         { display: 'flex', background: '#F3F4F6', borderRadius: 8, padding: 3, gap: 2 },
-  tab:            { padding: '6px 13px', border: 'none', borderRadius: 6, background: 'transparent', color: '#6B7280', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' },
-  tabActive:      { background: '#fff', color: '#111827', fontWeight: 600, boxShadow: '0 1px 3px rgba(0,0,0,.10)' },
-  tabCount:       { background: '#3B82F6', color: '#fff', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 },
-  tabBarRight:    { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  // Filters
+  filterBar:         { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 },
+  filterPillActive:  { padding: '7px 16px', borderRadius: 20, background: '#2563EB', color: '#fff', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' },
+  filterPillOutline: { padding: '7px 16px', borderRadius: 20, background: '#fff', color: '#374151', border: '1px solid #E5E7EB', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  filterPillBadge:   { background: 'rgba(255,255,255,.3)', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 700 },
+  filterSelect:      { appearance: 'none', WebkitAppearance: 'none', padding: '7px 28px 7px 12px', border: '1px solid #E5E7EB', borderRadius: 20, background: '#fff', fontSize: 13, color: '#374151', cursor: 'pointer', fontFamily: 'inherit', outline: 'none' },
+  filterMoreBtn:     { padding: '7px 12px', background: 'none', border: 'none', fontSize: 13, color: '#6B7280', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
 
   // Table
-  card:           { background: '#fff', borderRadius: 10, border: '1px solid #E5E7EB', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,.04)' },
-  table:          { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-  thead:          { background: '#F9FAFB' },
-  th:             { textAlign: 'left', padding: '10px 14px', fontWeight: 600, color: '#9CA3AF', fontSize: 11, letterSpacing: '.5px', borderBottom: '1px solid #E5E7EB', textTransform: 'uppercase' },
-  tr:             { borderBottom: '1px solid #F3F4F6', transition: 'background .1s' },
-  td:             { padding: '13px 14px', verticalAlign: 'middle' },
-  empty:          { textAlign: 'center', padding: 56, color: '#9CA3AF', fontSize: 14 },
+  tableCard:  { background: '#fff', borderRadius: 10, border: '1px solid #E5E7EB', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,.04)' },
+  table:      { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
+  th:         { textAlign: 'left', padding: '10px 14px', fontWeight: 600, color: '#9CA3AF', fontSize: 11, letterSpacing: '.4px', borderBottom: '1px solid #E5E7EB', background: '#F9FAFB', textTransform: 'uppercase' },
+  tr:         { borderBottom: '1px solid #F3F4F6', transition: 'background .1s' },
+  td:         { padding: '14px 14px', verticalAlign: 'middle' },
+  tableEmpty: { textAlign: 'center', padding: 56, color: '#9CA3AF', fontSize: 14 },
+  iconBtn:    { width: 30, height: 30, borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', color: '#6B7280', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', transition: 'background .12s, border-color .12s' },
 };
 
 // ─── Panel styles ─────────────────────────────────────────────────────────────
 const p = {
-  panelHdr:       { display: 'flex', alignItems: 'flex-start', gap: 14, padding: '20px 20px 16px', borderBottom: '1px solid #EBEBEB', flexShrink: 0 },
-  avatar:         { width: 46, height: 46, borderRadius: '50%', background: '#151719', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, flexShrink: 0 },
-  clientName:     { fontSize: 17, fontWeight: 600, color: '#1A2B3C', marginBottom: 2 },
-  clientEmail:    { fontSize: 13, color: '#6B7280', marginBottom: 6 },
-  statusBadge:    { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600 },
-  closeBtn:       { background: 'none', border: 'none', fontSize: 18, color: '#9CA3AF', cursor: 'pointer', padding: '0 0 0 8px', lineHeight: 1, flexShrink: 0 },
+  panelHdr:      { display: 'flex', alignItems: 'flex-start', gap: 14, padding: '20px 20px 14px', borderBottom: '1px solid #EBEBEB', flexShrink: 0 },
+  avatar:        { width: 44, height: 44, borderRadius: '50%', background: '#2563EB', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, flexShrink: 0 },
+  clientName:    { fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 2 },
+  statusBadge:   { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600 },
+  closeBtn:      { background: 'none', border: 'none', fontSize: 18, color: '#9CA3AF', cursor: 'pointer', padding: '0 0 0 8px', lineHeight: 1, flexShrink: 0 },
 
-  tabBar:         { display: 'flex', borderBottom: '1px solid #EBEBEB', flexShrink: 0, background: '#FAFAFA' },
-  panelTab:       { flex: 1, padding: '10px 0', fontSize: 12, fontWeight: 500, color: '#6B7280', background: 'none', border: 'none', borderBottom: '2px solid transparent', cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' },
-  panelTabActive: { color: '#1D4ED8', borderBottom: '2px solid #1D4ED8', fontWeight: 600 },
+  tabBar:        { display: 'flex', borderBottom: '1px solid #EBEBEB', flexShrink: 0, background: '#FAFAFA' },
+  panelTab:      { flex: 1, padding: '10px 0', fontSize: 12, fontWeight: 500, color: '#6B7280', background: 'none', border: 'none', borderBottom: '2px solid transparent', cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' },
+  panelTabActive:{ color: '#2563EB', borderBottom: '2px solid #2563EB', fontWeight: 600 },
 
-  scrollBody:     { flex: 1, overflowY: 'auto', padding: '0 0 24px' },
-  loadingMsg:     { textAlign: 'center', padding: 40, color: '#9CA3AF', fontSize: 14 },
+  scrollBody:    { flex: 1, overflowY: 'auto', padding: '0 0 24px' },
+  loadingMsg:    { textAlign: 'center', padding: 40, color: '#9CA3AF', fontSize: 14 },
 
-  section:        { padding: '16px 20px', borderBottom: '1px solid #F0F0F0' },
-  sectionHdrRow:  { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  sectionTitle:   { fontSize: 12, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.6px' },
+  // Quick actions section
+  quickActions:  { padding: '16px 20px', borderBottom: '1px solid #F0F0F0', background: '#FAFAFA' },
 
-  editBtn:        { fontSize: 12, fontWeight: 500, color: '#0077C5', background: 'transparent', border: '1px solid #B3D4EE', borderRadius: 3, padding: '3px 10px', cursor: 'pointer', fontFamily: 'inherit' },
-  saveEditBtn:    { fontSize: 12, fontWeight: 600, color: '#fff', border: 'none', borderRadius: 3, padding: '4px 12px', cursor: 'pointer', fontFamily: 'inherit', transition: 'background .15s' },
-  cancelEditBtn:  { fontSize: 12, fontWeight: 400, color: '#4A5568', background: '#F5F6F7', border: '1px solid #C8CDD2', borderRadius: 3, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit' },
+  section:       { padding: '16px 20px', borderBottom: '1px solid #F0F0F0' },
+  sectionTitle:  { fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.6px', marginBottom: 12 },
+
+  // Quick action buttons
+  qaBtn:         { width: '100%', padding: '11px 16px', fontSize: 13, fontWeight: 600, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center', display: 'block' },
+
+  editBtn:       { fontSize: 12, fontWeight: 500, color: '#0077C5', background: 'transparent', border: '1px solid #B3D4EE', borderRadius: 3, padding: '3px 10px', cursor: 'pointer', fontFamily: 'inherit' },
+  saveEditBtn:   { fontSize: 12, fontWeight: 600, color: '#fff', border: 'none', borderRadius: 3, padding: '4px 12px', cursor: 'pointer', fontFamily: 'inherit', transition: 'background .15s' },
+  cancelEditBtn: { fontSize: 12, fontWeight: 400, color: '#4A5568', background: '#F5F6F7', border: '1px solid #C8CDD2', borderRadius: 3, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit' },
 
   fieldGroupLabel:{ fontSize: 10, fontWeight: 700, color: '#B0B8C4', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 },
-  divider:        { borderTop: '1px solid #F0F0F0', margin: '12px 0' },
+  row:           { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, fontSize: 14 },
+  rowLabel:      { color: '#6B7280', width: 84, flexShrink: 0, fontSize: 13 },
+  rowVal:        { color: '#1A2B3C', flex: 1 },
+  link:          { color: '#2563EB', textDecoration: 'none', fontSize: 14 },
+  val:           { fontSize: 13, color: '#1A2B3C' },
+  input:         { width: '100%', padding: '8px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' },
+  editLabel:     { display: 'block', fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 5 },
 
-  row:            { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 11, fontSize: 14 },
-  rowLabel:       { color: '#6B7280', width: 80, flexShrink: 0, fontSize: 13 },
-  rowVal:         { color: '#1A2B3C', flex: 1 },
-  link:           { color: '#0077C5', textDecoration: 'none', fontSize: 14 },
-  tag:            { background: '#EAECEF', borderRadius: 3, padding: '2px 8px', fontSize: 12, color: '#4A5568' },
-  val:            { fontSize: 13, color: '#1A2B3C' },
-
-  editRow:        { marginBottom: 10 },
-  editLabel:      { display: 'block', fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 5 },
-  input:          { width: '100%', padding: '8px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' },
-
-  emailToggleBtn: { marginTop: 12, padding: '7px 14px', background: '#F5F6F7', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#0077C5', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
-  emailBox:       { marginTop: 12, background: '#F8F9FA', border: '1px solid #D8DCE0', borderRadius: 4, padding: '14px 14px 12px' },
-  emailHeader:    { fontSize: 12, fontWeight: 700, color: '#1A2B3C', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '.4px' },
-  emailField:     { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
-  emailLabel:     { fontSize: 11, color: '#6B7280', width: 44, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.3px', flexShrink: 0 },
-  emailInput:     { flex: 1, padding: '6px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none' },
-  emailBody:      { width: '100%', padding: '8px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
-
-  actionBtn:      { padding: '8px 18px', color: '#fff', border: 'none', borderRadius: 3, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'background .2s' },
-  cancelBtn:      { padding: '8px 14px', background: '#fff', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#4A5568', cursor: 'pointer', fontFamily: 'inherit' },
-
-  notesArea:      { width: '100%', padding: '8px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.6 },
-
-  brandChip:      { padding: '4px 10px', fontSize: 12, fontWeight: 500, borderRadius: 20, border: '1px solid #C8CDD2', background: '#F5F6F7', color: '#4A5568', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
-  brandChipActive:{ padding: '4px 10px', fontSize: 12, fontWeight: 600, borderRadius: 20, border: '1px solid #0077C5', background: '#0077C5', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
-  brandChipX:     { padding: '2px 6px', fontSize: 14, lineHeight: 1, background: 'transparent', border: 'none', color: '#9CA3AF', cursor: 'pointer', fontFamily: 'inherit', marginLeft: -2 },
-  addBrandBtn:    { padding: '4px 10px', fontSize: 12, fontWeight: 500, borderRadius: 20, border: '1px dashed #C8CDD2', background: 'transparent', color: '#6B7280', cursor: 'pointer', fontFamily: 'inherit' },
-  brandCard:      { background: '#F8F9FA', border: '1px solid #E5E7EB', borderRadius: 4, padding: '14px 14px 12px', marginBottom: 12 },
+  emailToggleBtn:{ marginTop: 12, padding: '7px 14px', background: '#F5F6F7', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#0077C5', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
+  emailBox:      { marginTop: 12, background: '#F8F9FA', border: '1px solid #D8DCE0', borderRadius: 4, padding: '14px 14px 12px' },
+  emailHeader:   { fontSize: 12, fontWeight: 700, color: '#1A2B3C', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '.4px' },
+  emailField:    { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
+  emailLabel:    { fontSize: 11, color: '#6B7280', width: 44, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.3px', flexShrink: 0 },
+  emailInput:    { flex: 1, padding: '6px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none' },
+  emailBody:     { width: '100%', padding: '8px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
+  actionBtn:     { padding: '8px 18px', color: '#fff', border: 'none', borderRadius: 3, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'background .2s' },
+  cancelBtn:     { padding: '8px 14px', background: '#fff', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#4A5568', cursor: 'pointer', fontFamily: 'inherit' },
+  notesArea:     { width: '100%', padding: '8px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.6 },
+  brandChip:     { padding: '4px 10px', fontSize: 12, fontWeight: 500, borderRadius: 20, border: '1px solid #C8CDD2', background: '#F5F6F7', color: '#4A5568', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  brandChipActive:{ padding: '4px 10px', fontSize: 12, fontWeight: 600, borderRadius: 20, border: '1px solid #2563EB', background: '#2563EB', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  brandChipX:    { padding: '2px 6px', fontSize: 14, lineHeight: 1, background: 'transparent', border: 'none', color: '#9CA3AF', cursor: 'pointer', fontFamily: 'inherit', marginLeft: -2 },
+  addBrandBtn:   { padding: '4px 10px', fontSize: 12, fontWeight: 500, borderRadius: 20, border: '1px dashed #C8CDD2', background: 'transparent', color: '#6B7280', cursor: 'pointer', fontFamily: 'inherit' },
+  brandCard:     { background: '#F8F9FA', border: '1px solid #E5E7EB', borderRadius: 4, padding: '14px 14px 12px', marginBottom: 12 },
 };
