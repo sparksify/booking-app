@@ -77,6 +77,17 @@ function SideIcon({ name }) {
   return null;
 }
 
+// ─── Stat icons ───────────────────────────────────────────────────────────────
+function StatIcon({ name, color }) {
+  const p = { width: 18, height: 18, fill: 'none', stroke: color, strokeWidth: 1.75, strokeLinecap: 'round', strokeLinejoin: 'round', viewBox: '0 0 24 24', style: { display: 'block' } };
+  if (name === 'calendar') return <svg {...p}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
+  if (name === 'check')    return <svg {...p}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
+  if (name === 'x-circle') return <svg {...p}><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>;
+  if (name === 'award')    return <svg {...p}><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>;
+  if (name === 'trending') return <svg {...p}><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>;
+  return null;
+}
+
 // ─── Source badge ─────────────────────────────────────────────────────────────
 function SourceBadge({ source }) {
   const styles = {
@@ -277,7 +288,6 @@ export default function BookingsDashboard({ brandPitches = {} }) {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={s.topTitle}>Today's Meetings</span>
-                <span style={{ fontSize: 18 }}>📅</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
                 <span style={s.topDate}>{todayLabel} ▾</span>
@@ -287,7 +297,9 @@ export default function BookingsDashboard({ brandPitches = {} }) {
             </div>
             <div style={s.topActions}>
               <div style={{ position: 'relative' }}>
-                <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', fontSize: 14, pointerEvents: 'none' }}>🔍</span>
+                <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', pointerEvents: 'none', display: 'flex' }}>
+                  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </span>
                 <input
                   style={s.searchInput}
                   placeholder="Search meetings, clients, email..."
@@ -314,15 +326,15 @@ export default function BookingsDashboard({ brandPitches = {} }) {
             {/* Stats row — connected */}
             <div style={s.statsCard}>
               {[
-                { label: 'Scheduled', num: counts.scheduled   || 0, iconBg: '#DBEAFE', iconColor: '#2563EB', icon: '📅' },
-                { label: 'Showed',    num: counts.showed      || 0, iconBg: '#D1FAE5', iconColor: '#059669', icon: '✓'  },
-                { label: 'No-Shows',  num: counts['no-show']  || 0, iconBg: '#FEE2E2', iconColor: '#DC2626', icon: '✕'  },
-                { label: 'Closed',    num: counts.closed      || 0, iconBg: '#EDE9FE', iconColor: '#7C3AED', icon: '🏆' },
-                { label: 'Show Rate', num: showRate,               iconBg: '#DBEAFE', iconColor: '#2563EB', icon: '📈' },
+                { label: 'Scheduled', num: counts.scheduled   || 0, iconBg: '#DBEAFE', iconColor: '#2563EB', icon: 'calendar' },
+                { label: 'Showed',    num: counts.showed      || 0, iconBg: '#D1FAE5', iconColor: '#059669', icon: 'check'    },
+                { label: 'No-Shows',  num: counts['no-show']  || 0, iconBg: '#FEE2E2', iconColor: '#DC2626', icon: 'x-circle' },
+                { label: 'Closed',    num: counts.closed      || 0, iconBg: '#EDE9FE', iconColor: '#7C3AED', icon: 'award'    },
+                { label: 'Show Rate', num: showRate,               iconBg: '#DBEAFE', iconColor: '#2563EB', icon: 'trending' },
               ].map((st, i) => (
                 <div key={st.label} style={{ ...s.statCell, ...(i < 4 ? { borderRight: '1px solid #E5E7EB' } : {}) }}>
-                  <div style={{ ...s.statIconCircle, background: st.iconBg, color: st.iconColor }}>
-                    <span style={{ fontSize: 16 }}>{st.icon}</span>
+                  <div style={{ ...s.statIconCircle, background: st.iconBg }}>
+                    <StatIcon name={st.icon} color={st.iconColor} />
                   </div>
                   <div>
                     <div style={s.statNum}>{st.num}</div>
@@ -359,7 +371,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                     {nextUp.event_name && <div style={s.nextUpSub}>{nextUp.event_name}</div>}
                     {nextUp.assigned_to_email && (
                       <div style={s.nextUpRep}>
-                        <span style={{ marginRight: 4 }}>👤</span>
+                        <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ marginRight: 4, flexShrink: 0 }}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                         {nextUp.assigned_to_email.split('@')[0]}
                       </div>
                     )}
@@ -453,7 +465,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                     return (
                       <button key={email}
                         onClick={() => setRepFilter(prev => prev.includes(email) ? prev.filter(r => r !== email) : [...prev, email])}
-                        style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 20, border: `1.5px solid ${active ? '#2563EB' : '#E5E7EB'}`, background: active ? '#EFF6FF' : '#fff', color: active ? '#2563EB' : '#6B7280', cursor: 'pointer', fontFamily: 'inherit' }}>
+                        style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6, border: `1.5px solid ${active ? '#2563EB' : '#E5E7EB'}`, background: active ? '#EFF6FF' : '#fff', color: active ? '#2563EB' : '#6B7280', cursor: 'pointer', fontFamily: 'inherit' }}>
                         {name}
                       </button>
                     );
@@ -884,7 +896,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                     </button>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={() => setShowFollowUp(true)}>
-                        📅 Reschedule
+                        Reschedule
                       </button>
                       <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={() => { setPanelTab('info'); }}>
                         + Add Note
@@ -897,12 +909,12 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                 )}
                 {booking.status === 'showed' && (
                   <button style={{ ...p.qaBtn, background: '#7C3AED', color: '#fff', border: 'none' }} onClick={() => onStatusChange('closed')}>
-                    🏆 Mark Closed Won
+                    Mark Closed Won
                   </button>
                 )}
                 {(booking.status === 'no-show' || booking.status === 'closed') && (
                   <div style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '8px 0' }}>
-                    {booking.status === 'closed' ? '🏆 Deal closed' : 'No further actions'}
+                    {booking.status === 'closed' ? 'Deal closed' : 'No further actions'}
                   </div>
                 )}
               </div>
@@ -964,7 +976,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                       <div style={{ fontSize: 14, fontWeight: 600, color: '#1A2B3C' }}>{selectedFI.brand || <em style={{ color: '#9CA3AF', fontWeight: 400 }}>Unnamed brand</em>}</div>
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <button onClick={() => { setPitchBrandIdx(interests.indexOf(selectedFI)); setPitchOpen(true); }} style={{ ...p.editBtn, color: '#1A7E24', borderColor: '#A8D5AA', background: '#E3F4E5' }}>📞 Brand Pitch</button>
+                        <button onClick={() => { setPitchBrandIdx(interests.indexOf(selectedFI)); setPitchOpen(true); }} style={{ ...p.editBtn, color: '#1A7E24', borderColor: '#A8D5AA', background: '#E3F4E5' }}>Brand Pitch</button>
                         {!brandEditMode ? <button onClick={() => setBrandEditMode(true)} style={p.editBtn}>Edit</button>
                           : <><button onClick={async () => { await saveBrand(); setBrandEditMode(false); }} disabled={brandSaving} style={{ ...p.saveEditBtn, background: brandSaved ? '#2CA01C' : '#0077C5' }}>{brandSaving ? 'Saving…' : brandSaved ? '✓' : 'Save'}</button><button onClick={() => setBrandEditMode(false)} style={p.cancelEditBtn}>Cancel</button></>}
                       </div>
@@ -987,7 +999,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                   </div>
                 )}
                 {!selectedFI && interests.length === 0 && <div style={{ color: '#9CA3AF', fontSize: 13, marginBottom: 8 }}>No brands added yet — click + Brand to add one.</div>}
-                {selectedFI?.developer_email && <button onClick={() => setShowEmail(v => !v)} style={p.emailToggleBtn}>✉️ {showEmail ? 'Hide email' : 'Email developer'}</button>}
+                {selectedFI?.developer_email && <button onClick={() => setShowEmail(v => !v)} style={p.emailToggleBtn}>{showEmail ? 'Hide email' : 'Email developer'}</button>}
                 {showEmail && selectedFI && (
                   <div style={p.emailBox}>
                     <div style={p.emailHeader}>New Email</div>
@@ -1021,7 +1033,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
           <div style={{ background: '#fff', borderRadius: 6, width: '100%', maxWidth: 520, boxShadow: '0 8px 40px rgba(0,0,0,.2)', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #EBEBEB' }}>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#1A2B3C' }}>📞 Phone Pitch</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#1A2B3C' }}>Phone Pitch</div>
                 {pitchBrands.length > 1 && <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>{pitchBrands.map((fi, i) => <button key={fi.id} onClick={() => setPitchBrandIdx(i)} style={i === pitchBrandIdx ? p.brandChipActive : p.brandChip}>{fi.brand}</button>)}</div>}
                 {pitchFI && <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>{pitchFI.brand}</div>}
               </div>
@@ -1117,7 +1129,7 @@ const EVENT_META = {
   appointment_no_show:       { label: 'No Show',                   color: '#DC2626' },
   opportunity_closed:        { label: 'Deal Closed',               color: '#7C3AED' },
 };
-const SOURCE_LABELS = { direct: '🌐 Direct', facebook_lead: '📘 Facebook Lead', closebot: '🤖 CloseBot', sms: '💬 SMS', email: '📧 Email', retargeting: '🎯 Retargeting', calendly: '📅 Calendly', gohighlevel: '📋 GoHighLevel' };
+const SOURCE_LABELS = { direct: 'Direct', facebook_lead: 'Facebook Lead', closebot: 'CloseBot', sms: 'SMS', email: 'Email', retargeting: 'Retargeting', calendly: 'Calendly', gohighlevel: 'GoHighLevel' };
 
 function TimelineView({ events, loading, bookingSource }) {
   if (loading) return <div style={{ padding: 24, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>Loading timeline…</div>;
@@ -1195,8 +1207,8 @@ const s = {
   topNavArrow:{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#6B7280', fontSize: 14, fontFamily: 'inherit', padding: 0 },
   topActions:{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 },
   searchInput:{ padding: '8px 12px 8px 32px', border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 13, color: '#374151', background: '#F9FAFB', fontFamily: 'inherit', outline: 'none', width: 260 },
-  topBtn:    { padding: '7px 14px', fontSize: 13, fontWeight: 500, borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' },
-  topBtnPrimary:{ padding: '7px 16px', fontSize: 13, fontWeight: 600, borderRadius: 8, border: 'none', background: '#2563EB', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  topBtn:    { padding: '7px 14px', fontSize: 13, fontWeight: 500, borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' },
+  topBtnPrimary:{ padding: '7px 16px', fontSize: 13, fontWeight: 600, borderRadius: 6, border: 'none', background: '#2563EB', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
 
   body:      { flex: 1, padding: '20px 24px', overflowY: 'auto' },
   demoBanner:{ background: '#FFFBF0', border: '1px solid #F5A623', borderLeft: '4px solid #F5A623', borderRadius: 6, padding: '10px 14px', fontSize: 13, color: '#7D4E00', marginBottom: 16 },
@@ -1222,15 +1234,15 @@ const s = {
   nextUpSub:      { fontSize: 12, color: '#6B7280', marginBottom: 2 },
   nextUpRep:      { fontSize: 12, color: '#6B7280', display: 'flex', alignItems: 'center' },
   nextUpActions:  { display: 'flex', gap: 8, flexShrink: 0 },
-  nextUpBtnOutline:{ padding: '9px 18px', fontSize: 13, fontWeight: 600, borderRadius: 8, border: '1.5px solid #2563EB', background: '#fff', color: '#2563EB', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
-  nextUpBtnFill:   { padding: '9px 18px', fontSize: 13, fontWeight: 600, borderRadius: 8, border: 'none', background: '#2563EB', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  nextUpBtnOutline:{ padding: '9px 18px', fontSize: 13, fontWeight: 600, borderRadius: 6, border: '1.5px solid #2563EB', background: '#fff', color: '#2563EB', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  nextUpBtnFill:   { padding: '9px 18px', fontSize: 13, fontWeight: 600, borderRadius: 6, border: 'none', background: '#2563EB', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
 
   // Filters
   filterBar:         { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 },
-  filterPillActive:  { padding: '7px 16px', borderRadius: 20, background: '#2563EB', color: '#fff', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' },
-  filterPillOutline: { padding: '7px 16px', borderRadius: 20, background: '#fff', color: '#374151', border: '1px solid #E5E7EB', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
-  filterPillBadge:   { background: 'rgba(255,255,255,.3)', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 700 },
-  filterSelect:      { appearance: 'none', WebkitAppearance: 'none', padding: '7px 28px 7px 12px', border: '1px solid #E5E7EB', borderRadius: 20, background: '#fff', fontSize: 13, color: '#374151', cursor: 'pointer', fontFamily: 'inherit', outline: 'none' },
+  filterPillActive:  { padding: '7px 16px', borderRadius: 6, background: '#2563EB', color: '#fff', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' },
+  filterPillOutline: { padding: '7px 16px', borderRadius: 6, background: '#fff', color: '#374151', border: '1px solid #E5E7EB', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  filterPillBadge:   { background: 'rgba(255,255,255,.3)', borderRadius: 4, padding: '1px 7px', fontSize: 11, fontWeight: 700 },
+  filterSelect:      { appearance: 'none', WebkitAppearance: 'none', padding: '7px 28px 7px 12px', border: '1px solid #E5E7EB', borderRadius: 6, background: '#fff', fontSize: 13, color: '#374151', cursor: 'pointer', fontFamily: 'inherit', outline: 'none' },
   filterMoreBtn:     { padding: '7px 12px', background: 'none', border: 'none', fontSize: 13, color: '#6B7280', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
 
   // Table
@@ -1245,8 +1257,8 @@ const s = {
 
 // ─── Panel styles ─────────────────────────────────────────────────────────────
 const p = {
-  panelHdr:      { display: 'flex', alignItems: 'flex-start', gap: 14, padding: '20px 20px 14px', borderBottom: '1px solid #EBEBEB', flexShrink: 0 },
-  avatar:        { width: 44, height: 44, borderRadius: '50%', background: '#2563EB', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, flexShrink: 0 },
+  panelHdr:      { display: 'flex', alignItems: 'flex-start', gap: 14, padding: '28px 20px 22px', borderBottom: '1px solid #EBEBEB', flexShrink: 0 },
+  avatar:        { width: 54, height: 54, borderRadius: '50%', background: '#2563EB', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, fontWeight: 700, flexShrink: 0 },
   clientName:    { fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 2 },
   statusBadge:   { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600 },
   closeBtn:      { background: 'none', border: 'none', fontSize: 18, color: '#9CA3AF', cursor: 'pointer', padding: '0 0 0 8px', lineHeight: 1, flexShrink: 0 },
@@ -1265,7 +1277,7 @@ const p = {
   sectionTitle:  { fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.6px', marginBottom: 12 },
 
   // Quick action buttons
-  qaBtn:         { width: '100%', padding: '11px 16px', fontSize: 13, fontWeight: 600, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center', display: 'block' },
+  qaBtn:         { width: '100%', padding: '11px 16px', fontSize: 13, fontWeight: 600, borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center', display: 'block' },
 
   editBtn:       { fontSize: 12, fontWeight: 500, color: '#0077C5', background: 'transparent', border: '1px solid #B3D4EE', borderRadius: 3, padding: '3px 10px', cursor: 'pointer', fontFamily: 'inherit' },
   saveEditBtn:   { fontSize: 12, fontWeight: 600, color: '#fff', border: 'none', borderRadius: 3, padding: '4px 12px', cursor: 'pointer', fontFamily: 'inherit', transition: 'background .15s' },
