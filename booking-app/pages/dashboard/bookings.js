@@ -585,7 +585,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
 }
 
 // ─── Table Row ────────────────────────────────────────────────────────────────
-function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus, inProgress }) {
+function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus, inProgress, repAvatars }) {
   const slot      = b.slot_start ? new Date(b.slot_start) : null;
   const timeLabel = slot ? slot.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—';
   const dateLabel = slot ? slot.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '';
