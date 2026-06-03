@@ -399,10 +399,21 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                 <tbody>
                   {(() => {
                     const nowMs = Date.now();
+                    // Only one in-progress at a time — the most recently started meeting still in window
+                    const inProgressId = (() => {
+                      const candidates = filteredBookings.filter(b => {
+                        const slotMs = b.slot_start ? new Date(b.slot_start).getTime() : 0;
+                        return slotMs > 0 && slotMs <= nowMs && nowMs <= slotMs + 90 * 60_000;
+                      });
+                      if (!candidates.length) return null;
+                      return candidates.reduce((a, b) =>
+                        new Date(b.slot_start) > new Date(a.slot_start) ? b : a
+                      ).id;
+                    })();
                     let nowInserted = false;
                     return filteredBookings.flatMap((b, i) => {
                       const slotMs = b.slot_start ? new Date(b.slot_start).getTime() : 0;
-                      const inProgress = slotMs > 0 && slotMs <= nowMs && nowMs <= slotMs + 90 * 60_000;
+                      const inProgress = b.id === inProgressId;
                       const rows = [];
                       // Insert NOW divider before the first upcoming booking
                       if (!nowInserted && slotMs > nowMs) {
@@ -923,6 +934,15 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                 </span>
               )}
             </div>
+            {booking._source_display === 'Calendly' && booking.event_name && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, color: '#0F766E', background: '#CCFBF1',
+                  border: '1px solid #99F6E4', borderRadius: 4, padding: '1px 6px', letterSpacing: '.02em',
+                }}>Calendly</span>
+                <span style={{ fontSize: 12, color: '#374151' }}>{booking.event_name}</span>
+              </div>
+            )}
           </div>
           <button onClick={onClose} style={p.closeBtn} aria-label="Close">✕</button>
         </div>
