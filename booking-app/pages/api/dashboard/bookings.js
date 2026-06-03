@@ -125,25 +125,60 @@ async function fetchCalendly(from, to) {
   const apiKey  = process.env.CALENDLY_API_KEY;
   if (!apiKey) return [];
 
-  const userUri = process.env.CALENDLY_USER_URI || DEFAULT_CAL_USER;
   const headers = { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
 
-  const params = new URLSearchParams({
-    user:           userUri,
-    status:         'active',
-    count:          '100',
-    sort:           'start_time:asc',
-    min_start_time: from.toISOString(),
-    max_start_time: to.toISOString(),
-  });
-
-  const evRes = await fetch(`${CAL_API}/scheduled_events?${params}`, { headers });
-  if (!evRes.ok) {
-    const txt = await evRes.text();
-    throw new Error(`Calendly events ${evRes.status}: ${txt.slice(0, 200)}`);
+  // Resolve org URI: prefer env var, otherwise fetch from /users/me
+  let orgUri = process.env.CALENDLY_ORG_URI || null;
+  if (!orgUri) {
+    try {
+      const meRes = await fetch(`${CAL_API}/users/me`, { headers });
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        orgUri = meData.resource?.current_organization || null;
+        console.log('[bookings/calendly] resolved org URI:', orgUri);
+      }
+    } catch (e) {
+      console.error('[bookings/calendly] /users/me failed:', e.message);
+    }
   }
 
-  const { collection: events = [] } = await evRes.json();
+  // Build params: use organization-level fetch to get ALL team members' events.
+  // Fall back to user-level if org URI couldn't be resolved.
+  const userUri = process.env.CALENDLY_USER_URI || DEFAULT_CAL_USER;
+  const scopeParam = orgUri
+    ? { organization: orgUri }
+    : { user: userUri };
+
+  // Paginate through all results (Calendly max count=100 per page)
+  const allEvents = [];
+  let pageToken = null;
+
+  do {
+    const params = new URLSearchParams({
+      ...scopeParam,
+      status:         'active',
+      count:          '100',
+      sort:           'start_time:asc',
+      min_start_time: from.toISOString(),
+      max_start_time: to.toISOString(),
+      ...(pageToken ? { page_token: pageToken } : {}),
+    });
+
+    const evRes = await fetch(`${CAL_API}/scheduled_events?${params}`, { headers });
+    if (!evRes.ok) {
+      const txt = await evRes.text();
+      throw new Error(`Calendly events ${evRes.status}: ${txt.slice(0, 200)}`);
+    }
+
+    const body = await evRes.json();
+    const page = body.collection || [];
+    allEvents.push(...page);
+
+    // Follow pagination cursor
+    pageToken = body.pagination?.next_page_token || null;
+  } while (pageToken);
+
+  const events = allEvents;
 
   // Fetch invitees in parallel (one per event)
   const invResults = await Promise.allSettled(
@@ -173,7 +208,7 @@ async function fetchCalendly(from, to) {
       slot_end:         ev.end_time,
       status:           'scheduled',
       investment_level: null,
-      assigned_to_email: null,
+      assigned_to_email: ev.event_memberships?.[0]?.user_email || null,
       meet_link:        ev.location?.join_url || null,
       created_at:       ev.created_at,
       event_name:       ev.name || '',
