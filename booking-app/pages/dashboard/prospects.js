@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { getServerSession } from 'next-auth/next';
 import Head from 'next/head';
 import Link from 'next/link';
@@ -407,6 +407,21 @@ function copyToClipboard(text, setCopied) {
   });
 }
 
+// ─── Sidebar line icons ───────────────────────────────────────────────────────
+function SideIcon({ name }) {
+  const p = { width: 17, height: 17, fill: 'none', stroke: 'currentColor', strokeWidth: 1.75, strokeLinecap: 'round', strokeLinejoin: 'round', viewBox: '0 0 24 24', style: { display: 'block' } };
+  if (name === 'dashboard') return <svg {...p}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>;
+  if (name === 'leads')     return <svg {...p}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+  if (name === 'clients')   return <svg {...p}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
+  if (name === 'meetings')  return <svg {...p}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
+  if (name === 'tasks')     return <svg {...p}><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>;
+  if (name === 'calendar')  return <svg {...p}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="8.01" y2="14"/><line x1="12" y1="14" x2="12.01" y2="14"/><line x1="16" y1="14" x2="16.01" y2="14"/></svg>;
+  if (name === 'reports')   return <svg {...p}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>;
+  if (name === 'settings')  return <svg {...p}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>;
+  if (name === 'help')      return <svg {...p}><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+  return null;
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ProspectsPage() {
@@ -591,53 +606,81 @@ export default function ProspectsPage() {
       )}
 
       <div style={s.page}>
-
-        {/* ── Header ──────────────────────────────────────────────────────── */}
-        <header style={s.header}>
-          <div style={s.headerLeft}>
-            <span style={s.logo}>⬡ FranchiseBook</span>
-            <nav style={s.nav}>
-              <Link href="/dashboard/analytics"  style={s.navLink}>Analytics</Link>
-              <Link href="/dashboard/bookings"   style={s.navLink}>Meetings</Link>
-              <Link href="/dashboard/leads"      style={s.navLink}>Leads</Link>
-              <Link href="/dashboard/prospects"  style={{ ...s.navLink, ...s.navActive }}>Prospecting</Link>
-              <Link href="/dashboard/nurture"    style={s.navLink}>Nurture</Link>
-            </nav>
+        {/* ── White Sidebar ── */}
+        <aside style={s.sidebar}>
+          <div style={s.sideLogoWrap}>
+            <div style={s.sideLogoRow}>
+              <div style={s.sideLogoIcon}>F</div>
+              <span style={s.sideLogoText}>FranchiseBook</span>
+            </div>
           </div>
-          <div style={s.headerRight}>
-            <Link href="/dashboard/settings" style={s.navLink}>Settings</Link>
-            <span style={s.headerUser}>{session?.user?.email}</span>
-            <button style={s.signOutBtn} onClick={() => signOut({ callbackUrl: '/dashboard/login' })}>Sign out</button>
+          <nav style={s.sideNav}>
+            {[
+              { href: '/dashboard/analytics', label: 'Dashboard',    icon: 'dashboard' },
+              { href: '/dashboard/leads',     label: 'Leads',        icon: 'leads' },
+              { href: '/dashboard/prospects', label: 'Prospecting',  icon: 'clients', active: true },
+              { href: '/dashboard/bookings',  label: 'Meetings',     icon: 'meetings' },
+              { href: '#',                    label: 'Tasks',        icon: 'tasks' },
+              { href: '#',                    label: 'Calendar',     icon: 'calendar' },
+              { href: '#',                    label: 'Reports',      icon: 'reports' },
+              { href: '/dashboard/settings',  label: 'Settings',     icon: 'settings' },
+            ].map(({ href, label, icon, active }) => (
+              <Link key={label} href={href} style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>
+                <span style={{ color: active ? '#2563EB' : '#9CA3AF', display: 'flex', alignItems: 'center' }}>
+                  <SideIcon name={icon} />
+                </span>
+                <span>{label}</span>
+              </Link>
+            ))}
+          </nav>
+          <div style={s.sideBottom}>
+            <div style={s.sideHelpRow}>
+              <span style={{ color: '#9CA3AF', display: 'flex' }}><SideIcon name="help" /></span>
+              <span style={{ fontSize: 13, color: '#6B7280' }}>Help</span>
+            </div>
+            <div style={s.sideUserRow}>
+              <div style={s.sideUserAvatar}>{(session?.user?.email?.[0] || 'U').toUpperCase()}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {session?.user?.name || session?.user?.email?.split('@')[0] || 'User'}
+                </div>
+                <div style={{ fontSize: 11, color: '#9CA3AF' }}>Rep</div>
+              </div>
+              <span style={{ color: '#9CA3AF', fontSize: 14 }}>›</span>
+            </div>
           </div>
-        </header>
+        </aside>
 
-        <main style={s.main}>
+        {/* ── Main ── */}
+        <div style={s.main}>
+          {/* Top bar */}
+          <div style={s.topBar}>
+            <div>
+              <div style={s.topTitle}>Prospecting Opportunities</div>
+              <div style={s.topDate}>{today}</div>
+            </div>
+            <div style={s.topActions}>
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: 8, background: demoMode ? '#FEF3C7' : '#F3F4F6', border: `1px solid ${demoMode ? '#FCD34D' : '#E5E7EB'}`, borderRadius: 6, padding: '5px 12px', cursor: 'pointer' }}
+                onClick={() => toggleDemo(!demoMode)}
+              >
+                <div style={{ position: 'relative', width: 32, height: 18, borderRadius: 9, background: demoMode ? '#D97706' : '#D1D5DB', flexShrink: 0 }}>
+                  <div style={{ position: 'absolute', top: 2, left: demoMode ? 16 : 2, width: 14, height: 14, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,.2)', transition: 'left .18s' }} />
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 600, color: demoMode ? '#92400E' : '#6B7280', whiteSpace: 'nowrap' }}>
+                  {demoMode ? 'Demo ON' : 'Demo data'}
+                </span>
+              </div>
+              {!demoMode && <button style={s.topBtn} onClick={loadData}>↻ Refresh</button>}
+            </div>
+          </div>
+
+          {/* Body */}
+          <div style={s.body}>
           {(loading && !demoMode) ? (
             <div style={s.loadingWrap}><div style={s.spinner} /><div style={s.loadingText}>Scoring leads…</div></div>
           ) : (
             <>
-              {/* Title row */}
-              <div style={s.pageTitleRow}>
-                <div>
-                  <h1 style={s.pageTitle}>Revenue Opportunities</h1>
-                  <p style={s.pageSubtitle}>{today}</p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div
-                    style={{ display: 'flex', alignItems: 'center', gap: 8, background: demoMode ? '#FEF3C7' : '#F3F4F6', border: `1px solid ${demoMode ? '#FCD34D' : '#E5E7EB'}`, borderRadius: 6, padding: '5px 12px', cursor: 'pointer' }}
-                    onClick={() => toggleDemo(!demoMode)}
-                  >
-                    <div style={{ position: 'relative', width: 32, height: 18, borderRadius: 9, background: demoMode ? '#D97706' : '#D1D5DB', flexShrink: 0 }}>
-                      <div style={{ position: 'absolute', top: 2, left: demoMode ? 16 : 2, width: 14, height: 14, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,.2)', transition: 'left .18s' }} />
-                    </div>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: demoMode ? '#92400E' : '#6B7280', whiteSpace: 'nowrap' }}>
-                      {demoMode ? 'Demo ON' : 'Demo data'}
-                    </span>
-                  </div>
-                  {!demoMode && <button style={s.refreshBtn} onClick={loadData}>↻ Refresh</button>}
-                </div>
-              </div>
-
               {/* Hero section */}
               {hero && (
                 <div style={s.heroCard}>
@@ -1059,7 +1102,8 @@ export default function ProspectsPage() {
               )}
             </>
           )}
-        </main>
+          </div>
+        </div>
       </div>
     </>
   );
@@ -1566,31 +1610,37 @@ function QueueCard({ lead, index, total, bucketConfig, onDisposition, onSkip, on
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = {
-  page:        { minHeight: '100vh', background: '#F0F2F5', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" },
-  header:      { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', height: 50, background: '#151719', position: 'sticky', top: 0, zIndex: 10 },
-  headerLeft:  { display: 'flex', alignItems: 'center', gap: 28 },
-  logo:        { fontWeight: 600, fontSize: 15, color: '#fff', flexShrink: 0 },
-  nav:         { display: 'flex', gap: 2 },
-  navLink:     { fontSize: 13, color: '#9FA6B2', textDecoration: 'none', padding: '7px 14px', borderRadius: 3 },
-  navActive:   { color: '#fff', background: 'rgba(255,255,255,.13)' },
-  headerRight: { display: 'flex', alignItems: 'center', gap: 12 },
-  headerUser:  { fontSize: 13, color: '#9FA6B2' },
-  signOutBtn:  { fontSize: 12, color: '#9FA6B2', background: 'transparent', border: '1px solid rgba(255,255,255,.18)', borderRadius: 3, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit' },
+  page:        { display: 'flex', minHeight: '100vh', background: '#F4F5F7', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" },
 
-  main:        { maxWidth: 1280, margin: '0 auto', padding: '20px 20px 60px' },
+  sidebar:          { width: 210, flexShrink: 0, background: '#fff', borderRight: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh' },
+  sideLogoWrap:     { padding: '20px 16px 16px', borderBottom: '1px solid #F3F4F6' },
+  sideLogoRow:      { display: 'flex', alignItems: 'center', gap: 9 },
+  sideLogoIcon:     { width: 30, height: 30, borderRadius: 8, background: '#2563EB', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, flexShrink: 0 },
+  sideLogoText:     { fontWeight: 700, fontSize: 14, color: '#111827', letterSpacing: '-0.2px' },
+  sideNav:          { flex: 1, padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 1, overflowY: 'auto' },
+  sideNavItem:      { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 7, fontSize: 13, fontWeight: 500, color: '#6B7280', textDecoration: 'none', transition: 'all .15s' },
+  sideNavItemActive:{ background: '#EFF6FF', color: '#2563EB', fontWeight: 600 },
+  sideBottom:       { borderTop: '1px solid #F3F4F6', padding: '8px 8px 16px' },
+  sideHelpRow:      { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 7, cursor: 'pointer' },
+  sideUserRow:      { display: 'flex', alignItems: 'center', gap: 9, padding: '10px 10px', borderRadius: 7, cursor: 'pointer', marginTop: 2 },
+  sideUserAvatar:   { width: 30, height: 30, borderRadius: '50%', background: '#2563EB', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 },
+
+  main:      { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' },
+  topBar:    { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', background: '#fff', borderBottom: '1px solid #E5E7EB', flexShrink: 0, gap: 16 },
+  topTitle:  { fontSize: 20, fontWeight: 700, color: '#111827' },
+  topDate:   { fontSize: 13, color: '#6B7280', fontWeight: 400, marginTop: 2 },
+  topActions:{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 },
+  topBtn:    { padding: '7px 14px', fontSize: 13, fontWeight: 500, borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', cursor: 'pointer', fontFamily: 'inherit' },
+
+  body:        { flex: 1, padding: '20px 24px', overflowY: 'auto' },
   loadingWrap: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 60, gap: 14 },
   spinner:     { width: 24, height: 24, borderRadius: '50%', border: '2px solid #E5E7EB', borderTopColor: '#374151', animation: 'spin 0.8s linear infinite' },
   loadingText: { color: '#6B7280', fontSize: 13 },
   empty:       { textAlign: 'center', padding: 40, color: '#9CA3AF', fontSize: 13 },
-  emptyCard:   { background: '#fff', border: '1px solid #E8EAED', borderRadius: 6, padding: '28px 24px', textAlign: 'center' },
+  emptyCard:   { background: '#fff', border: '1px solid #E8EAED', borderRadius: 8, padding: '28px 24px', textAlign: 'center' },
 
-  pageTitleRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-  pageTitle:   { fontSize: 22, fontWeight: 800, color: '#111827', margin: 0, marginBottom: 2 },
-  pageSubtitle:{ fontSize: 13, color: '#9CA3AF', margin: 0 },
-  refreshBtn:  { fontSize: 12, color: '#6B7280', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 4, padding: '6px 14px', cursor: 'pointer', fontFamily: 'inherit' },
-
-  heroCard:    { background: '#fff', border: '1px solid #E8EAED', borderRadius: 6, padding: '20px 24px', marginBottom: 14 },
-  heroMetrics: { display: 'grid', gridTemplateColumns: '1fr auto 1fr auto 1fr auto 1fr', alignItems: 'center' },
+  heroCard:    { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: '20px 24px', marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,.04)' },
+  heroMetrics: { display: 'grid', gridTemplateColumns: '1fr auto 1fr auto 1fr', alignItems: 'center' },
   heroMetric:  { padding: '0 24px' },
   heroDivider: { width: 1, height: 44, background: '#E8EAED', flexShrink: 0 },
   heroValue:   { fontSize: 28, fontWeight: 800, color: '#111827', lineHeight: 1.1, marginBottom: 3 },
@@ -1602,37 +1652,37 @@ const s = {
   viewTabActive: { color: '#111827', fontWeight: 700, borderBottomColor: '#111827' },
 
   bucketGrid:  { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 14 },
-  bucketCard:  { background: '#fff', border: '1px solid #E8EAED', borderLeft: '4px solid #E8EAED', borderRadius: 6, padding: '14px 14px 10px' },
-  bucketStartBtn: { marginTop: 10, width: '100%', padding: '5px 0', background: 'transparent', border: '1px solid', borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.03em' },
+  bucketCard:  { background: '#fff', border: '1px solid #E8EAED', borderLeft: '4px solid #E8EAED', borderRadius: 8, padding: '14px 14px 10px', boxShadow: '0 1px 2px rgba(0,0,0,.03)' },
+  bucketStartBtn: { marginTop: 10, width: '100%', padding: '6px 0', background: 'transparent', border: '1px solid', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.03em' },
 
   tabRow:      { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 12, flexWrap: 'wrap' },
-  tabs:        { display: 'flex', gap: 2, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 5, padding: 3, flexWrap: 'wrap' },
+  tabs:        { display: 'flex', gap: 2, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 6, padding: 3, flexWrap: 'wrap' },
   tab:         { padding: '4px 10px', fontSize: 12, fontWeight: 500, color: '#6B7280', background: 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit' },
   tabActive:   { background: '#111827', color: '#fff', fontWeight: 700 },
-  startProspectingBtn: { padding: '9px 20px', background: '#111827', color: '#fff', border: 'none', borderRadius: 5, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
+  startProspectingBtn: { padding: '8px 18px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' },
 
-  tableWrap:   { background: '#fff', border: '1px solid #E8EAED', borderRadius: 6, overflow: 'hidden' },
+  tableWrap:   { background: '#fff', border: '1px solid #E8EAED', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,.03)' },
   table:       { width: '100%', borderCollapse: 'collapse' },
   th:          { fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '8px 12px', background: '#F9FAFB', borderBottom: '1px solid #E8EAED', textAlign: 'left' },
   td:          { fontSize: 13, color: '#111827', padding: '10px 12px', borderBottom: '1px solid #F3F4F6', verticalAlign: 'middle' },
-  openBtn:     { padding: '4px 10px', background: 'transparent', border: '1px solid #E5E7EB', borderRadius: 4, fontSize: 12, color: '#374151', cursor: 'pointer', fontFamily: 'inherit' },
+  openBtn:     { padding: '4px 10px', background: 'transparent', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 12, color: '#374151', cursor: 'pointer', fontFamily: 'inherit' },
 
-  backBtn:     { padding: '5px 12px', background: 'transparent', border: '1px solid #E5E7EB', borderRadius: 4, fontSize: 12, color: '#6B7280', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
-  queueCard:   { background: '#fff', border: '1px solid #E8EAED', borderRadius: 8, padding: '28px 30px', boxShadow: '0 1px 4px rgba(0,0,0,.06)' },
-  queueDoneCard: { background: '#fff', border: '1px solid #E8EAED', borderRadius: 8, padding: 36, textAlign: 'center' },
+  backBtn:     { padding: '6px 14px', background: 'transparent', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 12, color: '#6B7280', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
+  queueCard:   { background: '#fff', border: '1px solid #E8EAED', borderRadius: 10, padding: '28px 30px', boxShadow: '0 1px 4px rgba(0,0,0,.06)' },
+  queueDoneCard: { background: '#fff', border: '1px solid #E8EAED', borderRadius: 10, padding: 36, textAlign: 'center' },
 
-  contactBlock: { background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 6, padding: '12px 14px' },
+  contactBlock: { background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '12px 14px' },
   contactLabel: { fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 },
-  copyBtn:     { padding: '5px 12px', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
+  copyBtn:     { padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
 
   sectionLabel: { fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 },
-  recommendBox: { background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 5, padding: '12px 16px', marginBottom: 20 },
+  recommendBox: { background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 6, padding: '12px 16px', marginBottom: 20 },
 
   dispRow:     { display: 'flex', gap: 8, flexWrap: 'wrap' },
-  dispBtn:     { padding: '8px 16px', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', border: 'none' },
+  dispBtn:     { padding: '8px 16px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', border: 'none' },
   dispNeutral: { background: '#F3F4F6', color: '#374151', border: '1px solid #E5E7EB' },
 
-  feedWrap:    { background: '#fff', border: '1px solid #E8EAED', borderRadius: 6, overflow: 'hidden' },
+  feedWrap:    { background: '#fff', border: '1px solid #E8EAED', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,.03)' },
   feedItem:    { display: 'flex', alignItems: 'flex-start', gap: 14, padding: '14px 20px', borderBottom: '1px solid #F3F4F6' },
   feedDot:     { width: 8, height: 8, borderRadius: '50%', marginTop: 4, flexShrink: 0 },
 };
