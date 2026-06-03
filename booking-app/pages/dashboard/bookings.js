@@ -886,39 +886,6 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
             <div style={p.loadingMsg}>Loading…</div>
           ) : (
             <>
-              {/* Quick Actions */}
-              <div style={p.quickActions}>
-                <div style={p.sectionTitle}>Quick Actions</div>
-                {booking.status === 'scheduled' && (
-                  <>
-                    <button style={{ ...p.qaBtn, background: '#2563EB', color: '#fff', border: 'none', marginBottom: 8 }} onClick={() => onStatusChange('showed')}>
-                      ✓ Mark Showed
-                    </button>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={() => setShowFollowUp(true)}>
-                        Reschedule
-                      </button>
-                      <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={() => { setPanelTab('info'); }}>
-                        + Add Note
-                      </button>
-                    </div>
-                    <button style={{ ...p.qaBtn, background: '#fff', color: '#6B7280', border: '1px solid #E5E7EB', marginTop: 8 }} onClick={() => onStatusChange('no-show')}>
-                      ··· Mark No-Show
-                    </button>
-                  </>
-                )}
-                {booking.status === 'showed' && (
-                  <button style={{ ...p.qaBtn, background: '#7C3AED', color: '#fff', border: 'none' }} onClick={() => onStatusChange('closed')}>
-                    Mark Closed Won
-                  </button>
-                )}
-                {(booking.status === 'no-show' || booking.status === 'closed') && (
-                  <div style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '8px 0' }}>
-                    {booking.status === 'closed' ? 'Deal closed' : 'No further actions'}
-                  </div>
-                )}
-              </div>
-
               {/* Contact */}
               <PanelSection title="Contact">
                 {(() => { const phone = booking.phone || lead?.phone || ghlContact?.phone || ''; return <Row label="Phone"><a href={`tel:${phone}`} style={phone ? p.link : undefined}>{phone || '—'}</a></Row>; })()}
@@ -1021,6 +988,39 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                   <button onClick={saveNotes} disabled={notesSaving} style={{ ...p.actionBtn, background: notesSaved ? '#2CA01C' : '#0077C5' }}>{notesSaving ? 'Saving…' : notesSaved ? '✓ Saved' : 'Save Notes'}</button>
                 </div>
               </PanelSection>
+
+              {/* Quick Actions */}
+              <div style={{ ...p.quickActions, borderBottom: 'none', borderTop: '1px solid #F0F0F0' }}>
+                <div style={p.sectionTitle}>Quick Actions</div>
+                {booking.status === 'scheduled' && (
+                  <>
+                    <button style={{ ...p.qaBtn, background: '#2563EB', color: '#fff', border: 'none', marginBottom: 8 }} onClick={() => onStatusChange('showed')}>
+                      ✓ Mark Showed
+                    </button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={() => setShowFollowUp(true)}>
+                        Reschedule
+                      </button>
+                      <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={() => { setPanelTab('info'); }}>
+                        + Add Note
+                      </button>
+                    </div>
+                    <button style={{ ...p.qaBtn, background: '#fff', color: '#6B7280', border: '1px solid #E5E7EB', marginTop: 8 }} onClick={() => onStatusChange('no-show')}>
+                      ··· Mark No-Show
+                    </button>
+                  </>
+                )}
+                {booking.status === 'showed' && (
+                  <button style={{ ...p.qaBtn, background: '#7C3AED', color: '#fff', border: 'none' }} onClick={() => onStatusChange('closed')}>
+                    Mark Closed Won
+                  </button>
+                )}
+                {(booking.status === 'no-show' || booking.status === 'closed') && (
+                  <div style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '8px 0' }}>
+                    {booking.status === 'closed' ? 'Deal closed' : 'No further actions'}
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>
