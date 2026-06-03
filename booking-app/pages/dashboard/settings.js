@@ -398,6 +398,84 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
             </form>
           </Section>
 
+          {/* ── Booking Page Content ────────────────────────────────────── */}
+          <Section
+            title="Booking Page Content"
+            subtitle="Edit the text leads see on the scheduling page. Changes go live immediately after saving."
+          >
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              setSaving(true);
+              await fetch('/api/dashboard/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  booking_headline:     settings.booking_headline,
+                  booking_subtitle:     settings.booking_subtitle,
+                  booking_description:  settings.booking_description,
+                  booking_meeting_type: settings.booking_meeting_type,
+                }),
+              });
+              setSaving(false);
+              setSaved(true);
+              setTimeout(() => setSaved(false), 2000);
+            }} style={s.form}>
+
+              <Field label="Headline">
+                <input
+                  style={s.input}
+                  type="text"
+                  placeholder="{first_name}, let's see if this could be a fit."
+                  value={settings.booking_headline || ''}
+                  onChange={e => setSettings(p => ({ ...p, booking_headline: e.target.value || null }))}
+                />
+                <div style={{ display: 'flex', gap: 5, marginTop: 5 }}>
+                  <button type="button" style={{ fontSize: 11, padding: '2px 8px', borderRadius: 3, border: '1px solid #C8CDD2', background: '#F5F6F7', color: '#374151', cursor: 'pointer', fontFamily: 'monospace' }}
+                    onClick={() => setSettings(p => ({ ...p, booking_headline: (p.booking_headline || '') + '{first_name}' }))}>
+                    {'{first_name}'}
+                  </button>
+                </div>
+                <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>Use <code style={{ fontSize: 11 }}>{'{first_name}'}</code> to personalize with the lead's name. If no name is available, that part is omitted automatically.</p>
+              </Field>
+
+              <Field label="Subtitle (blue line)">
+                <input
+                  style={s.input}
+                  type="text"
+                  placeholder="Learn More About the Opportunity"
+                  value={settings.booking_subtitle || ''}
+                  onChange={e => setSettings(p => ({ ...p, booking_subtitle: e.target.value || null }))}
+                />
+              </Field>
+
+              <Field label="Description paragraph">
+                <textarea
+                  style={{ ...s.input, minHeight: 80, resize: 'vertical', lineHeight: 1.6 }}
+                  placeholder="15-minute conversation. Ask questions, get details, and see if it's worth exploring further. No pressure."
+                  value={settings.booking_description || ''}
+                  onChange={e => setSettings(p => ({ ...p, booking_description: e.target.value || null }))}
+                />
+              </Field>
+
+              <Field label="Meeting type label">
+                <input
+                  style={s.input}
+                  type="text"
+                  placeholder="Phone call"
+                  value={settings.booking_meeting_type || ''}
+                  onChange={e => setSettings(p => ({ ...p, booking_meeting_type: e.target.value || null }))}
+                />
+                <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>Shown in the meta row beside the clock icon, e.g. "Phone call", "Zoom", "Video call". Duration and timezone come from Availability Settings.</p>
+              </Field>
+
+              <div style={{ marginTop: 4 }}>
+                <button type="submit" style={s.saveBtn} disabled={saving}>
+                  {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save page content'}
+                </button>
+              </div>
+            </form>
+          </Section>
+
           {/* ── Calendar Event Settings ─────────────────────────────────── */}
           <Section
             title="Calendar Event Settings"

@@ -184,13 +184,24 @@ export default function BookingPage() {
   const [leadToken,      setLeadToken]      = useState(null);
   const [bookingSource,  setBookingSource]  = useState('direct');
   const [hostAvatar,     setHostAvatar]     = useState(null);
+  const [pageContent,    setPageContent]    = useState({});
   const inputRef = useRef(null);
 
-  // Load public settings (avatar, etc.) on mount
+  // Load public settings (avatar + editable copy) on mount
   useEffect(() => {
     fetch('/api/public-settings')
       .then(r => r.json())
-      .then(d => { if (d.host_avatar_url) setHostAvatar(d.host_avatar_url); })
+      .then(d => {
+        if (d.host_avatar_url) setHostAvatar(d.host_avatar_url);
+        setPageContent({
+          headline:     d.booking_headline     || null,
+          subtitle:     d.booking_subtitle     || null,
+          description:  d.booking_description  || null,
+          meetingType:  d.booking_meeting_type || null,
+          duration:     d.meeting_duration     || null,
+          tzLabel:      d.timezone_label       || null,
+        });
+      })
       .catch(() => {});
   }, []);
 
@@ -463,6 +474,7 @@ export default function BookingPage() {
       answers={answers}
       leadId={leadId}
       hostAvatar={hostAvatar}
+      pageContent={pageContent}
     />;
   return (
     <BookedPhase
@@ -530,8 +542,20 @@ function FormPhase({ step, answers, setAnswers, doAdvance, doRetreat, inputRef }
 function PickingPhase({
   days, slotMap, selDate, selSlot, onPickDate, onPickSlot, onConfirm, booking,
   calExpanded, onToggleCal, recommended, alternatives, onPickGuidedSlot,
-  onReserveRecommended, answers, hostAvatar,
+  onReserveRecommended, answers, hostAvatar, pageContent = {},
 }) {
+  // Resolve editable copy with CFG fallbacks
+  const duration    = pageContent.duration    || CFG.duration;
+  const tzLabel     = pageContent.tzLabel     || CFG.tz;
+  const meetingType = pageContent.meetingType || 'Phone call';
+  const subtitle    = pageContent.subtitle    || 'Learn More About the Opportunity';
+  const description = pageContent.description || '15-minute conversation. Ask questions, get details, and see if it\'s worth exploring further. No pressure.';
+
+  // Headline: supports {first_name} template variable
+  const headlineTemplate = pageContent.headline || "{first_name}, let's see if this could be a fit.";
+  const headline = answers?.firstName
+    ? headlineTemplate.replace(/\{first_name\}/g, answers.firstName)
+    : headlineTemplate.replace(/\{first_name\},?\s*/g, '').replace(/^\s*,?\s*/, '').trim() || "Let's see if this could be a fit.";
   const [recExpanded, setRecExpanded] = useState(true);
   const slotsLoaded = Object.values(slotMap).some(v => v.loaded);
 
@@ -564,18 +588,14 @@ function PickingPhase({
             {hostAvatar && (
               <img className="pk-host-avatar" src={hostAvatar} alt="" />
             )}
-            <div className="pk-headline">
-              {answers?.firstName
-                ? `${answers.firstName}, let's see if this could be a fit.`
-                : 'Let\'s see if this could be a fit.'}
-            </div>
+            <div className="pk-headline">{headline}</div>
           </div>
-          <div className="pk-meeting-title">Learn More About the Opportunity</div>
-          <div className="pk-desc">15-minute conversation. Ask questions, get details, and see if it's worth exploring further. No pressure.</div>
+          <div className="pk-meeting-title">{subtitle}</div>
+          <div className="pk-desc">{description}</div>
           <div className="pk-meta-row">
-            <span className="pk-meta-item"><IcoClk size={14} /> {CFG.duration} min</span>
-            <span className="pk-meta-item"><IcoPhone size={14} /> Phone call</span>
-            <span className="pk-meta-item"><IcoGlobe size={14} /> {CFG.tz}</span>
+            <span className="pk-meta-item"><IcoClk size={14} /> {duration} min</span>
+            <span className="pk-meta-item"><IcoPhone size={14} /> {meetingType}</span>
+            <span className="pk-meta-item"><IcoGlobe size={14} /> {tzLabel}</span>
           </div>
         </div>
 

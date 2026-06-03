@@ -33,6 +33,7 @@ export default async function handler(req, res) {
       show_revenue, show_franchise_metrics, workflow_mappings,
       event_description, event_location, event_color, event_reminder_mins,
       host_avatar_url,
+      booking_headline, booking_subtitle, booking_description, booking_meeting_type,
     } = req.body;
 
     const update = { updated_at: new Date().toISOString() };
@@ -56,6 +57,10 @@ export default async function handler(req, res) {
     if (event_color             !== undefined) update.event_color             = event_color ? Number(event_color) : null;
     if (event_reminder_mins     !== undefined) update.event_reminder_mins     = Number(event_reminder_mins) || 15;
     if (host_avatar_url         !== undefined) update.host_avatar_url         = host_avatar_url || null;
+    if (booking_headline        !== undefined) update.booking_headline        = booking_headline        || null;
+    if (booking_subtitle        !== undefined) update.booking_subtitle        = booking_subtitle        || null;
+    if (booking_description     !== undefined) update.booking_description     = booking_description     || null;
+    if (booking_meeting_type    !== undefined) update.booking_meeting_type    = booking_meeting_type    || null;
 
     const { data, error } = await supabase
       .from('settings')
