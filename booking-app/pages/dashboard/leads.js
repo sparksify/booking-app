@@ -24,56 +24,111 @@ const INV_LABELS = {
   gt_500k:     { label: 'Over $500k',   color: '#065F46', bg: '#D1FAE5' },
 };
 
+const AVATAR_COLORS = {
+  new:       { bg: '#EEF2FF', color: '#6366F1' },
+  booked:    { bg: '#E0F2FE', color: '#0EA5E9' },
+  showed:    { bg: '#DCFCE7', color: '#16A34A' },
+  no_show:   { bg: '#FEF3C7', color: '#F59E0B' },
+  qualified: { bg: '#EDE9FE', color: '#7C3AED' },
+  lost:      { bg: '#FEE2E2', color: '#DC2626' },
+};
+
 const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function getSourceBadge(lead) {
+  if (lead.fb_form_id)          return { label: 'Facebook',     color: '#1877F2', bg: '#EBF5FF' };
+  const src = lead.source || '';
+  if (src === 'calendly')       return { label: 'Calendly',     color: '#0F766E', bg: '#CCFBF1' };
+  if (src === 'gohighlevel')    return { label: 'GoHighLevel',  color: '#7C3AED', bg: '#EDE9FE' };
+  return                               { label: 'FranchiseBook', color: '#1D4ED8', bg: '#DBEAFE' };
+}
 
 // ─── Server-side data fetch ───────────────────────────────────────────────────
 
 export async function getServerSideProps(context) {
   const session = await getServerSession(context.req, context.res, authOptions);
-  if (!session) {
-    return { redirect: { destination: '/dashboard/login', permanent: false } };
-  }
+  if (!session) return { redirect: { destination: '/dashboard/login', permanent: false } };
 
   const supabase = getSupabaseAdmin();
 
-  // Fetch leads joined with their booking (if any)
-  const { data: leads } = await supabase
-    .from('leads')
-    .select(`
-      id, token, first_name, last_name, email, phone,
-      investment_level, raw_fields, status,
-      fb_form_id, fb_ad_id, fb_campaign_id,
-      ghl_contact_id, created_at,
-      bookings (
-        id, slot_start, assigned_to_email, meet_link, status
-      )
-    `)
-    .order('created_at', { ascending: false })
-    .limit(300);
+  // Fetch both tables in parallel
+  const [{ data: leadsRaw }, { data: bookingsRaw }] = await Promise.all([
+    supabase
+      .from('leads')
+      .select(`
+        id, token, first_name, last_name, email, phone,
+        investment_level, raw_fields, status,
+        fb_form_id, fb_ad_id, fb_campaign_id,
+        ghl_contact_id, created_at,
+        bookings (id, slot_start, assigned_to_email, meet_link, status, booking_source)
+      `)
+      .order('created_at', { ascending: false })
+      .limit(500),
+    supabase
+      .from('bookings')
+      .select('id, first_name, last_name, email, phone, slot_start, assigned_to_email, meet_link, status, investment_level, created_at, booking_source')
+      .order('created_at', { ascending: false })
+      .limit(500),
+  ]);
+
+  const leads    = leadsRaw   || [];
+  const bookings = bookingsRaw || [];
+
+  // Emails already covered by a lead record
+  const leadEmails = new Set(leads.map(l => (l.email || '').toLowerCase()).filter(Boolean));
+
+  // Convert orphan bookings (no lead record) into synthetic contact entries
+  const orphanContacts = bookings
+    .filter(b => b.email && !leadEmails.has(b.email.toLowerCase()))
+    .map(b => ({
+      id:               `b_${b.id}`,
+      token:            null,
+      first_name:       b.first_name || '',
+      last_name:        b.last_name  || '',
+      email:            b.email,
+      phone:            b.phone      || '',
+      investment_level: b.investment_level || null,
+      raw_fields:       {},
+      status:           'booked',
+      fb_form_id:       null,
+      ghl_contact_id:   null,
+      source:           b.booking_source || 'direct',
+      created_at:       b.created_at,
+      bookings:         [{
+        id: b.id, slot_start: b.slot_start,
+        assigned_to_email: b.assigned_to_email,
+        meet_link: b.meet_link, status: b.status,
+        booking_source: b.booking_source,
+      }],
+    }));
+
+  // Merge + sort by date descending
+  const allContacts = [...leads, ...orphanContacts].sort(
+    (a, b) => new Date(b.created_at) - new Date(a.created_at)
+  );
 
   return {
     props: {
       session,
-      initialLeads: leads || [],
+      initialLeads: allContacts,
       baseUrl: `https://${context.req.headers.host}`,
     },
   };
 }
 
-// ─── Leads Dashboard ─────────────────────────────────────────────────────────
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function LeadsDashboard({ initialLeads, baseUrl }) {
   const { data: session } = useSession();
 
-  const [leads, setLeads]           = useState(initialLeads);
-  const [statusFilter, setStatus]   = useState('all');
-  const [invFilter, setInv]         = useState('all');
-  const [search, setSearch]         = useState('');
-  const [expandedId, setExpandedId] = useState(null);
-  const [updating, setUpdating]     = useState(null);
-  const [copied, setCopied]         = useState(null);
+  const [leads,        setLeads]       = useState(initialLeads);
+  const [statusFilter, setStatus]      = useState('all');
+  const [invFilter,    setInv]         = useState('all');
+  const [search,       setSearch]      = useState('');
+  const [expandedId,   setExpandedId]  = useState(null);
+  const [updating,     setUpdating]    = useState(null);
+  const [copied,       setCopied]      = useState(null);
 
-  // Filtered leads
   const filtered = useMemo(() => {
     let l = leads;
     if (statusFilter !== 'all') l = l.filter(x => x.status === statusFilter);
@@ -87,19 +142,21 @@ export default function LeadsDashboard({ initialLeads, baseUrl }) {
     return l;
   }, [leads, statusFilter, invFilter, search]);
 
-  // Counts per status for badges
   const counts = useMemo(() => {
-    const c = {};
-    STATUSES.forEach(s => { c[s.key] = leads.filter(l => l.status === s.key).length; });
+    const c = { all: leads.length };
+    STATUSES.forEach(st => { c[st.key] = leads.filter(l => l.status === st.key).length; });
     return c;
   }, [leads]);
 
   async function updateStatus(id, newStatus) {
     setUpdating(id);
+    const isOrphan = String(id).startsWith('b_');
+    const table    = isOrphan ? 'bookings' : 'leads';
+    const realId   = isOrphan ? String(id).slice(2) : id;
     await fetch('/api/dashboard/leads', {
       method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ id, status: newStatus }),
+      body:    JSON.stringify({ id: realId, status: newStatus, table }),
     });
     setLeads(prev => prev.map(l => l.id === id ? { ...l, status: newStatus } : l));
     setUpdating(null);
@@ -133,73 +190,92 @@ export default function LeadsDashboard({ initialLeads, baseUrl }) {
           <div style={s.headerRight}>
             <Link href="/dashboard/settings" style={s.navLink}>⚙ Settings</Link>
             <span style={s.headerUser}>{session?.user?.email}</span>
-            <button style={s.signOutBtn} onClick={() => signOut({ callbackUrl: '/dashboard/login' })}>
-              Sign out
-            </button>
+            <button style={s.signOutBtn} onClick={() => signOut({ callbackUrl: '/dashboard/login' })}>Sign out</button>
           </div>
         </header>
 
-        {/* ── Status bar ── */}
-        <div style={s.statusBar}>
-          <button
-            style={{ ...s.statusChip, ...(statusFilter === 'all' ? s.statusChipActive : {}) }}
-            onClick={() => setStatus('all')}
-          >
-            All <span style={s.chipCount}>{leads.length}</span>
-          </button>
-          {STATUSES.map(st => (
-            <button
-              key={st.key}
-              style={{
-                ...s.statusChip,
-                ...(statusFilter === st.key ? { ...s.statusChipActive, borderColor: st.color, color: st.color } : {}),
-              }}
-              onClick={() => setStatus(statusFilter === st.key ? 'all' : st.key)}
-            >
-              {st.label} <span style={s.chipCount}>{counts[st.key] || 0}</span>
-            </button>
-          ))}
+        {/* ── Control bar: title + status filters + investment dropdown ── */}
+        <div style={s.controlBar}>
+          <div style={s.controlLeft}>
+            <span style={s.pageTitle}>All Contacts</span>
+            <span style={s.totalBadge}>{leads.length.toLocaleString()}</span>
+          </div>
+          <div style={s.controlRight}>
+            <div style={s.statusChips}>
+              <button
+                style={{ ...s.chip, ...(statusFilter === 'all' ? s.chipActiveAll : {}) }}
+                onClick={() => setStatus('all')}
+              >
+                All <span style={s.chipCount}>{counts.all}</span>
+              </button>
+              {STATUSES.map(st => (
+                <button
+                  key={st.key}
+                  style={{
+                    ...s.chip,
+                    ...(statusFilter === st.key
+                      ? { background: st.bg, color: st.color, borderColor: st.color }
+                      : {}),
+                  }}
+                  onClick={() => setStatus(statusFilter === st.key ? 'all' : st.key)}
+                >
+                  {st.label}
+                  {counts[st.key] > 0 && <span style={s.chipCount}>{counts[st.key]}</span>}
+                </button>
+              ))}
+            </div>
+            <select style={s.filterSelect} value={invFilter} onChange={e => setInv(e.target.value)}>
+              <option value="all">All investment levels</option>
+              {Object.entries(INV_LABELS).map(([k, v]) => (
+                <option key={k} value={k}>{v.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        {/* ── Filters ── */}
-        <div style={s.toolbar}>
-          <input
-            style={s.searchInput}
-            type="search"
-            placeholder="Search name, email, phone…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-          <select style={s.filterSelect} value={invFilter} onChange={e => setInv(e.target.value)}>
-            <option value="all">All investment levels</option>
-            {Object.entries(INV_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v.label}</option>
-            ))}
-          </select>
-          <span style={s.resultCount}>{filtered.length} leads</span>
+        {/* ── Search bar ── */}
+        <div style={s.searchWrap}>
+          <div style={s.searchBox}>
+            <svg style={s.searchIcon} viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="8.5" cy="8.5" r="5.5" stroke="#9CA3AF" strokeWidth="1.5"/>
+              <path d="M13.5 13.5L17 17" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            <input
+              style={s.searchInput}
+              type="text"
+              placeholder="Search by name, email, or phone number…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              autoComplete="off"
+              spellCheck="false"
+            />
+            {search && (
+              <button style={s.clearBtn} onClick={() => setSearch('')} title="Clear">×</button>
+            )}
+          </div>
+          <span style={s.resultCount}>{filtered.length.toLocaleString()} contact{filtered.length !== 1 ? 's' : ''}</span>
         </div>
 
-        {/* ── Leads list ── */}
+        {/* ── Contact list ── */}
         <main style={s.main}>
           {filtered.length === 0 ? (
             <div style={s.empty}>
               {leads.length === 0
-                ? 'No leads yet. Once your Facebook webhook is live, leads will appear here automatically.'
-                : 'No leads match your filters.'}
+                ? 'No contacts yet. Leads from Facebook, FranchiseBook, and other sources will appear here automatically.'
+                : 'No contacts match your search or filters.'}
             </div>
           ) : (
             <div style={s.list}>
               {filtered.map(lead => (
-                <LeadRow
+                <ContactRow
                   key={lead.id}
                   lead={lead}
                   expanded={expandedId === lead.id}
                   onToggle={() => setExpandedId(expandedId === lead.id ? null : lead.id)}
                   onStatusChange={updateStatus}
                   updating={updating === lead.id}
-                  onCopyLink={() => copyBookingLink(lead.token)}
+                  onCopyLink={lead.token ? () => copyBookingLink(lead.token) : null}
                   linkCopied={copied === lead.token}
-                  baseUrl={baseUrl}
                 />
               ))}
             </div>
@@ -210,61 +286,72 @@ export default function LeadsDashboard({ initialLeads, baseUrl }) {
   );
 }
 
-// ─── Lead Row ─────────────────────────────────────────────────────────────────
+// ─── Contact Row ─────────────────────────────────────────────────────────────
 
-function LeadRow({ lead, expanded, onToggle, onStatusChange, updating, onCopyLink, linkCopied, baseUrl }) {
-  const status = STATUSES.find(s => s.key === lead.status) || STATUSES[0];
-  const inv    = lead.investment_level ? INV_LABELS[lead.investment_level] : null;
+function ContactRow({ lead, expanded, onToggle, onStatusChange, updating, onCopyLink, linkCopied }) {
+  const status  = STATUSES.find(s => s.key === lead.status) || STATUSES[0];
+  const inv     = lead.investment_level ? INV_LABELS[lead.investment_level] : null;
   const booking = lead.bookings?.[0] || null;
+  const source  = getSourceBadge(lead);
+  const avCol   = AVATAR_COLORS[lead.status] || AVATAR_COLORS.new;
+  const initials = [lead.first_name?.[0], lead.last_name?.[0]].filter(Boolean).join('').toUpperCase() || '?';
 
-  // Extra fields beyond core contact info
   const extraFields = Object.entries(lead.raw_fields || {}).filter(([k]) =>
     !['first_name','last_name','email','phone_number','phone'].includes(k)
   );
 
   return (
-    <div style={{ ...s.row, opacity: updating ? 0.6 : 1 }}>
+    <div style={{ ...s.row, opacity: updating ? 0.6 : 1, borderLeftColor: status.color }}>
+
       {/* Main row */}
       <div style={s.rowMain} onClick={onToggle}>
-        <div style={s.rowLeft}>
-          <div style={s.leadName}>{lead.first_name} {lead.last_name}</div>
-          <div style={s.leadContact}>
-            {lead.email && <span>{lead.email}</span>}
-            {lead.phone && <span style={s.dot}>·</span>}
+
+        {/* Avatar */}
+        <div style={{ ...s.avatar, background: avCol.bg, color: avCol.color }}>{initials}</div>
+
+        {/* Info */}
+        <div style={s.rowBody}>
+          <div style={s.contactName}>{lead.first_name} {lead.last_name}</div>
+          <div style={s.contactSub}>
+            {lead.email && <span style={s.contactEmail}>{lead.email}</span>}
+            {lead.email && lead.phone && <span style={s.dot}>·</span>}
             {lead.phone && <span>{formatPhone(lead.phone)}</span>}
           </div>
-          <div style={s.leadMeta}>
-            <span style={s.leadDate}>{formatDate(lead.created_at)}</span>
-            {booking && (
-              <span style={s.bookingPill}>📅 {formatSlot(booking.slot_start)}</span>
+          <div style={s.contactMeta}>
+            <span style={s.metaDate}>{formatDate(lead.created_at)}</span>
+            {booking?.slot_start && (
+              <span style={s.bookingPill}>Booked · {formatSlot(booking.slot_start)}</span>
             )}
           </div>
         </div>
+
+        {/* Badges */}
         <div style={s.rowRight}>
-          {inv && (
-            <span style={{ ...s.badge, color: inv.color, background: inv.bg }}>{inv.label}</span>
-          )}
+          <span style={{ ...s.srcBadge, color: source.color, background: source.bg }}>{source.label}</span>
+          {inv && <span style={{ ...s.badge, color: inv.color, background: inv.bg }}>{inv.label}</span>}
           <span style={{ ...s.badge, color: status.color, background: status.bg }}>{status.label}</span>
-          <span style={{ ...s.chevron, transform: expanded ? 'rotate(180deg)' : 'none' }}>▾</span>
+          <span style={{ ...s.chevron, transform: expanded ? 'rotate(90deg)' : 'none' }}>›</span>
         </div>
       </div>
 
       {/* Expanded detail */}
       {expanded && (
         <div style={s.detail}>
+
           {/* Actions */}
           <div style={s.detailActions}>
-            <button
-              style={{ ...s.actionBtn, background: linkCopied ? '#16A34A' : '#1D4ED8', color: '#fff' }}
-              onClick={onCopyLink}
-            >
-              {linkCopied ? '✓ Copied!' : '🔗 Copy booking link'}
-            </button>
+            {onCopyLink && (
+              <button
+                style={{ ...s.actionBtn, background: linkCopied ? '#16A34A' : '#1D4ED8', color: '#fff' }}
+                onClick={onCopyLink}
+              >
+                {linkCopied ? '✓ Link copied' : 'Copy booking link'}
+              </button>
+            )}
             {lead.ghl_contact_id && (
               <a
                 href={`https://app.gohighlevel.com/contacts/${lead.ghl_contact_id}`}
-                target="_blank"
-                rel="noreferrer"
+                target="_blank" rel="noreferrer"
                 style={{ ...s.actionBtn, background: '#F3F4F6', color: '#374151', textDecoration: 'none' }}
               >
                 Open in GHL →
@@ -272,43 +359,43 @@ function LeadRow({ lead, expanded, onToggle, onStatusChange, updating, onCopyLin
             )}
           </div>
 
-          {/* All form answers */}
+          {/* Form answers */}
           {extraFields.length > 0 && (
-            <div style={s.rawFields}>
-              <div style={s.rawTitle}>Form answers</div>
+            <div style={s.detailBlock}>
+              <div style={s.blockTitle}>Form answers</div>
               {extraFields.map(([key, val]) => (
-                <div key={key} style={s.rawRow}>
-                  <span style={s.rawKey}>{key.replace(/_/g, ' ')}</span>
-                  <span style={s.rawVal}>{val}</span>
+                <div key={key} style={s.kv}>
+                  <span style={s.kvKey}>{key.replace(/_/g, ' ')}</span>
+                  <span style={s.kvVal}>{String(val)}</span>
                 </div>
               ))}
             </div>
           )}
 
           {/* Booking info */}
-          {booking && (
-            <div style={s.bookingInfo}>
-              <div style={s.rawTitle}>Booked call</div>
-              <div style={s.rawRow}>
-                <span style={s.rawKey}>Time</span>
-                <span style={s.rawVal}>{formatSlot(booking.slot_start)}</span>
+          {booking?.slot_start && (
+            <div style={{ ...s.detailBlock, background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
+              <div style={s.blockTitle}>Booked call</div>
+              <div style={s.kv}>
+                <span style={s.kvKey}>When</span>
+                <span style={s.kvVal}>{formatSlot(booking.slot_start)}</span>
               </div>
-              <div style={s.rawRow}>
-                <span style={s.rawKey}>Rep</span>
-                <span style={s.rawVal}>{booking.assigned_to_email || '—'}</span>
+              <div style={s.kv}>
+                <span style={s.kvKey}>Rep</span>
+                <span style={s.kvVal}>{booking.assigned_to_email || '—'}</span>
               </div>
               {booking.meet_link && (
-                <div style={s.rawRow}>
-                  <span style={s.rawKey}>Meet</span>
+                <div style={s.kv}>
+                  <span style={s.kvKey}>Meet</span>
                   <a href={booking.meet_link} target="_blank" rel="noreferrer" style={s.link}>Join call →</a>
                 </div>
               )}
             </div>
           )}
 
-          {/* Move status */}
+          {/* Status change */}
           <div style={s.moveRow}>
-            <span style={s.moveLabel}>Move to:</span>
+            <span style={s.moveLabel}>Move to</span>
             {STATUSES.filter(st => st.key !== lead.status).map(st => (
               <button
                 key={st.key}
@@ -331,7 +418,7 @@ function LeadRow({ lead, expanded, onToggle, onStatusChange, updating, onCopyLin
 function formatDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
-  return `${MON[d.getMonth()]} ${d.getDate()} at ${fmtTime(d)}`;
+  return `${MON[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} · ${fmtTime(d)}`;
 }
 
 function formatSlot(iso) {
@@ -342,7 +429,7 @@ function formatSlot(iso) {
 
 function fmtTime(d) {
   const h = d.getHours(), m = d.getMinutes();
-  const p = h >= 12 ? 'PM' : 'AM';
+  const p  = h >= 12 ? 'PM' : 'AM';
   const dh = h > 12 ? h - 12 : h === 0 ? 12 : h;
   return `${dh}:${String(m).padStart(2,'0')} ${p}`;
 }
@@ -357,64 +444,72 @@ function formatPhone(p) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = {
-  page:         { minHeight: '100vh', background: '#F5F6F7', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif", color: '#1A2B3C', display: 'flex', flexDirection: 'column' },
+  page:        { minHeight: '100vh', background: '#F2F3F5', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif", color: '#1A2B3C', display: 'flex', flexDirection: 'column' },
 
-  // QB dark header — precise color
-  header:       { background: '#151719', padding: '0 20px', height: 50, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50, flexShrink: 0 },
-  headerLeft:   { display: 'flex', alignItems: 'center', gap: 28 },
-  logo:         { fontWeight: 600, fontSize: 15, color: '#FFFFFF', letterSpacing: '-0.2px', flexShrink: 0 },
-  nav:          { display: 'flex', gap: 2 },
-  navLink:      { fontSize: 13, color: '#9FA6B2', textDecoration: 'none', padding: '7px 14px', borderRadius: 3, fontWeight: 400 },
-  navActive:    { color: '#FFFFFF', background: 'rgba(255,255,255,.13)' },
-  headerRight:  { display: 'flex', alignItems: 'center', gap: 12 },
-  headerUser:   { fontSize: 13, color: '#9FA6B2' },
-  signOutBtn:   { fontSize: 12, fontWeight: 400, color: '#9FA6B2', background: 'transparent', border: '1px solid rgba(255,255,255,.18)', borderRadius: 3, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit' },
+  // Dark header
+  header:      { background: '#151719', padding: '0 20px', height: 50, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50, flexShrink: 0 },
+  headerLeft:  { display: 'flex', alignItems: 'center', gap: 28 },
+  logo:        { fontWeight: 600, fontSize: 15, color: '#FFFFFF', letterSpacing: '-0.2px', flexShrink: 0 },
+  nav:         { display: 'flex', gap: 2 },
+  navLink:     { fontSize: 13, color: '#9FA6B2', textDecoration: 'none', padding: '7px 14px', borderRadius: 3, fontWeight: 400 },
+  navActive:   { color: '#FFFFFF', background: 'rgba(255,255,255,.13)' },
+  headerRight: { display: 'flex', alignItems: 'center', gap: 12 },
+  headerUser:  { fontSize: 13, color: '#9FA6B2' },
+  signOutBtn:  { fontSize: 12, fontWeight: 400, color: '#9FA6B2', background: 'transparent', border: '1px solid rgba(255,255,255,.18)', borderRadius: 3, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit' },
 
-  // Status filter bar
-  statusBar:    { background: '#fff', borderBottom: '1px solid #D8DCE0', padding: '9px 20px', display: 'flex', gap: 6, overflowX: 'auto', flexShrink: 0 },
-  statusChip:   { padding: '5px 12px', fontSize: 12, fontWeight: 400, color: '#4A5568', background: '#F5F6F7', border: '1px solid #D8DCE0', borderRadius: 20, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 },
-  statusChipActive: { background: '#E0EFF9', color: '#0077C5', borderColor: '#0077C5' },
-  chipCount:    { fontWeight: 600, opacity: 0.7 },
+  // Control bar
+  controlBar:  { background: '#fff', borderBottom: '1px solid #D8DCE0', padding: '8px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', flexShrink: 0 },
+  controlLeft: { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 },
+  pageTitle:   { fontSize: 15, fontWeight: 600, color: '#1A2B3C' },
+  totalBadge:  { fontSize: 11, fontWeight: 700, color: '#fff', background: '#6B7280', borderRadius: 20, padding: '2px 8px' },
+  controlRight:{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, flexWrap: 'wrap' },
+  statusChips: { display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' },
+  chip:        { padding: '4px 11px', fontSize: 12, fontWeight: 500, color: '#6B7280', background: '#F5F6F7', border: '1px solid #D8DCE0', borderRadius: 20, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 4, lineHeight: 1.4 },
+  chipActiveAll:{ background: '#E0EFF9', color: '#0077C5', borderColor: '#0077C5' },
+  chipCount:   { fontWeight: 700, fontSize: 10, opacity: 0.7 },
+  filterSelect:{ padding: '5px 10px', border: '1px solid #C8CDD2', borderRadius: 4, fontSize: 12, color: '#374151', background: '#fff', fontFamily: 'inherit', outline: 'none', cursor: 'pointer', marginLeft: 'auto' },
 
-  // Toolbar
-  toolbar:      { background: '#fff', borderBottom: '1px solid #D8DCE0', padding: '9px 20px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 },
-  searchInput:  { flex: 1, maxWidth: 300, padding: '7px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, fontFamily: 'inherit', outline: 'none', color: '#1A2B3C' },
-  filterSelect: { padding: '7px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', background: '#fff', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' },
-  resultCount:  { fontSize: 12, color: '#9CA3AF', fontWeight: 400, marginLeft: 'auto' },
+  // Search
+  searchWrap:  { background: '#F2F3F5', borderBottom: '1px solid #D8DCE0', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 },
+  searchBox:   { flex: 1, maxWidth: 880, display: 'flex', alignItems: 'center', background: '#fff', border: '1.5px solid #C8CDD2', borderRadius: 7, padding: '0 14px', gap: 10 },
+  searchIcon:  { width: 17, height: 17, flexShrink: 0 },
+  searchInput: { flex: 1, border: 'none', outline: 'none', fontSize: 14, color: '#1A2B3C', padding: '12px 0', background: 'transparent', fontFamily: 'inherit' },
+  clearBtn:    { background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#9CA3AF', padding: '0 2px', lineHeight: 1, fontFamily: 'inherit' },
+  resultCount: { fontSize: 12, color: '#9CA3AF', flexShrink: 0 },
 
-  // Lead list
-  main:         { flex: 1, padding: '18px 20px' },
-  list:         { display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 960, margin: '0 auto' },
-  empty:        { textAlign: 'center', padding: '60px 24px', fontSize: 14, color: '#9CA3AF', maxWidth: 480, margin: '0 auto', lineHeight: 1.6 },
+  // List
+  main:        { flex: 1, padding: '16px 20px' },
+  list:        { display: 'flex', flexDirection: 'column', gap: 5, maxWidth: 1080, margin: '0 auto' },
+  empty:       { textAlign: 'center', padding: '60px 24px', fontSize: 14, color: '#9CA3AF', maxWidth: 440, margin: '0 auto', lineHeight: 1.7 },
 
-  // Lead row card — QB white card, thin border, no shadow
-  row:          { background: '#fff', border: '1px solid #D8DCE0', borderRadius: 4, overflow: 'hidden', transition: 'opacity .15s' },
-  rowMain:      { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '13px 16px', cursor: 'pointer' },
-  rowLeft:      { flex: 1, minWidth: 0 },
-  leadName:     { fontSize: 14, fontWeight: 600, color: '#1A2B3C', marginBottom: 3 },
-  leadContact:  { fontSize: 13, color: '#6B7280', display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4 },
-  dot:          { color: '#C8CDD2' },
-  leadMeta:     { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
-  leadDate:     { fontSize: 11, color: '#9CA3AF' },
-  bookingPill:  { fontSize: 11, fontWeight: 500, color: '#0077C5', background: '#E0EFF9', borderRadius: 10, padding: '2px 8px' },
-  rowRight:     { display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 12 },
-  badge:        { fontSize: 10, fontWeight: 600, borderRadius: 20, padding: '3px 8px', whiteSpace: 'nowrap' },
-  chevron:      { fontSize: 16, color: '#9CA3AF', transition: 'transform .2s', display: 'inline-block', lineHeight: 1 },
+  // Contact row card — colored left border accent
+  row:         { background: '#fff', border: '1px solid #D8DCE0', borderLeft: '3px solid transparent', borderRadius: 5, overflow: 'hidden', transition: 'opacity .15s' },
+  rowMain:     { display: 'flex', alignItems: 'center', padding: '11px 16px 11px 14px', cursor: 'pointer', gap: 13 },
+  avatar:      { width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0, letterSpacing: '-0.5px' },
+  rowBody:     { flex: 1, minWidth: 0 },
+  contactName: { fontSize: 14, fontWeight: 600, color: '#1A2B3C', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  contactSub:  { fontSize: 12, color: '#6B7280', display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 3, alignItems: 'center' },
+  contactEmail:{ color: '#374151' },
+  dot:         { color: '#D1D5DB' },
+  contactMeta: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  metaDate:    { fontSize: 11, color: '#9CA3AF' },
+  bookingPill: { fontSize: 11, fontWeight: 500, color: '#0077C5', background: '#E0EFF9', borderRadius: 10, padding: '2px 8px' },
+  rowRight:    { display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 },
+  srcBadge:    { fontSize: 10, fontWeight: 700, borderRadius: 3, padding: '2px 7px', whiteSpace: 'nowrap', letterSpacing: '.2px' },
+  badge:       { fontSize: 10, fontWeight: 700, borderRadius: 20, padding: '3px 9px', whiteSpace: 'nowrap' },
+  chevron:     { fontSize: 20, color: '#9CA3AF', transition: 'transform .2s', display: 'inline-block', lineHeight: 1, marginLeft: 2 },
 
   // Expanded detail
-  detail:       { borderTop: '1px solid #EBEBEB', padding: '13px 16px', display: 'flex', flexDirection: 'column', gap: 12, background: '#F8F9FA' },
+  detail:       { borderTop: '1px solid #EBEBEB', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12, background: '#F8F9FA' },
   detailActions:{ display: 'flex', gap: 8, flexWrap: 'wrap' },
-  actionBtn:    { padding: '7px 14px', borderRadius: 3, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-
-  rawFields:    { background: '#fff', border: '1px solid #D8DCE0', borderRadius: 4, padding: '10px 14px' },
-  bookingInfo:  { background: '#E0EFF9', border: '1px solid #B3D4EE', borderRadius: 4, padding: '10px 14px' },
-  rawTitle:     { fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 8 },
-  rawRow:       { display: 'flex', gap: 10, alignItems: 'baseline', marginBottom: 4 },
-  rawKey:       { fontSize: 12, fontWeight: 600, color: '#6B7280', textTransform: 'capitalize', minWidth: 100, flexShrink: 0 },
-  rawVal:       { fontSize: 13, color: '#1A2B3C' },
+  actionBtn:    { padding: '7px 14px', borderRadius: 4, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  detailBlock:  { background: '#fff', border: '1px solid #D8DCE0', borderRadius: 5, padding: '10px 14px' },
+  blockTitle:   { fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 },
+  kv:           { display: 'flex', gap: 10, alignItems: 'baseline', marginBottom: 4 },
+  kvKey:        { fontSize: 12, fontWeight: 600, color: '#6B7280', textTransform: 'capitalize', minWidth: 70, flexShrink: 0 },
+  kvVal:        { fontSize: 13, color: '#1A2B3C' },
   link:         { fontSize: 13, color: '#0077C5', textDecoration: 'none', fontWeight: 500 },
-
-  moveRow:      { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  moveLabel:    { fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase' },
-  moveBtn:      { padding: '5px 12px', background: '#fff', border: '1px solid', borderRadius: 3, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  moveRow:      { display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' },
+  moveLabel:    { fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.3px' },
+  moveBtn:      { padding: '4px 11px', background: '#fff', border: '1px solid', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };
