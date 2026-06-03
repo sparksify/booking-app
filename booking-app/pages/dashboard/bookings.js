@@ -329,10 +329,10 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                 </div>
               )}
 
-              {/* Source filter chips — only shown when multiple sources exist */}
+              {/* Source filter chips — always show all three sources */}
               {(() => {
-                const sources = [...new Set(bookings.map(b => b._source_display || 'FranchiseBook'))];
-                if (sources.length <= 1) return null;
+                const ALL_SOURCES = ['Calendly', 'GoHighLevel', 'FranchiseBook'];
+                const presentSources = new Set(bookings.map(b => b._source_display || 'FranchiseBook'));
                 const srcStyle = {
                   Calendly:     { active: '#6D28D9', activeBg: '#F5F3FF', border: '#DDD6FE' },
                   GoHighLevel:  { active: '#047857', activeBg: '#ECFDF5', border: '#A7F3D0' },
@@ -341,21 +341,24 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                 return (
                   <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, marginRight: 2 }}>Source:</span>
-                    {sources.map(src => {
+                    {ALL_SOURCES.map(src => {
                       const active = sourceFilter.includes(src);
+                      const hasData = presentSources.has(src);
                       const c = srcStyle[src] || { active: '#374151', activeBg: '#F3F4F6', border: '#D1D5DB' };
                       return (
                         <button
                           key={src}
-                          onClick={() => setSourceFilter(prev =>
+                          onClick={() => hasData && setSourceFilter(prev =>
                             prev.includes(src) ? prev.filter(s => s !== src) : [...prev, src]
                           )}
                           style={{
                             padding: '4px 11px', fontSize: 11, fontWeight: 600, borderRadius: 20,
                             border: `1.5px solid ${active ? c.border : '#D1D5DB'}`,
                             background: active ? c.activeBg : '#fff',
-                            color: active ? c.active : '#6B7280',
-                            cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s',
+                            color: active ? c.active : hasData ? '#6B7280' : '#D1D5DB',
+                            cursor: hasData ? 'pointer' : 'default',
+                            fontFamily: 'inherit', transition: 'all .15s',
+                            opacity: hasData ? 1 : 0.5,
                           }}
                         >{src}</button>
                       );
