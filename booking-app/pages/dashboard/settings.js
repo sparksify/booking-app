@@ -74,6 +74,34 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
   const [ghlUsers,         setGhlUsers]         = useState([]);
   const [workflowSaving,   setWorkflowSaving]   = useState(false);
   const [workflowSaved,    setWorkflowSaved]    = useState(false);
+  const [avatarUploading,  setAvatarUploading]  = useState(false);
+
+  async function handleAvatarUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarUploading(true);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const dataUrl = ev.target.result;
+      await fetch('/api/dashboard/settings', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ host_avatar_url: dataUrl }),
+      });
+      setSettings(p => ({ ...p, host_avatar_url: dataUrl }));
+      setAvatarUploading(false);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function removeAvatar() {
+    await fetch('/api/dashboard/settings', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ host_avatar_url: null }),
+    });
+    setSettings(p => ({ ...p, host_avatar_url: null }));
+  }
 
   useEffect(() => {
     fetch('/api/dashboard/ghl-workflows')
@@ -376,6 +404,46 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
             subtitle="Controls what appears on the Google Calendar invite sent when someone books through FranchiseBook."
           >
             <form onSubmit={saveSettings} style={s.form}>
+
+              <Field label="Booking page avatar">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+                  {/* Preview circle */}
+                  <div style={{
+                    width: 72, height: 72, borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
+                    border: '2px solid #E5E7EB', background: '#F3F4F6',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {settings.host_avatar_url
+                      ? <img src={settings.host_avatar_url} alt="Avatar preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : <span style={{ fontSize: 28, color: '#D1D5DB' }}>👤</span>
+                    }
+                  </div>
+                  <div>
+                    <label style={{
+                      display: 'inline-block', padding: '7px 16px', borderRadius: 6,
+                      border: '1px solid #D1D5DB', background: '#F9FAFB', color: '#374151',
+                      fontSize: 13, fontWeight: 600, cursor: avatarUploading ? 'wait' : 'pointer',
+                    }}>
+                      {avatarUploading ? 'Uploading…' : 'Upload image'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={handleAvatarUpload}
+                        disabled={avatarUploading}
+                      />
+                    </label>
+                    {settings.host_avatar_url && (
+                      <button type="button" onClick={removeAvatar} style={{ marginLeft: 10, fontSize: 12, color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                        Remove
+                      </button>
+                    )}
+                    <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6, maxWidth: 280 }}>
+                      Shown as a circular icon beside the headline on the booking page. Square image, 200×200 px or larger recommended.
+                    </p>
+                  </div>
+                </div>
+              </Field>
 
               <Field label="Meeting title (calendar event name)">
                 <input

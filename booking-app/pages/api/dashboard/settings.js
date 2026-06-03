@@ -32,6 +32,7 @@ export default async function handler(req, res) {
       brand_pitches, form_tag_rules, revenue_per_close,
       show_revenue, show_franchise_metrics, workflow_mappings,
       event_description, event_location, event_color, event_reminder_mins,
+      host_avatar_url,
     } = req.body;
 
     const update = { updated_at: new Date().toISOString() };
@@ -54,6 +55,7 @@ export default async function handler(req, res) {
     if (event_location          !== undefined) update.event_location          = event_location;
     if (event_color             !== undefined) update.event_color             = event_color ? Number(event_color) : null;
     if (event_reminder_mins     !== undefined) update.event_reminder_mins     = Number(event_reminder_mins) || 15;
+    if (host_avatar_url         !== undefined) update.host_avatar_url         = host_avatar_url || null;
 
     const { data, error } = await supabase
       .from('settings')

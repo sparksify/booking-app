@@ -177,13 +177,22 @@ export default function BookingPage() {
   const [selDate,        setSelDate]        = useState(null);
   const [selSlot,        setSelSlot]        = useState(null);
   const [booking,        setBooking]        = useState(false);
-  const [calExpanded,    setCalExpanded]    = useState(false);
+  const [calExpanded,    setCalExpanded]    = useState(() => typeof window !== 'undefined' && window.innerWidth >= 900);
   const [recommended,    setRecommended]    = useState(null);
   const [alternatives,   setAlternatives]   = useState([]);
   const [leadId,         setLeadId]         = useState(null);
   const [leadToken,      setLeadToken]      = useState(null);
   const [bookingSource,  setBookingSource]  = useState('direct');
+  const [hostAvatar,     setHostAvatar]     = useState(null);
   const inputRef = useRef(null);
+
+  // Load public settings (avatar, etc.) on mount
+  useEffect(() => {
+    fetch('/api/public-settings')
+      .then(r => r.json())
+      .then(d => { if (d.host_avatar_url) setHostAvatar(d.host_avatar_url); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => { setDays(generateWorkdays(CFG.daysAhead)); }, []);
 
@@ -264,8 +273,8 @@ export default function BookingPage() {
   // Pre-fetch all slot availability when entering picking phase
   useEffect(() => {
     if (phase !== 'picking' || days.length === 0) return;
-    // Reset guided state on entry
-    setCalExpanded(false);
+    // Reset guided state on entry (keep calendar open by default on desktop)
+    setCalExpanded(typeof window !== 'undefined' && window.innerWidth >= 900);
     setRecommended(null);
     setAlternatives([]);
     setSelDate(null);
@@ -453,6 +462,7 @@ export default function BookingPage() {
       onReserveRecommended={reserveRecommended}
       answers={answers}
       leadId={leadId}
+      hostAvatar={hostAvatar}
     />;
   return (
     <BookedPhase
@@ -520,7 +530,7 @@ function FormPhase({ step, answers, setAnswers, doAdvance, doRetreat, inputRef }
 function PickingPhase({
   days, slotMap, selDate, selSlot, onPickDate, onPickSlot, onConfirm, booking,
   calExpanded, onToggleCal, recommended, alternatives, onPickGuidedSlot,
-  onReserveRecommended, answers,
+  onReserveRecommended, answers, hostAvatar,
 }) {
   const [recExpanded, setRecExpanded] = useState(true);
   const slotsLoaded = Object.values(slotMap).some(v => v.loaded);
@@ -550,10 +560,15 @@ function PickingPhase({
 
         {/* ── Header ── */}
         <div className="pk-profile-wrap">
-          <div className="pk-headline">
-            {answers?.firstName
-              ? `${answers.firstName}, let's see if this could be a fit.`
-              : 'Let\'s see if this could be a fit.'}
+          <div className="pk-host-header">
+            {hostAvatar && (
+              <img className="pk-host-avatar" src={hostAvatar} alt="" />
+            )}
+            <div className="pk-headline">
+              {answers?.firstName
+                ? `${answers.firstName}, let's see if this could be a fit.`
+                : 'Let\'s see if this could be a fit.'}
+            </div>
           </div>
           <div className="pk-meeting-title">Learn More About the Opportunity</div>
           <div className="pk-desc">15-minute conversation. Ask questions, get details, and see if it's worth exploring further. No pressure.</div>
