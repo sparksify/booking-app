@@ -15,6 +15,27 @@ const DEFAULT_GHL_CALENDAR_ID   = 'Zd3fg5KnNbH5FEIHhq8R';
 // Cal 2 (John Doty) — override via GHL_CALENDAR_ID_2
 const DEFAULT_GHL_CALENDAR_ID_2 = 'h35V7plFqYf6DyY4zsdV';
 
+// Timezone used for date boundary calculations — must match settings.timezone
+const BOOKING_TZ = process.env.BOOKING_TIMEZONE || 'America/Chicago';
+
+/**
+ * Returns { from, to } as UTC Date objects that bound the full day
+ * of `refDate` in the target timezone.
+ * Uses noon as a DST-safe probe to compute the UTC offset.
+ */
+function getDayBoundsUTC(refDate, tz) {
+  const dateStr = refDate.toLocaleDateString('en-CA', { timeZone: tz }); // 'YYYY-MM-DD'
+  const probeNoon = new Date(`${dateStr}T12:00:00Z`);
+  const locStr    = probeNoon.toLocaleString('en-US', { timeZone: tz, timeZoneName: 'shortOffset' });
+  const m         = locStr.match(/GMT([+-])(\d+)(?::(\d+))?/);
+  const offsetMins = m ? (m[1] === '+' ? 1 : -1) * (parseInt(m[2], 10) * 60 + parseInt(m[3] || '0', 10)) : 0;
+  const [y, mo, d] = dateStr.split('-').map(Number);
+  return {
+    from: new Date(Date.UTC(y, mo - 1, d,  0,  0,  0,   0) - offsetMins * 60_000),
+    to:   new Date(Date.UTC(y, mo - 1, d, 23, 59, 59, 999) - offsetMins * 60_000),
+  };
+}
+
 // Emails used for internal testing — excluded from all booking sources
 const TEST_EMAILS = new Set([
   'ssparks@thefranchiseconsultingcompany.com',
@@ -46,18 +67,21 @@ export default async function handler(req, res) {
   let from, to;
 
   if (filter === 'today') {
-    from = new Date(now); from.setHours(0, 0, 0, 0);
-    to   = new Date(now); to.setHours(23, 59, 59, 999);
+    // Use timezone-aware bounds so "today" = today in CDT, not UTC midnight
+    ({ from, to } = getDayBoundsUTC(now, BOOKING_TZ));
   } else if (filter === 'tomorrow') {
-    from = new Date(now); from.setDate(from.getDate() + 1); from.setHours(0, 0, 0, 0);
-    to   = new Date(from); to.setHours(23, 59, 59, 999);
+    const tmrw = new Date(now); tmrw.setDate(tmrw.getDate() + 1);
+    ({ from, to } = getDayBoundsUTC(tmrw, BOOKING_TZ));
   } else if (filter === 'week') {
-    from = new Date(now); from.setHours(0, 0, 0, 0);
-    to   = new Date(from); to.setDate(from.getDate() + 13); to.setHours(23, 59, 59, 999);
+    const endDay = new Date(now); endDay.setDate(endDay.getDate() + 13);
+    ({ from } = getDayBoundsUTC(now,    BOOKING_TZ));
+    ({ to }   = getDayBoundsUTC(endDay, BOOKING_TZ));
   } else {
     // 'all': last 30 days → next 60 days
-    from = new Date(now); from.setDate(from.getDate() - 30); from.setHours(0, 0, 0, 0);
-    to   = new Date(now); to.setDate(to.getDate()   + 60);  to.setHours(23, 59, 59, 999);
+    const startDay = new Date(now); startDay.setDate(startDay.getDate() - 30);
+    const endDay   = new Date(now); endDay.setDate(endDay.getDate() + 60);
+    ({ from } = getDayBoundsUTC(startDay, BOOKING_TZ));
+    ({ to }   = getDayBoundsUTC(endDay,   BOOKING_TZ));
   }
 
   // ── Fetch all three sources in parallel ──────────────────────────────────
@@ -101,9 +125,25 @@ export default async function handler(req, res) {
     };
   });
 
-  // Merge + filter test emails + sort by slot_start ascending
-  const all = [...sbBks, ...calBks, ...ghlBks]
+  // Merge — GHL first so it wins dedup (has liquid capital); then FranchiseBook; then Calendly
+  // Dedup: same email + same 30-min bucket across sources = same meeting, keep first seen
+  const seenKeys = new Map();
+  const deduped  = [];
+  for (const b of [...ghlBks, ...sbBks, ...calBks]) {
+    if (!b.email || !b.slot_start) { deduped.push(b); continue; }
+    const slotMs = new Date(b.slot_start).getTime();
+    const key    = `${b.email.toLowerCase()}:${Math.round(slotMs / (30 * 60_000))}`;
+    if (!seenKeys.has(key)) { seenKeys.set(key, true); deduped.push(b); }
+  }
+
+  // Final filter: remove test emails + enforce exact date range (guards against GHL TZ drift)
+  const all = deduped
     .filter(b => !TEST_EMAILS.has((b.email || '').toLowerCase()))
+    .filter(b => {
+      if (!b.slot_start) return true;
+      const t = new Date(b.slot_start).getTime();
+      return t >= from.getTime() && t <= to.getTime();
+    })
     .sort((a, b) => new Date(a.slot_start).getTime() - new Date(b.slot_start).getTime());
 
   res.json({ bookings: all });
@@ -211,7 +251,7 @@ async function fetchCalendly(from, to) {
       slot_end:         ev.end_time,
       status:           'scheduled',
       investment_level: null,
-      assigned_to_email: ev.event_memberships?.[0]?.user_email || null,
+      assigned_to_email: normalizeRepName(ev.event_memberships?.[0]?.user_email || null),
       meet_link:        ev.location?.join_url || null,
       created_at:       ev.created_at,
       event_name:       ev.name || '',
@@ -252,15 +292,21 @@ function getGHLLiquidCapital(contact) {
 }
 
 /**
- * Collapses GHL name variants to canonical rep names.
- * Handles "S Sparks", "Steve", "John", "J Doty", etc.
+ * Collapses rep name variants and email addresses to canonical names.
+ * Handles GHL names ("S Sparks", "Steve"), Calendly emails ("ssparks@..."),
+ * and Calendly user_name values ("ssparks", "john").
  */
-function normalizeRepName(name) {
-  if (!name) return name;
-  const n = name.trim();
-  if (/^(steve sparks?|s\.?\s*sparks?|steve)$/i.test(n)) return 'Steve Sparks';
-  if (/^(john doty|john|j\.?\s*doty)$/i.test(n))          return 'John Doty';
-  return n;
+function normalizeRepName(nameOrEmail) {
+  if (!nameOrEmail) return nameOrEmail;
+  const raw   = nameOrEmail.trim();
+  // If it looks like an email, use only the local part for matching
+  const check = raw.includes('@') ? raw.split('@')[0] : raw;
+  const lc    = check.toLowerCase();
+  // Steve Sparks variants
+  if (/^(steve sparks?|s\.?\s*sparks?|steve)$/i.test(raw) || lc === 'ssparks' || lc === 'steve') return 'Steve Sparks';
+  // John Doty variants
+  if (/^(john doty|john|j\.?\s*doty)$/i.test(raw) || lc === 'john' || lc === 'jdoty') return 'John Doty';
+  return raw;
 }
 
 async function fetchGHL(from, to) {
