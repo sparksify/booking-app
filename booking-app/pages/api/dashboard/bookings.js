@@ -9,8 +9,11 @@ const CAL_API     = 'https://api.calendly.com';
 // Known user URI — override via CALENDLY_USER_URI env var if the account ever changes
 const DEFAULT_CAL_USER = 'https://api.calendly.com/users/c59a21b9-aa46-45a7-8e8a-3e2faa614742';
 
-// GHL calendar to pull appointments from — override via GHL_CALENDAR_ID env var
-const DEFAULT_GHL_CALENDAR_ID = 'Zd3fg5KnNbH5FEIHhq8R';
+// GHL calendars to pull appointments from
+// Cal 1 (main / Steve Sparks) — override via GHL_CALENDAR_ID
+const DEFAULT_GHL_CALENDAR_ID   = 'Zd3fg5KnNbH5FEIHhq8R';
+// Cal 2 (John Doty) — override via GHL_CALENDAR_ID_2
+const DEFAULT_GHL_CALENDAR_ID_2 = 'h35V7plFqYf6DyY4zsdV';
 
 // Emails used for internal testing — excluded from all booking sources
 const TEST_EMAILS = new Set([
@@ -248,35 +251,61 @@ function getGHLLiquidCapital(contact) {
   return cf?.value || null;
 }
 
+/**
+ * Collapses GHL name variants to canonical rep names.
+ * Handles "S Sparks", "Steve", "John", "J Doty", etc.
+ */
+function normalizeRepName(name) {
+  if (!name) return name;
+  const n = name.trim();
+  if (/^(steve sparks?|s\.?\s*sparks?|steve)$/i.test(n)) return 'Steve Sparks';
+  if (/^(john doty|john|j\.?\s*doty)$/i.test(n))          return 'John Doty';
+  return n;
+}
+
 async function fetchGHL(from, to) {
   const apiKey     = process.env.GHL_API_KEY;
   const locationId = process.env.GHL_LOCATION_ID;
   if (!apiKey || !locationId) return [];
 
-  const calendarId = process.env.GHL_CALENDAR_ID || DEFAULT_GHL_CALENDAR_ID;
+  // Fetch both calendars in parallel, then deduplicate by event ID
+  const calendarIds = [
+    process.env.GHL_CALENDAR_ID   || DEFAULT_GHL_CALENDAR_ID,
+    process.env.GHL_CALENDAR_ID_2  || DEFAULT_GHL_CALENDAR_ID_2,
+  ];
 
-  const params = new URLSearchParams({
-    locationId,
-    calendarId,
-    startTime: String(from.getTime()),
-    endTime:   String(to.getTime()),
-  });
+  const fetchHeaders = {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type':  'application/json',
+    'Version':       GHL_VERSION,
+  };
 
-  const r = await fetch(`${GHL_API}/calendars/events?${params}`, {
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type':  'application/json',
-      'Version':       GHL_VERSION,
-    },
-  });
+  const calResults = await Promise.allSettled(
+    calendarIds.map(calendarId => {
+      const params = new URLSearchParams({
+        locationId, calendarId,
+        startTime: String(from.getTime()),
+        endTime:   String(to.getTime()),
+      });
+      return fetch(`${GHL_API}/calendars/events?${params}`, { headers: fetchHeaders })
+        .then(r => {
+          if (!r.ok) return r.text().then(txt => { throw new Error(`GHL ${calendarId} ${r.status}: ${txt.slice(0, 200)}`); });
+          return r.json();
+        });
+    })
+  );
 
-  if (!r.ok) {
-    const txt = await r.text();
-    throw new Error(`GHL calendar ${r.status}: ${txt.slice(0, 200)}`);
+  const seenIds = new Set();
+  const events  = [];
+  for (const result of calResults) {
+    if (result.status === 'fulfilled') {
+      for (const ev of (result.value.events || result.value.appointments || [])) {
+        if (!seenIds.has(ev.id)) { seenIds.add(ev.id); events.push(ev); }
+      }
+    } else {
+      console.error('[fetchGHL] calendar fetch failed:', result.reason?.message);
+    }
   }
-
-  const data   = await r.json();
-  const events = data.events || data.appointments || [];
 
   const ghlHeaders = { 'Authorization': `Bearer ${apiKey}`, 'Version': GHL_VERSION };
 
@@ -323,9 +352,11 @@ async function fetchGHL(from, to) {
     const rawStatus = (ev.appointmentStatus || ev.status || 'confirmed')
       .toLowerCase().replace(/\s+/g, '_');
 
-    // Resolve assigned rep name — fall back to raw ID only if lookup failed
+    // Resolve assigned rep name — normalize variants to canonical names
     const assignedUserId   = ev.assignedUserId || null;
-    const assignedUserName = assignedUserId ? (userMap[assignedUserId] || null) : null;
+    const assignedUserName = assignedUserId
+      ? normalizeRepName(userMap[assignedUserId] || null)
+      : null;
 
     // Pull liquid capital from GHL custom fields
     const liquidCapital = getGHLLiquidCapital(contact);
