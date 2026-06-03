@@ -84,16 +84,21 @@ export default async function handler(req, res) {
     ({ to }   = getDayBoundsUTC(endDay,   BOOKING_TZ));
   }
 
-  // ── Fetch all three sources in parallel ──────────────────────────────────
-  const [sbRes, calRes, ghlRes] = await Promise.allSettled([
+  // ── Fetch all three sources + settings in parallel ───────────────────────
+  const [sbRes, calRes, ghlRes, settingsRes] = await Promise.allSettled([
     fetchSupabase(supabase, from, to),
     fetchCalendly(from, to),
     fetchGHL(from, to),
+    supabase.from('settings').select('rep_avatars').eq('id', 1).single(),
   ]);
 
   if (sbRes.status  === 'rejected') console.error('[bookings] supabase:', sbRes.reason?.message);
   if (calRes.status === 'rejected') console.error('[bookings] calendly:', calRes.reason?.message);
   if (ghlRes.status === 'rejected') console.error('[bookings] ghl:',     ghlRes.reason?.message);
+
+  const repAvatars = settingsRes.status === 'fulfilled'
+    ? (settingsRes.value?.data?.rep_avatars || {})
+    : {};
 
   const rawSB  = sbRes.status  === 'fulfilled' ? sbRes.value  : [];
   const calBks = calRes.status === 'fulfilled' ? calRes.value : [];
@@ -146,7 +151,7 @@ export default async function handler(req, res) {
     })
     .sort((a, b) => new Date(a.slot_start).getTime() - new Date(b.slot_start).getTime());
 
-  res.json({ bookings: all });
+  res.json({ bookings: all, rep_avatars: repAvatars });
 }
 
 // ─── Supabase ─────────────────────────────────────────────────────────────────

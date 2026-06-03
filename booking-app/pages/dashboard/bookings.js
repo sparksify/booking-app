@@ -77,6 +77,26 @@ function SideIcon({ name }) {
   return null;
 }
 
+// ─── Rep avatar (photo or initials fallback) ──────────────────────────────────
+function RepAvatar({ emailOrName, repAvatars, size = 26 }) {
+  const raw     = emailOrName || '';
+  const initial = raw[0]?.toUpperCase() || '?';
+  const url     = repAvatars?.[raw];
+  const fontSize = Math.floor(size * 0.42);
+  if (url) {
+    return (
+      <div style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', flexShrink: 0 }}>
+        <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+      </div>
+    );
+  }
+  return (
+    <div style={{ width: size, height: size, borderRadius: '50%', background: '#8B5CF6', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize, fontWeight: 700, flexShrink: 0 }}>
+      {initial}
+    </div>
+  );
+}
+
 // ─── Stat icons ───────────────────────────────────────────────────────────────
 function StatIcon({ name, color }) {
   const p = { width: 18, height: 18, fill: 'none', stroke: color, strokeWidth: 1.75, strokeLinecap: 'round', strokeLinejoin: 'round', viewBox: '0 0 24 24', style: { display: 'block' } };
@@ -120,6 +140,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   const [lead,         setLead]         = useState(null);
   const [panelLoading, setPanelLoading] = useState(false);
   const [panelOpen,    setPanelOpen]    = useState(false);
+  const [repAvatars,   setRepAvatars]   = useState({});
 
   const load = useCallback(() => {
     setLoading(true);
@@ -129,6 +150,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
         const real = d.bookings || [];
         if (real.length === 0) { setBookings(DEMO); setIsDemo(true); }
         else                   { setBookings(real); setIsDemo(false); }
+        if (d.rep_avatars) setRepAvatars(d.rep_avatars);
         setLoading(false);
       })
       .catch(() => { setBookings(DEMO); setIsDemo(true); setLoading(false); });
@@ -270,7 +292,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
               <span style={{ fontSize: 13, color: '#6B7280' }}>Help</span>
             </div>
             <div style={s.sideUserRow}>
-              <div style={s.sideUserAvatar}>{sessionInitial}</div>
+              <RepAvatar emailOrName={session?.user?.email} repAvatars={repAvatars} size={30} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userName}</div>
                 <div style={{ fontSize: 11, color: '#9CA3AF' }}>Rep</div>
@@ -531,6 +553,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                             onRowClick={() => openPanel(b)}
                             onStatus={status => updateStatus(b, status)}
                             inProgress={b.id === inProgressId}
+                            repAvatars={repAvatars}
                           />
                         );
                         return rows;
@@ -602,11 +625,9 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus,
       <td style={s.td}>
         {b.assigned_to_email ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#8B5CF6', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
-              {b.assigned_to_email[0]?.toUpperCase()}
-            </div>
+            <RepAvatar emailOrName={b.assigned_to_email} repAvatars={repAvatars} size={26} />
             <span style={{ fontSize: 13, color: '#374151' }}>
-              {b.assigned_to_email.split('@')[0]}
+              {b.assigned_to_email.includes('@') ? b.assigned_to_email.split('@')[0] : b.assigned_to_email}
             </span>
           </div>
         ) : <span style={{ color: '#D1D5DB' }}>—</span>}

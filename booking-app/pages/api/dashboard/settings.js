@@ -34,6 +34,7 @@ export default async function handler(req, res) {
       event_description, event_location, event_color, event_reminder_mins,
       host_avatar_url,
       booking_headline, booking_subtitle, booking_description, booking_meeting_type,
+      rep_avatars,
     } = req.body;
 
     const update = { updated_at: new Date().toISOString() };
@@ -61,6 +62,7 @@ export default async function handler(req, res) {
     if (booking_subtitle        !== undefined) update.booking_subtitle        = booking_subtitle        || null;
     if (booking_description     !== undefined) update.booking_description     = booking_description     || null;
     if (booking_meeting_type    !== undefined) update.booking_meeting_type    = booking_meeting_type    || null;
+    if (rep_avatars             !== undefined) update.rep_avatars             = rep_avatars;
 
     const { data, error } = await supabase
       .from('settings')

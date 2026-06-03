@@ -75,6 +75,8 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
   const [workflowSaving,   setWorkflowSaving]   = useState(false);
   const [workflowSaved,    setWorkflowSaved]    = useState(false);
   const [avatarUploading,  setAvatarUploading]  = useState(false);
+  const [repAvatars,       setRepAvatars]       = useState(initialSettings.rep_avatars || {});
+  const [repAvatarUploading, setRepAvatarUploading] = useState({});
 
   async function handleAvatarUpload(e) {
     const file = e.target.files?.[0];
@@ -92,6 +94,37 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
       setAvatarUploading(false);
     };
     reader.readAsDataURL(file);
+  }
+
+  async function handleRepAvatarUpload(member, file) {
+    if (!file) return;
+    setRepAvatarUploading(u => ({ ...u, [member.email]: true }));
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const dataUrl = ev.target.result;
+      // Key by both email and name so GHL (name-based) and Calendly (email-based) both match
+      const updated = { ...repAvatars, [member.email]: dataUrl, [member.name]: dataUrl };
+      await fetch('/api/dashboard/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rep_avatars: updated }),
+      });
+      setRepAvatars(updated);
+      setRepAvatarUploading(u => ({ ...u, [member.email]: false }));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function removeRepAvatar(member) {
+    const updated = { ...repAvatars };
+    delete updated[member.email];
+    delete updated[member.name];
+    await fetch('/api/dashboard/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rep_avatars: updated }),
+    });
+    setRepAvatars(updated);
   }
 
   async function removeAvatar() {
@@ -300,7 +333,16 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
             ) : (
               <div style={s.memberGrid}>
                 {members.map(m => (
-                  <MemberCard key={m.email} member={m} onToggle={toggleMember} onUpdateRanges={updateInvestmentRanges} />
+                  <MemberCard
+                    key={m.email}
+                    member={m}
+                    avatarUrl={repAvatars[m.email] || null}
+                    uploading={!!repAvatarUploading[m.email]}
+                    onAvatarUpload={file => handleRepAvatarUpload(m, file)}
+                    onAvatarRemove={() => removeRepAvatar(m)}
+                    onToggle={toggleMember}
+                    onUpdateRanges={updateInvestmentRanges}
+                  />
                 ))}
               </div>
             )}
@@ -848,8 +890,9 @@ const INV_RANGES = [
   { key: 'gt_500k',    label: 'Over $500k'   },
 ];
 
-function MemberCard({ member, onToggle, onUpdateRanges }) {
+function MemberCard({ member, avatarUrl, uploading, onAvatarUpload, onAvatarRemove, onToggle, onUpdateRanges }) {
   const [expanded, setExpanded] = useState(false);
+  const [hoveringAvatar, setHoveringAvatar] = useState(false);
   const ranges = member.investment_ranges || [];
   const initials = member.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
@@ -861,7 +904,27 @@ function MemberCard({ member, onToggle, onUpdateRanges }) {
   return (
     <div style={{ ...s.memberCard, opacity: member.active ? 1 : 0.5 }}>
       <div style={s.memberCardTop}>
-        <div style={s.avatar}>{initials}</div>
+        {/* Avatar with upload overlay */}
+        <div style={{ position: 'relative', flexShrink: 0, width: 44, height: 44 }}>
+          <div style={{ width: 44, height: 44, borderRadius: '50%', overflow: 'hidden', border: '2px solid #D8DCE0', background: '#E0EFF9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {avatarUrl
+              ? <img src={avatarUrl} alt={member.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <span style={{ fontSize: 14, fontWeight: 600, color: '#0077C5' }}>{initials}</span>
+            }
+          </div>
+          <label
+            title="Upload photo"
+            onMouseEnter={() => setHoveringAvatar(true)}
+            onMouseLeave={() => setHoveringAvatar(false)}
+            style={{ position: 'absolute', inset: 0, borderRadius: '50%', cursor: uploading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', background: hoveringAvatar ? 'rgba(0,0,0,.38)' : 'rgba(0,0,0,0)', transition: 'background .15s' }}
+          >
+            {hoveringAvatar && !uploading && (
+              <svg width="16" height="16" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            )}
+            {uploading && <span style={{ color: '#fff', fontSize: 10 }}>…</span>}
+            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) onAvatarUpload(f); e.target.value = ''; }} disabled={uploading} />
+          </label>
+        </div>
         <div style={s.memberInfo}>
           <div style={s.memberName}>{member.name}</div>
           <div style={s.memberEmail}>{member.email}</div>
@@ -869,6 +932,11 @@ function MemberCard({ member, onToggle, onUpdateRanges }) {
             <div style={s.memberRangeNote}>Handles all investment levels</div>
           ) : (
             <div style={s.memberRangeNote}>{INV_RANGES.filter(r => ranges.includes(r.key)).map(r => r.label).join(', ')}</div>
+          )}
+          {avatarUrl && (
+            <button type="button" onClick={onAvatarRemove} style={{ fontSize: 11, color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: 3, textDecoration: 'underline', fontFamily: 'inherit' }}>
+              Remove photo
+            </button>
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
