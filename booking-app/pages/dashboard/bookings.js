@@ -116,6 +116,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   const [loading,  setLoading]  = useState(true);
   const [updating, setUpdating] = useState({});
   const [isDemo,   setIsDemo]   = useState(false);
+  const [search,   setSearch]   = useState('');
 
   // Rep filter
   const [repFilter,    setRepFilter]    = useState([]); // [] = all reps
@@ -196,6 +197,14 @@ export default function BookingsDashboard({ brandPitches = {} }) {
     .filter(b => repFilter.length === 0 || repFilter.includes(b.assigned_to_email))
     .filter(b => sourceFilter.length === 0 || sourceFilter.includes(b._source_display || 'FranchiseBook'));
 
+  // Search filter
+  const displayBookings = filteredBookings.filter(b => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return `${b.first_name} ${b.last_name}`.toLowerCase().includes(q) ||
+           (b.email || '').toLowerCase().includes(q);
+  });
+
   function toggleRep(email) {
     setRepFilter(prev =>
       prev.includes(email) ? prev.filter(r => r !== email) : [...prev, email]
@@ -225,233 +234,308 @@ export default function BookingsDashboard({ brandPitches = {} }) {
     acc[b.status] = (acc[b.status] || 0) + 1; return acc;
   }, {});
 
+  const showRateDenom = (counts.showed || 0) + (counts['no-show'] || 0);
+  const showRate = showRateDenom > 0
+    ? Math.round((counts.showed || 0) / showRateDenom * 100) + '%'
+    : '—';
+
+  const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const sessionInitial = session?.user?.email?.[0]?.toUpperCase() || 'U';
+
   return (
     <>
       <Head><title>Meetings — FranchiseBook</title></Head>
       <div style={s.page}>
 
-        {/* ── Header ── */}
-        <header style={s.header}>
-          <div style={s.headerLeft}>
-            <span style={s.logo}>⬡ FranchiseBook</span>
-            <nav style={s.nav}>
-              <Link href="/dashboard/analytics"  style={s.navLink}>Analytics</Link>
-              <Link href="/dashboard/bookings"   style={{ ...s.navLink, ...s.navActive }}>Meetings</Link>
-              <Link href="/dashboard/leads"      style={s.navLink}>Leads</Link>
-              <Link href="/dashboard/prospects"  style={s.navLink}>Prospecting</Link>
-              <Link href="/dashboard/nurture"    style={s.navLink}>Nurture</Link>
-            </nav>
-          </div>
-          <div style={s.headerRight}>
-            <Link href="/dashboard/settings" style={s.settingsLink}>⚙ Settings</Link>
-            <span style={s.headerUser}>{session?.user?.email}</span>
-          </div>
-        </header>
-
-        <div style={s.body}>
-          {/* Title bar */}
-          <div style={s.titleBar}>
-            <div>
-              <h1 style={s.pageTitle}>Meetings</h1>
-              <p style={s.pageSubtitle}>Click any row to open the client panel.</p>
+        {/* ── Left Sidebar ── */}
+        <aside style={s.sidebar}>
+          <div style={s.sideLogoWrap}>
+            <div style={s.sideLogo}>
+              <div style={s.sideLogoIcon}>F</div>
+              FranchiseBook
             </div>
-            <button onClick={load} style={s.refreshBtn}>↻ Refresh</button>
           </div>
-
-          {/* Demo banner */}
-          {isDemo && (
-            <div style={s.demoBanner}>
-              Preview mode — no real bookings found. Showing sample data. Click any row to try the panel.
-            </div>
-          )}
-
-          {/* Summary cards */}
-          <div style={s.summaryRow}>
+          <nav style={s.sideNav}>
             {[
-              { label: 'Scheduled', key: 'scheduled', dot: '#0077C5' },
-              { label: 'Showed',    key: 'showed',    dot: '#2CA01C' },
-              { label: 'No Shows',  key: 'no-show',   dot: '#D4351B' },
-              { label: 'Closed',    key: 'closed',    dot: '#6B37BF' },
-            ].map(({ label, key, dot }) => (
-              <div key={key} style={s.summaryCard}>
-                <div style={{ ...s.summaryDot, background: dot }} />
-                <div style={s.summaryNum}>{counts[key] || 0}</div>
-                <div style={s.summaryLabel}>{label}</div>
-              </div>
+              { href: '/dashboard/analytics', label: 'Analytics',   icon: '📊' },
+              { href: '/dashboard/leads',      label: 'Leads',       icon: '👥' },
+              { href: '/dashboard/bookings',   label: 'Meetings',    icon: '📅', active: true },
+              { href: '/dashboard/prospects',  label: 'Prospecting', icon: '🔍' },
+              { href: '/dashboard/nurture',    label: 'Nurture',     icon: '💌' },
+              { href: '/dashboard/settings',   label: 'Settings',    icon: '⚙️' },
+            ].map(({ href, label, icon, active }) => (
+              <Link key={href} href={href}
+                style={{ ...s.sideNavItem, ...(active ? s.sideNavActive : {}) }}>
+                <span style={s.sideNavIcon}>{icon}</span>
+                {label}
+              </Link>
             ))}
+          </nav>
+          <div style={s.sideUserWrap}>
+            <div style={s.sideUserAvatar}>{sessionInitial}</div>
+            <div style={s.sideUserEmail}>{session?.user?.email || ''}</div>
+          </div>
+        </aside>
+
+        {/* ── Main Content ── */}
+        <div style={s.main}>
+
+          {/* Top Bar */}
+          <div style={s.topBar}>
+            <div style={s.topTitleWrap}>
+              <span style={s.topTitle}>Today's Meetings</span>
+              <span style={s.topDate}>{todayLabel}</span>
+            </div>
+            <div style={s.topActions}>
+              <div style={s.searchWrap}>
+                <span style={s.searchIcon}>⌕</span>
+                <input
+                  style={s.searchInput}
+                  placeholder="Search meetings…"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                />
+              </div>
+              <button onClick={load} style={s.topBtn}>↻ Refresh</button>
+              <button onClick={downloadCSV} style={s.topBtn}>↓ CSV</button>
+            </div>
           </div>
 
-          {/* Filter tabs + Rep toggles + CSV */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-            {/* Date presets */}
-            <div style={s.tabBar}>
-              {FILTERS.map(f => (
-                <button key={f.key} onClick={() => setFilter(f.key)}
-                  style={{ ...s.tab, ...(filter === f.key ? s.tabActive : {}) }}>
-                  {f.label}
-                </button>
+          {/* Body */}
+          <div style={s.body}>
+
+            {/* Demo banner */}
+            {isDemo && (
+              <div style={s.demoBanner}>
+                Preview mode — no real bookings found. Showing sample data. Click any row to try the panel.
+              </div>
+            )}
+
+            {/* Stats row (5 cards) */}
+            <div style={s.statsRow}>
+              {[
+                { label: 'Scheduled', color: '#3B82F6', num: counts.scheduled  || 0 },
+                { label: 'Showed',    color: '#10B981', num: counts.showed      || 0 },
+                { label: 'No Shows',  color: '#EF4444', num: counts['no-show']  || 0 },
+                { label: 'Closed',    color: '#8B5CF6', num: counts.closed      || 0 },
+                { label: 'Show Rate', color: '#F59E0B', num: showRate },
+              ].map(({ label, color, num }) => (
+                <div key={label} style={s.statCard}>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
+                    <div style={{ ...s.statAccent, background: color }} />
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.5px' }}>{label}</span>
+                  </div>
+                  <div style={s.statNum}>{num}</div>
+                </div>
               ))}
             </div>
 
-            {/* Right side: Rep filters + CSV */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              {/* Rep toggle chips */}
-              {allReps.length > 0 && (
-                <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, marginRight: 2 }}>Rep:</span>
-                  {allReps.map(email => {
-                    const name = email.includes('@') ? email.split('@')[0] : email;
-                    const active = repFilter.includes(email);
-                    return (
-                      <button
-                        key={email}
-                        onClick={() => toggleRep(email)}
-                        style={{
-                          padding: '4px 11px', fontSize: 11, fontWeight: 600, borderRadius: 20,
-                          border: `1.5px solid ${active ? '#0077C5' : '#D1D5DB'}`,
-                          background: active ? '#EFF6FF' : '#fff',
-                          color: active ? '#0077C5' : '#6B7280',
-                          cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s',
-                        }}
-                      >
-                        {name}
-                      </button>
-                    );
-                  })}
-                  {repFilter.length > 0 && (
+            {/* Next Up card */}
+            {(() => {
+              const now = new Date();
+              const nextUp = displayBookings.find(b =>
+                b.status === 'scheduled' && b.slot_start && new Date(b.slot_start) > now
+              );
+              if (!nextUp) return null;
+              const slot = new Date(nextUp.slot_start);
+              const minsUntil = Math.round((slot - now) / 60000);
+              const timeStr = slot.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+              const inLabel = minsUntil < 60
+                ? `in ${minsUntil} min`
+                : `in ${Math.floor(minsUntil / 60)}h ${minsUntil % 60}m`;
+              const initials = `${nextUp.first_name?.[0] || ''}${nextUp.last_name?.[0] || ''}`.toUpperCase();
+              return (
+                <div style={s.nextUp}>
+                  <div style={{ flexShrink: 0 }}>
+                    <div style={s.nextUpLabel}>Next Up</div>
+                    <div style={s.nextUpTime}>{timeStr}</div>
+                    <div style={s.nextUpIn}>{inLabel}</div>
+                  </div>
+                  <div style={s.nextUpDiv} />
+                  <div style={s.nextUpAvatar}>{initials}</div>
+                  <div style={s.nextUpInfo}>
+                    <div style={s.nextUpName}>{nextUp.first_name} {nextUp.last_name}</div>
+                    <div style={s.nextUpMeta}>
+                      {nextUp.email}
+                      {nextUp._source_display && (
+                        <span style={{ marginLeft: 8 }}><SourceBadge source={nextUp._source_display} /></span>
+                      )}
+                      {nextUp.assigned_to_email && (
+                        <span style={{ marginLeft: 6, color: '#9CA3AF' }}>
+                          · {nextUp.assigned_to_email.split('@')[0]}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={s.nextUpActions}>
                     <button
-                      onClick={() => setRepFilter([])}
-                      style={{ padding: '4px 8px', fontSize: 10, fontWeight: 600, borderRadius: 20, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#9CA3AF', cursor: 'pointer', fontFamily: 'inherit' }}
+                      onClick={() => openPanel(nextUp)}
+                      style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, borderRadius: 6, border: '1.5px solid #3B82F6', background: '#fff', color: '#3B82F6', cursor: 'pointer', fontFamily: 'inherit' }}
                     >
-                      Clear
+                      Open Details
                     </button>
-                  )}
+                    <button
+                      onClick={() => updateStatus(nextUp, 'showed')}
+                      disabled={!!updating[nextUp.id]}
+                      style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, borderRadius: 6, border: 'none', background: '#3B82F6', color: '#fff', cursor: updating[nextUp.id] ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: updating[nextUp.id] ? 0.7 : 1 }}
+                    >
+                      {updating[nextUp.id] ? 'Saving…' : 'Mark Showed'}
+                    </button>
+                  </div>
                 </div>
-              )}
+              );
+            })()}
 
-              {/* Source filter chips — always show all three sources */}
-              {(() => {
-                const ALL_SOURCES = ['Calendly', 'GoHighLevel', 'FranchiseBook'];
-                const presentSources = new Set(bookings.map(b => b._source_display || 'FranchiseBook'));
-                const srcStyle = {
-                  Calendly:     { active: '#6D28D9', activeBg: '#F5F3FF', border: '#DDD6FE' },
-                  GoHighLevel:  { active: '#047857', activeBg: '#ECFDF5', border: '#A7F3D0' },
-                  FranchiseBook:{ active: '#0077C5', activeBg: '#EFF6FF', border: '#BFDBFE' },
-                };
-                return (
+            {/* Filter bar */}
+            <div style={s.filterBar}>
+              {/* Date tabs */}
+              <div style={s.tabSet}>
+                {FILTERS.map(f => (
+                  <button key={f.key} onClick={() => setFilter(f.key)}
+                    style={{ ...s.tab, ...(filter === f.key ? s.tabActive : {}) }}>
+                    {f.label}
+                    {filter === f.key && displayBookings.length > 0 && (
+                      <span style={s.tabCount}>{displayBookings.length}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* Right: rep + source chips + CSV removed (moved to top bar) */}
+              <div style={s.tabBarRight}>
+                {/* Rep toggle chips */}
+                {allReps.length > 0 && (
                   <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, marginRight: 2 }}>Source:</span>
-                    {ALL_SOURCES.map(src => {
-                      const active = sourceFilter.includes(src);
-                      const hasData = presentSources.has(src);
-                      const c = srcStyle[src] || { active: '#374151', activeBg: '#F3F4F6', border: '#D1D5DB' };
+                    <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, marginRight: 2 }}>Rep:</span>
+                    {allReps.map(email => {
+                      const name = email.includes('@') ? email.split('@')[0] : email;
+                      const active = repFilter.includes(email);
                       return (
-                        <button
-                          key={src}
-                          onClick={() => hasData && setSourceFilter(prev =>
+                        <button key={email} onClick={() => toggleRep(email)} style={{
+                          padding: '4px 11px', fontSize: 11, fontWeight: 600, borderRadius: 20,
+                          border: `1.5px solid ${active ? '#3B82F6' : '#E5E7EB'}`,
+                          background: active ? '#EFF6FF' : '#fff',
+                          color: active ? '#3B82F6' : '#6B7280',
+                          cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s',
+                        }}>{name}</button>
+                      );
+                    })}
+                    {repFilter.length > 0 && (
+                      <button onClick={() => setRepFilter([])} style={{ padding: '4px 8px', fontSize: 10, fontWeight: 600, borderRadius: 20, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#9CA3AF', cursor: 'pointer', fontFamily: 'inherit' }}>
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Source filter chips */}
+                {(() => {
+                  const ALL_SOURCES = ['Calendly', 'GoHighLevel', 'FranchiseBook'];
+                  const presentSources = new Set(bookings.map(b => b._source_display || 'FranchiseBook'));
+                  const srcStyle = {
+                    Calendly:      { active: '#6D28D9', activeBg: '#F5F3FF', border: '#DDD6FE' },
+                    GoHighLevel:   { active: '#047857', activeBg: '#ECFDF5', border: '#A7F3D0' },
+                    FranchiseBook: { active: '#1D4ED8', activeBg: '#EFF6FF', border: '#BFDBFE' },
+                  };
+                  return (
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, marginRight: 2 }}>Source:</span>
+                      {ALL_SOURCES.map(src => {
+                        const active = sourceFilter.includes(src);
+                        const hasData = presentSources.has(src);
+                        const c = srcStyle[src] || { active: '#374151', activeBg: '#F3F4F6', border: '#D1D5DB' };
+                        return (
+                          <button key={src} onClick={() => hasData && setSourceFilter(prev =>
                             prev.includes(src) ? prev.filter(s => s !== src) : [...prev, src]
-                          )}
-                          style={{
+                          )} style={{
                             padding: '4px 11px', fontSize: 11, fontWeight: 600, borderRadius: 20,
-                            border: `1.5px solid ${active ? c.border : '#D1D5DB'}`,
+                            border: `1.5px solid ${active ? c.border : '#E5E7EB'}`,
                             background: active ? c.activeBg : '#fff',
                             color: active ? c.active : hasData ? '#6B7280' : '#D1D5DB',
                             cursor: hasData ? 'pointer' : 'default',
                             fontFamily: 'inherit', transition: 'all .15s',
                             opacity: hasData ? 1 : 0.5,
-                          }}
-                        >{src}</button>
-                      );
-                    })}
-                    {sourceFilter.length > 0 && (
-                      <button
-                        onClick={() => setSourceFilter([])}
-                        style={{ padding: '4px 8px', fontSize: 10, fontWeight: 600, borderRadius: 20, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#9CA3AF', cursor: 'pointer', fontFamily: 'inherit' }}
-                      >Clear</button>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* CSV download */}
-              <button
-                onClick={downloadCSV}
-                title="Download meetings as CSV"
-                style={{ padding: '5px 12px', fontSize: 12, fontWeight: 600, borderRadius: 6, border: '1px solid #D1D5DB', background: '#fff', color: '#374151', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}
-              >
-                ↓ CSV
-              </button>
-            </div>
-          </div>
-
-          {/* Table */}
-          <div style={s.card}>
-            {loading ? (
-              <div style={s.empty}>Loading…</div>
-            ) : filteredBookings.length === 0 ? (
-              <div style={s.empty}>No bookings for this period.</div>
-            ) : (
-              <table style={s.table}>
-                <thead>
-                  <tr style={s.thead}>
-                    {['Time', 'Client', 'Score', 'Liquid Capital', 'Consultant', 'Status', 'Actions'].map(h => (
-                      <th key={h} style={s.th}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(() => {
-                    const nowMs = Date.now();
-                    // Only one in-progress at a time — the most recently started meeting still in window
-                    const inProgressId = (() => {
-                      const candidates = filteredBookings.filter(b => {
-                        const slotMs = b.slot_start ? new Date(b.slot_start).getTime() : 0;
-                        return slotMs > 0 && slotMs <= nowMs && nowMs <= slotMs + 90 * 60_000;
-                      });
-                      if (!candidates.length) return null;
-                      return candidates.reduce((a, b) =>
-                        new Date(b.slot_start) > new Date(a.slot_start) ? b : a
-                      ).id;
-                    })();
-                    let nowInserted = false;
-                    return filteredBookings.flatMap((b, i) => {
-                      const slotMs = b.slot_start ? new Date(b.slot_start).getTime() : 0;
-                      const inProgress = b.id === inProgressId;
-                      const rows = [];
-                      // Insert NOW divider before the first upcoming booking
-                      if (!nowInserted && slotMs > nowMs) {
-                        nowInserted = true;
-                        rows.push(
-                          <tr key="now-divider" style={{ background: 'transparent', pointerEvents: 'none' }}>
-                            <td colSpan={7} style={{ padding: '2px 14px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <span className="bk-now-divider-dot" />
-                                <div style={{ flex: 1, height: 1.5, background: '#EF4444', opacity: 0.5 }} />
-                                <span style={{ fontSize: 10, fontWeight: 700, color: '#EF4444', letterSpacing: '.05em', textTransform: 'uppercase', flexShrink: 0 }}>Now</span>
-                                <div style={{ flex: 1, height: 1.5, background: '#EF4444', opacity: 0.5 }} />
-                              </div>
-                            </td>
-                          </tr>
+                          }}>{src}</button>
                         );
-                      }
-                      rows.push(
-                        <BookingRow
-                          key={b.id}
-                          booking={b}
-                          striped={i % 2 === 1}
-                          busy={!!updating[b.id]}
-                          selected={panelBooking?.id === b.id}
-                          onRowClick={() => openPanel(b)}
-                          onStatus={status => updateStatus(b, status)}
-                          inProgress={inProgress}
-                        />
-                      );
-                      return rows;
-                    });
-                  })()}
-                </tbody>
-              </table>
-            )}
+                      })}
+                      {sourceFilter.length > 0 && (
+                        <button onClick={() => setSourceFilter([])} style={{ padding: '4px 8px', fontSize: 10, fontWeight: 600, borderRadius: 20, border: '1px solid #E5E7EB', background: '#F9FAFB', color: '#9CA3AF', cursor: 'pointer', fontFamily: 'inherit' }}>
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Table */}
+            <div style={s.card}>
+              {loading ? (
+                <div style={s.empty}>Loading…</div>
+              ) : displayBookings.length === 0 ? (
+                <div style={s.empty}>No meetings for this period.</div>
+              ) : (
+                <table style={s.table}>
+                  <thead>
+                    <tr style={s.thead}>
+                      {['Time', 'Client', 'Source', 'Rep', 'Liquid Capital', 'Status', 'Actions'].map(h => (
+                        <th key={h} style={s.th}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const nowMs = Date.now();
+                      const inProgressId = (() => {
+                        const candidates = displayBookings.filter(b => {
+                          const slotMs = b.slot_start ? new Date(b.slot_start).getTime() : 0;
+                          return slotMs > 0 && slotMs <= nowMs && nowMs <= slotMs + 90 * 60_000;
+                        });
+                        if (!candidates.length) return null;
+                        return candidates.reduce((a, b) =>
+                          new Date(b.slot_start) > new Date(a.slot_start) ? b : a
+                        ).id;
+                      })();
+                      let nowInserted = false;
+                      return displayBookings.flatMap((b, i) => {
+                        const slotMs = b.slot_start ? new Date(b.slot_start).getTime() : 0;
+                        const inProgress = b.id === inProgressId;
+                        const rows = [];
+                        if (!nowInserted && slotMs > nowMs) {
+                          nowInserted = true;
+                          rows.push(
+                            <tr key="now-divider" style={{ background: 'transparent', pointerEvents: 'none' }}>
+                              <td colSpan={7} style={{ padding: '2px 14px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span className="bk-now-divider-dot" />
+                                  <div style={{ flex: 1, height: 1.5, background: '#EF4444', opacity: 0.5 }} />
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#EF4444', letterSpacing: '.05em', textTransform: 'uppercase', flexShrink: 0 }}>Now</span>
+                                  <div style={{ flex: 1, height: 1.5, background: '#EF4444', opacity: 0.5 }} />
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        }
+                        rows.push(
+                          <BookingRow
+                            key={b.id}
+                            booking={b}
+                            striped={i % 2 === 1}
+                            busy={!!updating[b.id]}
+                            selected={panelBooking?.id === b.id}
+                            onRowClick={() => openPanel(b)}
+                            onStatus={status => updateStatus(b, status)}
+                            inProgress={inProgress}
+                          />
+                        );
+                        return rows;
+                      });
+                    })()}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         </div>
 
@@ -473,6 +557,31 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   );
 }
 
+// ─── Source Badge ─────────────────────────────────────────────────────────────
+
+function SourceBadge({ source }) {
+  if (!source || source === 'FranchiseBook') return (
+    <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700, color: '#1D4ED8', background: '#DBEAFE', border: '1px solid #BFDBFE', whiteSpace: 'nowrap' }}>
+      FranchiseBook
+    </span>
+  );
+  if (source === 'Calendly') return (
+    <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700, color: '#6D28D9', background: '#F5F3FF', border: '1px solid #DDD6FE', whiteSpace: 'nowrap' }}>
+      Calendly
+    </span>
+  );
+  if (source === 'GoHighLevel') return (
+    <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700, color: '#047857', background: '#ECFDF5', border: '1px solid #A7F3D0', whiteSpace: 'nowrap' }}>
+      GoHighLevel
+    </span>
+  );
+  return (
+    <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700, color: '#374151', background: '#F3F4F6', border: '1px solid #E5E7EB', whiteSpace: 'nowrap' }}>
+      {source}
+    </span>
+  );
+}
+
 // ─── Table Row ────────────────────────────────────────────────────────────────
 
 function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus, inProgress }) {
@@ -480,105 +589,115 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus,
   const dateLabel = slot ? slot.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—';
   const timeLabel = slot ? slot.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
   const meta      = STATUS_META[b.status] || STATUS_META.scheduled;
+  const initials  = `${b.first_name?.[0] || ''}${b.last_name?.[0] || ''}`.toUpperCase();
 
-  const rowBg = selected ? '#EBF4FF' : inProgress ? '#F0FDF4' : striped ? '#F8F9FA' : '#FFFFFF';
+  const rowBg = selected ? '#EFF6FF' : inProgress ? '#F0FDF4' : striped ? '#FAFAFA' : '#FFFFFF';
 
   return (
-    <tr
-      style={{ ...s.tr, background: rowBg, cursor: 'pointer' }}
-      onClick={onRowClick}
-    >
+    <tr style={{ ...s.tr, background: rowBg, cursor: 'pointer' }} onClick={onRowClick}>
+
+      {/* Time */}
       <td style={s.td}>
-        <div style={{ fontWeight: 600, color: '#1A2B3C', fontSize: 13 }}>{timeLabel}</div>
-        <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>{dateLabel}</div>
-      </td>
-      <td style={s.td}>
-        <div style={{ fontWeight: 600, color: '#0077C5', fontSize: 13 }}>{b.first_name} {b.last_name}</div>
-        <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>{b.email}</div>
-        {b._source_display && b._source_display !== 'FranchiseBook' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5 }}>
-            <span style={{
-              padding: '2px 7px', borderRadius: 3, fontSize: 10, fontWeight: 700,
-              ...(b._source_display === 'Calendly'
-                ? { color: '#6D28D9', background: '#F5F3FF', border: '1px solid #DDD6FE' }
-                : { color: '#047857', background: '#ECFDF5', border: '1px solid #A7F3D0' }),
-            }}>{b._source_display}</span>
-            {b.event_name && (
-              <span style={{ fontSize: 11, color: '#6B7280' }}>{b.event_name}</span>
-            )}
-          </div>
+        <div style={{ fontWeight: 700, color: '#111827', fontSize: 14 }}>{timeLabel}</div>
+        <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{dateLabel}</div>
+        {inProgress && (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4,
+            padding: '2px 7px', borderRadius: 20, fontSize: 10, fontWeight: 700,
+            color: '#15803D', background: '#DCFCE7', border: '1px solid #BBF7D0',
+          }}>
+            <span className="in-progress-dot" />Live
+          </span>
         )}
       </td>
+
+      {/* Client */}
       <td style={s.td}>
-        {b.health ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ fontSize: 11 }}>{b.health.emoji}</span>
-              <span style={{
-                fontSize: 13, fontWeight: 700,
-                color: b.lead_score >= 75 ? '#1A7E24' : b.lead_score >= 50 ? '#856404' : '#C23934',
-              }}>{b.lead_score ?? '—'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          <div style={{
+            width: 30, height: 30, borderRadius: '50%',
+            background: '#3B82F6', color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 11, fontWeight: 700, flexShrink: 0,
+          }}>
+            {initials}
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, color: '#3B82F6', fontSize: 13 }}>{b.first_name} {b.last_name}</div>
+            <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>{b.email}</div>
+          </div>
+        </div>
+      </td>
+
+      {/* Source */}
+      <td style={s.td}>
+        <SourceBadge source={b._source_display || 'FranchiseBook'} />
+        {b.event_name && (
+          <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>{b.event_name}</div>
+        )}
+      </td>
+
+      {/* Rep */}
+      <td style={s.td}>
+        {b.assigned_to_email ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{
+              width: 24, height: 24, borderRadius: '50%',
+              background: '#8B5CF6', color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 9, fontWeight: 700, flexShrink: 0,
+            }}>
+              {b.assigned_to_email[0]?.toUpperCase()}
             </div>
-            <div style={{ fontSize: 10, color: '#9CA3AF' }}>{b.show_probability ?? '—'}% show</div>
+            <span style={{ fontSize: 12, color: '#374151' }}>
+              {b.assigned_to_email.includes('@') ? b.assigned_to_email.split('@')[0] : b.assigned_to_email}
+            </span>
           </div>
         ) : (
-          <span style={{ fontSize: 12, color: '#C8CDD2' }}>—</span>
+          <span style={{ color: '#D1D5DB', fontSize: 12 }}>—</span>
         )}
       </td>
+
+      {/* Liquid Capital */}
       <td style={s.td}>
-        <span style={{ fontSize: 11, color: '#4A5568', background: '#EAECEF', padding: '3px 8px', borderRadius: 3 }}>
+        <span style={{ fontSize: 12, color: '#374151', background: '#F3F4F6', padding: '3px 8px', borderRadius: 4 }}>
           {b.investment_level || '—'}
         </span>
       </td>
-      <td style={s.td}>
-        <span style={{ fontSize: 13, color: '#4A5568' }}>
-          {b.assigned_to_email
-            ? (b.assigned_to_email.includes('@') ? b.assigned_to_email.split('@')[0] : b.assigned_to_email)
-            : '—'}
-        </span>
-      </td>
+
+      {/* Status */}
       <td style={s.td} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-          {inProgress && (
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-              color: '#15803D', background: '#DCFCE7', border: '1px solid #BBF7D0',
-            }}>
-              <span className="in-progress-dot" />
-              In progress
-            </span>
-          )}
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5,
-            padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-            color: meta.color, background: meta.bg,
-          }}>
-            <span style={{ width: 5, height: 5, borderRadius: '50%', background: meta.dot, display: 'inline-block' }} />
-            {meta.label}
-          </span>
-          {b.meet_link && (
-            <a href={b.meet_link} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
-              style={{ display: 'block', fontSize: 11, color: '#0077C5' }}>
-              Join call →
-            </a>
-          )}
-        </div>
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+          color: meta.color, background: meta.bg,
+        }}>
+          <span style={{ width: 5, height: 5, borderRadius: '50%', background: meta.dot, display: 'inline-block' }} />
+          {meta.label}
+        </span>
+        {b.meet_link && (
+          <a href={b.meet_link} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
+            style={{ display: 'block', fontSize: 11, color: '#3B82F6', marginTop: 4 }}>
+            Join call →
+          </a>
+        )}
       </td>
+
+      {/* Actions */}
       <td style={s.td} onClick={e => e.stopPropagation()}>
         {busy ? (
           <span style={{ fontSize: 12, color: '#9CA3AF' }}>Saving…</span>
         ) : b._source_display && b._source_display !== 'FranchiseBook' ? (
-          <span style={{ fontSize: 11, color: '#C8CDD2' }}>—</span>
+          <span style={{ fontSize: 11, color: '#D1D5DB' }}>—</span>
         ) : b.status === 'scheduled' ? (
-          <div style={{ display: 'flex', gap: 5 }}>
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
             <QBBtn variant="warning" onClick={() => onStatus('showed')}>Showed</QBBtn>
             <QBBtn variant="danger"  onClick={() => onStatus('no-show')}>No-Show</QBBtn>
           </div>
         ) : b.status === 'showed' ? (
           <QBBtn variant="primary" onClick={() => onStatus('closed')}>Close Won</QBBtn>
         ) : (
-          <span style={{ fontSize: 12, color: '#C8CDD2' }}>—</span>
+          <span style={{ fontSize: 12, color: '#D1D5DB' }}>—</span>
         )}
       </td>
     </tr>
@@ -1676,45 +1795,74 @@ function QBBtn({ variant, onClick, children, disabled }) {
   );
 }
 
-// ─── Table styles ─────────────────────────────────────────────────────────────
+// ─── Page styles ──────────────────────────────────────────────────────────────
 const s = {
-  page:        { minHeight: '100vh', background: '#F5F6F7', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" },
+  // Overall layout
+  page: { display: 'flex', minHeight: '100vh', background: '#F0F2F5', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" },
 
-  header:      { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', height: 50, background: '#151719' },
-  headerLeft:  { display: 'flex', alignItems: 'center', gap: 28 },
-  logo:        { fontWeight: 600, fontSize: 15, color: '#FFFFFF', letterSpacing: '-0.2px', flexShrink: 0 },
-  nav:         { display: 'flex', gap: 2 },
-  navLink:     { fontSize: 13, color: '#9FA6B2', textDecoration: 'none', padding: '7px 14px', borderRadius: 3, fontWeight: 400 },
-  navActive:   { color: '#FFFFFF', background: 'rgba(255,255,255,.13)' },
-  headerRight: { display: 'flex', alignItems: 'center', gap: 16 },
-  settingsLink:{ fontSize: 13, color: '#9FA6B2', textDecoration: 'none', fontWeight: 400 },
-  headerUser:  { fontSize: 13, color: '#9FA6B2' },
+  // Left sidebar
+  sidebar:        { width: 220, flexShrink: 0, background: '#1A2035', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh', overflowY: 'auto' },
+  sideLogoWrap:   { padding: '22px 18px 18px', borderBottom: '1px solid rgba(255,255,255,.07)' },
+  sideLogo:       { fontWeight: 700, fontSize: 15, color: '#FFFFFF', letterSpacing: '-0.3px', display: 'flex', alignItems: 'center', gap: 9 },
+  sideLogoIcon:   { width: 28, height: 28, borderRadius: 7, background: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#fff', flexShrink: 0 },
+  sideNav:        { flex: 1, padding: '10px 10px', display: 'flex', flexDirection: 'column', gap: 1 },
+  sideNavItem:    { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 7, fontSize: 13, fontWeight: 500, color: '#8B95A5', textDecoration: 'none', transition: 'all .15s' },
+  sideNavActive:  { background: 'rgba(59,130,246,.18)', color: '#93C5FD', fontWeight: 600 },
+  sideNavIcon:    { fontSize: 15, width: 20, textAlign: 'center', flexShrink: 0 },
+  sideUserWrap:   { padding: '12px 14px', borderTop: '1px solid rgba(255,255,255,.07)', display: 'flex', alignItems: 'center', gap: 9 },
+  sideUserAvatar: { width: 28, height: 28, borderRadius: '50%', background: '#3B82F6', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 },
+  sideUserEmail:  { fontSize: 11, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
 
-  body:        { maxWidth: 1160, margin: '0 auto', padding: '24px 20px' },
-  titleBar:    { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18 },
-  pageTitle:   { fontSize: 20, fontWeight: 600, color: '#1A2B3C', margin: 0 },
-  pageSubtitle:{ fontSize: 13, color: '#6B7280', margin: '3px 0 0' },
-  refreshBtn:  { padding: '7px 14px', fontSize: 13, fontWeight: 500, borderRadius: 3, border: '1px solid #C8CDD2', background: '#FFFFFF', color: '#4A5568', cursor: 'pointer' },
+  // Main area
+  main:           { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' },
+  topBar:         { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', height: 58, background: '#fff', borderBottom: '1px solid #E5E7EB', flexShrink: 0, gap: 12 },
+  topTitleWrap:   { display: 'flex', alignItems: 'baseline', gap: 12 },
+  topTitle:       { fontSize: 17, fontWeight: 700, color: '#111827' },
+  topDate:        { fontSize: 13, color: '#9CA3AF', fontWeight: 400 },
+  topActions:     { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 },
+  searchWrap:     { position: 'relative' },
+  searchInput:    { padding: '7px 12px 7px 30px', border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 13, color: '#374151', background: '#F9FAFB', fontFamily: 'inherit', outline: 'none', width: 190 },
+  searchIcon:     { position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', fontSize: 14, pointerEvents: 'none', lineHeight: 1 },
+  topBtn:         { padding: '6px 13px', fontSize: 13, fontWeight: 500, borderRadius: 7, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' },
 
-  demoBanner:  { background: '#FFFBF0', border: '1px solid #F5A623', borderLeft: '4px solid #F5A623', borderRadius: 4, padding: '10px 14px', fontSize: 13, color: '#7D4E00', marginBottom: 18 },
+  body:           { flex: 1, padding: '20px 24px', overflowY: 'auto' },
 
-  summaryRow:  { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 20 },
-  summaryCard: { background: '#FFFFFF', border: '1px solid #D8DCE0', borderRadius: 4, padding: '16px 18px', position: 'relative', overflow: 'hidden' },
-  summaryDot:  { position: 'absolute', top: 0, left: 0, right: 0, height: 3 },
-  summaryNum:  { fontSize: 28, fontWeight: 600, color: '#1A2B3C', lineHeight: 1 },
-  summaryLabel:{ fontSize: 12, color: '#6B7280', marginTop: 5, fontWeight: 400 },
+  demoBanner:     { background: '#FFFBF0', border: '1px solid #F5A623', borderLeft: '4px solid #F5A623', borderRadius: 6, padding: '10px 14px', fontSize: 13, color: '#7D4E00', marginBottom: 16 },
 
-  tabBar:      { display: 'flex', marginBottom: 14, background: '#FFFFFF', border: '1px solid #C8CDD2', borderRadius: 3, width: 'fit-content', overflow: 'hidden' },
-  tab:         { padding: '7px 18px', border: 'none', borderRight: '1px solid #C8CDD2', background: 'transparent', color: '#4A5568', fontSize: 13, fontWeight: 400, cursor: 'pointer' },
-  tabActive:   { background: '#0077C5', color: '#FFFFFF', fontWeight: 600 },
+  // Stats
+  statsRow:       { display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12, marginBottom: 18 },
+  statCard:       { background: '#fff', borderRadius: 10, padding: '14px 16px', border: '1px solid #E5E7EB', boxShadow: '0 1px 3px rgba(0,0,0,.04)' },
+  statNum:        { fontSize: 26, fontWeight: 700, color: '#111827', lineHeight: 1 },
+  statAccent:     { width: 3, height: 28, borderRadius: 2, marginRight: 10, flexShrink: 0 },
 
-  card:        { background: '#FFFFFF', border: '1px solid #D8DCE0', borderRadius: 4, overflow: 'hidden' },
-  table:       { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-  thead:       { background: '#F5F6F7' },
-  th:          { textAlign: 'left', padding: '9px 14px', fontWeight: 600, color: '#6B7280', fontSize: 11, letterSpacing: '.4px', borderBottom: '1px solid #D8DCE0' },
-  tr:          { borderBottom: '1px solid #EBEBEB', transition: 'background .1s' },
-  td:          { padding: '18px 14px', verticalAlign: 'middle' },
-  empty:       { textAlign: 'center', padding: 56, color: '#9CA3AF', fontSize: 14 },
+  // Next Up
+  nextUp:         { background: '#fff', borderRadius: 10, border: '1px solid #E5E7EB', boxShadow: '0 1px 3px rgba(0,0,0,.04)', padding: '14px 20px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 18, borderLeft: '4px solid #3B82F6' },
+  nextUpLabel:    { fontSize: 10, fontWeight: 700, color: '#3B82F6', textTransform: 'uppercase', letterSpacing: '.8px', marginBottom: 3 },
+  nextUpTime:     { fontSize: 24, fontWeight: 700, color: '#111827', lineHeight: 1 },
+  nextUpIn:       { fontSize: 12, color: '#9CA3AF', marginTop: 3 },
+  nextUpDiv:      { width: 1, height: 44, background: '#E5E7EB', flexShrink: 0 },
+  nextUpAvatar:   { width: 38, height: 38, borderRadius: '50%', background: '#3B82F6', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 },
+  nextUpInfo:     { flex: 1, minWidth: 0 },
+  nextUpName:     { fontSize: 15, fontWeight: 700, color: '#111827' },
+  nextUpMeta:     { fontSize: 12, color: '#6B7280', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  nextUpActions:  { display: 'flex', gap: 8, flexShrink: 0 },
+
+  // Filter bar
+  filterBar:      { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 10 },
+  tabSet:         { display: 'flex', background: '#F3F4F6', borderRadius: 8, padding: 3, gap: 2 },
+  tab:            { padding: '6px 13px', border: 'none', borderRadius: 6, background: 'transparent', color: '#6B7280', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' },
+  tabActive:      { background: '#fff', color: '#111827', fontWeight: 600, boxShadow: '0 1px 3px rgba(0,0,0,.10)' },
+  tabCount:       { background: '#3B82F6', color: '#fff', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 },
+  tabBarRight:    { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+
+  // Table
+  card:           { background: '#fff', borderRadius: 10, border: '1px solid #E5E7EB', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,.04)' },
+  table:          { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
+  thead:          { background: '#F9FAFB' },
+  th:             { textAlign: 'left', padding: '10px 14px', fontWeight: 600, color: '#9CA3AF', fontSize: 11, letterSpacing: '.5px', borderBottom: '1px solid #E5E7EB', textTransform: 'uppercase' },
+  tr:             { borderBottom: '1px solid #F3F4F6', transition: 'background .1s' },
+  td:             { padding: '13px 14px', verticalAlign: 'middle' },
+  empty:          { textAlign: 'center', padding: 56, color: '#9CA3AF', fontSize: 14 },
 };
 
 // ─── Panel styles ─────────────────────────────────────────────────────────────
@@ -1737,7 +1885,6 @@ const p = {
   sectionHdrRow:  { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   sectionTitle:   { fontSize: 12, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.6px' },
 
-  // Edit mode controls in section header
   editBtn:        { fontSize: 12, fontWeight: 500, color: '#0077C5', background: 'transparent', border: '1px solid #B3D4EE', borderRadius: 3, padding: '3px 10px', cursor: 'pointer', fontFamily: 'inherit' },
   saveEditBtn:    { fontSize: 12, fontWeight: 600, color: '#fff', border: 'none', borderRadius: 3, padding: '4px 12px', cursor: 'pointer', fontFamily: 'inherit', transition: 'background .15s' },
   cancelEditBtn:  { fontSize: 12, fontWeight: 400, color: '#4A5568', background: '#F5F6F7', border: '1px solid #C8CDD2', borderRadius: 3, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit' },
@@ -1764,13 +1911,11 @@ const p = {
   emailInput:     { flex: 1, padding: '6px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none' },
   emailBody:      { width: '100%', padding: '8px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
 
-  // Shared action button (email send, save notes, CQ sent)
   actionBtn:      { padding: '8px 18px', color: '#fff', border: 'none', borderRadius: 3, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'background .2s' },
   cancelBtn:      { padding: '8px 14px', background: '#fff', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#4A5568', cursor: 'pointer', fontFamily: 'inherit' },
 
   notesArea:      { width: '100%', padding: '8px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.6 },
 
-  // Brand chips
   brandChip:      { padding: '4px 10px', fontSize: 12, fontWeight: 500, borderRadius: 20, border: '1px solid #C8CDD2', background: '#F5F6F7', color: '#4A5568', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   brandChipActive:{ padding: '4px 10px', fontSize: 12, fontWeight: 600, borderRadius: 20, border: '1px solid #0077C5', background: '#0077C5', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   brandChipX:     { padding: '2px 6px', fontSize: 14, lineHeight: 1, background: 'transparent', border: 'none', color: '#9CA3AF', cursor: 'pointer', fontFamily: 'inherit', marginLeft: -2 },
