@@ -224,68 +224,9 @@ async function fetchCalendly(from, to) {
     };
   });
 
-  // Enrich with GHL contact data (phone, liquid capital, owner, contact ID) by email
-  const ghlApiKey     = process.env.GHL_API_KEY;
-  const ghlLocationId = process.env.GHL_LOCATION_ID;
-  if (ghlApiKey && ghlLocationId) {
-    const ghlHeaders = { 'Authorization': `Bearer ${ghlApiKey}`, 'Version': GHL_VERSION };
-
-    // Collect contacts first, then batch-resolve unique owner IDs
-    const contactsByIdx = {};
-    await Promise.allSettled(
-      base.map(async (bk, i) => {
-        if (!bk.email) return;
-        try {
-          const sr = await fetch(
-            `${GHL_API}/contacts/?locationId=${ghlLocationId}&query=${encodeURIComponent(bk.email)}`,
-            { headers: ghlHeaders }
-          );
-          if (!sr.ok) return;
-          const sd = await sr.json();
-          const match = (sd.contacts || [])[0];
-          if (!match) return;
-          const cr = await fetch(`${GHL_API}/contacts/${match.id}`, { headers: ghlHeaders });
-          if (!cr.ok) return;
-          const cd = await cr.json();
-          const contact = cd.contact;
-          if (!contact) return;
-          contactsByIdx[i] = contact;
-          base[i].ghl_contact_id   = contact.id;
-          base[i].investment_level = getGHLLiquidCapital(contact);
-          base[i].assigned_user_id = contact.assignedTo || null;
-          // Phone from GHL if Calendly didn't capture it
-          if (!base[i].phone && contact.phone) base[i].phone = contact.phone;
-        } catch { /* non-fatal */ }
-      })
-    );
-
-    // Batch-resolve unique owner IDs to names
-    const ownerIds = [...new Set(
-      Object.values(contactsByIdx).map(c => c.assignedTo).filter(Boolean)
-    )];
-    const ownerMap = {};
-    if (ownerIds.length) {
-      await Promise.allSettled(
-        ownerIds.map(async uid => {
-          try {
-            const r = await fetch(`${GHL_API}/users/${uid}`, { headers: ghlHeaders });
-            if (!r.ok) return;
-            const d = await r.json();
-            const u = d.user || d;
-            const name = u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim();
-            if (name) ownerMap[uid] = name;
-          } catch { /* non-fatal */ }
-        })
-      );
-    }
-
-    // Apply owner names
-    Object.entries(contactsByIdx).forEach(([i, contact]) => {
-      const name = contact.assignedTo ? ownerMap[contact.assignedTo] : null;
-      if (name) base[i].assigned_to_email = name;
-    });
-  }
-
+  // Note: GHL contact enrichment (liquid capital, owner name) is intentionally skipped here.
+  // Doing per-event GHL lookups in parallel with fetchGHL() hits GHL rate limits and breaks
+  // the calendar fetch. GHL enrichment happens lazily when the user opens the side panel.
   return base;
 }
 
