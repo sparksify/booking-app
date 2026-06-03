@@ -31,6 +31,7 @@ export default async function handler(req, res) {
       max_slots_per_day, hidden_slots_count,
       brand_pitches, form_tag_rules, revenue_per_close,
       show_revenue, show_franchise_metrics, workflow_mappings,
+      event_description, event_location, event_color, event_reminder_mins,
     } = req.body;
 
     const update = { updated_at: new Date().toISOString() };
@@ -49,6 +50,10 @@ export default async function handler(req, res) {
     if (show_revenue            !== undefined) update.show_revenue            = !!show_revenue;
     if (show_franchise_metrics  !== undefined) update.show_franchise_metrics  = !!show_franchise_metrics;
     if (workflow_mappings       !== undefined) update.workflow_mappings       = workflow_mappings;
+    if (event_description       !== undefined) update.event_description       = event_description;
+    if (event_location          !== undefined) update.event_location          = event_location;
+    if (event_color             !== undefined) update.event_color             = event_color ? Number(event_color) : null;
+    if (event_reminder_mins     !== undefined) update.event_reminder_mins     = Number(event_reminder_mins) || 15;
 
     const { data, error } = await supabase
       .from('settings')

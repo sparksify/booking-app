@@ -42,6 +42,8 @@ export async function getServerSideProps(context) {
         meeting_duration: 30, meeting_title: 'Franchise Discovery Call',
         days_ahead: 14, buffer_minutes: 15,
         show_revenue: false, show_franchise_metrics: false,
+        event_description: null, event_location: null,
+        event_color: null, event_reminder_mins: 15,
       },
     },
   };
@@ -331,13 +333,6 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
                 </Field>
               </div>
 
-              <Field label="Meeting title (shown on calendar invite)">
-                <input style={s.input} type="text"
-                  value={settings.meeting_title}
-                  onChange={e => setSettings(p => ({ ...p, meeting_title: e.target.value }))}
-                />
-              </Field>
-
               <div style={s.formRow}>
                 <Field label="Max slots shown per day">
                   <select style={s.select} value={settings.max_slots_per_day ?? 15}
@@ -370,6 +365,118 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
               <div style={{ marginTop: 20 }}>
                 <button type="submit" style={s.saveBtn} disabled={saving}>
                   {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save settings'}
+                </button>
+              </div>
+            </form>
+          </Section>
+
+          {/* ── Calendar Event Settings ─────────────────────────────────── */}
+          <Section
+            title="Calendar Event Settings"
+            subtitle="Controls what appears on the Google Calendar invite sent when someone books through FranchiseBook."
+          >
+            <form onSubmit={saveSettings} style={s.form}>
+
+              <Field label="Meeting title (calendar event name)">
+                <input
+                  style={s.input}
+                  type="text"
+                  placeholder="e.g. Franchise Discovery Call"
+                  value={settings.meeting_title || ''}
+                  onChange={e => setSettings(p => ({ ...p, meeting_title: e.target.value }))}
+                />
+              </Field>
+
+              <Field label="Event description">
+                <textarea
+                  style={{ ...s.input, minHeight: 110, resize: 'vertical', lineHeight: 1.6 }}
+                  placeholder={'Leave blank for a smart default, or write a custom message.\n\nAvailable variables:\n{name}  {first_name}  {last_name}  {phone}  {email}\n{date}  {time}  {investment_level}  {meeting_title}'}
+                  value={settings.event_description || ''}
+                  onChange={e => setSettings(p => ({ ...p, event_description: e.target.value || null }))}
+                />
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 6 }}>
+                  {['{name}','{first_name}','{last_name}','{phone}','{email}','{date}','{time}','{investment_level}','{meeting_title}'].map(v => (
+                    <button
+                      key={v}
+                      type="button"
+                      style={{ fontSize: 11, padding: '2px 8px', borderRadius: 3, border: '1px solid #C8CDD2', background: '#F5F6F7', color: '#374151', cursor: 'pointer', fontFamily: 'monospace' }}
+                      onClick={() => setSettings(p => ({ ...p, event_description: (p.event_description || '') + v }))}
+                    >{v}</button>
+                  ))}
+                </div>
+                <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>Click a variable to insert it, or type it directly. Leave blank and the invite will include the lead's name, phone, email, and investment level automatically.</p>
+              </Field>
+
+              <Field label="Event location (optional)">
+                <input
+                  style={s.input}
+                  type="text"
+                  placeholder="e.g. https://zoom.us/j/... or 123 Main St, Chicago IL"
+                  value={settings.event_location || ''}
+                  onChange={e => setSettings(p => ({ ...p, event_location: e.target.value || null }))}
+                />
+                <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>Shown on the calendar event as the location field. Leave blank to omit.</p>
+              </Field>
+
+              <div style={s.formRow}>
+                <Field label="Event color">
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', paddingTop: 4 }}>
+                    {[
+                      { id: null,  name: 'Default',   hex: '#4285F4' },
+                      { id: 1,     name: 'Lavender',   hex: '#7986CB' },
+                      { id: 2,     name: 'Sage',        hex: '#33B679' },
+                      { id: 3,     name: 'Grape',       hex: '#8E24AA' },
+                      { id: 4,     name: 'Flamingo',    hex: '#E67C73' },
+                      { id: 5,     name: 'Banana',      hex: '#F6BF26' },
+                      { id: 6,     name: 'Tangerine',   hex: '#F4511E' },
+                      { id: 7,     name: 'Peacock',     hex: '#039BE5' },
+                      { id: 8,     name: 'Blueberry',   hex: '#3F51B5' },
+                      { id: 9,     name: 'Basil',       hex: '#0B8043' },
+                      { id: 10,    name: 'Tomato',      hex: '#D50000' },
+                      { id: 11,    name: 'Sage (alt)',   hex: '#616161' },
+                    ].map(c => {
+                      const isSelected = (settings.event_color ?? null) === c.id;
+                      return (
+                        <button
+                          key={String(c.id)}
+                          type="button"
+                          title={c.name}
+                          onClick={() => setSettings(p => ({ ...p, event_color: c.id }))}
+                          style={{
+                            width: 26, height: 26, borderRadius: '50%',
+                            background: c.hex, border: isSelected ? '3px solid #1A2B3C' : '3px solid transparent',
+                            boxShadow: isSelected ? '0 0 0 2px #fff inset' : 'none',
+                            cursor: 'pointer', padding: 0, flexShrink: 0,
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                  <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>
+                    {settings.event_color === null ? 'Default calendar color' :
+                      ['','Lavender','Sage','Grape','Flamingo','Banana','Tangerine','Peacock','Blueberry','Basil','Tomato','Graphite'][settings.event_color]}
+                  </p>
+                </Field>
+
+                <Field label="Email reminder before meeting">
+                  <select
+                    style={s.select}
+                    value={settings.event_reminder_mins ?? 15}
+                    onChange={e => setSettings(p => ({ ...p, event_reminder_mins: +e.target.value }))}
+                  >
+                    {[5, 10, 15, 30, 60, 120, 1440].map(m => (
+                      <option key={m} value={m}>
+                        {m < 60 ? `${m} minutes` : m === 60 ? '1 hour' : m === 120 ? '2 hours' : '1 day'}
+                      </option>
+                    ))}
+                  </select>
+                  <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>A popup reminder always fires 10 minutes before the meeting as well.</p>
+                </Field>
+              </div>
+
+              <div style={{ marginTop: 4 }}>
+                <button type="submit" style={s.saveBtn} disabled={saving}>
+                  {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save calendar settings'}
                 </button>
               </div>
             </form>

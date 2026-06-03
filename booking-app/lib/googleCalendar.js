@@ -153,26 +153,46 @@ export async function createCalendarEvent(member, booking, settings) {
   const totalMins = booking.h * 60 + booking.m + settings.meetingDuration;
   const endDT     = `${booking.date}T${pad(Math.floor(totalMins / 60))}:${pad(totalMins % 60)}:00`;
 
+  // Build description from template or fall back to a sensible default
+  const description = buildEventDescription(settings, booking);
+
+  // Build reminder overrides
+  const reminderMins = settings.eventReminderMins ?? 15;
+  const reminders = {
+    useDefault: false,
+    overrides: [
+      { method: 'email',  minutes: reminderMins },
+      { method: 'popup',  minutes: 10 },
+    ],
+  };
+
+  const requestBody = {
+    summary:  settings.meetingTitle,
+    description,
+    start: { dateTime: startDT, timeZone: settings.timezone },
+    end:   { dateTime: endDT,   timeZone: settings.timezone },
+    attendees: [
+      { email: booking.email, displayName: `${booking.firstName} ${booking.lastName}` },
+      { email: member.email,  displayName: member.name, organizer: true },
+    ],
+    reminders,
+    conferenceData: {
+      createRequest: {
+        requestId: `booking-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        conferenceSolutionKey: { type: 'hangoutsMeet' },
+      },
+    },
+  };
+
+  // Optional fields
+  if (settings.eventLocation) requestBody.location = settings.eventLocation;
+  if (settings.eventColor)    requestBody.colorId  = String(settings.eventColor);
+
   const event = await calendar.events.insert({
     calendarId: member.calendar_id || 'primary',
     conferenceDataVersion: 1,
     sendUpdates: 'all',
-    requestBody: {
-      summary: settings.meetingTitle,
-      description: `Booked via booking page.\n\nLead: ${booking.firstName} ${booking.lastName}\nPhone: ${booking.phone || 'N/A'}`,
-      start: { dateTime: startDT, timeZone: settings.timezone },
-      end:   { dateTime: endDT,   timeZone: settings.timezone },
-      attendees: [
-        { email: booking.email, displayName: `${booking.firstName} ${booking.lastName}` },
-        { email: member.email,  displayName: member.name, organizer: true },
-      ],
-      conferenceData: {
-        createRequest: {
-          requestId: `booking-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          conferenceSolutionKey: { type: 'hangoutsMeet' },
-        },
-      },
-    },
+    requestBody,
   });
 
   const meetLink =
@@ -185,4 +205,59 @@ export async function createCalendarEvent(member, booking, settings) {
 
 function pad(n) {
   return String(n).padStart(2, '0');
+}
+
+/**
+ * Builds the Google Calendar event description.
+ * If settings.eventDescription is set, substitutes template variables.
+ * Otherwise falls back to a sensible default with all lead info.
+ *
+ * Available variables: {name} {first_name} {last_name} {phone} {email}
+ *                      {date} {time} {investment_level} {meeting_title}
+ */
+function buildEventDescription(settings, booking) {
+  const template = settings.eventDescription;
+
+  // Build a local datetime string for display (server runs in UTC so use explicit parts)
+  const dateStr = (() => {
+    const days   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    // booking.date is 'YYYY-MM-DD'; booking.h/m are local hours
+    const [y, mo, d] = booking.date.split('-').map(Number);
+    const probe = new Date(y, mo - 1, d);
+    return `${days[probe.getDay()]}, ${months[mo - 1]} ${d}, ${y}`;
+  })();
+
+  const timeStr = (() => {
+    const p  = booking.h >= 12 ? 'PM' : 'AM';
+    const dh = booking.h > 12 ? booking.h - 12 : booking.h === 0 ? 12 : booking.h;
+    return `${dh}:${pad(booking.m)} ${p}`;
+  })();
+
+  const vars = {
+    '{name}':             `${booking.firstName || ''} ${booking.lastName || ''}`.trim(),
+    '{first_name}':       booking.firstName       || '',
+    '{last_name}':        booking.lastName        || '',
+    '{phone}':            booking.phone           || 'N/A',
+    '{email}':            booking.email           || 'N/A',
+    '{date}':             dateStr,
+    '{time}':             timeStr,
+    '{investment_level}': booking.investmentLevel || 'Not specified',
+    '{meeting_title}':    settings.meetingTitle   || '',
+  };
+
+  if (!template) {
+    return (
+      `${vars['{name}']} booked a ${settings.meetingTitle || 'call'}.\n\n` +
+      `Phone: ${vars['{phone}']}\n` +
+      `Email: ${vars['{email}']}\n` +
+      `Investment Level: ${vars['{investment_level}']}\n\n` +
+      `Booked via FranchiseBook.`
+    );
+  }
+
+  return Object.entries(vars).reduce(
+    (t, [k, v]) => t.replace(new RegExp(k.replace(/[{}]/g, '\\$&'), 'g'), v),
+    template
+  );
 }
