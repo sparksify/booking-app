@@ -136,9 +136,15 @@ export default function AnalyticsDashboard({ showRevenueProp, showFranchiseProp 
               <div style={s.topDate}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
             </div>
             <div style={s.topActions}>
-              <div style={{ display: 'flex', gap: 2, background: '#F3F4F6', borderRadius: 6, padding: 3 }}>
+              <div style={{ display: 'flex', gap: 4 }}>
                 {[7, 30, 90].map(d => (
-                  <button key={d} onClick={() => changePeriod(d)} style={{ padding: '4px 13px', fontSize: 12, fontWeight: period === d ? 700 : 500, color: period === d ? '#111827' : '#6B7280', background: period === d ? '#fff' : 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit', boxShadow: period === d ? '0 1px 2px rgba(0,0,0,.07)' : 'none' }}>
+                  <button key={d} onClick={() => changePeriod(d)} style={{
+                    padding: '6px 16px', fontSize: 13, fontWeight: 600,
+                    color: period === d ? '#fff' : '#475569',
+                    background: period === d ? '#0057FF' : 'transparent',
+                    border: `1px solid ${period === d ? '#0057FF' : '#E2E8F0'}`,
+                    borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit',
+                  }}>
                     {d}d
                   </button>
                 ))}
@@ -174,10 +180,10 @@ function Dashboard({ data, showRevenue, showFranchise }) {
   return (
     <>
       {/* §1 Executive Summary */}
-      <SecTitle>Executive Summary</SecTitle>
+      <SecTitle icon="chart" color="#0057FF" bg="#EFF6FF">Executive Summary</SecTitle>
       <div style={s.kpi4}>
         <KpiCard label="Total Leads"  value={data.funnel.leads.toLocaleString()} sub="in funnel" />
-        <KpiCard label="Booking Rate" value={`${data.bookingRate}%`}  sub={`${data.funnel.booked} booked`}  warn={data.bookingRate > 0 && data.bookingRate < 20} />
+        <KpiCard label="Booking Rate" value={`${data.bookingRate}%`}  sub={`${data.funnel.booked} booked`}  warn={data.bookingRate > 0 && data.bookingRate < 20} trend={data.bookingRate >= 20 ? 'up' : undefined} />
         <KpiCard label="Show Rate"    value={`${data.showRate}%`}     sub={`${data.funnel.showed} of ${data.funnel.booked} booked`} warn={data.showRate > 0 && data.showRate < 60} />
         <KpiCard label="Close Rate"   value={`${data.closeRate}%`}    sub={`${data.funnel.closed} closed`} />
       </div>
@@ -193,12 +199,12 @@ function Dashboard({ data, showRevenue, showFranchise }) {
       {/* §2 Franchise & CQ Metrics — immediately after exec summary */}
       {showFranchise && (
         <>
-          <SecTitle>Franchise &amp; CQ Metrics</SecTitle>
+          <SecTitle icon="bar" color="#D97706" bg="#FFF7ED">Franchise &amp; CQ Metrics</SecTitle>
           <div style={s.kpi4}>
-            <KpiCard label="CQ Sent"       value={data.cqMetrics.cq_sent.toLocaleString()}      sub={`of ${data.funnel.showed} showed`} />
-            <KpiCard label="CQ Rate"        value={`${data.cqMetrics.cq_rate}%`}                 sub="% of shows → CQ sent" />
-            <KpiCard label="CQ Received"    value={data.cqMetrics.cq_received.toLocaleString()}  sub={`of ${data.cqMetrics.cq_sent} sent`} warn={data.cqMetrics.cq_sent > 0 && data.cqMetrics.cq_return_rate < 50} />
-            <KpiCard label="Return Rate"    value={`${data.cqMetrics.cq_return_rate}%`}          sub="CQ sent → CQ returned" />
+            <KpiCard label="CQ Sent"     value={data.cqMetrics.cq_sent.toLocaleString()}      sub={`of ${data.funnel.showed} showed`} />
+            <KpiCard label="CQ Rate"     value={`${data.cqMetrics.cq_rate}%`}                 sub="% of shows → CQ sent" />
+            <KpiCard label="CQ Received" value={data.cqMetrics.cq_received.toLocaleString()}  sub={`of ${data.cqMetrics.cq_sent} sent`} warn={data.cqMetrics.cq_sent > 0 && data.cqMetrics.cq_return_rate < 50} />
+            <KpiCard label="Return Rate" value={`${data.cqMetrics.cq_return_rate}%`}          sub="CQ sent → CQ returned" />
           </div>
 
           <div style={s.twoCol}>
@@ -214,31 +220,34 @@ function Dashboard({ data, showRevenue, showFranchise }) {
             </div>
           </div>
 
-          {(data.cqPipeline.sent_not_received > 0 || data.cqPipeline.received_not_closed > 0) && (
-            <div style={s.twoCol}>
-              <div style={s.card}>
-                <CTitle>CQ Sent — Awaiting Response</CTitle>
-                <CSub>{data.cqPipeline.sent_not_received} questionnaires out, not yet returned</CSub>
-                <div style={{ marginTop: 16, textAlign: 'center' }}>
-                  <div style={{ fontSize: 32, fontWeight: 700, color: '#111827' }}>{fmtCurrency(data.cqPipeline.pipeline_sent)}</div>
-                  <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>projected at current close rate</div>
-                </div>
-              </div>
-              <div style={s.card}>
-                <CTitle>CQ Received — Not Yet Closed</CTitle>
-                <CSub>{data.cqPipeline.received_not_closed} questionnaires back, deals in progress</CSub>
-                <div style={{ marginTop: 16, textAlign: 'center' }}>
-                  <div style={{ fontSize: 32, fontWeight: 700, color: '#111827' }}>{fmtCurrency(data.cqPipeline.pipeline_received)}</div>
-                  <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>projected at current close rate</div>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* CQ Pipeline — always show when franchise mode on */}
+          <div style={s.twoCol}>
+            <CQPipelineCard
+              icon="send"
+              iconBg="#EFF6FF"
+              iconColor="#0057FF"
+              title="CQ Sent — Awaiting Response"
+              sub={`${data.cqPipeline.sent_not_received} questionnaires out, not yet returned`}
+              amount={fmtCurrency(data.cqPipeline.pipeline_sent)}
+              amountColor="#0057FF"
+              decorIcon="clock"
+            />
+            <CQPipelineCard
+              icon="download"
+              iconBg="#FFF7ED"
+              iconColor="#EA580C"
+              title="CQ Received — Not Yet Closed"
+              sub={`${data.cqPipeline.received_not_closed} questionnaires back, deals in progress`}
+              amount={fmtCurrency(data.cqPipeline.pipeline_received)}
+              amountColor="#EA580C"
+              decorIcon="hourglass"
+            />
+          </div>
         </>
       )}
 
       {/* §3 Booking Engine + Slot Leaderboard */}
-      <SecTitle>Booking Engine &amp; Slot Leaderboard</SecTitle>
+      <SecTitle icon="target" color="#16A34A" bg="#F0FDF4">Booking Engine &amp; Slot Leaderboard</SecTitle>
       <div style={s.twoCol}>
         <div style={s.card}>
           <CTitle>Recommendation Engine Performance</CTitle>
@@ -253,13 +262,13 @@ function Dashboard({ data, showRevenue, showFranchise }) {
       </div>
 
       {/* §4 Conversion Funnel */}
-      <SecTitle>Conversion Funnel</SecTitle>
+      <SecTitle icon="funnel" color="#7C3AED" bg="#F5F3FF">Conversion Funnel</SecTitle>
       <div style={s.card}>
         <FunnelViz funnel={data.funnel} />
       </div>
 
       {/* §5 Attribution */}
-      <SecTitle>Attribution</SecTitle>
+      <SecTitle icon="link" color="#0057FF" bg="#EFF6FF">Attribution</SecTitle>
       <div style={s.twoCol}>
         <div style={s.card}>
           <CTitle>Booking Source</CTitle>
@@ -274,13 +283,13 @@ function Dashboard({ data, showRevenue, showFranchise }) {
       </div>
 
       {/* §6 Consultant Performance */}
-      <SecTitle>Consultant Performance</SecTitle>
+      <SecTitle icon="users" color="#0057FF" bg="#EFF6FF">Consultant Performance</SecTitle>
       <div style={s.card}>
         <RepTable reps={data.repStats} hasRevenue={showRevenue} />
       </div>
 
       {/* §7 Velocity | §8 Appointment Window | §9 Calendar Add */}
-      <SecTitle>Booking Velocity &nbsp;·&nbsp; Appointment Window &nbsp;·&nbsp; Calendar Add</SecTitle>
+      <SecTitle icon="chart" color="#0057FF" bg="#EFF6FF">Booking Velocity &nbsp;·&nbsp; Appointment Window &nbsp;·&nbsp; Calendar Add</SecTitle>
       <div style={s.threeCol}>
         <div style={s.card}>
           <CTitle>Booking Velocity</CTitle>
@@ -302,7 +311,7 @@ function Dashboard({ data, showRevenue, showFranchise }) {
       {/* §10 Revenue Intelligence */}
       {showRevenue && (
         <>
-          <SecTitle>Revenue Intelligence</SecTitle>
+          <SecTitle icon="bar" color="#16A34A" bg="#F0FDF4">Revenue Intelligence</SecTitle>
           <div style={s.twoCol}>
             <div style={s.card}>
               <CTitle>Revenue by Day</CTitle>
@@ -319,7 +328,7 @@ function Dashboard({ data, showRevenue, showFranchise }) {
       )}
 
       {/* §11 Lead Quality | §12 Opportunity Loss */}
-      <SecTitle>Lead Quality &nbsp;·&nbsp; Opportunity Loss</SecTitle>
+      <SecTitle icon="star" color="#D97706" bg="#FFF7ED">Lead Quality &nbsp;·&nbsp; Opportunity Loss</SecTitle>
       <div style={s.twoCol}>
         <div style={s.card}>
           <CTitle>Lead Quality Distribution</CTitle>
@@ -338,8 +347,27 @@ function Dashboard({ data, showRevenue, showFranchise }) {
 
 // ─── Section chrome ───────────────────────────────────────────────────────────
 
-function SecTitle({ children }) {
-  return <div style={s.secTitle}>{children}</div>;
+// Section icon definitions
+const SEC_ICONS = {
+  chart:   (c) => <svg width="16" height="16" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
+  bar:     (c) => <svg width="16" height="16" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+  target:  (c) => <svg width="16" height="16" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>,
+  funnel:  (c) => <svg width="16" height="16" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
+  link:    (c) => <svg width="16" height="16" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>,
+  users:   (c) => <svg width="16" height="16" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+  star:    (c) => <svg width="16" height="16" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+  loss:    (c) => <svg width="16" height="16" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>,
+};
+
+function SecTitle({ children, icon = 'chart', color = '#0057FF', bg = '#EFF6FF' }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 28, marginBottom: 14 }}>
+      <div style={{ width: 30, height: 30, borderRadius: 8, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        {(SEC_ICONS[icon] || SEC_ICONS.chart)(color)}
+      </div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{children}</div>
+    </div>
+  );
 }
 function CTitle({ children }) {
   return <div style={s.cardTitle}>{children}</div>;
@@ -348,15 +376,66 @@ function CSub({ children }) {
   return <div style={s.cardSub}>{children}</div>;
 }
 
-// ─── KPI Card — clean, no colored accent bar ──────────────────────────────────
+// ─── KPI icons ─────────────────────────────────────────────────────────────────
 
-function KpiCard({ label, value, sub, warn }) {
+const KPI_META = {
+  'Total Leads':       { bg: '#EFF6FF', color: '#0057FF',
+    icon: (c,s) => <svg width={s} height={s} fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+  'Booking Rate':      { bg: '#F0FDF4', color: '#16A34A',
+    icon: (c,s) => <svg width={s} height={s} fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
+  'Show Rate':         { bg: '#F5F3FF', color: '#7C3AED',
+    icon: (c,s) => <svg width={s} height={s} fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
+  'Close Rate':        { bg: '#FFF7ED', color: '#EA580C',
+    icon: (c,s) => <svg width={s} height={s} fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> },
+  'Revenue Generated': { bg: '#F0FDF4', color: '#16A34A',
+    icon: (c,s) => <svg width={s} height={s} fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> },
+  'Revenue / Appt':    { bg: '#EFF6FF', color: '#0057FF',
+    icon: (c,s) => <svg width={s} height={s} fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> },
+  'Revenue / Lead':    { bg: '#EFF6FF', color: '#0057FF',
+    icon: (c,s) => <svg width={s} height={s} fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> },
+  'Est. Revenue Lost': { bg: '#FEF2F2', color: '#DC2626',
+    icon: (c,s) => <svg width={s} height={s} fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> },
+  'CQ Sent':           { bg: '#EFF6FF', color: '#0057FF',
+    icon: (c,s) => <svg width={s} height={s} fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> },
+  'CQ Rate':           { bg: '#FFF7ED', color: '#D97706',
+    icon: (c,s) => <svg width={s} height={s} fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
+  'CQ Received':       { bg: '#FFF7ED', color: '#EA580C',
+    icon: (c,s) => <svg width={s} height={s} fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> },
+  'Return Rate':       { bg: '#F0FDF4', color: '#16A34A',
+    icon: (c,s) => <svg width={s} height={s} fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> },
+};
+const KPI_DEFAULT = { bg: '#F1F5F9', color: '#64748B', icon: (c,s) => <svg width={s} height={s} fill="none" stroke={c} strokeWidth="1.8" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> };
+
+// ─── KPI Card ─────────────────────────────────────────────────────────────────
+
+function KpiCard({ label, value, sub, warn, trend }) {
+  const meta = KPI_META[label] || KPI_DEFAULT;
+  const iconSize = 28;
   return (
     <div style={s.kpiCard}>
-      <div style={s.kpiLabel}>{label}</div>
-      <div style={s.kpiValue}>{value}</div>
-      {sub  && <div style={s.kpiSub}>{sub}</div>}
-      {warn && <div style={{ marginTop: 5, fontSize: 11, color: '#D97706', fontWeight: 500 }}>Below target</div>}
+      {/* Colored circle icon */}
+      <div style={{ width: 58, height: 58, borderRadius: '50%', background: meta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        {meta.icon(meta.color, iconSize)}
+      </div>
+      {/* Text */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={s.kpiLabel}>{label}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={s.kpiValue}>{value}</div>
+          {trend === 'up' && (
+            <svg width="16" height="16" fill="none" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>
+            </svg>
+          )}
+          {trend === 'down' && (
+            <svg width="16" height="16" fill="none" stroke="#DC2626" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <line x1="7" y1="7" x2="17" y2="17"/><polyline points="17 7 17 17 7 17"/>
+            </svg>
+          )}
+        </div>
+        {sub  && <div style={s.kpiSub}>{sub}</div>}
+        {warn && <div style={{ marginTop: 4, fontSize: 11, color: '#D97706', fontWeight: 600 }}>Below target</div>}
+      </div>
     </div>
   );
 }
@@ -766,6 +845,35 @@ function OpportunityLoss({ funnel, revenue, hasRevenue }) {
   );
 }
 
+// ─── CQ Pipeline Card ─────────────────────────────────────────────────────────
+
+function CQPipelineCard({ icon, iconBg, iconColor, title, sub, amount, amountColor, decorIcon }) {
+  const p = { width: 28, height: 28, fill: 'none', stroke: iconColor, strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', viewBox: '0 0 24 24' };
+  const icons = {
+    send:     <svg {...p}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>,
+    download: <svg {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+  };
+  const decorIcons = {
+    clock:    <svg width="52" height="52" fill="none" stroke="#E2E8F0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+    hourglass:<svg width="52" height="52" fill="none" stroke="#E2E8F0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg>,
+  };
+  return (
+    <div style={{ ...s.card, display: 'flex', alignItems: 'center', gap: 16, position: 'relative', overflow: 'hidden', minHeight: 90 }}>
+      <div style={{ width: 58, height: 58, borderRadius: '50%', background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        {icons[icon]}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 3 }}>{title}</div>
+        <div style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>{sub}</div>
+        <div style={{ fontSize: 28, fontWeight: 900, color: amountColor, lineHeight: 1 }}>{amount}</div>
+      </div>
+      <div style={{ position: 'absolute', right: 16, bottom: 8, opacity: 0.5 }}>
+        {decorIcons[decorIcon]}
+      </div>
+    </div>
+  );
+}
+
 // ─── CQ Tables ────────────────────────────────────────────────────────────────
 
 function CQSlotTable({ slots }) {
@@ -773,7 +881,7 @@ function CQSlotTable({ slots }) {
     return <div style={s.empty}>No CQ data yet — click Send CQ on a booking to start tracking</div>;
   }
   return (
-    <table style={s.table}>
+    <table style={{ ...s.table, marginTop: 14 }}>
       <thead>
         <tr>
           <th style={s.th}>Slot</th>
@@ -786,14 +894,21 @@ function CQSlotTable({ slots }) {
       </thead>
       <tbody>
         {slots.map((sl, i) => (
-          <tr key={sl.slot} style={{ background: i === 0 ? '#FAF5FF' : 'transparent' }}>
-            <td style={{ ...s.td, fontWeight: i === 0 ? 700 : 400, color: i === 0 ? '#7C3AED' : '#111827' }}>
-              {i === 0 && <span style={{ marginRight: 5 }}>★</span>}{sl.slot}
+          <tr key={sl.slot} style={{ background: i === 0 ? '#F0F7FF' : i % 2 ? '#FFFFFF' : '#FAFBFD' }}>
+            <td style={{ ...s.td, fontWeight: i === 0 ? 700 : 400, color: i === 0 ? '#0057FF' : '#0F172A' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {i === 0 && (
+                  <svg width="13" height="13" fill="#0057FF" stroke="#0057FF" strokeWidth="1" viewBox="0 0 24 24">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                )}
+                {sl.slot}
+              </div>
             </td>
             <td style={{ ...s.td, textAlign: 'right' }}>{sl.showed}</td>
             <td style={{ ...s.td, textAlign: 'right' }}>{sl.cq_sent}</td>
             <td style={{ ...s.td, textAlign: 'right' }}>{sl.cq_rate != null ? <RateBadge rate={sl.cq_rate} small thresholds={[70, 50]} /> : '—'}</td>
-            <td style={{ ...s.td, textAlign: 'right', fontWeight: 600, color: '#15803D' }}>{sl.cq_received}</td>
+            <td style={{ ...s.td, textAlign: 'right', fontWeight: 700, color: '#16A34A' }}>{sl.cq_received}</td>
             <td style={{ ...s.td, textAlign: 'right' }}>{sl.cq_return_rate != null ? <RateBadge rate={sl.cq_return_rate} small thresholds={[70, 50]} /> : '—'}</td>
           </tr>
         ))}
@@ -805,7 +920,7 @@ function CQSlotTable({ slots }) {
 function CQRepTable({ reps }) {
   if (!reps || reps.length === 0) return <div style={s.empty}>No data yet</div>;
   return (
-    <table style={s.table}>
+    <table style={{ ...s.table, marginTop: 14 }}>
       <thead>
         <tr>
           <th style={s.th}>Consultant</th>
@@ -820,15 +935,15 @@ function CQRepTable({ reps }) {
         {reps.map((r, i) => {
           const initials = r.email.split('@')[0].slice(0, 2).toUpperCase();
           return (
-            <tr key={r.email} style={{ background: i === 0 && r.cq_received > 0 ? '#F0FDF4' : 'transparent' }}>
-              <td style={{ ...s.td, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ ...s.avatar, width: 24, height: 24, fontSize: 10 }}>{initials}</div>
-                <span style={{ fontSize: 12, color: '#111827' }}>{r.email.split('@')[0]}</span>
+            <tr key={r.email} style={{ background: i % 2 ? '#FFFFFF' : '#FAFBFD' }}>
+              <td style={{ ...s.td, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#0057FF', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{initials}</div>
+                <span style={{ fontSize: 13, fontWeight: 500, color: '#0F172A' }}>{r.email.split('@')[0]}</span>
               </td>
               <td style={{ ...s.td, textAlign: 'right' }}>{r.showed}</td>
               <td style={{ ...s.td, textAlign: 'right' }}>{r.cq_sent}</td>
               <td style={{ ...s.td, textAlign: 'right' }}>{r.cq_rate != null ? <RateBadge rate={r.cq_rate} small thresholds={[70, 50]} /> : '—'}</td>
-              <td style={{ ...s.td, textAlign: 'right', fontWeight: 600, color: '#15803D' }}>{r.cq_received}</td>
+              <td style={{ ...s.td, textAlign: 'right', fontWeight: 700, color: '#16A34A' }}>{r.cq_received}</td>
               <td style={{ ...s.td, textAlign: 'right' }}>{r.cq_return_rate != null ? <RateBadge rate={r.cq_return_rate} small thresholds={[70, 50]} /> : '—'}</td>
             </tr>
           );
@@ -890,23 +1005,23 @@ const s = {
   spinner:     { width: 28, height: 28, borderRadius: '50%', border: '2px solid #E2E8F0', borderTopColor: '#0057FF', animation: 'spin 0.8s linear infinite' },
   loadingText: { color: '#6B7280', fontSize: 13 },
 
-  secTitle:    { fontSize: 10, fontWeight: 700, color: '#9CA3AF', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 28, marginBottom: 10 },
-  card:        { background: '#fff', borderRadius: 6, border: '1px solid #E2E8F0', padding: '16px 18px' },
-  cardTitle:   { fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 },
-  cardSub:     { fontSize: 11, color: '#9CA3AF' },
+  secTitle:    { fontSize: 10, fontWeight: 700, color: '#475569', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 28, marginBottom: 10 },
+  card:        { background: '#FFFFFF', borderRadius: 10, border: '1px solid #E2E8F0', padding: '18px 20px', boxShadow: '0 1px 3px rgba(15,23,42,.04)' },
+  cardTitle:   { fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 2 },
+  cardSub:     { fontSize: 12, color: '#64748B', lineHeight: 1.5 },
 
-  kpi4:        { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 10 },
-  kpiCard:     { background: '#fff', borderRadius: 6, border: '1px solid #E2E8F0', padding: '16px 18px' },
-  kpiLabel:    { fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 },
-  kpiValue:    { fontSize: 28, fontWeight: 700, color: '#111827', lineHeight: 1, marginBottom: 4 },
-  kpiSub:      { fontSize: 11, color: '#9CA3AF', lineHeight: 1.4 },
+  kpi4:        { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 },
+  kpiCard:     { background: '#FFFFFF', borderRadius: 10, border: '1px solid #E2E8F0', padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 16, boxShadow: '0 1px 3px rgba(15,23,42,.04)' },
+  kpiLabel:    { fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 },
+  kpiValue:    { fontSize: 26, fontWeight: 800, color: '#0F172A', lineHeight: 1.1, marginBottom: 3 },
+  kpiSub:      { fontSize: 11, color: '#94A3B8', lineHeight: 1.4 },
 
-  twoCol:      { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 0 },
-  threeCol:    { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 },
+  twoCol:      { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 },
+  threeCol:    { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 },
 
   table:       { width: '100%', borderCollapse: 'collapse', marginTop: 12 },
-  th:          { fontSize: 10, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '6px 8px', background: '#F9FAFB', borderBottom: '1px solid #E8EAED', textAlign: 'left' },
-  td:          { fontSize: 12, color: '#111827', padding: '7px 8px', borderBottom: '1px solid #F3F4F6' },
+  th:          { fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '8px 10px', background: '#FAFBFD', borderBottom: '1px solid #E2E8F0', textAlign: 'left', whiteSpace: 'nowrap' },
+  td:          { fontSize: 13, color: '#0F172A', padding: '10px 10px', borderBottom: '1px solid #F1F5F9', verticalAlign: 'middle' },
 
   metaRow:     { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #F3F4F6' },
   metaLabel:   { fontSize: 12, color: '#4B5563' },
@@ -918,5 +1033,5 @@ const s = {
 
   lossRow:     { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #F3F4F6' },
 
-  avatar:      { width: 28, height: 28, borderRadius: '50%', background: '#151719', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12, flexShrink: 0 },
+  avatar:      { width: 30, height: 30, borderRadius: '50%', background: '#0057FF', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 11, flexShrink: 0 },
 };
