@@ -91,6 +91,13 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
   const [bbTesting,    setBbTesting]    = useState(false);
   const [bbTestResult, setBbTestResult] = useState(null); // { ok, version } | { error }
 
+  // Brands state
+  const [brands,        setBrands]        = useState([]);
+  const [brandsLoading, setBrandsLoading] = useState(false);
+  const [expandedBrand, setExpandedBrand] = useState(null); // brand id
+  const [brandSaving,   setBrandSaving]   = useState({});
+  const [brandSaved,    setBrandSaved]    = useState({});
+
   // Workflow Automations state
   const [workflowMappings, setWorkflowMappings] = useState(initialSettings.workflow_mappings || {});
   const [ghlWorkflows,     setGhlWorkflows]     = useState([]);
@@ -158,6 +165,8 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
     });
     setSettings(p => ({ ...p, host_avatar_url: null }));
   }
+
+  useEffect(() => { loadBrands(); }, []);
 
   useEffect(() => {
     fetch('/api/dashboard/ghl-workflows')
@@ -278,6 +287,65 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
     setTagRuleSaving(false);
     setTagRuleSaved(true);
     setTimeout(() => setTagRuleSaved(false), 3000);
+  }
+
+  // ── Brands helpers ─────────────────────────────────────────────────────────
+  async function loadBrands() {
+    setBrandsLoading(true);
+    const r = await fetch('/api/dashboard/brands');
+    const d = await r.json();
+    setBrands(d.brands || []);
+    setBrandsLoading(false);
+  }
+
+  async function saveBrand(brand) {
+    setBrandSaving(s => ({ ...s, [brand.id]: true }));
+    const method = brand.id && !brand.id.startsWith('new_') ? 'PUT' : 'POST';
+    const r = await fetch('/api/dashboard/brands', {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(brand),
+    });
+    const d = await r.json();
+    if (d.brand) {
+      setBrands(bs => method === 'POST'
+        ? [...bs.filter(b => !b.id.startsWith('new_')), d.brand]
+        : bs.map(b => b.id === brand.id ? d.brand : b)
+      );
+      setExpandedBrand(d.brand.id);
+    }
+    setBrandSaving(s => ({ ...s, [brand.id]: false }));
+    setBrandSaved(s => ({ ...s, [d.brand?.id || brand.id]: true }));
+    setTimeout(() => setBrandSaved(s => ({ ...s, [d.brand?.id || brand.id]: false })), 3000);
+  }
+
+  async function deleteBrand(id) {
+    if (!confirm('Delete this brand? This cannot be undone.')) return;
+    await fetch('/api/dashboard/brands', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    setBrands(bs => bs.filter(b => b.id !== id));
+    if (expandedBrand === id) setExpandedBrand(null);
+  }
+
+  function addNewBrand() {
+    const newBrand = {
+      id: `new_${Date.now()}`,
+      slug: '', name: '', active: true,
+      booking_headline: '', booking_subtitle: '', booking_description: '',
+      meeting_title: '15-Minute Phone Call', meeting_duration: 15,
+      event_description: '', event_location: '', event_color: null, event_reminder_mins: 15,
+      fb_form_ids: [], ghl_tags: [], rep_emails: [],
+      routing_rules: {},
+    };
+    setBrands(bs => [...bs, newBrand]);
+    setExpandedBrand(newBrand.id);
+  }
+
+  function updateBrandField(id, field, value) {
+    setBrands(bs => bs.map(b => b.id === id ? { ...b, [field]: value } : b));
   }
 
   // ── BlueBubbles helpers ────────────────────────────────────────────────────
@@ -951,6 +1019,27 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
             )}
           </Section>
 
+          {/* ── Brands ───────────────────────────────────────────────────── */}
+          <Section
+            title="Brands"
+            subtitle="Each brand gets its own booking URL, calendar content, GHL tags, assigned reps, and liquid capital routing rules."
+          >
+            <BrandsEditor
+              brands={brands}
+              loading={brandsLoading}
+              expandedBrand={expandedBrand}
+              setExpandedBrand={setExpandedBrand}
+              brandSaving={brandSaving}
+              brandSaved={brandSaved}
+              members={members}
+              onSave={saveBrand}
+              onDelete={deleteBrand}
+              onAdd={addNewBrand}
+              onUpdate={updateBrandField}
+              styles={s}
+            />
+          </Section>
+
           {/* ── BlueBubbles iMessage ─────────────────────────────────────── */}
           <Section
             title="BlueBubbles iMessage"
@@ -1226,6 +1315,227 @@ function hours() {
     out.push({ v: h, l: `${dh}:00 ${p}` });
   }
   return out;
+}
+
+// ─── BrandsEditor component ───────────────────────────────────────────────────
+
+const TIERS = [
+  { key: 't25_50',   label: '$25k – $50k' },
+  { key: 't50_75',   label: '$50k – $75k' },
+  { key: 't75_150',  label: '$75k – $150k' },
+  { key: 't150_500', label: '$150k – $500k' },
+  { key: 't500_plus',label: '$500k+' },
+  { key: 't_null',   label: 'No data (null)' },
+];
+
+function BrandsEditor({ brands, loading, expandedBrand, setExpandedBrand, brandSaving, brandSaved, members, onSave, onDelete, onAdd, onUpdate, styles: s }) {
+  if (loading) return <div style={{ padding: 20, color: '#64748B', fontSize: 13 }}>Loading brands…</div>;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {brands.length === 0 && (
+        <div style={{ fontSize: 13, color: '#94A3B8', fontStyle: 'italic' }}>No brands yet. Add your first brand below.</div>
+      )}
+
+      {brands.map(brand => {
+        const isOpen   = expandedBrand === brand.id;
+        const isSaving = brandSaving[brand.id];
+        const isSaved  = brandSaved[brand.id];
+        const bookingUrl = `https://bookkanso.co/${brand.slug || '[slug]'}`;
+
+        return (
+          <div key={brand.id} style={{ border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'hidden', background: '#FFFFFF' }}>
+            {/* Brand header row */}
+            <div
+              onClick={() => setExpandedBrand(isOpen ? null : brand.id)}
+              style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', cursor: 'pointer', background: isOpen ? '#F8FAFC' : '#FFFFFF', borderBottom: isOpen ? '1px solid #E2E8F0' : 'none', gap: 12 }}
+            >
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>{brand.name || 'New Brand'}</div>
+                {brand.slug && <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>bookkanso.co/{brand.slug}</div>}
+              </div>
+              <span style={{ fontSize: 11, color: brand.active ? '#16A34A' : '#94A3B8', fontWeight: 600 }}>{brand.active ? 'Active' : 'Inactive'}</span>
+              <span style={{ fontSize: 16, color: '#94A3B8' }}>{isOpen ? '▲' : '▼'}</span>
+            </div>
+
+            {/* Expanded edit form */}
+            {isOpen && (
+              <div style={{ padding: '18px 18px 20px' }}>
+                {/* Basic info */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                  <div>
+                    <label style={s.label}>Brand Name *</label>
+                    <input style={s.input} value={brand.name} onChange={e => onUpdate(brand.id, 'name', e.target.value)} placeholder="WetFuel B2B Franchise" />
+                  </div>
+                  <div>
+                    <label style={s.label}>URL Slug * (lowercase, hyphens OK)</label>
+                    <input style={s.input} value={brand.slug} onChange={e => onUpdate(brand.id, 'slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,''))} placeholder="wetfuel" />
+                    {brand.slug && <div style={{ fontSize: 11, color: '#0057FF', marginTop: 3, fontFamily: 'monospace' }}>bookkanso.co/{brand.slug}</div>}
+                  </div>
+                </div>
+
+                {/* Booking page content */}
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>Booking Page Content</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                  <div>
+                    <label style={s.label}>Headline</label>
+                    <input style={s.input} value={brand.booking_headline || ''} onChange={e => onUpdate(brand.id, 'booking_headline', e.target.value)} placeholder="Book Your Free WetFuel Call" />
+                  </div>
+                  <div>
+                    <label style={s.label}>Subtitle</label>
+                    <input style={s.input} value={brand.booking_subtitle || ''} onChange={e => onUpdate(brand.id, 'booking_subtitle', e.target.value)} placeholder="Choose a time that works for you" />
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+                  <div>
+                    <label style={s.label}>Meeting Title</label>
+                    <input style={s.input} value={brand.meeting_title || ''} onChange={e => onUpdate(brand.id, 'meeting_title', e.target.value)} placeholder="15-Minute Phone Call" />
+                  </div>
+                  <div>
+                    <label style={s.label}>Duration (minutes)</label>
+                    <input style={s.input} type="number" value={brand.meeting_duration || 15} onChange={e => onUpdate(brand.id, 'meeting_duration', parseInt(e.target.value) || 15)} />
+                  </div>
+                </div>
+
+                {/* Facebook forms + GHL tags */}
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>Facebook Forms → GHL Tags</div>
+                <ArrayField label="Facebook Form IDs" values={brand.fb_form_ids || []} onChange={v => onUpdate(brand.id, 'fb_form_ids', v)} placeholder="2100967397128522" />
+                <ArrayField label="GHL Tags (auto-applied on lead arrival)" values={brand.ghl_tags || []} onChange={v => onUpdate(brand.id, 'ghl_tags', v)} placeholder="wetfuel" />
+
+                {/* Reps */}
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', margin: '16px 0 8px' }}>Assigned Reps (in fallback rotation order)</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                  {(members || []).map(m => {
+                    const included = (brand.rep_emails || []).includes(m.email);
+                    return (
+                      <button
+                        key={m.email}
+                        type="button"
+                        onClick={() => {
+                          const current = brand.rep_emails || [];
+                          onUpdate(brand.id, 'rep_emails', included ? current.filter(e => e !== m.email) : [...current, m.email]);
+                        }}
+                        style={{ padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', border: included ? 'none' : '1px solid #E2E8F0', background: included ? '#0057FF' : '#F8FAFC', color: included ? '#fff' : '#475569' }}
+                      >
+                        {m.name || m.email.split('@')[0]}
+                      </button>
+                    );
+                  })}
+                  {(!members || members.length === 0) && <div style={{ fontSize: 12, color: '#94A3B8' }}>No team members connected yet.</div>}
+                </div>
+
+                {/* Routing rules */}
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', margin: '16px 0 10px' }}>Liquid Capital Routing</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {TIERS.map(tier => {
+                    const rules   = (brand.routing_rules || {})[tier.key] || [];
+                    const repList  = brand.rep_emails || [];
+                    return (
+                      <div key={tier.key} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '10px 12px' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>{tier.label}</div>
+                        {repList.length === 0 ? (
+                          <div style={{ fontSize: 11, color: '#94A3B8' }}>Add reps above first.</div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {repList.map(email => {
+                              const rule    = Array.isArray(rules) ? rules.find(r => r.email === email) : null;
+                              const weight  = rule?.weight ?? 0;
+                              const name    = (members || []).find(m => m.email === email)?.name || email.split('@')[0];
+                              const total   = Array.isArray(rules) ? rules.reduce((s, r) => s + (r.weight || 0), 0) : 0;
+                              const pct     = total > 0 ? Math.round((weight / total) * 100) : 0;
+                              return (
+                                <div key={email} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                  <div style={{ width: 80, fontSize: 12, color: '#475569', fontWeight: 500, flexShrink: 0 }}>{name}</div>
+                                  <input
+                                    type="range" min="0" max="20" value={weight}
+                                    onChange={e => {
+                                      const w = parseInt(e.target.value);
+                                      const existing = Array.isArray(rules) ? rules : [];
+                                      const updated  = existing.filter(r => r.email !== email);
+                                      if (w > 0) updated.push({ email, weight: w });
+                                      onUpdate(brand.id, 'routing_rules', { ...brand.routing_rules, [tier.key]: updated });
+                                    }}
+                                    style={{ flex: 1 }}
+                                  />
+                                  <div style={{ width: 44, fontSize: 12, fontWeight: 700, color: weight > 0 ? '#0057FF' : '#CBD5E1', textAlign: 'right', flexShrink: 0 }}>
+                                    {weight > 0 ? `${pct}%` : 'Off'}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {Array.isArray(rules) && rules.length > 0 && (
+                              <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 2 }}>
+                                Cycle: {rules.filter(r => r.weight > 0).map(r => {
+                                  const n = (members || []).find(m => m.email === r.email)?.name || r.email.split('@')[0];
+                                  return `${n} ×${r.weight}`;
+                                }).join(', ')}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Save / Delete */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 18 }}>
+                  <button
+                    style={{ ...s.saveBtn, background: isSaved ? '#15803D' : '#0057FF', minWidth: 100 }}
+                    onClick={() => onSave(brand)}
+                    disabled={isSaving || !brand.name || !brand.slug}
+                  >
+                    {isSaving ? 'Saving…' : isSaved ? '✓ Saved' : 'Save Brand'}
+                  </button>
+                  <button onClick={() => onDelete(brand.id)} style={{ fontSize: 12, color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                    Delete brand
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <button style={{ ...s.saveBtn, background: '#F1F5F9', color: '#475569', border: '1px solid #E2E8F0', marginTop: 4 }} onClick={onAdd}>
+        + Add Brand
+      </button>
+    </div>
+  );
+}
+
+// ── ArrayField: comma-based tag list editor ────────────────────────────────
+function ArrayField({ label, values, onChange, placeholder }) {
+  const [input, setInput] = useState('');
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <label style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', display: 'block', marginBottom: 5 }}>{label}</label>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+        {values.map(v => (
+          <span key={v} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#EFF6FF', color: '#0057FF', borderRadius: 4, padding: '3px 8px', fontSize: 12, fontWeight: 600 }}>
+            {v}
+            <button type="button" onClick={() => onChange(values.filter(x => x !== v))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0057FF', fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
+          </span>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && input.trim()) { onChange([...values, input.trim()]); setInput(''); } }}
+          placeholder={placeholder}
+          style={{ flex: 1, padding: '7px 10px', fontSize: 13, border: '1px solid #E2E8F0', borderRadius: 6, fontFamily: 'inherit', outline: 'none' }}
+        />
+        <button
+          type="button"
+          onClick={() => { if (input.trim()) { onChange([...values, input.trim()]); setInput(''); } }}
+          style={{ padding: '7px 14px', background: '#0057FF', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+        >
+          Add
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────

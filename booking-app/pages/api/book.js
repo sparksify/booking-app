@@ -3,10 +3,11 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { createCalendarEvent } from '@/lib/googleCalendar';
 import { sendConfirmationEmail } from '@/lib/resend';
 import { sendCapiEvents, buildCapiEvent } from '@/lib/fbConversionsApi';
-import { upsertGHLContact, createGHLOpportunity } from '@/lib/ghl';
+import { upsertGHLContact, createGHLOpportunity, addGHLTags } from '@/lib/ghl';
 import { computeLeadScore, computeShowProbability } from '@/lib/scoring';
 import { logLeadEvent } from '@/lib/leadEvents';
 import { wasEngagedByCloseBot } from '@/lib/closebot';
+import { getBrandBySlug, getTierKey, getNextRep } from '@/lib/routing';
 
 // Appointment Scheduling pipeline
 const GHL_PIPELINE_ID  = 'tOlnnAijaReLJ30AZaSL';
@@ -47,9 +48,11 @@ export default async function handler(req, res) {
     firstName, lastName, email, phone,
     date, h, m, label,
     investment_level,
+    liquid_capital,          // raw string from Facebook form (e.g. "$150,000 – $500,000")
     fb_attribution,
     lead_id,
     source,
+    brand: brandSlug,        // brand slug from URL (e.g. "wetfuel")
   } = req.body;
 
   if (!firstName || !email || !date || h == null || m == null) {
@@ -58,63 +61,99 @@ export default async function handler(req, res) {
 
   const supabase = getSupabaseAdmin();
 
-  // ── Settings ────────────────────────────────────────────────────────────────
-  const { data: settingsRow } = await supabase
-    .from('settings').select('*').eq('id', 1).single();
+  // ── Settings + Brand (parallel) ─────────────────────────────────────────────
+  const [{ data: settingsRow }, brand] = await Promise.all([
+    supabase.from('settings').select('*').eq('id', 1).single(),
+    brandSlug ? getBrandBySlug(brandSlug, supabase) : Promise.resolve(null),
+  ]);
 
   const settings = {
-    meetingDuration: settingsRow?.meeting_duration ?? 15,
-    meetingTitle:    settingsRow?.meeting_title    ?? 'Franchise Discovery Call',
-    timezone:        settingsRow?.timezone         ?? 'America/Chicago',
+    meetingDuration: brand?.meeting_duration ?? settingsRow?.meeting_duration ?? 15,
+    meetingTitle:    brand?.meeting_title    ?? settingsRow?.meeting_title    ?? 'Franchise Discovery Call',
+    timezone:        settingsRow?.timezone   ?? 'America/Chicago',
+    // Pass through brand calendar event settings
+    eventDescription:   brand?.event_description   ?? settingsRow?.event_description   ?? null,
+    eventLocation:      brand?.event_location       ?? settingsRow?.event_location       ?? null,
+    eventColor:         brand?.event_color          ?? settingsRow?.event_color          ?? null,
+    eventReminderMins:  brand?.event_reminder_mins  ?? settingsRow?.event_reminder_mins  ?? 15,
   };
 
-  // ── Load & filter team members ───────────────────────────────────────────────
+  // ── Load team members ────────────────────────────────────────────────────────
   const { data: allMembers } = await supabase
     .from('team_members')
     .select('*')
     .eq('active', true)
     .not('google_refresh_token', 'is', null);
 
-  // Filter by investment level: reps with empty ranges handle all levels
-  const candidates = filterByInvestmentLevel(allMembers || [], investment_level);
-
-  // Fallback: if no specialist reps match, use all active reps
-  const members = candidates.length > 0 ? candidates : (allMembers || []);
-
   let meetLink      = null;
   let eventId       = null;
   let assignedEmail = null;
   let assignedName  = null;
 
-  if (members.length) {
-    // Round-robin: pick member with fewest bookings today
-    const { data: todayBookings } = await supabase
-      .from('bookings')
-      .select('assigned_to_email')
-      .gte('slot_start', `${date}T00:00:00Z`)
-      .lte('slot_start', `${date}T23:59:59Z`);
+  // ── Rep selection ────────────────────────────────────────────────────────────
+  // Brand routing: use weighted round-robin engine
+  // Legacy routing: investment_ranges-based filtering with fewest-bookings tiebreak
+  if (brand && brand.rep_emails && brand.rep_emails.length > 0) {
+    // Brand routing path
+    const tierKey     = getTierKey(liquid_capital || investment_level);
+    const brandRepSet = new Set(brand.rep_emails);
+    const brandMembers = (allMembers || []).filter(m => brandRepSet.has(m.email));
 
-    const counts = Object.fromEntries(members.map(m => [m.email, 0]));
-    (todayBookings || []).forEach(b => {
-      if (b.assigned_to_email && counts[b.assigned_to_email] != null) {
-        counts[b.assigned_to_email]++;
+    if (brandMembers.length > 0) {
+      // Try reps in routing order, checking calendar availability for each
+      let skippedEmail = null;
+      let attempts     = 0;
+
+      while (attempts < brandMembers.length) {
+        const candidateEmail = await getNextRep(brand, tierKey, supabase, skippedEmail);
+        if (!candidateEmail) break;
+
+        const member = brandMembers.find(m => m.email === candidateEmail);
+        if (!member) break;
+
+        // Try to create the calendar event; if it fails (busy), skip to next rep
+        try {
+          const result = await createCalendarEvent(member, { firstName, lastName, email, phone, date, h, m }, settings);
+          assignedEmail = member.email;
+          assignedName  = member.name;
+          eventId       = result.eventId;
+          meetLink      = result.meetLink;
+          break;
+        } catch (calErr) {
+          console.warn(`[book] ${member.email} calendar busy, trying next rep:`, calErr.message);
+          skippedEmail = member.email;
+          attempts++;
+        }
       }
-    });
+    }
+  } else {
+    // Legacy path: investment_ranges filter + fewest-bookings round-robin
+    const candidates = filterByInvestmentLevel(allMembers || [], investment_level);
+    const members    = candidates.length > 0 ? candidates : (allMembers || []);
 
-    const member  = members.reduce((a, b) => counts[a.email] <= counts[b.email] ? a : b);
-    assignedEmail = member.email;
-    assignedName  = member.name;
+    if (members.length) {
+      const { data: todayBookings } = await supabase
+        .from('bookings')
+        .select('assigned_to_email')
+        .gte('slot_start', `${date}T00:00:00Z`)
+        .lte('slot_start', `${date}T23:59:59Z`);
 
-    try {
-      const result = await createCalendarEvent(
-        member,
-        { firstName, lastName, email, phone, date, h, m },
-        settings
-      );
-      eventId  = result.eventId;
-      meetLink = result.meetLink;
-    } catch (err) {
-      console.error('[book] createCalendarEvent error:', err.message);
+      const counts = Object.fromEntries(members.map(m => [m.email, 0]));
+      (todayBookings || []).forEach(b => {
+        if (b.assigned_to_email && counts[b.assigned_to_email] != null) counts[b.assigned_to_email]++;
+      });
+
+      const member  = members.reduce((a, b) => counts[a.email] <= counts[b.email] ? a : b);
+      assignedEmail = member.email;
+      assignedName  = member.name;
+
+      try {
+        const result = await createCalendarEvent(member, { firstName, lastName, email, phone, date, h, m }, settings);
+        eventId  = result.eventId;
+        meetLink = result.meetLink;
+      } catch (err) {
+        console.error('[book] createCalendarEvent error:', err.message);
+      }
     }
   }
 
@@ -275,13 +314,17 @@ export default async function handler(req, res) {
 
         // Fall back to upsert (handles direct bookings / new leads with no GHL contact yet)
         if (!ghlContactId) {
-          const contact = await upsertGHLContact({
+          const baseTags = ['booking-app', ...(brand?.ghl_tags || [])];
+          const contact  = await upsertGHLContact({
             locationId: process.env.GHL_LOCATION_ID,
             firstName, lastName, email, phone,
-            tags:   ['booking-app'],
+            tags:   baseTags,
             source: 'BookingOS',
           });
           ghlContactId = contact?.id ?? null;
+        } else if (brand?.ghl_tags?.length) {
+          // Contact already exists — still apply brand tags
+          addGHLTags(ghlContactId, brand.ghl_tags).catch(() => {});
         }
 
         if (ghlContactId) {

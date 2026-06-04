@@ -153,19 +153,43 @@ async function handleWebhook(req, res) {
           }, { leadId: lead.token }).catch(() => {});
         }
 
-        // 4. Look up form tag rules from settings
+        // 4. Look up brand by form ID (new system) — falls back to legacy form_tag_rules
         let formTags = ['facebook-lead'];
         if (form_id) formTags.push(`form-${form_id}`);
-        try {
-          const { data: settingsRow } = await supabase
-            .from('settings').select('form_tag_rules').eq('id', 1).single();
-          const rules = settingsRow?.form_tag_rules || [];
-          const matchedRule = rules.find(r => r.form_id === form_id);
-          if (matchedRule?.tags?.length) {
-            formTags = [...new Set([...formTags, ...matchedRule.tags])];
+        let brandSlug = null;
+
+        if (form_id) {
+          try {
+            const { data: brand } = await supabase
+              .from('brands')
+              .select('slug, ghl_tags')
+              .contains('fb_form_ids', [form_id])
+              .eq('active', true)
+              .maybeSingle();
+
+            if (brand) {
+              brandSlug = brand.slug;
+              if (brand.ghl_tags?.length) {
+                formTags = [...new Set([...formTags, ...brand.ghl_tags])];
+              }
+            } else {
+              // Legacy fallback: form_tag_rules in settings
+              const { data: settingsRow } = await supabase
+                .from('settings').select('form_tag_rules').eq('id', 1).single();
+              const rules = settingsRow?.form_tag_rules || [];
+              const matchedRule = rules.find(r => r.form_id === form_id);
+              if (matchedRule?.tags?.length) {
+                formTags = [...new Set([...formTags, ...matchedRule.tags])];
+              }
+            }
+          } catch (e) {
+            console.warn('[fb-webhook] brand/tag lookup failed:', e.message);
           }
-        } catch (e) {
-          console.warn('[fb-webhook] could not load form_tag_rules:', e.message);
+        }
+
+        // Store brand_slug on lead if found
+        if (brandSlug && lead?.id) {
+          supabase.from('leads').update({ brand_slug: brandSlug }).eq('id', lead.id).then(() => {}).catch(() => {});
         }
 
         // 5. Sync to GoHighLevel

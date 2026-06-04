@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getBusyTimes, generateSlots } from '@/lib/googleCalendar';
+import { getBrandBySlug } from '@/lib/routing';
 
 const DEFAULTS = {
   workStart: 9,
@@ -37,7 +38,7 @@ function localToUTCMs(dateStr, h, m, offsetMins) {
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).end();
 
-  const { date, investment_level } = req.query;
+  const { date, investment_level, brand: brandSlug } = req.query;
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return res.status(400).json({ error: 'date param required (YYYY-MM-DD)' });
   }
@@ -48,22 +49,22 @@ export default async function handler(req, res) {
 
   const supabase = getSupabaseAdmin();
 
-  // Load settings
-  const { data: settingsRow } = await supabase
-    .from('settings')
-    .select('*')
-    .eq('id', 1)
-    .single();
+  // Load global settings + optional brand config in parallel
+  const [{ data: settingsRow }, brand] = await Promise.all([
+    supabase.from('settings').select('*').eq('id', 1).single(),
+    brandSlug ? getBrandBySlug(brandSlug, supabase) : Promise.resolve(null),
+  ]);
 
   const settings = settingsRow
     ? {
-        workStart:       settingsRow.work_start,
-        workEnd:         settingsRow.work_end,
-        timezone:        settingsRow.timezone,
-        meetingDuration: settingsRow.meeting_duration,
-        bufferMinutes:   settingsRow.buffer_minutes,
-        meetingTitle:    settingsRow.meeting_title,
-        maxSlotsPerDay:  settingsRow.max_slots_per_day  ?? 15,
+        workStart:        settingsRow.work_start,
+        workEnd:          settingsRow.work_end,
+        timezone:         settingsRow.timezone,
+        // Brand overrides meeting duration; global otherwise
+        meetingDuration:  brand?.meeting_duration ?? settingsRow.meeting_duration,
+        bufferMinutes:    settingsRow.buffer_minutes,
+        meetingTitle:     brand?.meeting_title ?? settingsRow.meeting_title,
+        maxSlotsPerDay:   settingsRow.max_slots_per_day  ?? 15,
         hiddenSlotsCount: settingsRow.hidden_slots_count ?? 1,
       }
     : { ...DEFAULTS, maxSlotsPerDay: 15, hiddenSlotsCount: 1 };
@@ -75,11 +76,15 @@ export default async function handler(req, res) {
     .eq('active', true)
     .not('google_refresh_token', 'is', null);
 
-  // Filter by investment level if provided
-  // A rep qualifies if:
-  //   - their investment_ranges is null/empty (handles all levels), OR
-  //   - their investment_ranges includes the requested level
-  const members = filterByInvestmentLevel(allMembers || [], investment_level);
+  // If brand is specified, restrict to brand's assigned reps
+  // Otherwise filter by investment_level using the existing investment_ranges system
+  let members;
+  if (brand && brand.rep_emails && brand.rep_emails.length > 0) {
+    const brandRepSet = new Set(brand.rep_emails);
+    members = (allMembers || []).filter(m => brandRepSet.has(m.email));
+  } else {
+    members = filterByInvestmentLevel(allMembers || [], investment_level);
+  }
 
   // No connected / matching calendars → return demo slots
   if (!members.length) {
