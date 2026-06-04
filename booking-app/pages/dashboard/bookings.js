@@ -699,7 +699,9 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
   const [email,         setEmail]         = useState({ to: '', subject: '', body: '' });
   const [emailSent,     setEmailSent]     = useState(false);
   const [cqSent,        setCqSent]        = useState(!!booking?.cq_sent_at);
+  const [cqSentAt,      setCqSentAt]      = useState(booking?.cq_sent_at || null);
   const [cqReceived,    setCqReceived]    = useState(!!booking?.cq_received_at);
+  const [cqReceivedAt,  setCqReceivedAt]  = useState(booking?.cq_received_at || null);
   const [cqRecvSaving,  setCqRecvSaving]  = useState(false);
   const [pitchOpen,     setPitchOpen]     = useState(false);
   const [pitchBrandIdx, setPitchBrandIdx] = useState(0);
@@ -737,7 +739,9 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
 
   useEffect(() => {
     setCqSent(!!booking?.cq_sent_at);
+    setCqSentAt(booking?.cq_sent_at || null);
     setCqReceived(!!booking?.cq_received_at);
+    setCqReceivedAt(booking?.cq_received_at || null);
     setGhlTags([]); setNewTagInput(''); setShowTagInput(false); setTagSaving(false);
     setShowFollowUp(false); setFuDate(''); setFuNote(''); setFuTemp(3); setFuSaved(false);
     if (!booking?.email || isDemo) {
@@ -852,15 +856,21 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
   }
   function sendEmail() { setEmailSent(true); setTimeout(() => { setEmailSent(false); setShowEmail(false); }, 2500); }
   async function sendCQ() {
-    if (isDemo) { setCqSent(true); return; }
+    const now = new Date().toISOString();
+    if (isDemo) { setCqSent(true); setCqSentAt(now); return; }
     setCqSent(true);
+    setCqSentAt(now);
     await fetch('/api/dashboard/send-cq', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: booking.id, email: booking.email, assigned_user_id: booking.assigned_user_id || null }) }).catch(console.error);
   }
   async function markCQReceived() {
-    if (isDemo) { setCqReceived(true); return; }
+    const now = new Date().toISOString();
+    if (isDemo) { setCqReceived(true); setCqReceivedAt(now); return; }
     setCqRecvSaving(true);
-    await fetch('/api/dashboard/mark-cq-received', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: booking.id, email: booking.email }) }).catch(console.error);
-    setCqReceived(true); setCqRecvSaving(false);
+    const res = await fetch('/api/dashboard/mark-cq-received', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: booking.id, email: booking.email }) }).catch(console.error);
+    const data = res ? await res.json().catch(() => ({})) : {};
+    setCqReceived(true);
+    setCqReceivedAt(data.cq_received_at || now);
+    setCqRecvSaving(false);
   }
   async function addTag(tag) {
     const clean = tag.trim(); if (!clean || ghlTags.includes(clean)) return;
@@ -961,10 +971,37 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
                 {territory && <Row label="Territory"><span style={p.val}>{territory.primary}{territory.sub && <span style={{ color: '#9CA3AF', fontSize: 11, marginLeft: 6 }}>{territory.sub}</span>}</span></Row>}
                 {booking.meet_link && <Row label="Meet Link"><a href={booking.meet_link} target="_blank" rel="noreferrer" style={p.link}>Join call →</a></Row>}
 
-                <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #F0F0F0', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <QBBtn variant="cq" onClick={sendCQ} disabled={cqSent}>{cqSent ? '✓ CQ Sent' : 'Send CQ'}</QBBtn>
-                  {cqSent && !cqReceived && <QBBtn variant="pitch" onClick={markCQReceived} disabled={cqRecvSaving}>{cqRecvSaving ? 'Saving…' : 'Mark CQ Received'}</QBBtn>}
-                  {cqReceived && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 3, fontSize: 12, fontWeight: 600, color: '#15803D', background: '#DCFCE7', border: '1px solid #BBF7D0' }}>✓ CQ Received</span>}
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #F0F0F0' }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <QBBtn variant="cq" onClick={sendCQ} disabled={cqSent}>{cqSent ? '✓ CQ Sent' : 'Send CQ'}</QBBtn>
+                    {cqSent && !cqReceived && <QBBtn variant="pitch" onClick={markCQReceived} disabled={cqRecvSaving}>{cqRecvSaving ? 'Saving…' : 'Mark CQ Received'}</QBBtn>}
+                    {cqReceived && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 3, fontSize: 12, fontWeight: 600, color: '#15803D', background: '#DCFCE7', border: '1px solid #BBF7D0' }}>✓ CQ Received</span>}
+                  </div>
+                  {(cqSentAt || cqReceivedAt) && (
+                    <div style={{ marginTop: 7, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {cqSentAt && (
+                        <div style={{ fontSize: 11, color: '#64748B' }}>
+                          <span style={{ fontWeight: 600, color: '#7C3AED' }}>Sent:</span>{' '}
+                          {new Date(cqSentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          {' · '}
+                          {new Date(cqSentAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                        </div>
+                      )}
+                      {cqReceivedAt && (
+                        <div style={{ fontSize: 11, color: '#64748B' }}>
+                          <span style={{ fontWeight: 600, color: '#15803D' }}>Received:</span>{' '}
+                          {new Date(cqReceivedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          {' · '}
+                          {new Date(cqReceivedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                          {cqSentAt && (
+                            <span style={{ marginLeft: 6, color: '#94A3B8' }}>
+                              ({Math.round((new Date(cqReceivedAt) - new Date(cqSentAt)) / 3600000 * 10) / 10}h turnaround)
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </PanelSection>
 
