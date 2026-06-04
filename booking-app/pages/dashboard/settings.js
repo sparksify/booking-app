@@ -560,7 +560,7 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
                   onChange={e => setSettings(p => ({ ...p, booking_headline: e.target.value || null }))}
                 />
                 <div style={{ display: 'flex', gap: 5, marginTop: 5 }}>
-                  <button type="button" style={{ fontSize: 11, padding: '2px 8px', borderRadius: 3, border: '1px solid #C8CDD2', background: '#F5F6F7', color: '#374151', cursor: 'pointer', fontFamily: 'monospace' }}
+                  <button type="button" style={{ fontSize: 11, padding: '2px 8px', borderRadius: 3, border: '1px solid #E2E8F0', background: '#FAFBFD', color: '#475569', cursor: 'pointer', fontFamily: 'monospace' }}
                     onClick={() => setSettings(p => ({ ...p, booking_headline: (p.booking_headline || '') + '{first_name}' }))}>
                     {'{first_name}'}
                   </button>
@@ -675,7 +675,7 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
                     <button
                       key={v}
                       type="button"
-                      style={{ fontSize: 11, padding: '2px 8px', borderRadius: 3, border: '1px solid #C8CDD2', background: '#F5F6F7', color: '#374151', cursor: 'pointer', fontFamily: 'monospace' }}
+                      style={{ fontSize: 11, padding: '2px 8px', borderRadius: 3, border: '1px solid #E2E8F0', background: '#FAFBFD', color: '#475569', cursor: 'pointer', fontFamily: 'monospace' }}
                       onClick={() => setSettings(p => ({ ...p, event_description: (p.event_description || '') + v }))}
                     >{v}</button>
                   ))}
@@ -792,7 +792,7 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
           {/* ── Brand Pitches ───────────────────────────────────────────── */}
           <Section title="Brand Pitches" subtitle="Phone pitch scripts shown in the CRM panel when you click 'Brand Pitch'. Keyed by brand name.">
             {Object.entries(brandPitches).map(([brand, pitch]) => (
-              <div key={brand} style={{ marginBottom: 18, background: '#F5F6F7', border: '1px solid #D8DCE0', borderRadius: 4, padding: '14px 16px' }}>
+              <div key={brand} style={{ marginBottom: 18, background: '#FAFBFD', border: '1px solid #E2E8F0', borderRadius: 8, padding: '14px 16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <span style={{ fontSize: 14, fontWeight: 600, color: '#1A2B3C' }}>{brand}</span>
                   <button
@@ -982,7 +982,7 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
                   {bbSaving ? 'Saving…' : bbSaved ? '✓ Saved' : 'Save'}
                 </button>
                 <button
-                  style={{ ...s.saveBtn, background: '#F3F4F6', color: '#374151', border: '1px solid #D1D5DB' }}
+                  style={{ ...s.saveBtn, background: '#F1F5F9', color: '#475569', border: '1px solid #E2E8F0' }}
                   onClick={testBBConnection}
                   disabled={bbTesting || !bbUrl}
                 >
@@ -1007,7 +1007,7 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
                     {typeof window !== 'undefined' ? window.location.origin : 'https://your-app.vercel.app'}/api/webhooks/bluebubbles
                   </code>
                   <button
-                    style={{ fontSize: 12, padding: '5px 12px', background: '#fff', border: '1px solid #D1D5DB', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', color: '#374151' }}
+                    style={{ fontSize: 12, padding: '5px 12px', background: '#fff', border: '1px solid #E2E8F0', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', color: '#475569' }}
                     onClick={() => navigator.clipboard.writeText(`${window.location.origin}/api/webhooks/bluebubbles`)}
                   >
                     Copy
@@ -1073,10 +1073,10 @@ function MemberCard({ member, avatarUrl, uploading, onAvatarUpload, onAvatarRemo
       <div style={s.memberCardTop}>
         {/* Avatar with upload overlay */}
         <div style={{ position: 'relative', flexShrink: 0, width: 44, height: 44 }}>
-          <div style={{ width: 44, height: 44, borderRadius: '50%', overflow: 'hidden', border: '2px solid #D8DCE0', background: '#E0EFF9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 44, height: 44, borderRadius: '50%', overflow: 'hidden', border: '2px solid #E2E8F0', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {avatarUrl
               ? <img src={avatarUrl} alt={member.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : <span style={{ fontSize: 14, fontWeight: 600, color: '#0077C5' }}>{initials}</span>
+              : <span style={{ fontSize: 14, fontWeight: 600, color: '#0057FF' }}>{initials}</span>
             }
           </div>
           <label
@@ -1107,7 +1107,7 @@ function MemberCard({ member, avatarUrl, uploading, onAvatarUpload, onAvatarRemo
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ ...s.statusDot, background: member.active ? '#16A34A' : '#D1D5DB' }} title={member.active ? 'Active' : 'Inactive'} />
+          <div style={{ ...s.statusDot, background: member.active ? '#16A34A' : '#CBD5E1' }} title={member.active ? 'Active' : 'Inactive'} />
           <button style={s.toggleBtn} onClick={() => onToggle(member.email, !member.active)}>
             {member.active ? 'Pause' : 'Resume'}
           </button>
@@ -1150,7 +1150,7 @@ function EmptyState({ icon, message }) {
 function FormTagRule({ rule, onUpdate, onAddTag, onRemoveTag, onDelete, styles: s }) {
   const [newTag, setNewTag] = useState('');
   return (
-    <div style={{ marginBottom: 14, background: '#F5F6F7', border: '1px solid #D8DCE0', borderRadius: 4, padding: '14px 16px' }}>
+    <div style={{ marginBottom: 14, background: '#FAFBFD', border: '1px solid #E2E8F0', borderRadius: 8, padding: '14px 16px' }}>
       <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
         <div style={{ flex: 1 }}>
           <label style={s.label}>Form ID</label>
@@ -1168,9 +1168,9 @@ function FormTagRule({ rule, onUpdate, onAddTag, onRemoveTag, onDelete, styles: 
       <label style={s.label}>Auto-apply tags in GHL</label>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
         {rule.tags.map(tag => (
-          <span key={tag} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#E0EFF9', color: '#0077C5', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 500 }}>
+          <span key={tag} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#EFF6FF', color: '#0057FF', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 500 }}>
             {tag}
-            <button onClick={() => onRemoveTag(tag)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0077C5', fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
+            <button onClick={() => onRemoveTag(tag)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0057FF', fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
           </span>
         ))}
       </div>
@@ -1194,7 +1194,7 @@ function ToggleSwitch({ checked, onChange }) {
       onClick={() => onChange(!checked)}
       style={{
         position: 'relative', width: 40, height: 22, borderRadius: 11, flexShrink: 0,
-        background: checked ? '#0077C5' : '#D1D5DB',
+        background: checked ? '#0057FF' : '#CBD5E1',
         cursor: 'pointer', transition: 'background .2s',
       }}
     >
@@ -1255,53 +1255,53 @@ const s = {
   signOutBtn:  { fontSize: 12, fontWeight: 400, color: '#9FA6B2', background: 'transparent', border: '1px solid rgba(255,255,255,.18)', borderRadius: 3, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit' },
 
   // Body
-  main:        { maxWidth: 960, margin: '0 auto', padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 20 },
+  main:        { flex: 1, padding: '20px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20 },
 
-  // Section cards — QB white card with thin border, no shadow
-  section:     { background: '#fff', border: '1px solid #D8DCE0', borderRadius: 4, padding: '22px 24px 26px' },
+  // Section cards — design system white card
+  section:     { background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 8, padding: '22px 24px 26px', boxShadow: '0 1px 3px rgba(15,23,42,.04)' },
   sectionHdr:  { marginBottom: 16 },
-  sectionTitle:{ fontSize: 15, fontWeight: 600, color: '#1A2B3C', marginBottom: 4 },
-  sectionSub:  { fontSize: 13, color: '#6B7280', lineHeight: 1.6 },
+  sectionTitle:{ fontSize: 15, fontWeight: 600, color: '#0F172A', marginBottom: 4 },
+  sectionSub:  { fontSize: 13, color: '#64748B', lineHeight: 1.6 },
 
   // Booking URL
-  urlBox:      { display: 'flex', alignItems: 'center', gap: 10, background: '#F5F6F7', border: '1px solid #D8DCE0', borderRadius: 3, padding: '11px 14px', marginBottom: 10 },
-  urlCode:     { flex: 1, fontSize: 12, fontFamily: 'monospace', color: '#444', wordBreak: 'break-all' },
-  chip:        { flexShrink: 0, padding: '6px 14px', borderRadius: 3, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'background .15s' },
-  urlNote:     { fontSize: 12, color: '#9CA3AF', lineHeight: 1.6 },
-  inlineCode:  { background: '#EAECEF', borderRadius: 2, padding: '1px 4px', fontFamily: 'monospace', fontSize: 11 },
+  urlBox:      { display: 'flex', alignItems: 'center', gap: 10, background: '#FAFBFD', border: '1px solid #E2E8F0', borderRadius: 6, padding: '11px 14px', marginBottom: 10 },
+  urlCode:     { flex: 1, fontSize: 12, fontFamily: 'monospace', color: '#475569', wordBreak: 'break-all' },
+  chip:        { flexShrink: 0, padding: '6px 14px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'background .15s' },
+  urlNote:     { fontSize: 12, color: '#64748B', lineHeight: 1.6 },
+  inlineCode:  { background: '#F1F5F9', borderRadius: 4, padding: '1px 4px', fontFamily: 'monospace', fontSize: 11 },
 
   // Team members
   memberGrid:  { display: 'flex', flexDirection: 'column', gap: 8 },
-  memberCard:  { background: '#F5F6F7', border: '1px solid #D8DCE0', borderRadius: 4, overflow: 'hidden', transition: 'opacity .2s' },
+  memberCard:  { background: '#FAFBFD', border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'hidden', transition: 'opacity .2s' },
   memberCardTop:{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px' },
-  avatar:      { width: 34, height: 34, borderRadius: '50%', background: '#E0EFF9', color: '#0077C5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, flexShrink: 0 },
+  avatar:      { width: 34, height: 34, borderRadius: '50%', background: '#EFF6FF', color: '#0057FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, flexShrink: 0 },
   memberInfo:  { flex: 1, minWidth: 0 },
-  memberName:  { fontSize: 14, fontWeight: 600, color: '#1A2B3C' },
-  memberEmail: { fontSize: 12, color: '#6B7280', marginTop: 1 },
-  memberRangeNote: { fontSize: 11, color: '#9CA3AF', marginTop: 3, fontStyle: 'italic' },
+  memberName:  { fontSize: 14, fontWeight: 600, color: '#0F172A' },
+  memberEmail: { fontSize: 12, color: '#64748B', marginTop: 1 },
+  memberRangeNote: { fontSize: 11, color: '#94A3B8', marginTop: 3, fontStyle: 'italic' },
   statusDot:   { width: 8, height: 8, borderRadius: '50%', flexShrink: 0 },
-  toggleBtn:   { fontSize: 12, fontWeight: 400, color: '#4A5568', background: '#fff', border: '1px solid #C8CDD2', borderRadius: 3, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit' },
-  rangesWrap:  { borderTop: '1px solid #D8DCE0', padding: '12px 14px', background: '#fff' },
-  rangesLabel: { fontSize: 11, color: '#6B7280', marginBottom: 10 },
+  toggleBtn:   { fontSize: 12, fontWeight: 500, color: '#475569', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit' },
+  rangesWrap:  { borderTop: '1px solid #E2E8F0', padding: '12px 14px', background: '#FFFFFF' },
+  rangesLabel: { fontSize: 11, color: '#64748B', marginBottom: 10 },
   rangesRow:   { display: 'flex', gap: 16, flexWrap: 'wrap' },
-  rangeCheck:  { display: 'flex', alignItems: 'center', fontSize: 13, color: '#1A2B3C', cursor: 'pointer', fontWeight: 400 },
-  addMemberLink:{ fontSize: 13, color: '#0077C5', fontWeight: 500, textDecoration: 'none' },
+  rangeCheck:  { display: 'flex', alignItems: 'center', fontSize: 13, color: '#0F172A', cursor: 'pointer', fontWeight: 400 },
+  addMemberLink:{ fontSize: 13, color: '#0057FF', fontWeight: 500, textDecoration: 'none' },
 
   // Form
   form:        { display: 'flex', flexDirection: 'column', gap: 16 },
   formRow:     { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 },
   field:       { display: 'flex', flexDirection: 'column', gap: 6 },
-  label:       { fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.5px' },
-  select:      { padding: '8px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', background: '#fff', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' },
-  input:       { padding: '8px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', background: '#fff', fontFamily: 'inherit', outline: 'none' },
-  saveBtn:     { padding: '9px 20px', background: '#0077C5', color: '#fff', border: 'none', borderRadius: 3, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  label:       { fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px' },
+  select:      { padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: 13, color: '#0F172A', background: '#FFFFFF', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' },
+  input:       { padding: '8px 10px', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: 13, color: '#0F172A', background: '#FFFFFF', fontFamily: 'inherit', outline: 'none' },
+  saveBtn:     { padding: '9px 20px', background: '#0057FF', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   // Table
-  tableWrap:   { overflowX: 'auto', border: '1px solid #D8DCE0', borderRadius: 4 },
+  tableWrap:   { overflowX: 'auto', border: '1px solid #E2E8F0', borderRadius: 8 },
   table:       { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-  th:          { padding: '9px 14px', background: '#F5F6F7', color: '#6B7280', fontWeight: 600, textAlign: 'left', fontSize: 11, letterSpacing: '.4px', borderBottom: '1px solid #D8DCE0', whiteSpace: 'nowrap' },
-  td:          { padding: '11px 14px', borderBottom: '1px solid #EBEBEB', color: '#1A2B3C', verticalAlign: 'middle', whiteSpace: 'nowrap' },
+  th:          { padding: '9px 14px', background: '#FAFBFD', color: '#64748B', fontWeight: 700, textAlign: 'left', fontSize: 10, letterSpacing: '.05em', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0', whiteSpace: 'nowrap' },
+  td:          { padding: '11px 14px', borderBottom: '1px solid #F1F5F9', color: '#0F172A', verticalAlign: 'middle', whiteSpace: 'nowrap' },
   tr:          { transition: 'background .1s' },
-  meetLink:    { color: '#0077C5', fontWeight: 500, textDecoration: 'none' },
+  meetLink:    { color: '#0057FF', fontWeight: 500, textDecoration: 'none' },
   empty:       { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '32px 0' },
 };

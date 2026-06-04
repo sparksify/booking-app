@@ -887,16 +887,16 @@ const s = {
   main:        { flex: 1, padding: '20px 24px', overflowY: 'auto' },
   empty:       { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textAlign: 'center', padding: 24, color: '#9CA3AF', fontSize: 12 },
   loadingWrap: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 80, gap: 16 },
-  spinner:     { width: 28, height: 28, borderRadius: '50%', border: '2px solid #E5E7EB', borderTopColor: '#374151', animation: 'spin 0.8s linear infinite' },
+  spinner:     { width: 28, height: 28, borderRadius: '50%', border: '2px solid #E2E8F0', borderTopColor: '#0057FF', animation: 'spin 0.8s linear infinite' },
   loadingText: { color: '#6B7280', fontSize: 13 },
 
   secTitle:    { fontSize: 10, fontWeight: 700, color: '#9CA3AF', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 28, marginBottom: 10 },
-  card:        { background: '#fff', borderRadius: 6, border: '1px solid #E8EAED', padding: '16px 18px' },
+  card:        { background: '#fff', borderRadius: 6, border: '1px solid #E2E8F0', padding: '16px 18px' },
   cardTitle:   { fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 },
   cardSub:     { fontSize: 11, color: '#9CA3AF' },
 
   kpi4:        { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 10 },
-  kpiCard:     { background: '#fff', borderRadius: 6, border: '1px solid #E8EAED', padding: '16px 18px' },
+  kpiCard:     { background: '#fff', borderRadius: 6, border: '1px solid #E2E8F0', padding: '16px 18px' },
   kpiLabel:    { fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 },
   kpiValue:    { fontSize: 28, fontWeight: 700, color: '#111827', lineHeight: 1, marginBottom: 4 },
   kpiSub:      { fontSize: 11, color: '#9CA3AF', lineHeight: 1.4 },
@@ -911,9 +911,9 @@ const s = {
   metaRow:     { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #F3F4F6' },
   metaLabel:   { fontSize: 12, color: '#4B5563' },
   metaValue:   { fontSize: 13, fontWeight: 600, color: '#111827' },
-  compareBox:  { display: 'flex', marginTop: 14, border: '1px solid #E8EAED', borderRadius: 5, overflow: 'hidden' },
+  compareBox:  { display: 'flex', marginTop: 14, border: '1px solid #E2E8F0', borderRadius: 5, overflow: 'hidden' },
 
-  velBox:      { background: '#F9FAFB', border: '1px solid #E8EAED', borderRadius: 4, padding: '8px 10px', textAlign: 'center' },
+  velBox:      { background: '#F9FAFB', border: '1px solid #E2E8F0', borderRadius: 4, padding: '8px 10px', textAlign: 'center' },
   calBox:      { flex: 1, borderRadius: 5, border: '1px solid', padding: '10px', textAlign: 'center' },
 
   lossRow:     { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #F3F4F6' },

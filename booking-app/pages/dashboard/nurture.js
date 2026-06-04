@@ -1121,7 +1121,7 @@ function NurturePanel({ client: c, isDemo, onClose, onUpdate, onRefresh }) {
             <button
               onClick={saveNotes}
               disabled={notesSaving}
-              style={{ ...s.primaryBtn, marginTop: 6, background: notesSaved ? '#15803D' : '#0077C5' }}
+              style={{ ...s.primaryBtn, marginTop: 6, background: notesSaved ? '#15803D' : '#0057FF' }}
             >
               {notesSaving ? 'Saving…' : notesSaved ? '✓ Saved' : 'Save Notes'}
             </button>
@@ -2793,18 +2793,18 @@ const s = {
   demoBanner: { background: '#FFFBF0', border: '1px solid #F5A623', borderLeft: '4px solid #F5A623', borderRadius: 4, padding: '10px 14px', fontSize: 13, color: '#7D4E00', marginBottom: 18 },
   demoBadge:  { fontSize: 11, fontWeight: 600, color: '#92400E', background: '#FEF3C7', padding: '3px 9px', borderRadius: 10, border: '1px solid #FDE68A' },
 
-  card:       { background: '#fff', border: '1px solid #E8EAED', borderRadius: 8, padding: '16px 18px' },
+  card:       { background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 8, padding: '16px 18px', boxShadow: '0 1px 3px rgba(15,23,42,.04)' },
   cardTitle:  { fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em' },
 
   table:      { width: '100%', borderCollapse: 'collapse' },
   th:         { fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.05em', padding: '8px 12px', background: '#F9FAFB', borderBottom: '1px solid #E8EAED', textAlign: 'left' },
   td:         { padding: '12px 12px', verticalAlign: 'middle', fontSize: 13 },
 
-  avatar:     { width: 46, height: 46, borderRadius: '50%', background: '#151719', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16, flexShrink: 0 },
-  avatarSm:   { width: 36, height: 36, borderRadius: '50%', background: '#151719', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 },
+  avatar:     { width: 46, height: 46, borderRadius: '50%', background: '#EFF6FF', color: '#0057FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16, flexShrink: 0 },
+  avatarSm:   { width: 36, height: 36, borderRadius: '50%', background: '#EFF6FF', color: '#0057FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 },
 
-  primaryBtn: { padding: '8px 18px', background: '#0077C5', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'background .15s' },
-  ghostBtn:   { padding: '7px 14px', background: '#fff', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, color: '#374151', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  primaryBtn: { padding: '8px 18px', background: '#0057FF', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'background .15s' },
+  ghostBtn:   { padding: '7px 14px', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: 13, color: '#475569', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   actionChip: { padding: '4px 10px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 20, fontSize: 11, fontWeight: 600, color: '#15803D', cursor: 'pointer', fontFamily: 'inherit' },
   ghostChip:  { padding: '4px 10px', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 20, fontSize: 11, color: '#6B7280', cursor: 'pointer', fontFamily: 'inherit' },
 
@@ -2817,15 +2817,15 @@ const s = {
   devInput:   { width: '100%', padding: '6px 8px', border: '1px solid #E5E7EB', borderRadius: 5, fontSize: 12, color: '#374151', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#fff' },
 
   loadingWrap:{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 80, gap: 16 },
-  spinner:    { width: 28, height: 28, borderRadius: '50%', border: '2px solid #E5E7EB', borderTopColor: '#374151', animation: 'spin 0.8s linear infinite' },
+  spinner:    { width: 28, height: 28, borderRadius: '50%', border: '2px solid #E2E8F0', borderTopColor: '#0057FF', animation: 'spin 0.8s linear infinite' },
   loadingText:{ color: '#6B7280', fontSize: 13 },
 
   // Side panel
   panelBackdrop: { position: 'fixed', inset: 0, zIndex: 150, background: 'rgba(0,0,0,.25)' },
-  panel:         { position: 'fixed', top: 50, right: 0, bottom: 0, width: 420, zIndex: 200, background: '#fff', boxShadow: '-4px 0 24px rgba(0,0,0,.12)', display: 'flex', flexDirection: 'column', animation: 'slideIn .2s ease' },
-  panelHeader:   { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid #E8EAED', flexShrink: 0, background: '#fff' },
+  panel:         { position: 'fixed', top: 0, right: 0, bottom: 0, width: 420, zIndex: 200, background: '#FFFFFF', boxShadow: '-4px 0 24px rgba(0,0,0,.12)', display: 'flex', flexDirection: 'column', animation: 'slideIn .2s ease' },
+  panelHeader:   { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid #E2E8F0', flexShrink: 0, background: '#FFFFFF' },
   panelBody:     { flex: 1, overflowY: 'auto', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 14 },
-  panelSection:  { paddingBottom: 14, borderBottom: '1px solid #F3F4F6' },
+  panelSection:  { paddingBottom: 14, borderBottom: '1px solid #F1F5F9' },
   sectionLabel:  { fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.07em' },
   closeBtn:      { width: 28, height: 28, borderRadius: '50%', border: '1px solid #E5E7EB', background: '#F9FAFB', cursor: 'pointer', fontSize: 12, color: '#6B7280', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' },
 };
