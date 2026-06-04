@@ -323,42 +323,42 @@ function buildDemoData() {
 const BUCKETS = {
   saves: {
     label: 'Appointment Saves', tagline: 'Rebook Rate',
-    color: '#DC2626', bg: '#FFF1F2', border: '#FECDD3', iconBg: '#FFE4E6', icon: 'calendar',
+    color: '#EF4444', bg: '#FEF2F2', border: '#FECACA', iconBg: '#FEE2E2', icon: 'calendar',
     tooltip: 'No-shows from the last 7 days who booked but didn\'t show. Rebook rate is 22% when contacted the same day. These are the highest-priority calls — they already said yes once.',
   },
   speed_to_lead: {
     label: 'Speed to Lead', tagline: 'Call Immediately',
-    color: '#8B5CF6', bg: '#F3EEFF', border: '#C4B5FD', iconBg: '#EDE9FE', icon: 'phone',
+    color: '#7C3AED', bg: '#F3E8FF', border: '#C4B5FD', iconBg: '#EDE9FE', icon: 'phone',
     tooltip: 'Leads submitted within the last 6 hours with no advisor contact yet. Research shows leads reached within 5 minutes are 21× more likely to book. Every minute matters here.',
   },
   vip: {
     label: 'VIP Leads', tagline: '$250k+ With Engagement',
-    color: '#D97706', bg: '#FFFBEB', border: '#FDE68A', iconBg: '#FEF3C7', icon: 'star',
+    color: '#D97706', bg: '#FFF7ED', border: '#FDE68A', iconBg: '#FEF3C7', icon: 'star',
     tooltip: 'Leads with $250k+ liquid capital who are actively engaging — viewing the booking page, selecting slots, or returning to the site. These carry the highest commission potential and deserve your best advisor.',
   },
   re_engaged: {
     label: 'Re-Engaged', tagline: 'Active in Last 24h',
-    color: '#0EA5E9', bg: '#EFF8FF', border: '#7DD3FC', iconBg: '#E0F2FE', icon: 'zap',
+    color: '#0057FF', bg: '#EFF6FF', border: '#BFDBFE', iconBg: '#DBEAFE', icon: 'zap',
     tooltip: 'Leads that went quiet but just showed activity in the last 24 hours — visited the site, viewed the booking page, or selected a slot. This is a buying signal. Strike while they\'re warm again.',
   },
   near_miss: {
     label: 'Near Misses', tagline: 'Never Rescheduled',
-    color: '#EA580C', bg: '#FFF7F0', border: '#FDBA74', iconBg: '#FFEDD5', icon: 'clock',
+    color: '#EA580C', bg: '#FFF7ED', border: '#FDBA74', iconBg: '#FFEDD5', icon: 'clock',
     tooltip: 'Leads who previously booked but never showed or rescheduled. They committed once, which means interest is real. A personal outreach with a new time slot converts these at a solid rate.',
   },
   resurrection: {
     label: 'Resurrections', tagline: '90+ Day Re-Engagement',
-    color: '#4F46E5', bg: '#EEF2FF', border: '#C7D2FE', iconBg: '#E0E7FF', icon: 'refresh-cw',
+    color: '#6D28D9', bg: '#F3E8FF', border: '#C4B5FD', iconBg: '#EDE9FE', icon: 'refresh-cw',
     tooltip: 'Leads dormant for 90+ days who just re-engaged — viewed the booking page or returned to the site. Something changed in their life or circumstances. Reach out before they go dark again.',
   },
   high_dollar: {
     label: 'High Dollar', tagline: 'Premium Investment',
-    color: '#10B981', bg: '#ECFDF5', border: '#6EE7B7', iconBg: '#D1FAE5', icon: 'gem',
+    color: '#16A34A', bg: '#F0FDF4', border: '#86EFAC', iconBg: '#DCFCE7', icon: 'gem',
     tooltip: 'Leads with $250k+ investment capacity — even without active engagement signals. These represent your largest commission opportunities. Worth a personal, unhurried call from your most experienced advisor.',
   },
   hot: {
     label: 'Hot Leads', tagline: 'Fresh & High-Scored',
-    color: '#F97316', bg: '#FFF7ED', border: '#FED7AA', iconBg: '#FFEDD5', icon: 'flame',
+    color: '#DC2626', bg: '#FEF2F2', border: '#FECACA', iconBg: '#FEE2E2', icon: 'flame',
     tooltip: 'Leads submitted in the last 7 days with a high opportunity score. They\'re fresh, engaged, and in their research phase. Conversion rates drop ~8% per day of delay — call today.',
   },
 };
@@ -394,9 +394,10 @@ function HeroIcon({ name, size = 46 }) {
       {child}
     </div>
   );
-  if (name === 'dollar')   return wrap(<svg {...p}><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>);
-  if (name === 'calendar') return wrap(<svg {...p}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>);
-  if (name === 'users')    return wrap(<svg {...p}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>);
+  const pp = { ...p, stroke: '#0057FF' };
+  if (name === 'dollar')   return wrap(<svg {...pp}><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>);
+  if (name === 'calendar') return wrap(<svg {...pp}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>);
+  if (name === 'users')    return wrap(<svg {...pp}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>);
   return null;
 }
 
@@ -1681,63 +1682,63 @@ const s = {
   sideUserAvatar:   { width: 30, height: 30, borderRadius: '50%', background: '#2563EB', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 },
 
   main:      { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' },
-  topBar:    { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', background: '#fff', borderBottom: '1px solid #E5E7EB', flexShrink: 0, gap: 16 },
-  topTitle:  { fontSize: 20, fontWeight: 700, color: '#111827' },
-  topDate:   { fontSize: 13, color: '#6B7280', fontWeight: 400, marginTop: 2 },
+  topBar:    { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', background: '#FFFFFF', borderBottom: '1px solid #E2E8F0', flexShrink: 0, gap: 16 },
+  topTitle:  { fontSize: 20, fontWeight: 700, color: '#0F172A' },
+  topDate:   { fontSize: 13, color: '#64748B', fontWeight: 400, marginTop: 2 },
   topActions:{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 },
-  topBtn:    { padding: '7px 14px', fontSize: 13, fontWeight: 500, borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', cursor: 'pointer', fontFamily: 'inherit' },
+  topBtn:    { padding: '7px 14px', fontSize: 13, fontWeight: 500, borderRadius: 6, border: '1px solid #E2E8F0', background: '#FFFFFF', color: '#475569', cursor: 'pointer', fontFamily: 'inherit' },
 
   body:        { flex: 1, padding: '20px 24px', overflowY: 'auto' },
   loadingWrap: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 60, gap: 14 },
-  spinner:     { width: 24, height: 24, borderRadius: '50%', border: '2px solid #E5E7EB', borderTopColor: '#374151', animation: 'spin 0.8s linear infinite' },
-  loadingText: { color: '#6B7280', fontSize: 13 },
-  empty:       { textAlign: 'center', padding: 40, color: '#9CA3AF', fontSize: 13 },
-  emptyCard:   { background: '#fff', border: '1px solid #E8EAED', borderRadius: 8, padding: '28px 24px', textAlign: 'center' },
+  spinner:     { width: 24, height: 24, borderRadius: '50%', border: '2px solid #E2E8F0', borderTopColor: '#0057FF', animation: 'spin 0.8s linear infinite' },
+  loadingText: { color: '#64748B', fontSize: 13 },
+  empty:       { textAlign: 'center', padding: 40, color: '#64748B', fontSize: 13 },
+  emptyCard:   { background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 8, padding: '28px 24px', textAlign: 'center' },
 
-  heroCard:    { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: '20px 24px', marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,.04)' },
+  heroCard:    { background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '20px 24px', marginBottom: 16, boxShadow: '0 1px 3px rgba(15,23,42,.05)' },
   heroMetrics: { display: 'grid', gridTemplateColumns: '1fr auto 1fr auto 1fr', alignItems: 'center' },
   heroMetric:  { padding: '0 24px' },
-  heroDivider: { width: 1, height: 44, background: '#E8EAED', flexShrink: 0 },
-  heroValue:   { fontSize: 28, fontWeight: 800, color: '#111827', lineHeight: 1.1, marginBottom: 3 },
-  heroLabel:   { fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 },
-  heroSub:     { fontSize: 11, color: '#9CA3AF' },
+  heroDivider: { width: 1, height: 52, background: '#E2E8F0', flexShrink: 0 },
+  heroValue:   { fontSize: 28, fontWeight: 800, color: '#0F172A', lineHeight: 1.1, marginBottom: 3 },
+  heroLabel:   { fontSize: 11, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 },
+  heroSub:     { fontSize: 11, color: '#64748B' },
 
-  viewTabs:      { display: 'flex', borderBottom: '2px solid #E8EAED', marginBottom: 16 },
-  viewTab:       { padding: '8px 18px', fontSize: 13, fontWeight: 500, color: '#6B7280', background: 'transparent', border: 'none', borderBottom: '2px solid transparent', marginBottom: -2, cursor: 'pointer', fontFamily: 'inherit' },
-  viewTabActive: { color: '#111827', fontWeight: 700, borderBottomColor: '#111827' },
+  viewTabs:      { display: 'flex', borderBottom: '2px solid #E2E8F0', marginBottom: 16 },
+  viewTab:       { padding: '8px 18px', fontSize: 13, fontWeight: 500, color: '#64748B', background: 'transparent', border: 'none', borderBottom: '2px solid transparent', marginBottom: -2, cursor: 'pointer', fontFamily: 'inherit' },
+  viewTabActive: { color: '#0F172A', fontWeight: 700, borderBottomColor: '#0057FF' },
 
-  bucketGrid:  { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 14 },
-  bucketCard:  { background: '#fff', border: '1px solid #E8EAED', borderLeft: '4px solid #E8EAED', borderRadius: 8, padding: '14px 14px 10px', boxShadow: '0 1px 2px rgba(0,0,0,.03)' },
-  bucketStartBtn: { marginTop: 10, width: '100%', padding: '6px 0', background: 'transparent', border: '1px solid', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.03em' },
+  bucketGrid:  { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 },
+  bucketCard:  { background: '#FFFFFF', border: '1px solid #E2E8F0', borderLeft: '4px solid #E2E8F0', borderRadius: 10, padding: '16px 16px 12px', boxShadow: '0 1px 3px rgba(15,23,42,.04)' },
+  bucketStartBtn: { marginTop: 12, width: '100%', padding: '7px 0', background: 'transparent', border: '1px solid', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.03em' },
 
   tabRow:      { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 12, flexWrap: 'wrap' },
-  tabs:        { display: 'flex', gap: 2, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 6, padding: 3, flexWrap: 'wrap' },
-  tab:         { padding: '4px 10px', fontSize: 12, fontWeight: 500, color: '#6B7280', background: 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive:   { background: '#111827', color: '#fff', fontWeight: 700 },
-  startProspectingBtn: { padding: '8px 18px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' },
+  tabs:        { display: 'flex', gap: 2, background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: 3, flexWrap: 'wrap' },
+  tab:         { padding: '4px 10px', fontSize: 12, fontWeight: 500, color: '#64748B', background: 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive:   { background: '#0F172A', color: '#fff', fontWeight: 700 },
+  startProspectingBtn: { padding: '8px 18px', background: '#0057FF', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' },
 
-  tableWrap:   { background: '#fff', border: '1px solid #E8EAED', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,.03)' },
+  tableWrap:   { background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,.04)' },
   table:       { width: '100%', borderCollapse: 'collapse' },
-  th:          { fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '8px 12px', background: '#F9FAFB', borderBottom: '1px solid #E8EAED', textAlign: 'left' },
-  td:          { fontSize: 13, color: '#111827', padding: '10px 12px', borderBottom: '1px solid #F3F4F6', verticalAlign: 'middle' },
-  openBtn:     { padding: '4px 10px', background: 'transparent', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 12, color: '#374151', cursor: 'pointer', fontFamily: 'inherit' },
+  th:          { fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '9px 14px', background: '#FAFBFD', borderBottom: '1px solid #E2E8F0', textAlign: 'left' },
+  td:          { fontSize: 13, color: '#0F172A', padding: '11px 14px', borderBottom: '1px solid #F1F5F9', verticalAlign: 'middle' },
+  openBtn:     { padding: '4px 10px', background: 'transparent', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: 12, color: '#475569', cursor: 'pointer', fontFamily: 'inherit' },
 
-  backBtn:     { padding: '6px 14px', background: 'transparent', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 12, color: '#6B7280', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
-  queueCard:   { background: '#fff', border: '1px solid #E8EAED', borderRadius: 10, padding: '28px 30px', boxShadow: '0 1px 4px rgba(0,0,0,.06)' },
-  queueDoneCard: { background: '#fff', border: '1px solid #E8EAED', borderRadius: 10, padding: 36, textAlign: 'center' },
+  backBtn:     { padding: '6px 14px', background: 'transparent', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: 12, color: '#64748B', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
+  queueCard:   { background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '28px 30px', boxShadow: '0 1px 4px rgba(15,23,42,.06)' },
+  queueDoneCard: { background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 36, textAlign: 'center' },
 
-  contactBlock: { background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '12px 14px' },
-  contactLabel: { fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 },
+  contactBlock: { background: '#FAFBFD', border: '1px solid #E2E8F0', borderRadius: 8, padding: '12px 14px' },
+  contactLabel: { fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 },
   copyBtn:     { padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
 
-  sectionLabel: { fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 },
-  recommendBox: { background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 6, padding: '12px 16px', marginBottom: 20 },
+  sectionLabel: { fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 },
+  recommendBox: { background: '#FAFBFD', border: '1px solid #E2E8F0', borderRadius: 6, padding: '12px 16px', marginBottom: 20 },
 
   dispRow:     { display: 'flex', gap: 8, flexWrap: 'wrap' },
   dispBtn:     { padding: '8px 16px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', border: 'none' },
-  dispNeutral: { background: '#F3F4F6', color: '#374151', border: '1px solid #E5E7EB' },
+  dispNeutral: { background: '#F1F5F9', color: '#475569', border: '1px solid #E2E8F0' },
 
-  feedWrap:    { background: '#fff', border: '1px solid #E8EAED', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,.03)' },
-  feedItem:    { display: 'flex', alignItems: 'flex-start', gap: 14, padding: '14px 20px', borderBottom: '1px solid #F3F4F6' },
+  feedWrap:    { background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,.04)' },
+  feedItem:    { display: 'flex', alignItems: 'flex-start', gap: 14, padding: '14px 20px', borderBottom: '1px solid #F1F5F9' },
   feedDot:     { width: 8, height: 8, borderRadius: '50%', marginTop: 4, flexShrink: 0 },
 };
