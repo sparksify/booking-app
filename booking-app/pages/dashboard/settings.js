@@ -80,7 +80,8 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
 
   // Form Tag Rules state
   const [tagRules,      setTagRules]      = useState(initialSettings.form_tag_rules || []);
-  const [tagRuleSaving, setTagRuleSaving] = useState({});
+  const [tagRuleSaving, setTagRuleSaving] = useState(false);
+  const [tagRuleSaved,  setTagRuleSaved]  = useState(false);
 
   // BlueBubbles state
   const [bbUrl,        setBbUrl]        = useState(initialSettings.bluebubbles_url      || '');
@@ -268,10 +269,15 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
   }
 
   async function saveTagRules() {
+    setTagRuleSaving(true);
+    setTagRuleSaved(false);
     await fetch('/api/dashboard/settings', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ form_tag_rules: tagRules }),
     });
+    setTagRuleSaving(false);
+    setTagRuleSaved(true);
+    setTimeout(() => setTagRuleSaved(false), 3000);
   }
 
   // ── BlueBubbles helpers ────────────────────────────────────────────────────
@@ -839,11 +845,15 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
                 styles={s}
               />
             ))}
-            <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+            <div style={{ display: 'flex', gap: 10, marginTop: 8, alignItems: 'center' }}>
               <button style={s.saveBtn} onClick={addTagRule}>+ Add Rule</button>
-              {tagRules.length > 0 && (
-                <button style={{ ...s.saveBtn, background: '#1A7E24' }} onClick={saveTagRules}>Save All Rules</button>
-              )}
+              <button
+                style={{ ...s.saveBtn, background: tagRuleSaved ? '#15803D' : '#0057FF', minWidth: 120 }}
+                onClick={saveTagRules}
+                disabled={tagRuleSaving}
+              >
+                {tagRuleSaving ? 'Saving…' : tagRuleSaved ? '✓ Saved' : 'Save All Rules'}
+              </button>
             </div>
           </Section>
 
