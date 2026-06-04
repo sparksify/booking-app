@@ -104,13 +104,17 @@ export default async function handler(req, res) {
   const calBks = calRes.status === 'fulfilled' ? calRes.value : [];
   const ghlBks = ghlRes.status === 'fulfilled' ? ghlRes.value : [];
 
-  // Enrich Supabase bookings with lead status
-  const emails = [...new Set(rawSB.map(b => b.email).filter(Boolean))];
+  // Collect emails from ALL sources so we can enrich Calendly/GHL bookings with lead data too
+  const allEmails = [...new Set(
+    [...rawSB, ...calBks, ...ghlBks].map(b => b.email).filter(Boolean)
+  )];
   let leadsByEmail = {};
-  if (emails.length) {
+  if (allEmails.length) {
     const { data: leads } = await supabase
-      .from('leads').select('email, status, ghl_contact_id').in('email', emails);
-    (leads || []).forEach(l => { leadsByEmail[l.email] = l; });
+      .from('leads')
+      .select('email, status, ghl_contact_id, investment_level')
+      .in('email', allEmails);
+    (leads || []).forEach(l => { leadsByEmail[l.email?.toLowerCase()] = l; });
   }
 
   const sbBks = rawSB.map(b => {
@@ -141,6 +145,37 @@ export default async function handler(req, res) {
     if (b.cq_received_at) cqByEmail[key].cq_received_at = b.cq_received_at;
   }
 
+  // For Calendly bookings still missing investment_level, look up their GHL contact by email.
+  // This is the same data the side panel fetches lazily — we just do it eagerly here so the
+  // list row shows liquid capital without the user having to open the panel first.
+  const ghlLiquidByEmail = {};
+  const apiKey = process.env.GHL_API_KEY;
+  const locationId = process.env.GHL_LOCATION_ID;
+  if (apiKey && locationId) {
+    const calEmailsMissingInv = [...new Set(
+      calBks
+        .filter(b => !b.investment_level && b.email)
+        .map(b => b.email.toLowerCase())
+        .filter(e => !leadsByEmail[e]?.investment_level) // skip if we already have it from leads
+    )];
+    if (calEmailsMissingInv.length) {
+      const ghlHeaders = { 'Authorization': `Bearer ${apiKey}`, 'Version': GHL_VERSION };
+      const contactResults = await Promise.allSettled(
+        calEmailsMissingInv.map(email =>
+          fetch(`${GHL_API}/contacts/?locationId=${locationId}&query=${encodeURIComponent(email)}`, { headers: ghlHeaders })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => d?.contacts?.[0] ?? null)
+            .catch(() => null)
+        )
+      );
+      calEmailsMissingInv.forEach((email, i) => {
+        const contact = contactResults[i].status === 'fulfilled' ? contactResults[i].value : null;
+        const lc = getGHLLiquidCapital(contact);
+        if (lc) ghlLiquidByEmail[email] = lc;
+      });
+    }
+  }
+
   // Merge — GHL first so it wins dedup (has liquid capital); then KANSO; then Calendly
   // Dedup: same email + same 30-min bucket across sources = same meeting, keep first seen
   const seenKeys = new Map();
@@ -151,12 +186,16 @@ export default async function handler(req, res) {
     const key      = `${b.email.toLowerCase()}:${Math.round(slotMs / (30 * 60_000))}`;
     if (!seenKeys.has(key)) {
       seenKeys.set(key, true);
-      // Always apply CQ timestamps from Supabase — GHL/Calendly rows have them as null
-      const cq = cqByEmail[b.email.toLowerCase()] || {};
+      const emailLow = b.email.toLowerCase();
+      // Apply CQ timestamps from Supabase — GHL/Calendly rows always have them as null
+      const cq   = cqByEmail[emailLow] || {};
+      // Apply investment_level from leads table if the booking doesn't have it (Calendly rows)
+      const lead = leadsByEmail[emailLow] || {};
       deduped.push({
         ...b,
-        cq_sent_at:    b.cq_sent_at    || cq.cq_sent_at    || null,
-        cq_received_at: b.cq_received_at || cq.cq_received_at || null,
+        cq_sent_at:       b.cq_sent_at       || cq.cq_sent_at       || null,
+        cq_received_at:   b.cq_received_at   || cq.cq_received_at   || null,
+        investment_level: b.investment_level || ghlLiquidByEmail[emailLow] || lead.investment_level || null,
       });
     }
   }
