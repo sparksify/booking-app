@@ -126,19 +126,39 @@ export default async function handler(req, res) {
       show_probability: showProb,
       health,
       booking_source:   b.booking_source ?? 'direct',
-      _source_display:  'FranchiseBook',
+      _source_display:  'KANSO',
     };
   });
 
-  // Merge — GHL first so it wins dedup (has liquid capital); then FranchiseBook; then Calendly
+  // Build a CQ timestamp lookup keyed by email (from Supabase — the only source that stores CQ data).
+  // GHL/Calendly bookings hardcode cq_sent_at: null, so we must enrich them from Supabase after dedup.
+  const cqByEmail = {};
+  for (const b of rawSB) {
+    if (!b.email) continue;
+    const key = b.email.toLowerCase();
+    if (!cqByEmail[key]) cqByEmail[key] = { cq_sent_at: null, cq_received_at: null };
+    if (b.cq_sent_at)    cqByEmail[key].cq_sent_at    = b.cq_sent_at;
+    if (b.cq_received_at) cqByEmail[key].cq_received_at = b.cq_received_at;
+  }
+
+  // Merge — GHL first so it wins dedup (has liquid capital); then KANSO; then Calendly
   // Dedup: same email + same 30-min bucket across sources = same meeting, keep first seen
   const seenKeys = new Map();
   const deduped  = [];
   for (const b of [...ghlBks, ...sbBks, ...calBks]) {
     if (!b.email || !b.slot_start) { deduped.push(b); continue; }
-    const slotMs = new Date(b.slot_start).getTime();
-    const key    = `${b.email.toLowerCase()}:${Math.round(slotMs / (30 * 60_000))}`;
-    if (!seenKeys.has(key)) { seenKeys.set(key, true); deduped.push(b); }
+    const slotMs   = new Date(b.slot_start).getTime();
+    const key      = `${b.email.toLowerCase()}:${Math.round(slotMs / (30 * 60_000))}`;
+    if (!seenKeys.has(key)) {
+      seenKeys.set(key, true);
+      // Always apply CQ timestamps from Supabase — GHL/Calendly rows have them as null
+      const cq = cqByEmail[b.email.toLowerCase()] || {};
+      deduped.push({
+        ...b,
+        cq_sent_at:    b.cq_sent_at    || cq.cq_sent_at    || null,
+        cq_received_at: b.cq_received_at || cq.cq_received_at || null,
+      });
+    }
   }
 
   // Final filter: remove test emails + enforce exact date range (guards against GHL TZ drift)
