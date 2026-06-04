@@ -139,6 +139,17 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   const [panelLoading, setPanelLoading] = useState(false);
   const [panelOpen,    setPanelOpen]    = useState(false);
   const [repAvatars,   setRepAvatars]   = useState({});
+  const nowLineRef = useRef(null);
+
+  // Auto-scroll to the "Now" divider once data loads so the current appointment
+  // is the first one visible. The user can still scroll up to see past meetings.
+  useEffect(() => {
+    if (!loading && nowLineRef.current) {
+      requestAnimationFrame(() => {
+        nowLineRef.current?.scrollIntoView({ block: 'start', behavior: 'instant' });
+      });
+    }
+  }, [loading]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -528,7 +539,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                         if (!nowInserted && slotMs > nowMs) {
                           nowInserted = true;
                           rows.push(
-                            <tr key="now-divider" style={{ pointerEvents: 'none' }}>
+                            <tr key="now-divider" ref={nowLineRef} style={{ pointerEvents: 'none' }}>
                               <td colSpan={7} style={{ padding: '2px 16px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                   <div style={{ flex: 1, height: 1, background: '#EF4444', opacity: 0.4 }} />
