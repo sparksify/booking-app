@@ -40,7 +40,7 @@ function getSourceBadge(lead) {
   const src = lead.source || '';
   if (src === 'calendly')       return { label: 'Calendly',     color: '#0F766E', bg: '#CCFBF1' };
   if (src === 'gohighlevel')    return { label: 'GoHighLevel',  color: '#7C3AED', bg: '#EDE9FE' };
-  return                               { label: 'FranchiseBook', color: '#1D4ED8', bg: '#DBEAFE' };
+  return                               { label: 'KANSO', color: '#1D4ED8', bg: '#DBEAFE' };
 }
 
 // ─── Server-side data fetch ───────────────────────────────────────────────────
@@ -193,8 +193,8 @@ export default function LeadsDashboard({ initialLeads, baseUrl }) {
         <aside style={s.sidebar}>
           <div style={s.sideLogoWrap}>
             <div style={s.sideLogoRow}>
-              <div style={s.sideLogoIcon}>F</div>
-              <span style={s.sideLogoText}>FranchiseBook</span>
+              <div style={s.sideLogoIcon}>K</div>
+              <span style={s.sideLogoText}>KANSO</span>
             </div>
           </div>
           <nav style={s.sideNav}>
@@ -311,7 +311,7 @@ export default function LeadsDashboard({ initialLeads, baseUrl }) {
             {filtered.length === 0 ? (
               <div style={s.empty}>
                 {leads.length === 0
-                  ? 'No contacts yet. Leads from Facebook, FranchiseBook, and other sources will appear here automatically.'
+                  ? 'No contacts yet. Leads from Facebook, KANSO, and other sources will appear here automatically.'
                   : 'No contacts match your search or filters.'}
               </div>
             ) : (

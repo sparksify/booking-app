@@ -168,8 +168,7 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
       .catch(() => {});
   }, []);
 
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-  const bookingUrl = `${baseUrl}/?first_name={{first_name}}&last_name={{last_name}}&phone={{phone_number}}&email={{email}}&investment_level={{investment_level}}`;
+  const bookingUrl = `https://bookkanso.co/?first_name={{first_name}}&last_name={{last_name}}&phone={{phone_number}}&email={{email}}&investment_level={{investment_level}}`;
 
   async function saveSettings(e) {
     e.preventDefault();
@@ -348,8 +347,8 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
         <aside style={s.appSidebar}>
           <div style={s.sideLogoWrap}>
             <div style={s.sideLogoRow}>
-              <div style={s.sideLogoIcon}>F</div>
-              <span style={s.sideLogoText}>FranchiseBook</span>
+              <div style={s.sideLogoIcon}>K</div>
+              <span style={s.sideLogoText}>KANSO</span>
             </div>
           </div>
           <nav style={s.sideNav}>
@@ -609,7 +608,7 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
           {/* ── Calendar Event Settings ─────────────────────────────────── */}
           <Section
             title="Calendar Event Settings"
-            subtitle="Controls what appears on the Google Calendar invite sent when someone books through FranchiseBook."
+            subtitle="Controls what appears on the Google Calendar invite sent when someone books through KANSO."
           >
             <form onSubmit={saveSettings} style={s.form}>
 
@@ -1004,11 +1003,11 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <code style={{ fontSize: 12, background: '#fff', border: '1px solid #E2E8F0', borderRadius: 4, padding: '4px 10px', flex: 1, color: '#0057FF', fontFamily: 'monospace' }}>
-                    {typeof window !== 'undefined' ? window.location.origin : 'https://your-app.vercel.app'}/api/webhooks/bluebubbles
+                    https://trykanso.co/api/webhooks/bluebubbles
                   </code>
                   <button
                     style={{ fontSize: 12, padding: '5px 12px', background: '#fff', border: '1px solid #E2E8F0', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', color: '#475569' }}
-                    onClick={() => navigator.clipboard.writeText(`${window.location.origin}/api/webhooks/bluebubbles`)}
+                    onClick={() => navigator.clipboard.writeText('https://trykanso.co/api/webhooks/bluebubbles')}
                   >
                     Copy
                   </button>

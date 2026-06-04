@@ -33,7 +33,7 @@ const DEMO = [
   { id: 'd1', first_name: 'Marcus',   last_name: 'Thompson', email: 'marcus.t@email.com',     phone: '(512) 555-0192', slot_start: (() => { const d = new Date(); d.setHours(9,  0); return d.toISOString(); })(), status: 'scheduled', investment_level: '$100k–$200k', assigned_to_email: 'steve@sparksify.com', meet_link: 'https://meet.google.com/abc-defg-hij', _source_display: 'Calendly',      event_name: 'Franchise Intro Call' },
   { id: 'd2', first_name: 'Jennifer', last_name: 'Caldwell',  email: 'jcaldwell@gmail.com',    phone: '(214) 555-0847', slot_start: (() => { const d = new Date(); d.setHours(10,30); return d.toISOString(); })(), status: 'showed',    investment_level: '$50k–$100k',  assigned_to_email: 'steve@sparksify.com', meet_link: null,                                                 _source_display: 'Calendly',      event_name: 'Franchise Intro Call' },
   { id: 'd3', first_name: 'Robert',   last_name: 'Kim',       email: 'rob.kim@outlook.com',    phone: '(713) 555-0334', slot_start: (() => { const d = new Date(); d.setHours(11,45); return d.toISOString(); })(), status: 'no-show',  investment_level: '$200k+',      assigned_to_email: 'steve@sparksify.com', meet_link: null,                                                 _source_display: 'GoHighLevel',   event_name: 'Franchise Intro Call' },
-  { id: 'd4', first_name: 'Angela',   last_name: 'Rivera',    email: 'angela.r@company.com',   phone: '(469) 555-0561', slot_start: (() => { const d = new Date(); d.setHours(13, 0); return d.toISOString(); })(), status: 'closed',   investment_level: '$100k–$200k', assigned_to_email: 'steve@sparksify.com', meet_link: 'https://meet.google.com/xyz-uvwx-rst', _source_display: 'FranchiseBook', event_name: 'Franchise Discovery Call' },
+  { id: 'd4', first_name: 'Angela',   last_name: 'Rivera',    email: 'angela.r@company.com',   phone: '(469) 555-0561', slot_start: (() => { const d = new Date(); d.setHours(13, 0); return d.toISOString(); })(), status: 'closed',   investment_level: '$100k–$200k', assigned_to_email: 'steve@sparksify.com', meet_link: 'https://meet.google.com/xyz-uvwx-rst', _source_display: 'KANSO', event_name: 'Franchise Discovery Call' },
   { id: 'd5', first_name: 'David',    last_name: 'Nguyen',    email: 'dnguyen@email.com',      phone: '(281) 555-0729', slot_start: (() => { const d = new Date(); d.setHours(14,30); return d.toISOString(); })(), status: 'scheduled', investment_level: '$50k–$100k',  assigned_to_email: 'steve@sparksify.com', meet_link: 'https://meet.google.com/lmn-opqr-stu', _source_display: 'GoHighLevel',   event_name: 'Franchise Intro Call' },
 ];
 
@@ -111,9 +111,9 @@ function SourceBadge({ source }) {
   const styles = {
     Calendly:      { color: '#6D28D9', background: '#F5F3FF', border: '1px solid #DDD6FE' },
     GoHighLevel:   { color: '#047857', background: '#ECFDF5', border: '1px solid #A7F3D0' },
-    FranchiseBook: { color: '#1D4ED8', background: '#DBEAFE', border: '1px solid #BFDBFE' },
+    KANSO: { color: '#1D4ED8', background: '#DBEAFE', border: '1px solid #BFDBFE' },
   };
-  const src = source || 'FranchiseBook';
+  const src = source || 'KANSO';
   const st = styles[src] || { color: '#374151', background: '#F3F4F6', border: '1px solid #E5E7EB' };
   return (
     <span style={{ ...st, padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', display: 'inline-block' }}>
@@ -215,7 +215,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
 
   const filteredBookings = bookings
     .filter(b => repFilter.length === 0 || repFilter.includes(b.assigned_to_email))
-    .filter(b => !sourceFilter || (b._source_display || 'FranchiseBook') === sourceFilter)
+    .filter(b => !sourceFilter || (b._source_display || 'KANSO') === sourceFilter)
     .filter(b => !statusFilter || b.status === statusFilter);
 
   const displayBookings = filteredBookings.filter(b => {
@@ -248,7 +248,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
 
   return (
     <>
-      <Head><title>Meetings — FranchiseBook</title></Head>
+      <Head><title>Meetings — KANSO</title></Head>
       <div style={s.page}>
 
         {/* ── White Sidebar ── */}
@@ -256,8 +256,8 @@ export default function BookingsDashboard({ brandPitches = {} }) {
           {/* Logo */}
           <div style={s.sideLogoWrap}>
             <div style={s.sideLogoRow}>
-              <div style={s.sideLogoIcon}>F</div>
-              <span style={s.sideLogoText}>FranchiseBook</span>
+              <div style={s.sideLogoIcon}>K</div>
+              <span style={s.sideLogoText}>KANSO</span>
             </div>
           </div>
 
@@ -383,7 +383,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                   <div style={s.nextUpAvatar}>{initials}</div>
                   <div style={s.nextUpInfo}>
                     <div style={{ marginBottom: 4 }}>
-                      <SourceBadge source={nextUp._source_display || 'FranchiseBook'} />
+                      <SourceBadge source={nextUp._source_display || 'KANSO'} />
                     </div>
                     <div style={s.nextUpName}>{nextUp.first_name} {nextUp.last_name}</div>
                     {nextUp.event_name && <div style={s.nextUpSub}>{nextUp.event_name}</div>}
@@ -449,7 +449,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                     <option value="">All Sources</option>
                     <option value="Calendly">Calendly</option>
                     <option value="GoHighLevel">GoHighLevel</option>
-                    <option value="FranchiseBook">FranchiseBook</option>
+                    <option value="KANSO">KANSO</option>
                   </select>
                   <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6B7280', fontSize: 10 }}>▼</span>
                 </div>
@@ -613,7 +613,7 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus,
 
       {/* Source / Type */}
       <td style={s.td}>
-        <SourceBadge source={b._source_display || 'FranchiseBook'} />
+        <SourceBadge source={b._source_display || 'KANSO'} />
         {b.event_name && <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>{b.event_name}</div>}
       </td>
 
@@ -913,7 +913,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
             <div style={p.clientName}>{booking.first_name} {booking.last_name}</div>
             <div style={{ fontSize: 12, color: '#6B7280' }}>{booking.email} {booking.phone ? `· ${booking.phone}` : ''}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>
-              <SourceBadge source={booking._source_display || 'FranchiseBook'} />
+              <SourceBadge source={booking._source_display || 'KANSO'} />
               <span style={{ ...p.statusBadge, color: meta.color, background: meta.bg }}>
                 <span style={{ width: 5, height: 5, borderRadius: '50%', background: meta.dot, display: 'inline-block' }} />
                 {meta.label}

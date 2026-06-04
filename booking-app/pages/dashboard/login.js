@@ -4,11 +4,11 @@ import Head from 'next/head';
 export default function Login() {
   return (
     <>
-      <Head><title>Sign In — FranchiseBook</title></Head>
+      <Head><title>Sign In — KANSO</title></Head>
       <div style={st.root}>
         {/* Top bar matching QB dark nav */}
         <div style={st.topBar}>
-          <span style={st.topLogo}>⬡ FranchiseBook</span>
+          <span style={st.topLogo}>⬡ KANSO</span>
         </div>
 
         {/* Centered card */}

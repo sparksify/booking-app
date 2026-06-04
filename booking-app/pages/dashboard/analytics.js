@@ -83,15 +83,15 @@ export default function AnalyticsDashboard({ showRevenueProp, showFranchiseProp 
 
   return (
     <>
-      <Head><title>Analytics — FranchiseBook</title></Head>
+      <Head><title>Analytics — KANSO</title></Head>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}*{box-sizing:border-box}`}</style>
       <div style={s.page}>
 
         <aside style={s.sidebar}>
           <div style={s.sideLogoWrap}>
             <div style={s.sideLogoRow}>
-              <div style={s.sideLogoIcon}>F</div>
-              <span style={s.sideLogoText}>FranchiseBook</span>
+              <div style={s.sideLogoIcon}>K</div>
+              <span style={s.sideLogoText}>KANSO</span>
             </div>
           </div>
           <nav style={s.sideNav}>

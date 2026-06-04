@@ -243,7 +243,7 @@ const DEMO_HERO = {
 const DEMO_ADVISOR_DATA = {
   advisors: [
     {
-      rep: 'sarah.rep@franchisebook.com',
+      rep: 'sarah.rep@trykanso.co',
       calls: 52, connected: 19, booked: 9,
       voicemail: 14, no_answer: 19, not_interested: 7, follow_up: 3,
       convRate: 17, showRate: 78,
@@ -255,7 +255,7 @@ const DEMO_ADVISOR_DATA = {
       convRate: 18, showRate: 71,
     },
     {
-      rep: 'john.advisor@franchisebook.com',
+      rep: 'john.advisor@trykanso.co',
       calls: 29, connected: 8, booked: 2,
       voicemail: 10, no_answer: 11, not_interested: 5, follow_up: 1,
       convRate: 7, showRate: 50,
@@ -268,18 +268,18 @@ const DEMO_FEED_DATA = {
   events: [
     { id: 'fe1',  lead_name: 'Jordan Beck',       event_type: 'booking_page_viewed',      label: 'Viewed the booking page',         created_at: new Date(now_ - 3  * 60000).toISOString(),   rep_email: null },
     { id: 'fe2',  lead_name: 'Aisha Williams',     event_type: 'form_submitted',            label: 'Submitted inquiry form',           created_at: new Date(now_ - 4  * 3600000).toISOString(), rep_email: null },
-    { id: 'fe3',  lead_name: 'Marcus Thompson',    event_type: 'prospect_call_booked',      label: 'Call — Booked!',                  created_at: new Date(now_ - 6  * 3600000).toISOString(), rep_email: 'sarah.rep@franchisebook.com' },
+    { id: 'fe3',  lead_name: 'Marcus Thompson',    event_type: 'prospect_call_booked',      label: 'Call — Booked!',                  created_at: new Date(now_ - 6  * 3600000).toISOString(), rep_email: 'sarah.rep@trykanso.co' },
     { id: 'fe4',  lead_name: 'David Park',         event_type: 'booking_page_viewed',      label: 'Viewed the booking page',         created_at: new Date(now_ - 8  * 3600000).toISOString(), rep_email: null },
     { id: 'fe5',  lead_name: 'Robert Sterling',    event_type: 'slot_selected',             label: 'Selected an appointment slot',    created_at: new Date(now_ - 12 * 3600000).toISOString(), rep_email: null },
     { id: 'fe6',  lead_name: 'Jennifer Caldwell',  event_type: 'prospect_call_left_vm',    label: 'Call — Left voicemail',           created_at: new Date(now_ - 18 * 3600000).toISOString(), rep_email: 'steve@sparksify.com' },
-    { id: 'fe7',  lead_name: 'Sarah Mitchell',     event_type: 'prospect_call_no_answer',  label: 'Call — No answer',                created_at: new Date(now_ - 22 * 3600000).toISOString(), rep_email: 'john.advisor@franchisebook.com' },
+    { id: 'fe7',  lead_name: 'Sarah Mitchell',     event_type: 'prospect_call_no_answer',  label: 'Call — No answer',                created_at: new Date(now_ - 22 * 3600000).toISOString(), rep_email: 'john.advisor@trykanso.co' },
     { id: 'fe8',  lead_name: 'Linda Chen',         event_type: 'recommended_slot_shown',   label: 'Browsed available slots',         created_at: new Date(now_ - 26 * 3600000).toISOString(), rep_email: null },
     { id: 'fe9',  lead_name: 'Victoria Shah',      event_type: 'form_submitted',            label: 'Submitted inquiry form',           created_at: new Date(now_ - 30 * 3600000).toISOString(), rep_email: null },
-    { id: 'fe10', lead_name: 'David Nguyen',       event_type: 'prospect_call_follow_up',  label: 'Call — Scheduled follow-up',      created_at: new Date(now_ - 36 * 3600000).toISOString(), rep_email: 'sarah.rep@franchisebook.com' },
+    { id: 'fe10', lead_name: 'David Nguyen',       event_type: 'prospect_call_follow_up',  label: 'Call — Scheduled follow-up',      created_at: new Date(now_ - 36 * 3600000).toISOString(), rep_email: 'sarah.rep@trykanso.co' },
     { id: 'fe11', lead_name: 'Michael Grant',      event_type: 'prospect_call_not_interested', label: 'Call — Not interested',       created_at: new Date(now_ - 48 * 3600000).toISOString(), rep_email: 'steve@sparksify.com' },
-    { id: 'fe12', lead_name: 'Catherine Moore',    event_type: 'cq_email_sent',             label: 'CQ email sent',                   created_at: new Date(now_ - 60 * 3600000).toISOString(), rep_email: 'sarah.rep@franchisebook.com' },
+    { id: 'fe12', lead_name: 'Catherine Moore',    event_type: 'cq_email_sent',             label: 'CQ email sent',                   created_at: new Date(now_ - 60 * 3600000).toISOString(), rep_email: 'sarah.rep@trykanso.co' },
     { id: 'fe13', lead_name: 'Sandra Torres',      event_type: 'booking_page_viewed',      label: 'Viewed the booking page',         created_at: new Date(now_ - 72 * 3600000).toISOString(), rep_email: null },
-    { id: 'fe14', lead_name: 'William Brooks',     event_type: 'prospect_call_booked',      label: 'Call — Booked!',                  created_at: new Date(now_ - 84 * 3600000).toISOString(), rep_email: 'john.advisor@franchisebook.com' },
+    { id: 'fe14', lead_name: 'William Brooks',     event_type: 'prospect_call_booked',      label: 'Call — Booked!',                  created_at: new Date(now_ - 84 * 3600000).toISOString(), rep_email: 'john.advisor@trykanso.co' },
     { id: 'fe15', lead_name: 'Thomas Baker',       event_type: 'cq_received',               label: 'CQ returned',                     created_at: new Date(now_ - 96 * 3600000).toISOString(), rep_email: null },
   ],
 };
@@ -291,10 +291,10 @@ const DEMO_REVENUE_DATA = {
   totalMissed:   84000,
   missedCount:   12,
   closings: [
-    { id: 'c1', lead_name: 'William Brooks',    advisor_email: 'sarah.rep@franchisebook.com',    bucket: 'high_dollar',   franchise_brand: 'Pilates Addiction',     commission: 42000, closed_at: new Date(now__ - 2  * 86400000).toISOString() },
+    { id: 'c1', lead_name: 'William Brooks',    advisor_email: 'sarah.rep@trykanso.co',    bucket: 'high_dollar',   franchise_brand: 'Pilates Addiction',     commission: 42000, closed_at: new Date(now__ - 2  * 86400000).toISOString() },
     { id: 'c2', lead_name: 'Marcus Thompson',   advisor_email: 'steve@sparksify.com',            bucket: 'hot',           franchise_brand: 'Freecoat Nails',        commission: 28000, closed_at: new Date(now__ - 5  * 86400000).toISOString() },
-    { id: 'c3', lead_name: 'Linda Chen',        advisor_email: 'sarah.rep@franchisebook.com',    bucket: 'resurrection',  franchise_brand: 'Club Pilates',          commission: 35000, closed_at: new Date(now__ - 9  * 86400000).toISOString() },
-    { id: 'c4', lead_name: 'Jennifer Caldwell', advisor_email: 'john.advisor@franchisebook.com', bucket: 'near_miss',     franchise_brand: 'Sola Salons',           commission: 22000, closed_at: new Date(now__ - 14 * 86400000).toISOString() },
+    { id: 'c3', lead_name: 'Linda Chen',        advisor_email: 'sarah.rep@trykanso.co',    bucket: 'resurrection',  franchise_brand: 'Club Pilates',          commission: 35000, closed_at: new Date(now__ - 9  * 86400000).toISOString() },
+    { id: 'c4', lead_name: 'Jennifer Caldwell', advisor_email: 'john.advisor@trykanso.co', bucket: 'near_miss',     franchise_brand: 'Sola Salons',           commission: 22000, closed_at: new Date(now__ - 14 * 86400000).toISOString() },
     { id: 'c5', lead_name: 'Thomas Baker',      advisor_email: 'steve@sparksify.com',            bucket: 'speed_to_lead', franchise_brand: 'The Joint Chiropractic',commission: 29000, closed_at: new Date(now__ - 21 * 86400000).toISOString() },
   ],
   missed: [
@@ -633,7 +633,7 @@ export default function ProspectsPage() {
 
   return (
     <>
-      <Head><title>Prospecting — FranchiseBook</title></Head>
+      <Head><title>Prospecting — KANSO</title></Head>
       <style>{`
         @keyframes spin   { to { transform: rotate(360deg) } }
         @keyframes fadeIn { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:translateY(0) } }
@@ -672,8 +672,8 @@ export default function ProspectsPage() {
         <aside style={s.sidebar}>
           <div style={s.sideLogoWrap}>
             <div style={s.sideLogoRow}>
-              <div style={s.sideLogoIcon}>F</div>
-              <span style={s.sideLogoText}>FranchiseBook</span>
+              <div style={s.sideLogoIcon}>K</div>
+              <span style={s.sideLogoText}>KANSO</span>
             </div>
           </div>
           <nav style={s.sideNav}>

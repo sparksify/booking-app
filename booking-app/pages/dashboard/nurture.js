@@ -165,7 +165,7 @@ export default function NurturePage() {
 
   return (
     <>
-      <Head><title>In-Process Nurture — FranchiseBook</title></Head>
+      <Head><title>In-Process Nurture — KANSO</title></Head>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
@@ -238,8 +238,8 @@ export default function NurturePage() {
         <aside style={s.sidebar}>
           <div style={s.sideLogoWrap}>
             <div style={s.sideLogoRow}>
-              <div style={s.sideLogoIcon}>F</div>
-              <span style={s.sideLogoText}>FranchiseBook</span>
+              <div style={s.sideLogoIcon}>K</div>
+              <span style={s.sideLogoText}>KANSO</span>
             </div>
           </div>
           <nav style={s.sideNav}>
