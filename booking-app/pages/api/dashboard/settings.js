@@ -35,6 +35,7 @@ export default async function handler(req, res) {
       host_avatar_url,
       booking_headline, booking_subtitle, booking_description, booking_meeting_type,
       rep_avatars,
+      bluebubbles_url, bluebubbles_password,
     } = req.body;
 
     const update = { updated_at: new Date().toISOString() };
@@ -63,6 +64,8 @@ export default async function handler(req, res) {
     if (booking_description     !== undefined) update.booking_description     = booking_description     || null;
     if (booking_meeting_type    !== undefined) update.booking_meeting_type    = booking_meeting_type    || null;
     if (rep_avatars             !== undefined) update.rep_avatars             = rep_avatars;
+    if (bluebubbles_url         !== undefined) update.bluebubbles_url         = bluebubbles_url         || null;
+    if (bluebubbles_password    !== undefined) update.bluebubbles_password    = bluebubbles_password    || null;
 
     const { data, error } = await supabase
       .from('settings')

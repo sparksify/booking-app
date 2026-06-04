@@ -49,6 +49,20 @@ export async function getServerSideProps(context) {
   };
 }
 
+// ─── Side icon component ──────────────────────────────────────────────────────
+
+function SideIcon({ name }) {
+  const p = { width: 17, height: 17, fill: 'none', stroke: 'currentColor', strokeWidth: 1.75, strokeLinecap: 'round', strokeLinejoin: 'round', viewBox: '0 0 24 24', style: { display: 'block' } };
+  if (name === 'dashboard') return <svg {...p}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>;
+  if (name === 'leads')     return <svg {...p}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+  if (name === 'clients')   return <svg {...p}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
+  if (name === 'meetings')  return <svg {...p}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
+  if (name === 'nurture')   return <svg {...p}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>;
+  if (name === 'settings')  return <svg {...p}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>;
+  if (name === 'help')      return <svg {...p}><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+  return null;
+}
+
 // ─── Dashboard page ───────────────────────────────────────────────────────────
 export default function Dashboard({ initialMembers, initialBookings, initialSettings }) {
   const { data: session } = useSession();
@@ -67,6 +81,14 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
   // Form Tag Rules state
   const [tagRules,      setTagRules]      = useState(initialSettings.form_tag_rules || []);
   const [tagRuleSaving, setTagRuleSaving] = useState({});
+
+  // BlueBubbles state
+  const [bbUrl,        setBbUrl]        = useState(initialSettings.bluebubbles_url      || '');
+  const [bbPassword,   setBbPassword]   = useState(initialSettings.bluebubbles_password || '');
+  const [bbSaving,     setBbSaving]     = useState(false);
+  const [bbSaved,      setBbSaved]      = useState(false);
+  const [bbTesting,    setBbTesting]    = useState(false);
+  const [bbTestResult, setBbTestResult] = useState(null); // { ok, version } | { error }
 
   // Workflow Automations state
   const [workflowMappings, setWorkflowMappings] = useState(initialSettings.workflow_mappings || {});
@@ -253,6 +275,40 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
     });
   }
 
+  // ── BlueBubbles helpers ────────────────────────────────────────────────────
+  async function saveBBCredentials() {
+    setBbSaving(true);
+    setBbSaved(false);
+    setBbTestResult(null);
+    await fetch('/api/dashboard/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bluebubbles_url: bbUrl.trim(), bluebubbles_password: bbPassword }),
+    });
+    setBbSaving(false);
+    setBbSaved(true);
+    setTimeout(() => setBbSaved(false), 3000);
+  }
+
+  async function testBBConnection() {
+    setBbTesting(true);
+    setBbTestResult(null);
+    // Save first so lib picks up latest creds
+    await fetch('/api/dashboard/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bluebubbles_url: bbUrl.trim(), bluebubbles_password: bbPassword }),
+    });
+    try {
+      const r = await fetch('/api/dashboard/test-bb');
+      const d = await r.json();
+      setBbTestResult(d);
+    } catch (e) {
+      setBbTestResult({ error: e.message });
+    }
+    setBbTesting(false);
+  }
+
   // ── Workflow Automations helpers ───────────────────────────────────────────
   function setWorkflow(action, userId, workflowId) {
     setWorkflowMappings(prev => ({
@@ -285,28 +341,60 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
   return (
     <>
       <Head><title>Dashboard</title></Head>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}*{box-sizing:border-box}button:hover{opacity:.88}`}</style>
       <div style={s.page}>
 
-        {/* ── Header ──────────────────────────────────────────────────────── */}
-        <header style={s.header}>
-          <div style={s.headerLeft}>
-            <span style={s.logo}>⬡ FranchiseBook</span>
-            <nav style={s.nav}>
-              <Link href="/dashboard/analytics"  style={s.navLink}>Analytics</Link>
-              <Link href="/dashboard/bookings"   style={s.navLink}>Meetings</Link>
-              <Link href="/dashboard/leads"      style={s.navLink}>Leads</Link>
-              <Link href="/dashboard/prospects"  style={s.navLink}>Prospecting</Link>
-              <Link href="/dashboard/nurture"    style={s.navLink}>Nurture</Link>
-            </nav>
+        {/* App sidebar */}
+        <aside style={s.appSidebar}>
+          <div style={s.sideLogoWrap}>
+            <div style={s.sideLogoRow}>
+              <div style={s.sideLogoIcon}>F</div>
+              <span style={s.sideLogoText}>FranchiseBook</span>
+            </div>
           </div>
-          <div style={s.headerRight}>
-            <Link href="/dashboard/settings" style={{ ...s.navLink, ...s.navActive }}>⚙ Settings</Link>
-            <span style={s.headerUser}>{session?.user?.email}</span>
-            <button style={s.signOutBtn} onClick={() => signOut({ callbackUrl: '/dashboard/login' })}>
-              Sign out
-            </button>
+          <nav style={s.sideNav}>
+            {[
+              { href: '/dashboard/analytics', label: 'Dashboard',   icon: 'dashboard' },
+              { href: '/dashboard/leads',     label: 'Leads',       icon: 'leads' },
+              { href: '/dashboard/prospects', label: 'Prospecting', icon: 'clients' },
+              { href: '/dashboard/bookings',  label: 'Meetings',    icon: 'meetings' },
+              { href: '/dashboard/nurture',   label: 'Nurture',     icon: 'nurture' },
+              { href: '/dashboard/settings',  label: 'Settings',    icon: 'settings', active: true },
+            ].map(({ href, label, icon, active }) => (
+              <Link key={label} href={href} style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>
+                <span style={{ color: active ? '#0057FF' : '#9CA3AF', display: 'flex', alignItems: 'center' }}>
+                  <SideIcon name={icon} />
+                </span>
+                <span>{label}</span>
+              </Link>
+            ))}
+          </nav>
+          <div style={s.sideBottom}>
+            <div style={s.sideHelpRow}>
+              <span style={{ color: '#9CA3AF', display: 'flex' }}><SideIcon name="help" /></span>
+              <span style={{ fontSize: 13, color: '#6B7280' }}>Help</span>
+            </div>
+            <div style={s.sideUserRow}>
+              <div style={s.sideUserAvatar}>{(session?.user?.email?.[0] || 'U').toUpperCase()}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {session?.user?.name || session?.user?.email?.split('@')[0] || 'User'}
+                </div>
+                <div style={{ fontSize: 11, color: '#9CA3AF' }}>Rep</div>
+              </div>
+              <span style={{ color: '#9CA3AF', fontSize: 14 }}>›</span>
+            </div>
           </div>
-        </header>
+        </aside>
+
+        {/* Main column */}
+        <div style={s.mainCol}>
+          <div style={s.topBar}>
+            <div>
+              <div style={s.topTitle}>Settings</div>
+              <div style={s.topDate}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+            </div>
+          </div>
 
         <main style={s.main}>
 
@@ -854,7 +942,86 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
             )}
           </Section>
 
+          {/* ── BlueBubbles iMessage ─────────────────────────────────────── */}
+          <Section
+            title="BlueBubbles iMessage"
+            subtitle="Connect a BlueBubbles server to send and receive iMessages directly from the CRM. Requires a dedicated always-on Mac running the BlueBubbles server app."
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={s.label}>Server URL</label>
+                  <input
+                    style={s.input}
+                    type="url"
+                    placeholder="https://abc123.trycloudflare.com"
+                    value={bbUrl}
+                    onChange={e => setBbUrl(e.target.value)}
+                  />
+                  <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
+                    Found in BlueBubbles Server → Connection → Proxy URL
+                  </div>
+                </div>
+                <div>
+                  <label style={s.label}>Server Password</label>
+                  <input
+                    style={s.input}
+                    type="password"
+                    placeholder="Your BlueBubbles server password"
+                    value={bbPassword}
+                    onChange={e => setBbPassword(e.target.value)}
+                  />
+                  <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
+                    Set in BlueBubbles Server → Connection → Server Password
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <button style={s.saveBtn} onClick={saveBBCredentials} disabled={bbSaving}>
+                  {bbSaving ? 'Saving…' : bbSaved ? '✓ Saved' : 'Save'}
+                </button>
+                <button
+                  style={{ ...s.saveBtn, background: '#F3F4F6', color: '#374151', border: '1px solid #D1D5DB' }}
+                  onClick={testBBConnection}
+                  disabled={bbTesting || !bbUrl}
+                >
+                  {bbTesting ? 'Testing…' : 'Test Connection'}
+                </button>
+                {bbTestResult && (
+                  <span style={{ fontSize: 13, fontWeight: 600, color: bbTestResult.ok ? '#15803D' : '#DC2626' }}>
+                    {bbTestResult.ok
+                      ? `Connected (v${bbTestResult.version})`
+                      : `Failed: ${bbTestResult.error || 'unknown error'}`}
+                  </span>
+                )}
+              </div>
+
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '14px 16px' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 8 }}>Incoming message webhook</div>
+                <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 6 }}>
+                  In BlueBubbles Server, go to Settings → Webhooks → Add and enter this URL to receive incoming iMessages in the CRM:
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <code style={{ fontSize: 12, background: '#fff', border: '1px solid #E2E8F0', borderRadius: 4, padding: '4px 10px', flex: 1, color: '#0057FF', fontFamily: 'monospace' }}>
+                    {typeof window !== 'undefined' ? window.location.origin : 'https://your-app.vercel.app'}/api/webhooks/bluebubbles
+                  </code>
+                  <button
+                    style={{ fontSize: 12, padding: '5px 12px', background: '#fff', border: '1px solid #D1D5DB', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', color: '#374151' }}
+                    onClick={() => navigator.clipboard.writeText(`${window.location.origin}/api/webhooks/bluebubbles`)}
+                  >
+                    Copy
+                  </button>
+                </div>
+                <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>
+                  Subscribe to: <strong>new-message</strong> events. Incoming messages will appear in the lead timeline and CRM iMessage tab.
+                </div>
+              </div>
+            </div>
+          </Section>
+
         </main>
+        </div>{/* /mainCol */}
       </div>
     </>
   );
@@ -1056,9 +1223,27 @@ function hours() {
 
 const s = {
   // Page
-  page:        { minHeight: '100vh', background: '#F5F6F7', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif", color: '#333' },
+  page:        { display: 'flex', minHeight: '100vh', background: '#FAFBFD', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif", color: '#333' },
 
-  // QB dark header — precise color
+  // App-level left sidebar
+  appSidebar:       { width: 210, flexShrink: 0, background: '#FFFFFF', borderRight: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh', zIndex: 10 },
+  sideLogoWrap:     { padding: '20px 16px 16px', borderBottom: '1px solid #E2E8F0' },
+  sideLogoRow:      { display: 'flex', alignItems: 'center', gap: 9 },
+  sideLogoIcon:     { width: 30, height: 30, borderRadius: 8, background: '#0057FF', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, flexShrink: 0 },
+  sideLogoText:     { fontWeight: 700, fontSize: 14, color: '#0F172A', letterSpacing: '-0.2px' },
+  sideNav:          { flex: 1, padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 1, overflowY: 'auto' },
+  sideNavItem:      { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 7, fontSize: 13, fontWeight: 500, color: '#475569', textDecoration: 'none', transition: 'all .15s' },
+  sideNavItemActive:{ background: '#EFF6FF', color: '#0057FF', fontWeight: 600 },
+  sideBottom:       { borderTop: '1px solid #E2E8F0', padding: '8px 8px 16px' },
+  sideHelpRow:      { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 7, cursor: 'pointer' },
+  sideUserRow:      { display: 'flex', alignItems: 'center', gap: 9, padding: '10px 10px', borderRadius: 7, cursor: 'pointer', marginTop: 2 },
+  sideUserAvatar:   { width: 30, height: 30, borderRadius: '50%', background: '#0057FF', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 },
+  mainCol:          { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' },
+  topBar:           { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', background: '#FFFFFF', borderBottom: '1px solid #E2E8F0', flexShrink: 0, gap: 16 },
+  topTitle:         { fontSize: 20, fontWeight: 700, color: '#0F172A' },
+  topDate:          { fontSize: 13, color: '#64748B', fontWeight: 400, marginTop: 2 },
+
+  // QB dark header — precise color (kept for reference, no longer rendered)
   header:      { background: '#151719', padding: '0 20px', height: 50, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50 },
   headerLeft:  { display: 'flex', alignItems: 'center', gap: 28 },
   logo:        { fontWeight: 600, fontSize: 15, color: '#FFFFFF', letterSpacing: '-0.2px', flexShrink: 0 },

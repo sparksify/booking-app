@@ -92,6 +92,18 @@ const DEMO_CLIENTS = [
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+function SideIcon({ name }) {
+  const p = { width: 17, height: 17, fill: 'none', stroke: 'currentColor', strokeWidth: 1.75, strokeLinecap: 'round', strokeLinejoin: 'round', viewBox: '0 0 24 24', style: { display: 'block' } };
+  if (name === 'dashboard') return <svg {...p}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>;
+  if (name === 'leads')     return <svg {...p}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+  if (name === 'clients')   return <svg {...p}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
+  if (name === 'meetings')  return <svg {...p}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
+  if (name === 'nurture')   return <svg {...p}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>;
+  if (name === 'settings')  return <svg {...p}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>;
+  if (name === 'help')      return <svg {...p}><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+  return null;
+}
+
 export default function NurturePage() {
   const { data: session } = useSession();
   const [clients,        setClients]        = useState([]);
@@ -222,32 +234,58 @@ export default function NurturePage() {
       )}
 
       <div style={s.page}>
-        {/* ── Header ── */}
-        <header style={s.header}>
-          <div style={s.headerLeft}>
-            <span style={s.logo}>⬡ FranchiseBook</span>
-            <nav style={s.nav}>
-              <Link href="/dashboard/analytics"  style={s.navLink}>Analytics</Link>
-              <Link href="/dashboard/bookings"   style={s.navLink}>Meetings</Link>
-              <Link href="/dashboard/leads"      style={s.navLink}>Leads</Link>
-              <Link href="/dashboard/prospects"  style={s.navLink}>Prospecting</Link>
-              <Link href="/dashboard/nurture"    style={{ ...s.navLink, ...s.navActive }}>Nurture</Link>
-            </nav>
-          </div>
-          <div style={s.headerRight}>
-            <Link href="/dashboard/settings" style={s.navLink}>Settings</Link>
-            <span style={s.headerUser}>{session?.user?.email}</span>
-          </div>
-        </header>
-
-        <div style={s.body}>
-          {/* Title bar */}
-          <div style={s.titleBar}>
-            <div>
-              <h1 style={s.pageTitle}>In-Process Nurture</h1>
-              <p style={s.pageSub}>Clients who returned a CQ — stay in front of them every week.</p>
+        {/* ── Sidebar ── */}
+        <aside style={s.sidebar}>
+          <div style={s.sideLogoWrap}>
+            <div style={s.sideLogoRow}>
+              <div style={s.sideLogoIcon}>F</div>
+              <span style={s.sideLogoText}>FranchiseBook</span>
             </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          </div>
+          <nav style={s.sideNav}>
+            {[
+              { href: '/dashboard/analytics', label: 'Dashboard',   icon: 'dashboard' },
+              { href: '/dashboard/leads',     label: 'Leads',       icon: 'leads' },
+              { href: '/dashboard/prospects', label: 'Prospecting', icon: 'clients' },
+              { href: '/dashboard/bookings',  label: 'Meetings',    icon: 'meetings' },
+              { href: '/dashboard/nurture',   label: 'Nurture',     icon: 'nurture', active: true },
+              { href: '/dashboard/settings',  label: 'Settings',    icon: 'settings' },
+            ].map(({ href, label, icon, active }) => (
+              <Link key={label} href={href} style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>
+                <span style={{ color: active ? '#0057FF' : '#9CA3AF', display: 'flex', alignItems: 'center' }}>
+                  <SideIcon name={icon} />
+                </span>
+                <span>{label}</span>
+              </Link>
+            ))}
+          </nav>
+          <div style={s.sideBottom}>
+            <div style={s.sideHelpRow}>
+              <span style={{ color: '#9CA3AF', display: 'flex' }}><SideIcon name="help" /></span>
+              <span style={{ fontSize: 13, color: '#6B7280' }}>Help</span>
+            </div>
+            <div style={s.sideUserRow}>
+              <div style={s.sideUserAvatar}>{(session?.user?.email?.[0] || 'U').toUpperCase()}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {session?.user?.name || session?.user?.email?.split('@')[0] || 'User'}
+                </div>
+                <div style={{ fontSize: 11, color: '#9CA3AF' }}>Rep</div>
+              </div>
+              <span style={{ color: '#9CA3AF', fontSize: 14 }}>›</span>
+            </div>
+          </div>
+        </aside>
+
+        {/* ── Main column ── */}
+        <div style={s.mainCol}>
+          {/* Top bar */}
+          <div style={s.topBar}>
+            <div>
+              <div style={s.topTitle}>Nurture</div>
+              <div style={s.topDate}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+            </div>
+            <div style={s.topActions}>
               {isDemo && <span style={s.demoBadge}>Preview</span>}
               {/* View mode toggle */}
               <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 6, padding: 2 }}>
@@ -279,56 +317,59 @@ export default function NurturePage() {
             </div>
           </div>
 
-          {/* Demo banner */}
-          {isDemo && (
-            <div style={s.demoBanner}>
-              Preview mode — no nurture clients yet. Click "Mark CQ Received" on any booking to auto-add clients to this queue.
-            </div>
-          )}
+          {/* Page body */}
+          <div style={s.pageBody}>
+            {/* Demo banner */}
+            {isDemo && (
+              <div style={s.demoBanner}>
+                Preview mode — no nurture clients yet. Click "Mark CQ Received" on any booking to auto-add clients to this queue.
+              </div>
+            )}
 
-          {/* Pipeline stage graph */}
-          {!loading && activeClients.length > 0 && (
-            <PipelineGraph clients={activeClients} />
-          )}
+            {/* Pipeline stage graph */}
+            {!loading && activeClients.length > 0 && (
+              <PipelineGraph clients={activeClients} />
+            )}
 
-          {/* Main content */}
-          {loading ? (
-            <div style={s.loadingWrap}>
-              <div style={s.spinner} />
-              <div style={s.loadingText}>Loading nurture queue…</div>
-            </div>
-          ) : queueMode ? (
-            <QueueView
-              clients={activeClients}
-              isDemo={isDemo}
-              onExit={exitQueue}
-              onStartWorking={startQueueWork}
-              selectedId={fullPageClient?.id}
-              onSelect={selectClient}
-              onUpdate={updateClientLocally}
-              onRefresh={load}
-            />
-          ) : viewMode === 'kanban' ? (
-            <KanbanView
-              clients={clients}
-              isDemo={isDemo}
-              selectedId={fullPageClient?.id}
-              onSelect={selectClient}
-              onOpenFullPage={(c) => setFullPageClient(c)}
-              onUpdate={updateClientLocally}
-              onRefresh={load}
-            />
-          ) : (
-            <ListView
-              clients={clients}
-              isDemo={isDemo}
-              selectedId={fullPageClient?.id}
-              onSelect={selectClient}
-              onEnterQueue={enterQueue}
-              onUpdate={updateClientLocally}
-              onRefresh={load}
-            />
-          )}
+            {/* Main content */}
+            {loading ? (
+              <div style={s.loadingWrap}>
+                <div style={s.spinner} />
+                <div style={s.loadingText}>Loading nurture queue…</div>
+              </div>
+            ) : queueMode ? (
+              <QueueView
+                clients={activeClients}
+                isDemo={isDemo}
+                onExit={exitQueue}
+                onStartWorking={startQueueWork}
+                selectedId={fullPageClient?.id}
+                onSelect={selectClient}
+                onUpdate={updateClientLocally}
+                onRefresh={load}
+              />
+            ) : viewMode === 'kanban' ? (
+              <KanbanView
+                clients={clients}
+                isDemo={isDemo}
+                selectedId={fullPageClient?.id}
+                onSelect={selectClient}
+                onOpenFullPage={(c) => setFullPageClient(c)}
+                onUpdate={updateClientLocally}
+                onRefresh={load}
+              />
+            ) : (
+              <ListView
+                clients={clients}
+                isDemo={isDemo}
+                selectedId={fullPageClient?.id}
+                onSelect={selectClient}
+                onEnterQueue={enterQueue}
+                onUpdate={updateClientLocally}
+                onRefresh={load}
+              />
+            )}
+          </div>
         </div>
       </div>
 
@@ -2711,7 +2752,28 @@ function StatCard({ label, value, color, warn }) {
 // ─── Styles ────────────────────────────────────────────────────────────────────
 
 const s = {
-  page:       { minHeight: '100vh', background: '#F0F2F5', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" },
+  page:        { display: 'flex', minHeight: '100vh', background: '#FAFBFD', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" },
+
+  sidebar:          { width: 210, flexShrink: 0, background: '#FFFFFF', borderRight: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh', zIndex: 10 },
+  sideLogoWrap:     { padding: '20px 16px 16px', borderBottom: '1px solid #E2E8F0' },
+  sideLogoRow:      { display: 'flex', alignItems: 'center', gap: 9 },
+  sideLogoIcon:     { width: 30, height: 30, borderRadius: 8, background: '#0057FF', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, flexShrink: 0 },
+  sideLogoText:     { fontWeight: 700, fontSize: 14, color: '#0F172A', letterSpacing: '-0.2px' },
+  sideNav:          { flex: 1, padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 1, overflowY: 'auto' },
+  sideNavItem:      { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 7, fontSize: 13, fontWeight: 500, color: '#475569', textDecoration: 'none', transition: 'all .15s' },
+  sideNavItemActive:{ background: '#EFF6FF', color: '#0057FF', fontWeight: 600 },
+  sideBottom:       { borderTop: '1px solid #E2E8F0', padding: '8px 8px 16px' },
+  sideHelpRow:      { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 7, cursor: 'pointer' },
+  sideUserRow:      { display: 'flex', alignItems: 'center', gap: 9, padding: '10px 10px', borderRadius: 7, cursor: 'pointer', marginTop: 2 },
+  sideUserAvatar:   { width: 30, height: 30, borderRadius: '50%', background: '#0057FF', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 },
+  mainCol:          { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' },
+  topBar:           { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', background: '#FFFFFF', borderBottom: '1px solid #E2E8F0', flexShrink: 0, gap: 16 },
+  topTitle:         { fontSize: 20, fontWeight: 700, color: '#0F172A' },
+  topDate:          { fontSize: 13, color: '#64748B', fontWeight: 400, marginTop: 2 },
+  topActions:       { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 },
+  topBtn:           { padding: '7px 14px', fontSize: 13, fontWeight: 500, borderRadius: 6, border: '1px solid #E2E8F0', background: '#FFFFFF', color: '#475569', cursor: 'pointer', fontFamily: 'inherit' },
+  pageBody:         { flex: 1, padding: '20px 24px', overflowY: 'auto' },
+
   header:     { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', height: 50, background: '#151719', position: 'sticky', top: 0, zIndex: 100 },
   headerLeft: { display: 'flex', alignItems: 'center', gap: 28 },
   logo:       { fontWeight: 600, fontSize: 15, color: '#fff', flexShrink: 0 },
