@@ -318,43 +318,68 @@ function buildDemoData() {
   };
 }
 
-// ─── Bucket config ────────────────────────────────────────────────────────────
+// ─── Bucket config (4 consolidated action groups) ────────────────────────────
+
+// Maps each original API bucket key → one of the 4 display buckets
+const BUCKET_MAP = {
+  speed_to_lead: 'call_now',
+  re_engaged:    'call_now',
+  saves:         'win_back',
+  near_miss:     'win_back',
+  vip:           'big_fish',
+  high_dollar:   'big_fish',
+  hot:           'fresh_pipeline',
+  resurrection:  'fresh_pipeline',
+};
+
+// Merge 8 raw API buckets → 4 display buckets, sorted by score
+function consolidateBuckets(raw = {}) {
+  const merge = (...keys) =>
+    keys.flatMap(k => raw[k] || []).sort((a, b) => b.score - a.score);
+  return {
+    call_now:      merge('speed_to_lead', 're_engaged'),
+    win_back:      merge('saves', 'near_miss'),
+    big_fish:      merge('vip', 'high_dollar'),
+    fresh_pipeline:merge('hot', 'resurrection'),
+  };
+}
 
 const BUCKETS = {
-  saves: {
-    label: 'Appointment Saves', tagline: 'Rebook Rate',
-    color: '#EF4444', bg: '#FEF2F2', border: '#FECACA', iconBg: '#FEE2E2', icon: 'calendar',
-    tooltip: 'No-shows from the last 7 days who booked but didn\'t show. Rebook rate is 22% when contacted the same day. These are the highest-priority calls — they already said yes once.',
+  call_now: {
+    label: 'Call Now',
+    tagline: 'These Can\'t Wait',
+    sublabels: 'Speed to Lead · Re-Engaged',
+    icon: 'phone',
+    color: '#DC2626', bg: '#FEF2F2', border: '#FECACA', iconBg: '#FEE2E2',
+    action: 'Every hour of delay costs ~21% of your booking rate.',
+    tooltip: 'Combines Speed to Lead (submitted within 6 hours, no contact yet) and Re-Engaged leads (active in the last 24 hours after going quiet). Both are time-sensitive buying signals — reach out immediately before the window closes.',
   },
-  speed_to_lead: {
-    label: 'Speed to Lead', tagline: 'Call Immediately',
-    color: '#7C3AED', bg: '#F3E8FF', border: '#C4B5FD', iconBg: '#EDE9FE', icon: 'phone',
-    tooltip: 'Leads submitted within the last 6 hours with no advisor contact yet. Research shows leads reached within 5 minutes are 21× more likely to book. Every minute matters here.',
+  win_back: {
+    label: 'Win Back',
+    tagline: 'They Almost Made It',
+    sublabels: 'Appointment Saves · Near Misses',
+    icon: 'calendar',
+    color: '#7C3AED', bg: '#F3E8FF', border: '#C4B5FD', iconBg: '#EDE9FE',
+    action: 'They committed once. A personal re-invite converts at 22%.',
+    tooltip: 'Combines Appointment Saves (no-shows from the last 7 days) and Near Misses (booked but never rescheduled). These leads already said yes — they just need a low-pressure personal follow-up with a new time slot.',
   },
-  vip: {
-    label: 'VIP Leads', tagline: '$250k+ With Engagement',
-    color: '#D97706', bg: '#FFF7ED', border: '#FDE68A', iconBg: '#FEF3C7', icon: 'star',
-    tooltip: 'Leads with $250k+ liquid capital who are actively engaging — viewing the booking page, selecting slots, or returning to the site. These carry the highest commission potential and deserve your best advisor.',
+  big_fish: {
+    label: 'Big Fish',
+    tagline: '$250k+ Opportunity',
+    sublabels: 'VIP Leads · High Dollar',
+    icon: 'star',
+    color: '#D97706', bg: '#FFF7ED', border: '#FDE68A', iconBg: '#FEF3C7',
+    action: 'Highest commission potential in your pipeline. Use your best advisor.',
+    tooltip: 'Combines VIP Leads ($250k+ liquid capital with active engagement) and High Dollar prospects ($250k+ capacity even without recent activity). These are your largest single-deal commissions — worth an unhurried, personal call.',
   },
-  re_engaged: {
-    label: 'Re-Engaged', tagline: 'Active in Last 24h',
-    color: '#0057FF', bg: '#EFF6FF', border: '#BFDBFE', iconBg: '#DBEAFE', icon: 'zap',
-    tooltip: 'Leads that went quiet but just showed activity in the last 24 hours — visited the site, viewed the booking page, or selected a slot. This is a buying signal. Strike while they\'re warm again.',
-  },
-  near_miss: {
-    label: 'Near Misses', tagline: 'Never Rescheduled',
-    color: '#EA580C', bg: '#FFF7ED', border: '#FDBA74', iconBg: '#FFEDD5', icon: 'clock',
-    tooltip: 'Leads who previously booked but never showed or rescheduled. They committed once, which means interest is real. A personal outreach with a new time slot converts these at a solid rate.',
-  },
-  resurrection: {
-    label: 'Resurrections', tagline: '90+ Day Re-Engagement',
-    color: '#6D28D9', bg: '#F3E8FF', border: '#C4B5FD', iconBg: '#EDE9FE', icon: 'refresh-cw',
-    tooltip: 'Leads dormant for 90+ days who just re-engaged — viewed the booking page or returned to the site. Something changed in their life or circumstances. Reach out before they go dark again.',
-  },
-  high_dollar: {
-    label: 'High Dollar', tagline: 'Premium Investment',
-    color: '#16A34A', bg: '#F0FDF4', border: '#86EFAC', iconBg: '#DCFCE7', icon: 'gem',
-    tooltip: 'Leads with $250k+ investment capacity — even without active engagement signals. These represent your largest commission opportunities. Worth a personal, unhurried call from your most experienced advisor.',
+  fresh_pipeline: {
+    label: 'Fresh Pipeline',
+    tagline: 'Warm & Ready',
+    sublabels: 'Hot Leads · Resurrections',
+    icon: 'flame',
+    color: '#16A34A', bg: '#F0FDF4', border: '#86EFAC', iconBg: '#DCFCE7',
+    action: 'High-scored or resurfaced leads. Act now — conversion drops 8%/day.',
+    tooltip: 'Combines Hot Leads (high-scored, submitted within 7 days) and Resurrections (dormant 90+ days who just re-engaged). Both groups are warm right now — call while you have momentum.',
   },
   hot: {
     label: 'Hot Leads', tagline: 'Fresh & High-Scored',
@@ -566,15 +591,15 @@ export default function ProspectsPage() {
   const revenueSpinning = !demoMode && revenueLoading;
   const hero            = displayData?.hero || null;
 
+  const consolidated = consolidateBuckets(displayData?.buckets || {});
+
   const visibleLeads = !displayData ? [] : (
     activeBucket === 'all'
       ? displayData.leads
-      : (displayData.buckets[activeBucket] || [])
+      : (consolidated[activeBucket] || [])
   ).filter(l => !dispositioned.has(l.id));
 
-  const totalCount = displayData
-    ? Object.values(displayData.buckets).reduce((s, b) => s + b.length, 0)
-    : 0;
+  const totalCount = Object.values(consolidated).reduce((s, b) => s + b.length, 0);
 
   function startQueue(bucket) {
     if (bucket && bucket !== 'all') setActiveBucket(bucket);
@@ -624,7 +649,7 @@ export default function ProspectsPage() {
             lead={currentLead}
             index={queueIndex}
             total={queueLeads.length}
-            bucketConfig={BUCKETS[currentLead.bucket]}
+            bucketConfig={BUCKETS[BUCKET_MAP[currentLead.bucket]] || BUCKETS[currentLead.bucket]}
             onDisposition={(disp, note) => onDisposition(currentLead.id, disp, note)}
             onSkip={() => onSkip(currentLead.id)}
             onBack={() => { setQueueMode(false); setQueueIndex(0); }}
@@ -783,39 +808,64 @@ export default function ProspectsPage() {
               {/* ── Opportunities view ──────────────────────────────────────── */}
               {view === 'opportunities' && (
                 <>
-                  {/* 8 bucket cards — hidden when in queue focus mode */}
+                  {/* 4 consolidated bucket cards */}
                   {!queueMode && <div style={s.bucketGrid}>
                     {Object.entries(BUCKETS).map(([key, bc]) => {
-                      const leads      = (displayData?.buckets || {})[key] || [];
+                      const leads       = consolidated[key] || [];
                       const opportunity = leads.reduce((s, l) => s + (l.commissionEstimate || 0), 0);
-                      const isActive   = activeBucket === key;
+                      const isActive    = activeBucket === key;
                       return (
                         <div
                           key={key}
                           onClick={() => { setActiveBucket(key); setQueueMode(false); }}
-                          style={{ ...s.bucketCard, borderLeftColor: bc.color, background: isActive ? bc.bg : '#fff', outline: isActive ? `1.5px solid ${bc.border}` : 'none', cursor: 'pointer' }}
+                          style={{
+                            ...s.bucketCard,
+                            borderLeftColor: bc.color,
+                            background: isActive ? bc.bg : '#FFFFFF',
+                            outline: isActive ? `2px solid ${bc.border}` : 'none',
+                            cursor: 'pointer',
+                          }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 12 }}>
-                            <BucketIcon name={bc.icon} color={bc.color} bg={bc.iconBg} size={34} />
-                            <div style={{ fontSize: 10, fontWeight: 700, color: bc.color, textTransform: 'uppercase', letterSpacing: '0.08em', lineHeight: 1.3 }}>{bc.tagline}</div>
+                          {/* Header row: icon + label */}
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <BucketIcon name={bc.icon} color={bc.color} bg={bc.iconBg} size={38} />
+                              <div>
+                                <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A', lineHeight: 1.2 }}>{bc.label}</div>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: bc.color, textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 2 }}>{bc.tagline}</div>
+                              </div>
+                            </div>
+                            {leads.length > 0 && (
+                              <div style={{ fontSize: 36, fontWeight: 900, color: bc.color, lineHeight: 1, flexShrink: 0 }}>{leads.length}</div>
+                            )}
                           </div>
-                          <div style={{ fontSize: 32, fontWeight: 800, color: leads.length ? '#111827' : '#D1D5DB', lineHeight: 1, marginBottom: 2 }}>{leads.length}</div>
-                          <div
-                            style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 8, cursor: 'help' }}
-                            title={bc.tooltip}
-                          >
-                            {bc.label} <span style={{ fontSize: 9, color: bc.color, opacity: 0.7 }}>ⓘ</span>
+
+                          {/* What's inside */}
+                          <div style={{ fontSize: 11, color: '#64748B', marginBottom: 10, fontWeight: 500 }}>
+                            {bc.sublabels}
                           </div>
-                          {leads.length > 0 ? (
-                            <div style={{ fontSize: 11, fontWeight: 700, color: bc.color }}>{fmtDollars(opportunity)} est. opportunity</div>
-                          ) : (
-                            <div style={{ fontSize: 10, color: '#9CA3AF' }}>None right now</div>
-                          )}
-                          {leads.length > 0 && (
-                            <button onClick={e => { e.stopPropagation(); startQueue(key); }} style={{ ...s.bucketStartBtn, borderColor: bc.border, color: bc.color }}>
-                              Start Prospecting →
-                            </button>
-                          )}
+
+                          {/* Why act */}
+                          <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.5, marginBottom: 14, minHeight: 36 }} title={bc.tooltip}>
+                            {leads.length > 0 ? bc.action : <span style={{ color: '#CBD5E1' }}>No leads in this group right now.</span>}
+                          </div>
+
+                          {/* Footer: opportunity + button */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
+                            {leads.length > 0 ? (
+                              <div style={{ fontSize: 13, fontWeight: 700, color: bc.color }}>{fmtDollars(opportunity)} est.</div>
+                            ) : (
+                              <div />
+                            )}
+                            {leads.length > 0 && (
+                              <button
+                                onClick={e => { e.stopPropagation(); startQueue(key); }}
+                                style={{ padding: '7px 16px', background: bc.color, color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+                              >
+                                Start →
+                              </button>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -825,7 +875,7 @@ export default function ProspectsPage() {
                   {!queueMode && (
                     <div style={s.tabRow}>
                       <div style={s.tabs}>
-                        {[['all', 'All', totalCount], ...Object.entries(BUCKETS).map(([k, b]) => [k, b.label, ((displayData?.buckets || {})[k] || []).length])].map(([key, label, count]) => (
+                        {[['all', 'All', totalCount], ...Object.entries(BUCKETS).map(([k, b]) => [k, b.label, (consolidated[k] || []).length])].map(([key, label, count]) => (
                           <button key={key} onClick={() => setActiveBucket(key)} style={{ ...s.tab, ...(activeBucket === key ? s.tabActive : {}) }}>
                             {label} <span style={{ fontSize: 11, opacity: .7 }}>({count})</span>
                           </button>
@@ -842,7 +892,7 @@ export default function ProspectsPage() {
                     <div style={s.tableWrap}>
                       {visibleLeads.length === 0 ? (
                         <div style={s.empty}>
-                          {activeBucket === 'all' ? 'No active leads to show.' : `No leads in ${BUCKETS[activeBucket]?.label || activeBucket} right now.`}
+                          {activeBucket === 'all' ? 'No active leads to show.' : `No leads in ${BUCKETS[activeBucket]?.label || activeBucket} right now — check back later or switch groups.`}
                         </div>
                       ) : (
                         <table style={s.table}>
@@ -860,7 +910,7 @@ export default function ProspectsPage() {
                           <tbody>
                             {visibleLeads.map((lead, i) => {
                               const sc = scoreColor(lead.score);
-                              const bc = BUCKETS[lead.bucket];
+                              const bc = BUCKETS[BUCKET_MAP[lead.bucket]] || BUCKETS[lead.bucket];
                               return (
                                 <tr key={lead.id} style={{ background: i % 2 ? '#fff' : '#F9FAFB', cursor: 'pointer' }} onClick={() => { setQueueIndex(i); setQueueMode(true); }}>
                                   <td style={s.td}>
@@ -1704,8 +1754,8 @@ const s = {
   viewTab:       { padding: '8px 18px', fontSize: 13, fontWeight: 500, color: '#64748B', background: 'transparent', border: 'none', borderBottom: '2px solid transparent', marginBottom: -2, cursor: 'pointer', fontFamily: 'inherit' },
   viewTabActive: { color: '#0F172A', fontWeight: 700, borderBottomColor: '#0057FF' },
 
-  bucketGrid:  { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 },
-  bucketCard:  { background: '#FFFFFF', border: '1px solid #E2E8F0', borderLeft: '4px solid #E2E8F0', borderRadius: 10, padding: '16px 16px 12px', boxShadow: '0 1px 3px rgba(15,23,42,.04)' },
+  bucketGrid:  { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 16 },
+  bucketCard:  { background: '#FFFFFF', border: '1px solid #E2E8F0', borderLeft: '5px solid #E2E8F0', borderRadius: 10, padding: '20px 20px 18px', boxShadow: '0 1px 3px rgba(15,23,42,.04)', display: 'flex', flexDirection: 'column', minHeight: 160 },
   bucketStartBtn: { marginTop: 12, width: '100%', padding: '7px 0', background: 'transparent', border: '1px solid', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.03em' },
 
   tabRow:      { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 12, flexWrap: 'wrap' },
