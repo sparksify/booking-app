@@ -494,7 +494,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
           </div>
 
           {/* Body */}
-          <div style={s.body} ref={scrollBodyRef}>
+          <div style={s.headerArea}>
 
             {/* Demo banner */}
             {isDemo && (
@@ -667,7 +667,10 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                 </div>
               )}
             </div>
+          </div>
 
+          {/* Table — scrolls independently; lands on the current time */}
+          <div style={s.tableScroll} ref={scrollBodyRef}>
             {/* Table */}
             <div style={s.tableCard}>
               {loading ? (
@@ -1666,6 +1669,8 @@ const s = {
   topBtnPrimary:{ padding: '7px 16px', fontSize: 13, fontWeight: 600, borderRadius: 6, border: 'none', background: '#0057FF', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
 
   body:      { flex: 1, padding: '20px 24px', overflowY: 'auto' },
+  headerArea:  { flexShrink: 0, padding: '20px 24px 12px', borderBottom: '1px solid #EDEFF2', background: '#F4F5F7' },
+  tableScroll: { flex: 1, overflowY: 'auto', padding: '14px 24px 24px' },
   demoBanner:{ background: '#FFFBF0', border: '1px solid #F5A623', borderLeft: '4px solid #F5A623', borderRadius: 6, padding: '10px 14px', fontSize: 13, color: '#7D4E00', marginBottom: 16 },
 
   // Stats — one connected row
