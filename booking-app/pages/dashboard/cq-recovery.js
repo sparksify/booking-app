@@ -12,7 +12,6 @@ export async function getServerSideProps(ctx) {
   return { props: {} };
 }
 
-// ─── Sidebar icon ─────────────────────────────────────────────────────────────
 function SideIcon({ name }) {
   const p = { width: 17, height: 17, fill: 'none', stroke: 'currentColor', strokeWidth: 1.75, strokeLinecap: 'round', strokeLinejoin: 'round', viewBox: '0 0 24 24', style: { display: 'block' } };
   if (name === 'dashboard') return <svg {...p}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>;
@@ -35,12 +34,7 @@ const NAV = [
   { href: '/dashboard/settings',    label: 'Settings',    icon: 'settings' },
 ];
 
-const URGENCY = {
-  frozen: { label: 'Frozen', color: '#B91C1C', bg: '#FEE2E2', border: '#FECACA' },
-  cold:   { label: 'Cold',   color: '#B45309', bg: '#FEF3C7', border: '#FDE68A' },
-  warm:   { label: 'Warm',   color: '#15803D', bg: '#DCFCE7', border: '#BBF7D0' },
-  fresh:  { label: 'Fresh',  color: '#2563EB', bg: '#EFF6FF', border: '#BFDBFE' },
-};
+const BUCKET_ORDER = ['hot', 'big_fish', 'engaged', 'warm', 'at_risk', 'cold'];
 
 function fmtActivity(a) {
   if (!a) return 'No activity logged';
@@ -52,21 +46,21 @@ function fmtActivity(a) {
 export default function CQRecovery() {
   const { data: session } = useSession();
   const router = useRouter();
-  const [leads,    setLeads]    = useState([]);
-  const [metrics,  setMetrics]  = useState({ total: 0, avgDays: 0, oldest: 0, goingCold: 0, recentlyActive: 0 });
-  const [loading,  setLoading]  = useState(true);
-  const [busy,     setBusy]     = useState({});       // { [email]: true }
-  const [composer, setComposer] = useState(null);     // { lead, channel, subject, body, sending, sent }
-  const [snoozeFor, setSnoozeFor] = useState(null);   // email with open snooze menu
+  const [leads,      setLeads]      = useState([]);
+  const [metrics,    setMetrics]    = useState({});
+  const [bucketMeta, setBucketMeta] = useState({});
+  const [loading,    setLoading]    = useState(true);
+  const [busy,       setBusy]       = useState({});
+  const [composer,   setComposer]   = useState(null);
+  const [snoozeFor,  setSnoozeFor]  = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
     fetch('/api/dashboard/cq-recovery')
       .then(r => r.json())
-      .then(d => { setLeads(d.leads || []); setMetrics(d.metrics || {}); setLoading(false); })
+      .then(d => { setLeads(d.leads || []); setMetrics(d.metrics || {}); setBucketMeta(d.bucketMeta || {}); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
-
   useEffect(() => { load(); }, [load]);
 
   const keyOf = l => `${l.email}|${l.slot_start}`;
@@ -78,109 +72,120 @@ export default function CQRecovery() {
 
   async function markReceived(l) {
     setRowBusy(l, true);
-    await fetch('/api/dashboard/mark-cq-received', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bookingId: l.booking_id || undefined, email: l.email, slot_start: l.slot_start }),
-    }).catch(() => {});
+    await fetch('/api/dashboard/mark-cq-received', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bookingId: l.booking_id || undefined, email: l.email, slot_start: l.slot_start }) }).catch(() => {});
     removeLead(l);
   }
-
   async function resendCQ(l) {
     setRowBusy(l, true);
-    await fetch('/api/dashboard/send-cq', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bookingId: l.booking_id || undefined, email: l.email, slot_start: l.slot_start }),
-    }).catch(() => {});
+    await fetch('/api/dashboard/send-cq', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bookingId: l.booking_id || undefined, email: l.email, slot_start: l.slot_start }) }).catch(() => {});
     setRowBusy(l, false);
     setLeads(ls => ls.map(x => keyOf(x) === keyOf(l) ? { ...x, _resent: true } : x));
   }
-
   async function snooze(l, days) {
-    setSnoozeFor(null);
-    setRowBusy(l, true);
-    await fetch('/api/dashboard/cq-snooze', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: l.email, slot_start: l.slot_start, days }),
-    }).catch(() => {});
+    setSnoozeFor(null); setRowBusy(l, true);
+    await fetch('/api/dashboard/cq-snooze', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: l.email, slot_start: l.slot_start, days }) }).catch(() => {});
     removeLead(l);
   }
-
   function openComposer(l, channel) {
     const first = l.first_name || 'there';
     const body = `Hi ${first}, just following up on the questionnaire we sent over. Whenever you have a few minutes to complete it, we can line up your franchise matches. Anything I can help with in the meantime?`;
     setComposer({ lead: l, channel, subject: 'Following up on your questionnaire', body, sending: false, sent: false });
   }
-
   async function sendMessage() {
     if (!composer) return;
     const { lead, channel, subject, body } = composer;
     setComposer(c => ({ ...c, sending: true }));
     let url, payload;
-    if (channel === 'email') {
-      url = '/api/dashboard/send-email';
-      payload = { to_email: lead.email, subject, body };
-    } else if (channel === 'sms') {
-      url = '/api/dashboard/send-sms';
-      payload = { phone: lead.phone, message: body, contactId: lead.ghl_contact_id || undefined };
-    } else {
-      url = '/api/dashboard/send-imessage';
-      payload = { address: lead.phone, message: body };
-    }
+    if (channel === 'email')    { url = '/api/dashboard/send-email';    payload = { to_email: lead.email, subject, body }; }
+    else if (channel === 'sms') { url = '/api/dashboard/send-sms';      payload = { phone: lead.phone, message: body, contactId: lead.ghl_contact_id || undefined }; }
+    else                        { url = '/api/dashboard/send-imessage'; payload = { address: lead.phone, message: body }; }
     await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {});
     setComposer(c => ({ ...c, sending: false, sent: true }));
     setTimeout(() => setComposer(null), 1200);
   }
 
   const metricCards = [
-    { label: 'Outstanding',     value: metrics.total ?? 0,           color: '#0F172A' },
-    { label: 'Avg Days Waiting', value: metrics.avgDays ?? 0,         color: '#0F172A' },
-    { label: 'Oldest (days)',   value: metrics.oldest ?? 0,          color: '#B91C1C' },
-    { label: 'Going Cold',      value: metrics.goingCold ?? 0,       color: '#B45309' },
-    { label: 'Recently Active', value: metrics.recentlyActive ?? 0,  color: '#15803D' },
+    { label: 'Outstanding',  value: metrics.total ?? 0,     color: '#0F172A' },
+    { label: 'Hot',          value: metrics.hot ?? 0,       color: '#B91C1C' },
+    { label: 'Big Fish',     value: metrics.bigFish ?? 0,   color: '#9333EA' },
+    { label: 'Engaged',      value: metrics.engaged ?? 0,   color: '#B45309' },
+    { label: 'Avg Days',     value: metrics.avgDays ?? 0,   color: '#0F172A' },
+    { label: 'Going Cold',   value: metrics.goingCold ?? 0, color: '#64748B' },
   ];
+
+  function Row({ l }) {
+    const meta = bucketMeta[l.bucket] || { color: '#64748B' };
+    const rb = busy[keyOf(l)];
+    return (
+      <div style={s.card}>
+        <div style={s.scoreCol}>
+          <div style={{ ...s.scoreNum, color: meta.color }}>{l.score}</div>
+          <div style={s.scoreUnit}>score</div>
+          <div style={{ ...s.daysPill }}>{l.days_waiting}d</div>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={s.name}>{(l.first_name || l.last_name) ? `${l.first_name} ${l.last_name}`.trim() : l.email}</div>
+          <div style={s.metaRow}>
+            {l.phone && <span>{l.phone}</span>}
+            {l.phone && <span style={{ color: '#CBD5E1' }}>·</span>}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.email}</span>
+            {l.assigned_rep && <span style={s.repTag}>{l.assigned_rep}</span>}
+          </div>
+          <div style={s.reasons}>
+            {l.reasons.map((r, i) => <span key={i} style={s.reasonChip}>{r}</span>)}
+          </div>
+          <div style={s.activity}>{fmtActivity(l.last_activity)}</div>
+        </div>
+        <div style={s.actions}>
+          <button style={s.actBtn}      onClick={() => openComposer(l, 'imessage')} disabled={!l.phone}>iMessage</button>
+          <button style={s.actBtn}      onClick={() => openComposer(l, 'sms')}      disabled={!l.phone}>SMS</button>
+          <button style={s.actBtn}      onClick={() => openComposer(l, 'email')}>Email</button>
+          <button style={s.actBtnGreen} onClick={() => markReceived(l)} disabled={rb}>✓ Received</button>
+          <button style={s.actBtn}      onClick={() => resendCQ(l)} disabled={rb}>{l._resent ? 'Resent ✓' : 'Resend CQ'}</button>
+          <div style={{ position: 'relative' }}>
+            <button style={s.actBtn} onClick={() => setSnoozeFor(snoozeFor === keyOf(l) ? null : keyOf(l))} disabled={rb}>Snooze ▾</button>
+            {snoozeFor === keyOf(l) && (
+              <div style={s.snoozeMenu}>
+                {[1, 3, 7].map(d => <button key={d} style={s.snoozeItem} onClick={() => snooze(l, d)}>{d === 1 ? '1 day' : d === 7 ? '1 week' : `${d} days`}</button>)}
+              </div>
+            )}
+          </div>
+          <button style={s.actBtnGhost} onClick={() => router.push(`/dashboard/bookings?focus=${encodeURIComponent(l.email)}`)}>Open card →</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
       <Head><title>CQ Recovery — KANSO</title></Head>
       <div style={s.page}>
-        {/* Sidebar */}
         <aside style={s.sidebar}>
-          <div style={s.sideLogoWrap}>
-            <div style={s.sideLogoRow}>
-              <div style={s.sideLogoIcon}>K</div>
-              <span style={s.sideLogoText}>KANSO</span>
-            </div>
-          </div>
+          <div style={s.sideLogoWrap}><div style={s.sideLogoRow}><div style={s.sideLogoIcon}>K</div><span style={s.sideLogoText}>KANSO</span></div></div>
           <nav style={s.sideNav}>
             {NAV.map(({ href, label, icon, active }) => (
               <Link key={label} href={href} style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>
-                <span style={{ color: active ? '#0057FF' : '#9CA3AF', display: 'flex', alignItems: 'center' }}>
-                  <SideIcon name={icon} />
-                </span>
+                <span style={{ color: active ? '#0057FF' : '#9CA3AF', display: 'flex', alignItems: 'center' }}><SideIcon name={icon} /></span>
                 <span>{label}</span>
               </Link>
             ))}
           </nav>
-          <div style={s.sideBottom}>
-            <div style={s.sideHelpRow}>
-              <span style={{ color: '#9CA3AF', display: 'flex' }}><SideIcon name="help" /></span>
-              <span style={{ fontSize: 13, color: '#6B7280' }}>Help</span>
-            </div>
-          </div>
+          <div style={s.sideBottom}><div style={s.sideHelpRow}><span style={{ color: '#9CA3AF', display: 'flex' }}><SideIcon name="help" /></span><span style={{ fontSize: 13, color: '#6B7280' }}>Help</span></div></div>
         </aside>
 
-        {/* Main */}
         <main style={s.main}>
           <div style={s.topbar}>
             <div>
               <div style={s.topTitle}>CQ Recovery</div>
-              <div style={s.topSub}>Questionnaires sent but not yet returned</div>
+              <div style={s.topSub}>Who to chase next — ranked by commitment stack</div>
             </div>
             <button style={s.refreshBtn} onClick={load} disabled={loading}>{loading ? 'Loading…' : '↻ Refresh'}</button>
           </div>
 
           <div style={s.content}>
-            {/* Metrics */}
             <div style={s.metricsRow}>
               {metricCards.map((m, i) => (
                 <div key={m.label} style={{ ...s.metricCell, ...(i < metricCards.length - 1 ? { borderRight: '1px solid #E5E7EB' } : {}) }}>
@@ -190,72 +195,37 @@ export default function CQRecovery() {
               ))}
             </div>
 
-            {/* List */}
             {loading ? (
-              <div style={s.empty}>Loading queue…</div>
+              <div style={s.empty}>Scoring your queue…</div>
             ) : leads.length === 0 ? (
               <div style={s.empty}>
-                <div style={{ fontSize: 15, fontWeight: 600, color: '#0F172A', marginBottom: 4 }}>No outstanding questionnaires 🎉</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: '#0F172A', marginBottom: 4 }}>No outstanding questionnaires</div>
                 <div>Every CQ you’ve sent has been returned, snoozed, or marked received.</div>
               </div>
             ) : (
-              <div style={s.list}>
-                {leads.map(l => {
-                  const u = URGENCY[l.urgency] || URGENCY.fresh;
-                  const rb = busy[keyOf(l)];
-                  return (
-                    <div key={keyOf(l)} style={s.card}>
-                      {/* Days + urgency */}
-                      <div style={s.daysCol}>
-                        <div style={{ ...s.daysNum, color: u.color }}>{l.days_waiting}</div>
-                        <div style={s.daysUnit}>days</div>
-                        <span style={{ ...s.urgencyBadge, color: u.color, background: u.bg, border: `1px solid ${u.border}` }}>{u.label}</span>
-                      </div>
-
-                      {/* Identity */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={s.name}>{(l.first_name || l.last_name) ? `${l.first_name} ${l.last_name}`.trim() : l.email}</div>
-                        <div style={s.metaRow}>
-                          {l.phone && <span>{l.phone}</span>}
-                          <span style={{ color: '#CBD5E1' }}>·</span>
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.email}</span>
-                        </div>
-                        <div style={s.metaRow}>
-                          {l.liquid_capital && <span style={s.tag}>{l.liquid_capital}</span>}
-                          {l.assigned_rep && <span style={s.repTag}>{l.assigned_rep}</span>}
-                          <span style={s.activity}>{fmtActivity(l.last_activity)}</span>
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div style={s.actions}>
-                        <button style={s.actBtn}   onClick={() => openComposer(l, 'imessage')} disabled={!l.phone} title={l.phone ? '' : 'No phone on file'}>iMessage</button>
-                        <button style={s.actBtn}   onClick={() => openComposer(l, 'sms')}      disabled={!l.phone} title={l.phone ? '' : 'No phone on file'}>SMS</button>
-                        <button style={s.actBtn}   onClick={() => openComposer(l, 'email')}>Email</button>
-                        <button style={s.actBtnGreen} onClick={() => markReceived(l)} disabled={rb}>✓ Received</button>
-                        <button style={s.actBtn}   onClick={() => resendCQ(l)} disabled={rb}>{l._resent ? 'Resent ✓' : 'Resend CQ'}</button>
-                        <div style={{ position: 'relative' }}>
-                          <button style={s.actBtn} onClick={() => setSnoozeFor(snoozeFor === keyOf(l) ? null : keyOf(l))} disabled={rb}>Snooze ▾</button>
-                          {snoozeFor === keyOf(l) && (
-                            <div style={s.snoozeMenu}>
-                              {[1, 3, 7].map(d => (
-                                <button key={d} style={s.snoozeItem} onClick={() => snooze(l, d)}>{d === 1 ? '1 day' : d === 7 ? '1 week' : `${d} days`}</button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <button style={s.actBtnGhost} onClick={() => router.push(`/dashboard/bookings?focus=${encodeURIComponent(l.email)}`)}>Open card →</button>
-                      </div>
+              BUCKET_ORDER.map(bk => {
+                const group = leads.filter(l => l.bucket === bk);
+                if (!group.length) return null;
+                const meta = bucketMeta[bk] || {};
+                return (
+                  <section key={bk} style={{ marginBottom: 26 }}>
+                    <div style={s.bucketHdr}>
+                      <span style={{ ...s.bucketDot, background: meta.color }} />
+                      <span style={{ ...s.bucketLabel, color: meta.color }}>{meta.label || bk}</span>
+                      <span style={s.bucketCount}>{group.length}</span>
+                      <span style={s.bucketBlurb}>{meta.blurb}</span>
                     </div>
-                  );
-                })}
-              </div>
+                    <div style={s.list}>
+                      {group.map(l => <Row key={keyOf(l)} l={l} />)}
+                    </div>
+                  </section>
+                );
+              })
             )}
           </div>
         </main>
       </div>
 
-      {/* Composer modal */}
       {composer && (
         <div style={s.modalOverlay} onClick={() => !composer.sending && setComposer(null)}>
           <div style={s.modal} onClick={e => e.stopPropagation()}>
@@ -266,9 +236,7 @@ export default function CQRecovery() {
               <button style={s.modalClose} onClick={() => !composer.sending && setComposer(null)}>✕</button>
             </div>
             <div style={{ padding: 16 }}>
-              <div style={{ fontSize: 12, color: '#64748B', marginBottom: 10 }}>
-                To: {composer.channel === 'email' ? composer.lead.email : (composer.lead.phone || '— no phone —')}
-              </div>
+              <div style={{ fontSize: 12, color: '#64748B', marginBottom: 10 }}>To: {composer.channel === 'email' ? composer.lead.email : (composer.lead.phone || '— no phone —')}</div>
               {composer.channel === 'email' && (
                 <input style={s.input} value={composer.subject} onChange={e => setComposer(c => ({ ...c, subject: e.target.value }))} placeholder="Subject" />
               )}
@@ -296,7 +264,7 @@ const s = {
   sideLogoIcon:     { width: 30, height: 30, borderRadius: 8, background: '#0057FF', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, flexShrink: 0 },
   sideLogoText:     { fontWeight: 700, fontSize: 14, color: '#0F172A', letterSpacing: '-0.2px' },
   sideNav:          { flex: 1, padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 1, overflowY: 'auto' },
-  sideNavItem:      { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 7, fontSize: 13, fontWeight: 500, color: '#475569', textDecoration: 'none', transition: 'all .15s' },
+  sideNavItem:      { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 7, fontSize: 13, fontWeight: 500, color: '#475569', textDecoration: 'none' },
   sideNavItemActive:{ background: '#EFF6FF', color: '#0057FF', fontWeight: 600 },
   sideBottom:       { borderTop: '1px solid #E2E8F0', padding: '8px 8px 16px' },
   sideHelpRow:      { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 7, cursor: 'pointer' },
@@ -309,27 +277,34 @@ const s = {
   content: { padding: 28, overflowY: 'auto' },
 
   metricsRow: { display: 'flex', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, marginBottom: 22, overflow: 'hidden' },
-  metricCell: { flex: 1, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 4 },
-  metricNum:  { fontSize: 26, fontWeight: 700, lineHeight: 1 },
+  metricCell: { flex: 1, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 4 },
+  metricNum:  { fontSize: 24, fontWeight: 700, lineHeight: 1 },
   metricLabel:{ fontSize: 12, color: '#64748B', fontWeight: 500 },
 
   empty: { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '48px 24px', textAlign: 'center', color: '#64748B', fontSize: 14 },
 
-  list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  card: { display: 'flex', alignItems: 'center', gap: 18, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '14px 18px' },
+  bucketHdr:   { display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 },
+  bucketDot:   { width: 9, height: 9, borderRadius: '50%', flexShrink: 0 },
+  bucketLabel: { fontSize: 14, fontWeight: 800, letterSpacing: '-0.2px' },
+  bucketCount: { fontSize: 11, fontWeight: 700, color: '#475569', background: '#EEF2F6', borderRadius: 20, padding: '1px 8px' },
+  bucketBlurb: { fontSize: 12, color: '#94A3B8' },
 
-  daysCol:  { width: 74, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 },
-  daysNum:  { fontSize: 30, fontWeight: 800, lineHeight: 1 },
-  daysUnit: { fontSize: 11, color: '#94A3B8', marginTop: -1 },
-  urgencyBadge: { marginTop: 3, padding: '1px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700 },
+  list: { display: 'flex', flexDirection: 'column', gap: 10 },
+  card: { display: 'flex', alignItems: 'flex-start', gap: 16, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '14px 18px' },
+
+  scoreCol:  { width: 56, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, paddingTop: 2 },
+  scoreNum:  { fontSize: 26, fontWeight: 800, lineHeight: 1 },
+  scoreUnit: { fontSize: 10, color: '#94A3B8' },
+  daysPill:  { marginTop: 4, fontSize: 10, fontWeight: 700, color: '#64748B', background: '#F1F5F9', borderRadius: 20, padding: '1px 7px' },
 
   name:    { fontSize: 15, fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  metaRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#64748B', marginTop: 3, flexWrap: 'wrap' },
-  tag:     { padding: '1px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: '#1D4ED8', background: '#EFF6FF', border: '1px solid #BFDBFE' },
+  metaRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#64748B', marginTop: 2, flexWrap: 'wrap' },
   repTag:  { padding: '1px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: '#6D28D9', background: '#F5F3FF', border: '1px solid #DDD6FE' },
-  activity:{ color: '#94A3B8', fontSize: 12 },
+  reasons: { display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 },
+  reasonChip: { fontSize: 11, fontWeight: 600, color: '#334155', background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: 6, padding: '2px 8px' },
+  activity:{ color: '#94A3B8', fontSize: 11.5, marginTop: 7 },
 
-  actions:  { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: 380 },
+  actions:  { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: 360 },
   actBtn:      { padding: '6px 10px', background: '#fff', color: '#374151', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   actBtnGreen: { padding: '6px 10px', background: '#ECFDF5', color: '#15803D', border: '1px solid #A7F3D0', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   actBtnGhost: { padding: '6px 10px', background: 'transparent', color: '#0057FF', border: '1px solid transparent', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
