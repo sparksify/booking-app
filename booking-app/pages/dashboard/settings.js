@@ -1158,6 +1158,24 @@ function CalCard({ cal, expandedBrand, setExpandedBrand, brandSaving, brandSaved
               })}
             </div>
           </div>
+          <div style={{ marginBottom: 10 }}>
+            <label style={s.label}>Event Description</label>
+            <textarea
+              style={{ ...s.input, minHeight: 90, resize: 'vertical', lineHeight: 1.6, fontFamily: 'inherit' }}
+              placeholder={'Leave blank for smart defaults, or write a custom message.\n\nExample:\nCall with {name}\nPhone: {phone}\nEmail: {email}\nInvestment: {investment_level}'}
+              value={cal.event_description || ''}
+              onChange={e => onUpdate(cal.id, 'event_description', e.target.value || null)}
+            />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 5 }}>
+              {['{name}','{first_name}','{phone}','{email}','{investment_level}','{date}','{time}'].map(v => (
+                <button key={v} type="button"
+                  onClick={() => onUpdate(cal.id, 'event_description', (cal.event_description || '') + v)}
+                  style={{ fontSize: 11, padding: '2px 7px', borderRadius: 4, border: '1px solid #E2E8F0', background: '#FAFBFD', color: '#475569', cursor: 'pointer', fontFamily: 'monospace' }}
+                >{v}</button>
+              ))}
+            </div>
+            <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>Click a variable to insert it. Shown inside the Google Calendar event for the rep.</p>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
             <div style={s.field}>
               <label style={s.label}>Email Reminder</label>
