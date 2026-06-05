@@ -157,7 +157,9 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   // Batched in groups of 5 to stay within GHL rate limits.
   useEffect(() => {
     if (loading || isDemo || !bookings.length) return;
-    const toCheck = bookings.filter(b => b.ghl_contact_id && !b.id?.startsWith('ghl_'));
+    // Check every booking that has a GHL contact — including GHL-sourced rows
+    // (id like `ghl_…`), which are the real meetings with SMS conversations.
+    const toCheck = bookings.filter(b => b.ghl_contact_id);
     if (!toCheck.length) return;
 
     // Mark all as loading

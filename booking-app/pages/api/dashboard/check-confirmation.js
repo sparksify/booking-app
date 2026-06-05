@@ -100,8 +100,13 @@ export default async function handler(req, res) {
 
   const supabase = getSupabaseAdmin();
 
+  // GHL-sourced bookings have synthetic ids like `ghl_<eventId>` that don't
+  // exist in the bookings table (whose id column is a uuid). Skip the DB cache
+  // entirely for those — query GHL live and return without persisting.
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bookingId);
+
   // Check if we have a fresh cached result
-  if (!force_refresh) {
+  if (isUuid && !force_refresh) {
     const { data: existing } = await supabase
       .from('bookings')
       .select('sms_confirmation, sms_confirmation_at, sms_confirmation_note')
@@ -134,12 +139,15 @@ export default async function handler(req, res) {
     const messages = await getConversationMessages(conversation.id, 40);
     const result   = analyzeMessages(messages, booking_created_at);
 
-    // Cache result on the booking row
-    await supabase.from('bookings').update({
-      sms_confirmation:      result.status,
-      sms_confirmation_at:   new Date().toISOString(),
-      sms_confirmation_note: result.note,
-    }).eq('id', bookingId);
+    // Cache result on the booking row (only for real uuid-keyed bookings;
+    // GHL synthetic ids aren't persisted and are re-checked each load).
+    if (isUuid) {
+      await supabase.from('bookings').update({
+        sms_confirmation:      result.status,
+        sms_confirmation_at:   new Date().toISOString(),
+        sms_confirmation_note: result.note,
+      }).eq('id', bookingId);
+    }
 
     return res.json({ ...result, cached: false });
 
