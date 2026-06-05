@@ -601,236 +601,6 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
             </form>
           </Section>
 
-          {/* ── Booking Page Content ────────────────────────────────────── */}
-          <Section
-            title="Booking Page Content"
-            subtitle="Edit the text leads see on the scheduling page. Changes go live immediately after saving."
-          >
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              setSaving(true);
-              await fetch('/api/dashboard/settings', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  booking_headline:     settings.booking_headline,
-                  booking_subtitle:     settings.booking_subtitle,
-                  booking_description:  settings.booking_description,
-                  booking_meeting_type: settings.booking_meeting_type,
-                }),
-              });
-              setSaving(false);
-              setSaved(true);
-              setTimeout(() => setSaved(false), 2000);
-            }} style={s.form}>
-
-              <Field label="Headline">
-                <input
-                  style={s.input}
-                  type="text"
-                  placeholder="{first_name}, let's see if this could be a fit."
-                  value={settings.booking_headline || ''}
-                  onChange={e => setSettings(p => ({ ...p, booking_headline: e.target.value || null }))}
-                />
-                <div style={{ display: 'flex', gap: 5, marginTop: 5 }}>
-                  <button type="button" style={{ fontSize: 11, padding: '2px 8px', borderRadius: 3, border: '1px solid #E2E8F0', background: '#FAFBFD', color: '#475569', cursor: 'pointer', fontFamily: 'monospace' }}
-                    onClick={() => setSettings(p => ({ ...p, booking_headline: (p.booking_headline || '') + '{first_name}' }))}>
-                    {'{first_name}'}
-                  </button>
-                </div>
-                <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>Use <code style={{ fontSize: 11 }}>{'{first_name}'}</code> to personalize with the lead's name. If no name is available, that part is omitted automatically.</p>
-              </Field>
-
-              <Field label="Subtitle (blue line)">
-                <input
-                  style={s.input}
-                  type="text"
-                  placeholder="Learn More About the Opportunity"
-                  value={settings.booking_subtitle || ''}
-                  onChange={e => setSettings(p => ({ ...p, booking_subtitle: e.target.value || null }))}
-                />
-              </Field>
-
-              <Field label="Description paragraph">
-                <textarea
-                  style={{ ...s.input, minHeight: 80, resize: 'vertical', lineHeight: 1.6 }}
-                  placeholder="15-minute conversation. Ask questions, get details, and see if it's worth exploring further. No pressure."
-                  value={settings.booking_description || ''}
-                  onChange={e => setSettings(p => ({ ...p, booking_description: e.target.value || null }))}
-                />
-              </Field>
-
-              <Field label="Meeting type label">
-                <input
-                  style={s.input}
-                  type="text"
-                  placeholder="Phone call"
-                  value={settings.booking_meeting_type || ''}
-                  onChange={e => setSettings(p => ({ ...p, booking_meeting_type: e.target.value || null }))}
-                />
-                <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>Shown in the meta row beside the clock icon, e.g. "Phone call", "Zoom", "Video call". Duration and timezone come from Availability Settings.</p>
-              </Field>
-
-              <div style={{ marginTop: 4 }}>
-                <button type="submit" style={s.saveBtn} disabled={saving}>
-                  {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save page content'}
-                </button>
-              </div>
-            </form>
-          </Section>
-
-          {/* ── Calendar Event Settings ─────────────────────────────────── */}
-          <Section
-            title="Calendar Event Settings"
-            subtitle="Controls what appears on the Google Calendar invite sent when someone books through KANSO."
-          >
-            <form onSubmit={saveSettings} style={s.form}>
-
-              <Field label="Booking page avatar">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-                  {/* Preview circle */}
-                  <div style={{
-                    width: 72, height: 72, borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
-                    border: '2px solid #E5E7EB', background: '#F3F4F6',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    {settings.host_avatar_url
-                      ? <img src={settings.host_avatar_url} alt="Avatar preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <span style={{ fontSize: 28, color: '#D1D5DB' }}>👤</span>
-                    }
-                  </div>
-                  <div>
-                    <label style={{
-                      display: 'inline-block', padding: '7px 16px', borderRadius: 6,
-                      border: '1px solid #D1D5DB', background: '#F9FAFB', color: '#374151',
-                      fontSize: 13, fontWeight: 600, cursor: avatarUploading ? 'wait' : 'pointer',
-                    }}>
-                      {avatarUploading ? 'Uploading…' : 'Upload image'}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        style={{ display: 'none' }}
-                        onChange={handleAvatarUpload}
-                        disabled={avatarUploading}
-                      />
-                    </label>
-                    {settings.host_avatar_url && (
-                      <button type="button" onClick={removeAvatar} style={{ marginLeft: 10, fontSize: 12, color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
-                        Remove
-                      </button>
-                    )}
-                    <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6, maxWidth: 280 }}>
-                      Shown as a circular icon beside the headline on the booking page. Square image, 200×200 px or larger recommended.
-                    </p>
-                  </div>
-                </div>
-              </Field>
-
-              <Field label="Meeting title (calendar event name)">
-                <input
-                  style={s.input}
-                  type="text"
-                  placeholder="e.g. Franchise Discovery Call"
-                  value={settings.meeting_title || ''}
-                  onChange={e => setSettings(p => ({ ...p, meeting_title: e.target.value }))}
-                />
-              </Field>
-
-              <Field label="Event description">
-                <textarea
-                  style={{ ...s.input, minHeight: 110, resize: 'vertical', lineHeight: 1.6 }}
-                  placeholder={'Leave blank for a smart default, or write a custom message.\n\nAvailable variables:\n{name}  {first_name}  {last_name}  {phone}  {email}\n{date}  {time}  {investment_level}  {meeting_title}'}
-                  value={settings.event_description || ''}
-                  onChange={e => setSettings(p => ({ ...p, event_description: e.target.value || null }))}
-                />
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 6 }}>
-                  {['{name}','{first_name}','{last_name}','{phone}','{email}','{date}','{time}','{investment_level}','{meeting_title}'].map(v => (
-                    <button
-                      key={v}
-                      type="button"
-                      style={{ fontSize: 11, padding: '2px 8px', borderRadius: 3, border: '1px solid #E2E8F0', background: '#FAFBFD', color: '#475569', cursor: 'pointer', fontFamily: 'monospace' }}
-                      onClick={() => setSettings(p => ({ ...p, event_description: (p.event_description || '') + v }))}
-                    >{v}</button>
-                  ))}
-                </div>
-                <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>Click a variable to insert it, or type it directly. Leave blank and the invite will include the lead's name, phone, email, and investment level automatically.</p>
-              </Field>
-
-              <Field label="Event location (optional)">
-                <input
-                  style={s.input}
-                  type="text"
-                  placeholder="e.g. https://zoom.us/j/... or 123 Main St, Chicago IL"
-                  value={settings.event_location || ''}
-                  onChange={e => setSettings(p => ({ ...p, event_location: e.target.value || null }))}
-                />
-                <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>Shown on the calendar event as the location field. Leave blank to omit.</p>
-              </Field>
-
-              <div style={s.formRow}>
-                <Field label="Event color">
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', paddingTop: 4 }}>
-                    {[
-                      { id: null,  name: 'Default',   hex: '#4285F4' },
-                      { id: 1,     name: 'Lavender',   hex: '#7986CB' },
-                      { id: 2,     name: 'Sage',        hex: '#33B679' },
-                      { id: 3,     name: 'Grape',       hex: '#8E24AA' },
-                      { id: 4,     name: 'Flamingo',    hex: '#E67C73' },
-                      { id: 5,     name: 'Banana',      hex: '#F6BF26' },
-                      { id: 6,     name: 'Tangerine',   hex: '#F4511E' },
-                      { id: 7,     name: 'Peacock',     hex: '#039BE5' },
-                      { id: 8,     name: 'Blueberry',   hex: '#3F51B5' },
-                      { id: 9,     name: 'Basil',       hex: '#0B8043' },
-                      { id: 10,    name: 'Tomato',      hex: '#D50000' },
-                      { id: 11,    name: 'Sage (alt)',   hex: '#616161' },
-                    ].map(c => {
-                      const isSelected = (settings.event_color ?? null) === c.id;
-                      return (
-                        <button
-                          key={String(c.id)}
-                          type="button"
-                          title={c.name}
-                          onClick={() => setSettings(p => ({ ...p, event_color: c.id }))}
-                          style={{
-                            width: 26, height: 26, borderRadius: '50%',
-                            background: c.hex, border: isSelected ? '3px solid #1A2B3C' : '3px solid transparent',
-                            boxShadow: isSelected ? '0 0 0 2px #fff inset' : 'none',
-                            cursor: 'pointer', padding: 0, flexShrink: 0,
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                  <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>
-                    {settings.event_color === null ? 'Default calendar color' :
-                      ['','Lavender','Sage','Grape','Flamingo','Banana','Tangerine','Peacock','Blueberry','Basil','Tomato','Graphite'][settings.event_color]}
-                  </p>
-                </Field>
-
-                <Field label="Email reminder before meeting">
-                  <select
-                    style={s.select}
-                    value={settings.event_reminder_mins ?? 15}
-                    onChange={e => setSettings(p => ({ ...p, event_reminder_mins: +e.target.value }))}
-                  >
-                    {[5, 10, 15, 30, 60, 120, 1440].map(m => (
-                      <option key={m} value={m}>
-                        {m < 60 ? `${m} minutes` : m === 60 ? '1 hour' : m === 120 ? '2 hours' : '1 day'}
-                      </option>
-                    ))}
-                  </select>
-                  <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>A popup reminder always fires 10 minutes before the meeting as well.</p>
-                </Field>
-              </div>
-
-              <div style={{ marginTop: 4 }}>
-                <button type="submit" style={s.saveBtn} disabled={saving}>
-                  {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save calendar settings'}
-                </button>
-              </div>
-            </form>
-          </Section>
-
           {/* ── Analytics Display ───────────────────────────────────────── */}
           <Section title="Analytics Display" subtitle="Choose which sections appear on the Analytics page. Changes take effect on next page load.">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -897,31 +667,6 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
                 onKeyDown={e => e.key === 'Enter' && addPitch()}
               />
               <button style={s.saveBtn} onClick={addPitch}>+ Add Brand</button>
-            </div>
-          </Section>
-
-          {/* ── Form Tag Rules ───────────────────────────────────────────── */}
-          <Section title="Form Tag Rules" subtitle="Tags automatically applied to a lead in GoHighLevel when they arrive from a specific Facebook form.">
-            {tagRules.map((rule, i) => (
-              <FormTagRule
-                key={rule.id}
-                rule={rule}
-                onUpdate={(field, val) => updateTagRule(rule.id, field, val)}
-                onAddTag={tag => addTagToRule(rule.id, tag)}
-                onRemoveTag={tag => removeTagFromRule(rule.id, tag)}
-                onDelete={() => { removeTagRule(rule.id); saveTagRules(); }}
-                styles={s}
-              />
-            ))}
-            <div style={{ display: 'flex', gap: 10, marginTop: 8, alignItems: 'center' }}>
-              <button style={s.saveBtn} onClick={addTagRule}>+ Add Rule</button>
-              <button
-                style={{ ...s.saveBtn, background: tagRuleSaved ? '#15803D' : '#0057FF', minWidth: 120 }}
-                onClick={saveTagRules}
-                disabled={tagRuleSaving}
-              >
-                {tagRuleSaving ? 'Saving…' : tagRuleSaved ? '✓ Saved' : 'Save All Rules'}
-              </button>
             </div>
           </Section>
 
@@ -1019,12 +764,12 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
             )}
           </Section>
 
-          {/* ── Brands ───────────────────────────────────────────────────── */}
+          {/* ── Calendars ─────────────────────────────────────────────── */}
           <Section
-            title="Brands"
-            subtitle="Each brand gets its own booking URL, calendar content, GHL tags, assigned reps, and liquid capital routing rules."
+            title="Calendars"
+            subtitle="Set up personal calendars (bookkanso.co/yourname) and brand calendars (bookkanso.co/wetfuel). Each gets its own booking URL, page content, calendar color, and rep routing."
           >
-            <BrandsEditor
+            <CalendarsEditor
               brands={brands}
               loading={brandsLoading}
               expandedBrand={expandedBrand}
@@ -1034,7 +779,14 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
               members={members}
               onSave={saveBrand}
               onDelete={deleteBrand}
-              onAdd={addNewBrand}
+              onAddPersonal={() => {
+                const b = { id: `new_${Date.now()}`, type: 'personal', slug: '', name: '', active: true, booking_headline: '', booking_subtitle: '', booking_description: '', meeting_title: '15-Minute Phone Call', meeting_duration: 15, event_description: '', event_location: '', event_color: null, event_reminder_mins: 15, fb_form_ids: [], ghl_tags: [], rep_emails: [], routing_rules: {} };
+                setBrands(bs => [...bs, b]); setExpandedBrand(b.id);
+              }}
+              onAddBrand={() => {
+                const b = { id: `new_${Date.now()}`, type: 'brand', slug: '', name: '', active: true, booking_headline: '', booking_subtitle: '', booking_description: '', meeting_title: '15-Minute Phone Call', meeting_duration: 15, event_description: '', event_location: '', event_color: null, event_reminder_mins: 15, fb_form_ids: [], ghl_tags: [], rep_emails: [], routing_rules: {} };
+                setBrands(bs => [...bs, b]); setExpandedBrand(b.id);
+              }}
               onUpdate={updateBrandField}
               styles={s}
             />
@@ -1317,222 +1069,271 @@ function hours() {
   return out;
 }
 
-// ─── BrandsEditor component ───────────────────────────────────────────────────
+// ─── CalendarsEditor ─────────────────────────────────────────────────────────
 
 const TIERS = [
-  { key: 't25_50',   label: '$25k – $50k' },
-  { key: 't50_75',   label: '$50k – $75k' },
-  { key: 't75_150',  label: '$75k – $150k' },
-  { key: 't150_500', label: '$150k – $500k' },
-  { key: 't500_plus',label: '$500k+' },
-  { key: 't_null',   label: 'No data (null)' },
+  { key: 't25_50',    label: '$25k – $50k' },
+  { key: 't50_75',    label: '$50k – $75k' },
+  { key: 't75_150',   label: '$75k – $150k' },
+  { key: 't150_500',  label: '$150k – $500k' },
+  { key: 't500_plus', label: '$500k+' },
+  { key: 't_null',    label: 'No data / null' },
 ];
 
-function BrandsEditor({ brands, loading, expandedBrand, setExpandedBrand, brandSaving, brandSaved, members, onSave, onDelete, onAdd, onUpdate, styles: s }) {
-  if (loading) return <div style={{ padding: 20, color: '#64748B', fontSize: 13 }}>Loading brands…</div>;
+const GC_COLORS = [
+  { id: null, name: 'Default',   hex: '#4285F4' },
+  { id: 1,    name: 'Lavender',  hex: '#7986CB' },
+  { id: 2,    name: 'Sage',      hex: '#33B679' },
+  { id: 3,    name: 'Grape',     hex: '#8E24AA' },
+  { id: 4,    name: 'Flamingo',  hex: '#E67C73' },
+  { id: 5,    name: 'Banana',    hex: '#F6BF26' },
+  { id: 6,    name: 'Tangerine', hex: '#F4511E' },
+  { id: 7,    name: 'Peacock',   hex: '#039BE5' },
+  { id: 8,    name: 'Blueberry', hex: '#3F51B5' },
+  { id: 9,    name: 'Basil',     hex: '#0B8043' },
+  { id: 10,   name: 'Tomato',    hex: '#D50000' },
+  { id: 11,   name: 'Graphite',  hex: '#616161' },
+];
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {brands.length === 0 && (
-        <div style={{ fontSize: 13, color: '#94A3B8', fontStyle: 'italic' }}>No brands yet. Add your first brand below.</div>
-      )}
+function CalendarsEditor({ brands, loading, expandedBrand, setExpandedBrand, brandSaving, brandSaved, members, onSave, onDelete, onAddPersonal, onAddBrand, onUpdate, styles: s }) {
+  if (loading) return <div style={{ padding: 20, color: '#64748B', fontSize: 13 }}>Loading calendars…</div>;
 
-      {brands.map(brand => {
-        const isOpen   = expandedBrand === brand.id;
-        const isSaving = brandSaving[brand.id];
-        const isSaved  = brandSaved[brand.id];
-        const bookingUrl = `https://bookkanso.co/${brand.slug || '[slug]'}`;
+  const personal = brands.filter(b => b.type === 'personal');
+  const brand    = brands.filter(b => b.type !== 'personal');
 
-        return (
-          <div key={brand.id} style={{ border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'hidden', background: '#FFFFFF' }}>
-            {/* Brand header row */}
-            <div
-              onClick={() => setExpandedBrand(isOpen ? null : brand.id)}
-              style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', cursor: 'pointer', background: isOpen ? '#F8FAFC' : '#FFFFFF', borderBottom: isOpen ? '1px solid #E2E8F0' : 'none', gap: 12 }}
-            >
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>{brand.name || 'New Brand'}</div>
-                {brand.slug && <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>bookkanso.co/{brand.slug}</div>}
+  function CalCard({ cal }) {
+    const isOpen   = expandedBrand === cal.id;
+    const isSaving = brandSaving[cal.id];
+    const isSaved  = brandSaved[cal.id];
+    const isPers   = cal.type === 'personal';
+    const typeLabel = isPers ? 'Personal' : 'Brand';
+    const typeColor = isPers ? '#7C3AED' : '#0057FF';
+    const typeBg    = isPers ? '#F5F3FF' : '#EFF6FF';
+    const bookingUrl = cal.slug ? `bookkanso.co/${cal.slug}` : 'bookkanso.co/[slug]';
+
+    return (
+      <div style={{ border: '1px solid #E2E8F0', borderLeft: `4px solid ${typeColor}`, borderRadius: 8, overflow: 'hidden', background: '#FFFFFF', marginBottom: 8 }}>
+        {/* Header */}
+        <div onClick={() => setExpandedBrand(isOpen ? null : cal.id)} style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', cursor: 'pointer', background: isOpen ? '#F8FAFC' : '#FFFFFF', gap: 12 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: typeColor, background: typeBg, padding: '2px 8px', borderRadius: 4, flexShrink: 0 }}>{typeLabel}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>{cal.name || 'New Calendar'}</div>
+            {cal.slug && <div style={{ fontSize: 11, color: '#64748B', marginTop: 1, fontFamily: 'monospace' }}>{bookingUrl}</div>}
+          </div>
+          <span style={{ color: '#94A3B8', fontSize: 14 }}>{isOpen ? '▲' : '▼'}</span>
+        </div>
+
+        {isOpen && (
+          <div style={{ padding: '18px 18px 20px', borderTop: '1px solid #E2E8F0' }}>
+
+            {/* Basic */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+              <div>
+                <label style={s.label}>Name *</label>
+                <input style={s.input} value={cal.name} onChange={e => onUpdate(cal.id, 'name', e.target.value)} placeholder={isPers ? 'Steve Sparks' : 'WetFuel B2B Franchise'} />
               </div>
-              <span style={{ fontSize: 11, color: brand.active ? '#16A34A' : '#94A3B8', fontWeight: 600 }}>{brand.active ? 'Active' : 'Inactive'}</span>
-              <span style={{ fontSize: 16, color: '#94A3B8' }}>{isOpen ? '▲' : '▼'}</span>
+              <div>
+                <label style={s.label}>URL Slug *</label>
+                <input style={s.input} value={cal.slug} onChange={e => onUpdate(cal.id, 'slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,''))} placeholder={isPers ? 'steve' : 'wetfuel'} />
+                {cal.slug && <div style={{ fontSize: 11, color: '#0057FF', marginTop: 3, fontFamily: 'monospace' }}>bookkanso.co/{cal.slug}</div>}
+              </div>
             </div>
 
-            {/* Expanded edit form */}
-            {isOpen && (
-              <div style={{ padding: '18px 18px 20px' }}>
-                {/* Basic info */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-                  <div>
-                    <label style={s.label}>Brand Name *</label>
-                    <input style={s.input} value={brand.name} onChange={e => onUpdate(brand.id, 'name', e.target.value)} placeholder="WetFuel B2B Franchise" />
-                  </div>
-                  <div>
-                    <label style={s.label}>URL Slug * (lowercase, hyphens OK)</label>
-                    <input style={s.input} value={brand.slug} onChange={e => onUpdate(brand.id, 'slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,''))} placeholder="wetfuel" />
-                    {brand.slug && <div style={{ fontSize: 11, color: '#0057FF', marginTop: 3, fontFamily: 'monospace' }}>bookkanso.co/{brand.slug}</div>}
-                  </div>
-                </div>
+            {/* Booking page content */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>Booking Page</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+              <div><label style={s.label}>Headline</label><input style={s.input} value={cal.booking_headline || ''} onChange={e => onUpdate(cal.id, 'booking_headline', e.target.value)} placeholder="Book Your Free Discovery Call" /></div>
+              <div><label style={s.label}>Subtitle</label><input style={s.input} value={cal.booking_subtitle || ''} onChange={e => onUpdate(cal.id, 'booking_subtitle', e.target.value)} placeholder="Choose a time that works for you" /></div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+              <div><label style={s.label}>Meeting Title</label><input style={s.input} value={cal.meeting_title || ''} onChange={e => onUpdate(cal.id, 'meeting_title', e.target.value)} placeholder="15-Minute Phone Call" /></div>
+              <div><label style={s.label}>Duration (min)</label><input style={s.input} type="number" value={cal.meeting_duration || 15} onChange={e => onUpdate(cal.id, 'meeting_duration', parseInt(e.target.value)||15)} /></div>
+            </div>
 
-                {/* Booking page content */}
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>Booking Page Content</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-                  <div>
-                    <label style={s.label}>Headline</label>
-                    <input style={s.input} value={brand.booking_headline || ''} onChange={e => onUpdate(brand.id, 'booking_headline', e.target.value)} placeholder="Book Your Free WetFuel Call" />
-                  </div>
-                  <div>
-                    <label style={s.label}>Subtitle</label>
-                    <input style={s.input} value={brand.booking_subtitle || ''} onChange={e => onUpdate(brand.id, 'booking_subtitle', e.target.value)} placeholder="Choose a time that works for you" />
-                  </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
-                  <div>
-                    <label style={s.label}>Meeting Title</label>
-                    <input style={s.input} value={brand.meeting_title || ''} onChange={e => onUpdate(brand.id, 'meeting_title', e.target.value)} placeholder="15-Minute Phone Call" />
-                  </div>
-                  <div>
-                    <label style={s.label}>Duration (minutes)</label>
-                    <input style={s.input} type="number" value={brand.meeting_duration || 15} onChange={e => onUpdate(brand.id, 'meeting_duration', parseInt(e.target.value) || 15)} />
-                  </div>
-                </div>
-
-                {/* Facebook forms + GHL tags */}
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>Facebook Forms → GHL Tags</div>
-                <ArrayField label="Facebook Form IDs" values={brand.fb_form_ids || []} onChange={v => onUpdate(brand.id, 'fb_form_ids', v)} placeholder="2100967397128522" />
-                <ArrayField label="GHL Tags (auto-applied on lead arrival)" values={brand.ghl_tags || []} onChange={v => onUpdate(brand.id, 'ghl_tags', v)} placeholder="wetfuel" />
-
-                {/* Reps */}
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', margin: '16px 0 8px' }}>Assigned Reps (in fallback rotation order)</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                  {(members || []).map(m => {
-                    const included = (brand.rep_emails || []).includes(m.email);
-                    return (
-                      <button
-                        key={m.email}
-                        type="button"
-                        onClick={() => {
-                          const current = brand.rep_emails || [];
-                          onUpdate(brand.id, 'rep_emails', included ? current.filter(e => e !== m.email) : [...current, m.email]);
-                        }}
-                        style={{ padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', border: included ? 'none' : '1px solid #E2E8F0', background: included ? '#0057FF' : '#F8FAFC', color: included ? '#fff' : '#475569' }}
-                      >
-                        {m.name || m.email.split('@')[0]}
-                      </button>
-                    );
-                  })}
-                  {(!members || members.length === 0) && <div style={{ fontSize: 12, color: '#94A3B8' }}>No team members connected yet.</div>}
-                </div>
-
-                {/* Routing rules */}
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', margin: '16px 0 10px' }}>Liquid Capital Routing</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {TIERS.map(tier => {
-                    const rules   = (brand.routing_rules || {})[tier.key] || [];
-                    const repList  = brand.rep_emails || [];
-                    return (
-                      <div key={tier.key} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '10px 12px' }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>{tier.label}</div>
-                        {repList.length === 0 ? (
-                          <div style={{ fontSize: 11, color: '#94A3B8' }}>Add reps above first.</div>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {repList.map(email => {
-                              const rule    = Array.isArray(rules) ? rules.find(r => r.email === email) : null;
-                              const weight  = rule?.weight ?? 0;
-                              const name    = (members || []).find(m => m.email === email)?.name || email.split('@')[0];
-                              const total   = Array.isArray(rules) ? rules.reduce((s, r) => s + (r.weight || 0), 0) : 0;
-                              const pct     = total > 0 ? Math.round((weight / total) * 100) : 0;
-                              return (
-                                <div key={email} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                  <div style={{ width: 80, fontSize: 12, color: '#475569', fontWeight: 500, flexShrink: 0 }}>{name}</div>
-                                  <input
-                                    type="range" min="0" max="20" value={weight}
-                                    onChange={e => {
-                                      const w = parseInt(e.target.value);
-                                      const existing = Array.isArray(rules) ? rules : [];
-                                      const updated  = existing.filter(r => r.email !== email);
-                                      if (w > 0) updated.push({ email, weight: w });
-                                      onUpdate(brand.id, 'routing_rules', { ...brand.routing_rules, [tier.key]: updated });
-                                    }}
-                                    style={{ flex: 1 }}
-                                  />
-                                  <div style={{ width: 44, fontSize: 12, fontWeight: 700, color: weight > 0 ? '#0057FF' : '#CBD5E1', textAlign: 'right', flexShrink: 0 }}>
-                                    {weight > 0 ? `${pct}%` : 'Off'}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                            {Array.isArray(rules) && rules.length > 0 && (
-                              <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 2 }}>
-                                Cycle: {rules.filter(r => r.weight > 0).map(r => {
-                                  const n = (members || []).find(m => m.email === r.email)?.name || r.email.split('@')[0];
-                                  return `${n} ×${r.weight}`;
-                                }).join(', ')}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Save / Delete */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 18 }}>
-                  <button
-                    style={{ ...s.saveBtn, background: isSaved ? '#15803D' : '#0057FF', minWidth: 100 }}
-                    onClick={() => onSave(brand)}
-                    disabled={isSaving || !brand.name || !brand.slug}
-                  >
-                    {isSaving ? 'Saving…' : isSaved ? '✓ Saved' : 'Save Brand'}
-                  </button>
-                  <button onClick={() => onDelete(brand.id)} style={{ fontSize: 12, color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
-                    Delete brand
-                  </button>
-                </div>
+            {/* Calendar settings */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>Calendar Event</div>
+            <div style={{ marginBottom: 10 }}>
+              <label style={s.label}>Event Color</label>
+              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', paddingTop: 4 }}>
+                {GC_COLORS.map(c => {
+                  const sel = (cal.event_color ?? null) === c.id;
+                  return <button key={String(c.id)} type="button" title={c.name} onClick={() => onUpdate(cal.id, 'event_color', c.id)} style={{ width: 24, height: 24, borderRadius: '50%', background: c.hex, border: sel ? '3px solid #0F172A' : '3px solid transparent', boxShadow: sel ? '0 0 0 2px #fff inset' : 'none', cursor: 'pointer', padding: 0 }} />;
+                })}
               </div>
-            )}
-          </div>
-        );
-      })}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+              <div>
+                <label style={s.label}>Email Reminder</label>
+                <select style={s.select} value={cal.event_reminder_mins || 15} onChange={e => onUpdate(cal.id, 'event_reminder_mins', +e.target.value)}>
+                  {[5,10,15,30,60,120,1440].map(m => <option key={m} value={m}>{m<60?`${m} min`:m===60?'1 hr':m===120?'2 hrs':'1 day'}</option>)}
+                </select>
+              </div>
+              <div><label style={s.label}>Location (optional)</label><input style={s.input} value={cal.event_location || ''} onChange={e => onUpdate(cal.id, 'event_location', e.target.value)} placeholder="Zoom link or address" /></div>
+            </div>
 
-      <button style={{ ...s.saveBtn, background: '#F1F5F9', color: '#475569', border: '1px solid #E2E8F0', marginTop: 4 }} onClick={onAdd}>
-        + Add Brand
-      </button>
+            {/* GHL tags */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>GHL Tags</div>
+            <ChipInput values={cal.ghl_tags || []} onChange={v => onUpdate(cal.id, 'ghl_tags', v)} placeholder={isPers ? 'personal-inquiry' : 'wetfuel'} />
+
+            {/* Brand-only fields */}
+            {!isPers && (
+              <>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', margin: '14px 0 8px' }}>Facebook Forms</div>
+                <ChipInput values={cal.fb_form_ids || []} onChange={v => onUpdate(cal.id, 'fb_form_ids', v)} placeholder="2100967397128522" />
+
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', margin: '14px 0 8px' }}>Reps</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                  {(members || []).map(m => {
+                    const inc = (cal.rep_emails || []).includes(m.email);
+                    return <button key={m.email} type="button" onClick={() => { const cur = cal.rep_emails||[]; onUpdate(cal.id,'rep_emails', inc ? cur.filter(e=>e!==m.email) : [...cur,m.email]); }} style={{ padding:'5px 12px', borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', border: inc?'none':'1px solid #E2E8F0', background: inc?'#0057FF':'#F8FAFC', color: inc?'#fff':'#475569' }}>{m.name||m.email.split('@')[0]}</button>;
+                  })}
+                </div>
+
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>Routing by Liquid Capital</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {TIERS.map(tier => (
+                    <TierRouting key={tier.key} tier={tier} rules={(cal.routing_rules||{})[tier.key]||[]} repEmails={cal.rep_emails||[]} members={members||[]} onChange={updated => onUpdate(cal.id,'routing_rules',{...cal.routing_rules,[tier.key]:updated})} />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Save / Delete */}
+            <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:18 }}>
+              <button style={{ ...s.saveBtn, background: isSaved?'#15803D':'#0057FF', minWidth:110 }} onClick={() => onSave(cal)} disabled={isSaving||!cal.name||!cal.slug}>
+                {isSaving?'Saving…':isSaved?'✓ Saved':'Save Calendar'}
+              </button>
+              <button onClick={() => onDelete(cal.id)} style={{ fontSize:12, color:'#DC2626', background:'none', border:'none', cursor:'pointer', fontFamily:'inherit', padding:0 }}>Delete</button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {personal.length > 0 && <div style={{ fontSize: 12, fontWeight: 700, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 8 }}>Personal Calendars</div>}
+      {personal.map(cal => <CalCard key={cal.id} cal={cal} />)}
+
+      {brand.length > 0 && <div style={{ fontSize: 12, fontWeight: 700, color: '#0057FF', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 8, marginTop: personal.length ? 16 : 0 }}>Brand Calendars</div>}
+      {brand.map(cal => <CalCard key={cal.id} cal={cal} />)}
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+        <button style={{ ...s.saveBtn, background:'#F5F3FF', color:'#7C3AED', border:'1px solid #DDD6FE' }} onClick={onAddPersonal}>+ Personal Calendar</button>
+        <button style={{ ...s.saveBtn, background:'#EFF6FF', color:'#0057FF', border:'1px solid #BFDBFE' }} onClick={onAddBrand}>+ Brand Calendar</button>
+      </div>
     </div>
   );
 }
 
-// ── ArrayField: comma-based tag list editor ────────────────────────────────
-function ArrayField({ label, values, onChange, placeholder }) {
+// ─── TierRouting — GHL-style weighted routing per liquid capital tier ─────────
+
+function TierRouting({ tier, rules, repEmails, members, onChange }) {
+  const repsInTier = Array.isArray(rules) ? rules : [];
+  const activeReps = repsInTier.filter(r => r.weight > 0);
+  const allSameWeight = activeReps.length > 0 && new Set(activeReps.map(r => r.weight)).size === 1;
+  const isEven = activeReps.length === 0 || allSameWeight;
+
+  function getWeight(email) {
+    return repsInTier.find(r => r.email === email)?.weight || 0;
+  }
+
+  function setWeight(email, w) {
+    const updated = repsInTier.filter(r => r.email !== email);
+    if (w > 0) updated.push({ email, weight: w });
+    onChange(updated);
+  }
+
+  function toggleEven(makeEven) {
+    if (makeEven) {
+      onChange(repEmails.map(e => ({ email: e, weight: 1 })));
+    } else {
+      // keep current weights, just switch UI to uneven
+      const cur = repEmails.map(e => ({ email: e, weight: getWeight(e) || 1 }));
+      onChange(cur);
+    }
+  }
+
+  const total = activeReps.reduce((s, r) => s + r.weight, 0);
+
+  return (
+    <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '10px 14px' }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 10 }}>{tier.label}</div>
+
+      {repEmails.length === 0 ? (
+        <div style={{ fontSize: 11, color: '#94A3B8' }}>Add reps above to configure routing.</div>
+      ) : (
+        <>
+          {/* Split traffic toggle */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: 13 }}>
+              <input type="radio" name={`split_${tier.key}`} checked={isEven} onChange={() => toggleEven(true)} style={{ accentColor: '#0057FF' }} />
+              Evenly
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: 13 }}>
+              <input type="radio" name={`split_${tier.key}`} checked={!isEven} onChange={() => toggleEven(false)} style={{ accentColor: '#0057FF' }} />
+              Unevenly
+            </label>
+          </div>
+
+          {/* Traffic weightage (shown only for Uneven) */}
+          {!isEven && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 6 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B' }}>Traffic weightage</div>
+              {repEmails.map(email => {
+                const w = getWeight(email);
+                const name = members.find(m => m.email === email)?.name || email.split('@')[0];
+                const pct = total > 0 ? Math.round((w / total) * 100) : 0;
+                return (
+                  <div key={email} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 100, fontSize: 13, color: '#0F172A', fontWeight: 500 }}>{name}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <input
+                        type="number" min="0" max="99" value={w}
+                        onChange={e => setWeight(email, parseInt(e.target.value)||0)}
+                        style={{ width: 60, padding: '4px 8px', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', textAlign: 'center' }}
+                      />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        <button type="button" onClick={() => setWeight(email, w+1)} style={{ fontSize: 10, lineHeight:1, padding:'2px 4px', border:'1px solid #E2E8F0', borderRadius:'4px 4px 0 0', background:'#F8FAFC', cursor:'pointer' }}>▲</button>
+                        <button type="button" onClick={() => setWeight(email, Math.max(0,w-1))} style={{ fontSize: 10, lineHeight:1, padding:'2px 4px', border:'1px solid #E2E8F0', borderTop:'none', borderRadius:'0 0 4px 4px', background:'#F8FAFC', cursor:'pointer' }}>▼</button>
+                      </div>
+                    </div>
+                    {total > 0 && <div style={{ fontSize: 11, color: '#64748B', minWidth: 36 }}>{pct}%</div>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {isEven && activeReps.length > 0 && (
+            <div style={{ fontSize: 11, color: '#64748B' }}>
+              {repEmails.map(e => members.find(m=>m.email===e)?.name||e.split('@')[0]).join(' · ')} — equal split
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── ChipInput — tag chip editor ──────────────────────────────────────────────
+
+function ChipInput({ values, onChange, placeholder }) {
   const [input, setInput] = useState('');
   return (
     <div style={{ marginBottom: 10 }}>
-      <label style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', display: 'block', marginBottom: 5 }}>{label}</label>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
         {values.map(v => (
-          <span key={v} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#EFF6FF', color: '#0057FF', borderRadius: 4, padding: '3px 8px', fontSize: 12, fontWeight: 600 }}>
+          <span key={v} style={{ display:'inline-flex', alignItems:'center', gap:4, background:'#EFF6FF', color:'#0057FF', borderRadius:4, padding:'3px 8px', fontSize:12, fontWeight:600 }}>
             {v}
-            <button type="button" onClick={() => onChange(values.filter(x => x !== v))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0057FF', fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
+            <button type="button" onClick={() => onChange(values.filter(x=>x!==v))} style={{ background:'none', border:'none', cursor:'pointer', color:'#0057FF', fontSize:14, lineHeight:1, padding:0 }}>×</button>
           </span>
         ))}
       </div>
-      <div style={{ display: 'flex', gap: 6 }}>
-        <input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && input.trim()) { onChange([...values, input.trim()]); setInput(''); } }}
-          placeholder={placeholder}
-          style={{ flex: 1, padding: '7px 10px', fontSize: 13, border: '1px solid #E2E8F0', borderRadius: 6, fontFamily: 'inherit', outline: 'none' }}
-        />
-        <button
-          type="button"
-          onClick={() => { if (input.trim()) { onChange([...values, input.trim()]); setInput(''); } }}
-          style={{ padding: '7px 14px', background: '#0057FF', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
-        >
-          Add
-        </button>
+      <div style={{ display:'flex', gap:6 }}>
+        <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&input.trim()){onChange([...values,input.trim()]);setInput('');}}} placeholder={placeholder} style={{ flex:1, padding:'7px 10px', fontSize:13, border:'1px solid #E2E8F0', borderRadius:6, fontFamily:'inherit', outline:'none' }} />
+        <button type="button" onClick={()=>{if(input.trim()){onChange([...values,input.trim()]);setInput('');}}} style={{ padding:'7px 14px', background:'#0057FF', color:'#fff', border:'none', borderRadius:6, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Add</button>
       </div>
     </div>
   );
