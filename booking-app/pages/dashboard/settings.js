@@ -471,19 +471,6 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
 
         <main style={s.main}>
 
-          {/* ── Booking URL ─────────────────────────────────────────────── */}
-          <Section title="Your Booking URL" subtitle="Paste this as the thank-you button destination in your Facebook Lead Ad.">
-            <div style={s.urlBox}>
-              <code style={s.urlCode}>{bookingUrl}</code>
-              <button style={{ ...s.chip, background: copied ? '#16A34A' : '#1D4ED8', color: '#fff' }} onClick={copyUrl}>
-                {copied ? '✓ Copied' : 'Copy'}
-              </button>
-            </div>
-            <p style={s.urlNote}>
-              Facebook substitutes <code style={s.inlineCode}>{'{{first_name}}'}</code> etc. with the lead's real data — your booking page then pre-fills their info and skips straight to the calendar.
-            </p>
-          </Section>
-
           {/* ── Team Members ────────────────────────────────────────────── */}
           <Section
             title="Team Members"
@@ -517,6 +504,34 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
                 + Add another team member →
               </a>
             </div>
+          </Section>
+
+          {/* ── Calendars ─────────────────────────────────────────────── */}
+          <Section
+            title="Calendars"
+            subtitle="Set up personal calendars (bookkanso.co/yourname) and brand calendars (bookkanso.co/wetfuel). Each gets its own booking URL, page content, calendar color, and rep routing."
+          >
+            <CalendarsEditor
+              brands={brands}
+              loading={brandsLoading}
+              expandedBrand={expandedBrand}
+              setExpandedBrand={setExpandedBrand}
+              brandSaving={brandSaving}
+              brandSaved={brandSaved}
+              members={members}
+              onSave={saveBrand}
+              onDelete={deleteBrand}
+              onAddPersonal={() => {
+                const b = { id: `new_${Date.now()}`, type: 'personal', slug: '', name: '', active: true, booking_headline: '', booking_subtitle: '', booking_description: '', meeting_title: '15-Minute Phone Call', meeting_duration: 15, event_description: '', event_location: '', event_color: null, event_reminder_mins: 15, fb_form_ids: [], ghl_tags: [], rep_emails: [], routing_rules: {} };
+                setBrands(bs => [...bs, b]); setExpandedBrand(b.id);
+              }}
+              onAddBrand={() => {
+                const b = { id: `new_${Date.now()}`, type: 'brand', slug: '', name: '', active: true, booking_headline: '', booking_subtitle: '', booking_description: '', meeting_title: '15-Minute Phone Call', meeting_duration: 15, event_description: '', event_location: '', event_color: null, event_reminder_mins: 15, fb_form_ids: [], ghl_tags: [], rep_emails: [], routing_rules: {} };
+                setBrands(bs => [...bs, b]); setExpandedBrand(b.id);
+              }}
+              onUpdate={updateBrandField}
+              styles={s}
+            />
           </Section>
 
           {/* ── Availability Settings ────────────────────────────────────── */}
@@ -762,34 +777,6 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
                 </table>
               </div>
             )}
-          </Section>
-
-          {/* ── Calendars ─────────────────────────────────────────────── */}
-          <Section
-            title="Calendars"
-            subtitle="Set up personal calendars (bookkanso.co/yourname) and brand calendars (bookkanso.co/wetfuel). Each gets its own booking URL, page content, calendar color, and rep routing."
-          >
-            <CalendarsEditor
-              brands={brands}
-              loading={brandsLoading}
-              expandedBrand={expandedBrand}
-              setExpandedBrand={setExpandedBrand}
-              brandSaving={brandSaving}
-              brandSaved={brandSaved}
-              members={members}
-              onSave={saveBrand}
-              onDelete={deleteBrand}
-              onAddPersonal={() => {
-                const b = { id: `new_${Date.now()}`, type: 'personal', slug: '', name: '', active: true, booking_headline: '', booking_subtitle: '', booking_description: '', meeting_title: '15-Minute Phone Call', meeting_duration: 15, event_description: '', event_location: '', event_color: null, event_reminder_mins: 15, fb_form_ids: [], ghl_tags: [], rep_emails: [], routing_rules: {} };
-                setBrands(bs => [...bs, b]); setExpandedBrand(b.id);
-              }}
-              onAddBrand={() => {
-                const b = { id: `new_${Date.now()}`, type: 'brand', slug: '', name: '', active: true, booking_headline: '', booking_subtitle: '', booking_description: '', meeting_title: '15-Minute Phone Call', meeting_duration: 15, event_description: '', event_location: '', event_color: null, event_reminder_mins: 15, fb_form_ids: [], ghl_tags: [], rep_emails: [], routing_rules: {} };
-                setBrands(bs => [...bs, b]); setExpandedBrand(b.id);
-              }}
-              onUpdate={updateBrandField}
-              styles={s}
-            />
           </Section>
 
           {/* ── BlueBubbles iMessage ─────────────────────────────────────── */}
