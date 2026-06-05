@@ -6,6 +6,7 @@ import {
   lookupGHLContactByEmail,
   getGHLContactOpportunity,
   updateGHLOpportunityStage,
+  updateGHLAppointmentStatus,
 } from '@/lib/ghl';
 
 const GHL_API     = 'https://services.leadconnectorhq.com';
@@ -14,7 +15,7 @@ const GHL_VERSION = '2021-07-28';
 async function triggerWorkflow(contactId, workflowId) {
   const apiKey = process.env.GHL_API_KEY;
   if (!apiKey || !contactId || !workflowId) return;
-  await fetch(`${GHL_API}/contacts/${contactId}/workflow/${workflowId}`, {
+  const res = await fetch(`${GHL_API}/contacts/${contactId}/workflow/${workflowId}`, {
     method:  'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
@@ -23,6 +24,11 @@ async function triggerWorkflow(contactId, workflowId) {
     },
     body: JSON.stringify({ eventStartTime: '' }),
   });
+  if (!res.ok) {
+    // 401/403 here usually means the token lacks the workflows scope.
+    const text = await res.text().catch(() => '');
+    throw new Error(`addToWorkflow failed ${res.status}: ${text}`);
+  }
 }
 import { logLeadEvent } from '@/lib/leadEvents';
 
@@ -45,9 +51,9 @@ const GHL_STAGE_CLOSED  = '435ab3d7-8889-4b16-b72f-0ae633e0cff6';
 // "Showed" has no explicit stage — lead stays at Booked Appointment until CQ is sent
 
 const STATUS_MAP = {
-  showed:    { tag: 'showed',     leadStatus: 'showed',    stageId: null              },
-  'no-show': { tag: 'no-show',    leadStatus: 'no-show',   stageId: GHL_STAGE_NO_SHOW },
-  closed:    { tag: 'closed-won', leadStatus: 'qualified', stageId: GHL_STAGE_CLOSED  },
+  showed:    { tag: 'showed',     leadStatus: 'showed',    stageId: null,              apptStatus: 'showed' },
+  'no-show': { tag: 'no-show',    leadStatus: 'no-show',   stageId: GHL_STAGE_NO_SHOW, apptStatus: 'noshow' },
+  closed:    { tag: 'closed-won', leadStatus: 'qualified', stageId: GHL_STAGE_CLOSED,  apptStatus: null     },
 };
 
 export default async function handler(req, res) {
@@ -64,16 +70,35 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: `Invalid status: ${status}` });
   }
 
-  const { tag, leadStatus, stageId } = STATUS_MAP[status];
+  const { tag, leadStatus, stageId, apptStatus } = STATUS_MAP[status];
   const supabase = getSupabaseAdmin();
   const errors   = [];
 
-  // 1. Update booking status
-  const { error: bookingErr } = await supabase
-    .from('bookings')
-    .update({ status })
-    .eq('id', bookingId);
-  if (bookingErr) errors.push(`booking update: ${bookingErr.message}`);
+  // GHL-sourced bookings have ids like `ghl_<eventId>` and no row in the
+  // bookings table — their displayed status comes from the GHL appointment.
+  const isGhlBooking = typeof bookingId === 'string' && bookingId.startsWith('ghl_');
+  const ghlEventId   = isGhlBooking ? bookingId.slice(4) : null;
+
+  // 1. Update booking status in Supabase (no-ops for GHL-only bookings, which
+  //    don't exist in this table — that's why step 1b is required to persist).
+  if (!isGhlBooking) {
+    const { error: bookingErr } = await supabase
+      .from('bookings')
+      .update({ status })
+      .eq('id', bookingId);
+    if (bookingErr) errors.push(`booking update: ${bookingErr.message}`);
+  }
+
+  // 1b. Persist to the GHL appointment so the change survives a refresh — the
+  //     meetings list reads appointmentStatus back from GHL.
+  if (ghlEventId && apptStatus) {
+    try {
+      await updateGHLAppointmentStatus(ghlEventId, apptStatus);
+    } catch (e) {
+      console.error('[update-booking-status] appointment status:', e.message);
+      errors.push(`GHL appointment: ${e.message}`);
+    }
+  }
 
   // 2. Update lead status (by email — most recent matching lead)
   const { data: leads } = await supabase
@@ -149,24 +174,40 @@ export default async function handler(req, res) {
     updated_by: 'dashboard',
   }).catch(() => {});
 
-  // Trigger mapped GHL workflow for no-show (fire-and-forget, non-blocking)
-  if (status === 'no-show' && assigned_user_id) {
+  // Trigger mapped GHL workflow for no-show (non-blocking, but log failures)
+  if (status === 'no-show') {
     try {
       const { data: settingsRow } = await supabase.from('settings').select('workflow_mappings').eq('id', 1).single();
-      const workflowId = settingsRow?.workflow_mappings?.mark_no_show?.[assigned_user_id];
-      if (workflowId) {
-        // Resolve GHL contact ID
-        const { data: bookingRow } = await supabase.from('bookings').select('ghl_contact_id').eq('id', bookingId).single();
+      const mapping  = settingsRow?.workflow_mappings?.mark_no_show || {};
+      const workflowId = assigned_user_id ? mapping[assigned_user_id] : null;
+
+      if (!assigned_user_id) {
+        console.warn('[update-booking-status] no-show workflow skipped: booking has no assigned_user_id (GHL user)', { bookingId, email });
+        errors.push('GHL workflow: no assigned GHL user on this booking');
+      } else if (!workflowId) {
+        console.warn('[update-booking-status] no-show workflow skipped: no mapping for user', assigned_user_id);
+        errors.push(`GHL workflow: no mapping for user ${assigned_user_id}`);
+      } else {
+        // Resolve GHL contact ID (bookingRow lookup is a no-op for ghl_ ids)
+        const { data: bookingRow } = isGhlBooking
+          ? { data: null }
+          : await supabase.from('bookings').select('ghl_contact_id').eq('id', bookingId).single();
         let ghlContactId = bookingRow?.ghl_contact_id ?? lead?.ghl_contact_id ?? null;
         if (!ghlContactId) {
           const c = await lookupGHLContactByEmail(email).catch(() => null);
           ghlContactId = c?.id ?? null;
         }
-        if (ghlContactId) {
-          triggerWorkflow(ghlContactId, workflowId).catch(() => {});
+        if (!ghlContactId) {
+          console.error('[update-booking-status] no-show workflow: could not resolve GHL contact for', email);
+          errors.push('GHL workflow: no contact id');
+        } else {
+          await triggerWorkflow(ghlContactId, workflowId);
         }
       }
-    } catch { /* non-fatal */ }
+    } catch (wfErr) {
+      console.error('[update-booking-status] no-show workflow:', wfErr.message);
+      errors.push(`GHL workflow: ${wfErr.message}`);
+    }
   }
 
   res.json({ ok: true, status, errors: errors.length ? errors : undefined });

@@ -241,3 +241,32 @@ export async function updateGHLOpportunityStage(opportunityId, stageId) {
   }
   return res.json();
 }
+
+/**
+ * Update a GHL calendar appointment's status. This is what the meetings list
+ * reads back (appointmentStatus), so it's required for a status change to
+ * persist across refreshes for GHL-sourced bookings.
+ *
+ * @param {string} eventId            GHL appointment/event id (no `ghl_` prefix)
+ * @param {string} appointmentStatus  one of: new | confirmed | cancelled | showed | noshow | invalid
+ */
+export async function updateGHLAppointmentStatus(eventId, appointmentStatus) {
+  const apiKey = process.env.GHL_API_KEY;
+  if (!apiKey || !eventId || !appointmentStatus) return null;
+
+  const res = await fetch(`${GHL_API}/calendars/events/appointments/${eventId}`, {
+    method:  'PUT',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type':  'application/json',
+      'Version':       GHL_VERSION,
+    },
+    body: JSON.stringify({ appointmentStatus }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`GHL updateAppointmentStatus failed ${res.status}: ${text}`);
+  }
+  return res.json();
+}
