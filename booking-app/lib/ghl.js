@@ -111,6 +111,27 @@ export async function addGHLNote(contactId, body) {
 }
 
 /**
+ * Update an existing note on a GHL contact. Returns the parsed response or null.
+ */
+export async function updateGHLNote(contactId, noteId, body) {
+  const apiKey = process.env.GHL_API_KEY;
+  if (!apiKey || !contactId || !noteId) return null;
+
+  const res = await fetch(`${GHL_API}/contacts/${contactId}/notes/${noteId}`, {
+    method:  'PUT',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type':  'application/json',
+      'Version':       GHL_VERSION,
+    },
+    body: JSON.stringify({ userId: '', body, contactId }),
+  });
+
+  if (!res.ok) return null;
+  return res.json();
+}
+
+/**
  * Add tags to an existing GHL contact by ID.
  */
 export async function addGHLTags(contactId, tags) {
