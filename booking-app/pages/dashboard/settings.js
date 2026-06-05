@@ -1187,7 +1187,7 @@ function CalCard({ cal, expandedBrand, setExpandedBrand, brandSaving, brandSaved
               </div>
 
               <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>Routing by Liquid Capital</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 {TIERS.map(tier => (
                   <TierRouting key={tier.key} tier={tier} rules={(cal.routing_rules||{})[tier.key]||[]} repEmails={cal.rep_emails||[]} members={members||[]} onChange={updated => onUpdate(cal.id,'routing_rules',{...cal.routing_rules,[tier.key]:updated})} />
                 ))}
@@ -1238,24 +1238,16 @@ function TierRouting({ tier, rules, repEmails, members, onChange }) {
   const repsInTier = Array.isArray(rules) ? rules : [];
   const activeReps = repsInTier.filter(r => r.weight > 0);
   const allSameWeight = activeReps.length > 0 && new Set(activeReps.map(r => r.weight)).size === 1;
-  // Initialize split mode from existing weights
-  const [splitMode, setSplitMode] = useState(() => allSameWeight || activeReps.length === 0 ? 'even' : 'uneven');
+  const [splitMode, setSplitMode] = useState(() => (!allSameWeight && activeReps.length > 0) ? 'uneven' : 'even');
 
-  function getWeight(email) {
-    return repsInTier.find(r => r.email === email)?.weight || 0;
-  }
+  function getWeight(email) { return repsInTier.find(r => r.email === email)?.weight || 0; }
 
   function handleSplitChange(mode) {
     setSplitMode(mode);
     if (mode === 'even') {
       onChange(repEmails.map(e => ({ email: e, weight: 1 })));
     } else {
-      // When switching to uneven, give first rep weight 2 so they're not all equal
-      const existing = repEmails.map((e, i) => {
-        const w = getWeight(e);
-        return { email: e, weight: w > 0 ? w : (i === 0 ? 2 : 1) };
-      });
-      onChange(existing);
+      onChange(repEmails.map((e, i) => ({ email: e, weight: getWeight(e) || (i === 0 ? 2 : 1) })));
     }
   }
 
@@ -1268,65 +1260,62 @@ function TierRouting({ tier, rules, repEmails, members, onChange }) {
   const total = repsInTier.filter(r => r.weight > 0).reduce((s, r) => s + r.weight, 0);
 
   return (
-    <div style={{ background: '#FAFBFD', border: '1px solid #E2E8F0', borderRadius: 8, padding: '12px 14px', marginBottom: 8 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>{tier.label}</div>
+    <div style={{ background: '#FAFBFD', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 12px' }}>
+      {/* Tier label + toggle on same row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: repEmails.length >= 2 ? 8 : 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A' }}>{tier.label}</div>
+        {repEmails.length >= 2 && (
+          <div style={{ display: 'flex', gap: 0, border: '1px solid #E2E8F0', borderRadius: 6, overflow: 'hidden' }}>
+            {['even', 'uneven'].map(mode => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => handleSplitChange(mode)}
+                style={{
+                  padding: '3px 9px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', border: 'none',
+                  background: splitMode === mode ? '#0057FF' : '#FFFFFF',
+                  color: splitMode === mode ? '#fff' : '#64748B',
+                  borderRight: mode === 'even' ? '1px solid #E2E8F0' : 'none',
+                }}
+              >
+                {mode === 'even' ? 'Even' : 'Custom'}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {repEmails.length < 2 ? (
-        <div style={{ fontSize: 12, color: '#94A3B8' }}>Add 2+ reps to configure split routing.</div>
+        <div style={{ fontSize: 11, color: '#CBD5E1' }}>Add 2+ reps</div>
+      ) : splitMode === 'even' ? (
+        <div style={{ fontSize: 11, color: '#64748B' }}>
+          {repEmails.map(e => members.find(m => m.email === e)?.name || e.split('@')[0]).join(' · ')}
+        </div>
       ) : (
-        <>
-          {/* Split traffic */}
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 6 }}>Split traffic</div>
-            <div style={{ display: 'flex', gap: 16 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#0F172A' }}>
-                <input type="radio" checked={splitMode === 'even'} onChange={() => handleSplitChange('even')} style={{ accentColor: '#0057FF', width: 15, height: 15 }} />
-                Evenly
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#0F172A' }}>
-                <input type="radio" checked={splitMode === 'uneven'} onChange={() => handleSplitChange('uneven')} style={{ accentColor: '#0057FF', width: 15, height: 15 }} />
-                Unevenly
-              </label>
-            </div>
-          </div>
-
-          {/* Traffic weightage — only shown for uneven */}
-          {splitMode === 'uneven' && (
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 8 }}>Traffic weightage</div>
-              {repEmails.map(email => {
-                const w = getWeight(email);
-                const name = members.find(m => m.email === email)?.name || email.split('@')[0];
-                const pct = total > 0 ? Math.round((w / total) * 100) : 0;
-                return (
-                  <div key={email} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#0F172A' }}>{name}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {total > 0 && <div style={{ fontSize: 12, color: '#64748B', minWidth: 32, textAlign: 'right' }}>{pct}%</div>}
-                      <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #E2E8F0', borderRadius: 6, overflow: 'hidden' }}>
-                        <input
-                          type="number" min="0" max="99" value={w}
-                          onChange={e => setWeight(email, parseInt(e.target.value) || 0)}
-                          style={{ width: 52, padding: '5px 8px', border: 'none', fontSize: 13, fontFamily: 'inherit', textAlign: 'center', outline: 'none' }}
-                        />
-                        <div style={{ display: 'flex', flexDirection: 'column', borderLeft: '1px solid #E2E8F0' }}>
-                          <button type="button" onClick={() => setWeight(email, w + 1)} style={{ fontSize: 9, lineHeight: 1, padding: '3px 6px', border: 'none', background: '#F8FAFC', cursor: 'pointer', borderBottom: '1px solid #E2E8F0' }}>▲</button>
-                          <button type="button" onClick={() => setWeight(email, Math.max(0, w - 1))} style={{ fontSize: 9, lineHeight: 1, padding: '3px 6px', border: 'none', background: '#F8FAFC', cursor: 'pointer' }}>▼</button>
-                        </div>
-                      </div>
-                    </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {repEmails.map(email => {
+            const w   = getWeight(email);
+            const pct = total > 0 ? Math.round((w / total) * 100) : 0;
+            const name = members.find(m => m.email === email)?.name || email.split('@')[0];
+            return (
+              <div key={email} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1, fontSize: 12, fontWeight: 500, color: '#0F172A', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+                <div style={{ fontSize: 11, color: '#64748B', minWidth: 28, textAlign: 'right' }}>{pct}%</div>
+                <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #E2E8F0', borderRadius: 5, overflow: 'hidden', flexShrink: 0 }}>
+                  <input
+                    type="number" min="0" max="99" value={w}
+                    onChange={e => setWeight(email, parseInt(e.target.value) || 0)}
+                    style={{ width: 36, padding: '3px 4px', border: 'none', fontSize: 12, fontFamily: 'inherit', textAlign: 'center', outline: 'none', background: '#fff' }}
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', borderLeft: '1px solid #E2E8F0' }}>
+                    <button type="button" onClick={() => setWeight(email, w + 1)} style={{ fontSize: 8, lineHeight: 1, padding: '2px 5px', border: 'none', background: '#F8FAFC', cursor: 'pointer', borderBottom: '1px solid #E2E8F0' }}>▲</button>
+                    <button type="button" onClick={() => setWeight(email, Math.max(0, w - 1))} style={{ fontSize: 8, lineHeight: 1, padding: '2px 5px', border: 'none', background: '#F8FAFC', cursor: 'pointer' }}>▼</button>
                   </div>
-                );
-              })}
-            </div>
-          )}
-
-          {splitMode === 'even' && (
-            <div style={{ fontSize: 12, color: '#64748B' }}>
-              {repEmails.map(e => members.find(m => m.email === e)?.name || e.split('@')[0]).join(' · ')} — equal split
-            </div>
-          )}
-        </>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
