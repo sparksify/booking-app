@@ -164,7 +164,8 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   const { data: session } = useSession();
   const router = useRouter();
   const focusedRef = useRef(false);
-  const [filter,       setFilter]       = useState('week');
+  const canPersistRef = useRef(false);
+  const [filter,       setFilter]       = useState('today');
   const [bookings,     setBookings]     = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [updating,     setUpdating]     = useState({});
@@ -172,7 +173,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   const [search,       setSearch]       = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
-  const [repFilter,    setRepFilter]    = useState([]);
+  const [repFilter,    setRepFilter]    = useState(['Steve Sparks']);
   const [panelBooking, setPanelBooking] = useState(null);
   const [lead,         setLead]         = useState(null);
   const [panelNotes,   setPanelNotes]   = useState('');
@@ -183,15 +184,52 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   const [smsConfirmations, setSmsConfirmations] = useState({});
   const nowLineRef = useRef(null);
 
-  // Auto-scroll to the "Now" divider once data loads so the current appointment
-  // is the first one visible. The user can still scroll up to see past meetings.
+  // Auto-scroll so past meetings sit above the fold and the current/next one is
+  // near the top of the table. The user can still scroll up to see earlier ones.
   useEffect(() => {
-    if (!loading && nowLineRef.current) {
-      requestAnimationFrame(() => {
-        nowLineRef.current?.scrollIntoView({ block: 'start', behavior: 'instant' });
-      });
+    if (loading) return;
+    const t = setTimeout(() => {
+      const el = nowLineRef.current;
+      if (!el) return;
+      let sc = el.parentElement;
+      while (sc && sc !== document.body) {
+        const oy = getComputedStyle(sc).overflowY;
+        if (oy === 'auto' || oy === 'scroll') break;
+        sc = sc.parentElement;
+      }
+      if (sc && sc !== document.body) {
+        const r = el.getBoundingClientRect();
+        const sr = sc.getBoundingClientRect();
+        sc.scrollTop += (r.top - sr.top) - 12;
+      } else {
+        el.scrollIntoView({ block: 'start' });
+      }
+    }, 180);
+    return () => clearTimeout(t);
+  }, [loading, bookings.length, filter, repFilter, statusFilter, sourceFilter]);
+
+  // Remember the last-used filters (default: Today + Steve Sparks).
+  useEffect(() => {
+    if (!router.isReady || canPersistRef.current) return;
+    if (!router.query.focus) {
+      try {
+        const f   = localStorage.getItem('mtg_filter');
+        const r   = localStorage.getItem('mtg_repFilter');
+        const sf  = localStorage.getItem('mtg_statusFilter');
+        const src = localStorage.getItem('mtg_sourceFilter');
+        if (f)             setFilter(f);
+        if (r)             setRepFilter(JSON.parse(r));
+        if (sf  !== null)  setStatusFilter(sf  || '');
+        if (src !== null)  setSourceFilter(src || '');
+      } catch {}
     }
-  }, [loading]);
+    canPersistRef.current = true;
+  }, [router.isReady, router.query.focus]);
+
+  useEffect(() => { if (canPersistRef.current) { try { localStorage.setItem('mtg_filter', filter); } catch {} } }, [filter]);
+  useEffect(() => { if (canPersistRef.current) { try { localStorage.setItem('mtg_repFilter', JSON.stringify(repFilter)); } catch {} } }, [repFilter]);
+  useEffect(() => { if (canPersistRef.current) { try { localStorage.setItem('mtg_statusFilter', statusFilter); } catch {} } }, [statusFilter]);
+  useEffect(() => { if (canPersistRef.current) { try { localStorage.setItem('mtg_sourceFilter', sourceFilter); } catch {} } }, [sourceFilter]);
 
   // After bookings load, auto-check SMS confirmation for bookings that have a GHL contact.
   // Batched in groups of 5 to stay within GHL rate limits.
@@ -477,6 +515,9 @@ export default function BookingsDashboard({ brandPitches = {} }) {
             {/* Next Up */}
             {nextUp && (() => {
               const initials = `${nextUp.first_name?.[0] || ''}${nextUp.last_name?.[0] || ''}`.toUpperCase();
+              const { score: nextScore } = computeLeadScore({ liquidRaw: nextUp.investment_level, confStatus: smsConfirmations[nextUp.id]?.status, status: nextUp.status, cqSent: !!nextUp.cq_sent_at, cqReceived: !!nextUp.cq_received_at, emailOpened: false });
+              const nextTier = scoreTier(nextScore);
+              const nextConf = smsConfirmations[nextUp.id];
               return (
                 <div style={s.nextUp}>
                   {/* Time */}
@@ -494,8 +535,14 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                   {/* Avatar + Info */}
                   <div style={s.nextUpAvatar}>{initials}</div>
                   <div style={s.nextUpInfo}>
-                    <div style={{ marginBottom: 4 }}>
+                    <div style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <SourceBadge source={nextUp._source_display || 'KANSO'} />
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 700, color: nextTier.color, background: nextTier.bg, border: `1px solid ${nextTier.border}` }}>Score {nextScore}</span>
+                      {nextConf && !nextConf.loading && (() => {
+                        const CONF = { confirmed: { l: '✓ Confirmed', c: '#15803D', b: '#DCFCE7', br: '#BBF7D0' }, declined: { l: '✗ Declined', c: '#DC2626', b: '#FEE2E2', br: '#FECACA' }, uncertain: { l: '? Maybe', c: '#B45309', b: '#FEF3C7', br: '#FDE68A' } };
+                        const cc = CONF[nextConf.status];
+                        return cc ? <span style={{ padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: cc.c, background: cc.b, border: `1px solid ${cc.br}` }}>{cc.l}</span> : null;
+                      })()}
                     </div>
                     <div style={s.nextUpName}>{nextUp.first_name} {nextUp.last_name}</div>
                     {nextUp.event_name && <div style={s.nextUpSub}>{nextUp.event_name}</div>}
@@ -617,7 +664,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                 <table style={s.table}>
                   <thead>
                     <tr>
-                      {['Time', 'Client', 'Source / Type', 'Rep', 'Liquid Capital', 'Confirmed', 'CQ Sent', 'Status', 'Actions'].map(h => (
+                      {['Time', 'Client', 'Score', 'Source / Type', 'Rep', 'Liquid Capital', 'Confirmed', 'CQ Sent', 'Status', 'Actions'].map(h => (
                         <th key={h} style={s.th}>{h}</th>
                       ))}
                     </tr>
@@ -641,7 +688,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                           nowInserted = true;
                           rows.push(
                             <tr key="now-divider" ref={nowLineRef} style={{ pointerEvents: 'none' }}>
-                              <td colSpan={9} style={{ padding: '2px 16px' }}>
+                              <td colSpan={10} style={{ padding: '2px 16px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                   <div style={{ flex: 1, height: 1, background: '#EF4444', opacity: 0.4 }} />
                                   <span style={{ fontSize: 10, fontWeight: 700, color: '#EF4444', letterSpacing: '.05em', textTransform: 'uppercase', flexShrink: 0 }}>Now</span>
@@ -710,6 +757,9 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus,
   const rowBg = selected ? '#EFF6FF' : inProgress ? '#F0FDF4' : striped ? '#FAFAFA' : '#fff';
   const firstTdBorder = selected ? { borderLeft: '3px solid #2563EB' } : { borderLeft: '3px solid transparent' };
 
+  const { score: leadScore } = computeLeadScore({ liquidRaw: b.investment_level, confStatus: confirmation?.status, status: b.status, cqSent: !!b.cq_sent_at, cqReceived: !!b.cq_received_at, emailOpened: false });
+  const sTier = scoreTier(leadScore);
+
   return (
     <tr style={{ ...s.tr, background: rowBg, cursor: 'pointer' }} onClick={onRowClick}>
 
@@ -728,6 +778,13 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus,
       <td style={s.td}>
         <div style={{ fontWeight: 600, color: '#2563EB', fontSize: 13 }}>{b.first_name} {b.last_name}</div>
         <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{b.email}</div>
+      </td>
+
+      {/* Score */}
+      <td style={s.td}>
+        <span title={`Lead score (${sTier.label})`} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 34, padding: '4px 9px', borderRadius: 8, fontSize: 14, fontWeight: 800, color: sTier.color, background: sTier.bg, border: `1px solid ${sTier.border}` }}>
+          {leadScore}
+        </span>
       </td>
 
       {/* Source / Type */}
@@ -783,15 +840,22 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus,
         })()}
       </td>
 
-      {/* CQ Sent */}
+      {/* CQ Sent — bubble + timestamp (mirrors the Source/Type column) */}
       <td style={s.td}>
         {b.cq_sent_at ? (
-          <span style={{ fontSize: 11, color: '#475569', whiteSpace: 'nowrap' }} title={new Date(b.cq_sent_at).toLocaleString('en-US')}>
-            {b.cq_received_at && <span style={{ color: '#15803D', marginRight: 4, fontWeight: 700 }}>✓</span>}
-            {new Date(b.cq_sent_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-            {' · '}
-            {new Date(b.cq_sent_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-          </span>
+          <div>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 700, color: '#6D28D9', background: '#F5F3FF', border: '1px solid #DDD6FE', whiteSpace: 'nowrap' }}>
+              ✓ CQ Sent
+            </span>
+            <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4, whiteSpace: 'nowrap' }}>
+              {new Date(b.cq_sent_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              {' · '}
+              {new Date(b.cq_sent_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+            </div>
+            {b.cq_received_at && (
+              <div style={{ fontSize: 10, color: '#15803D', fontWeight: 700, marginTop: 2 }}>✓ Returned</div>
+            )}
+          </div>
         ) : (
           <span style={{ color: '#E2E8F0' }}>—</span>
         )}
@@ -1271,7 +1335,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                     {cqReceived ? (
                       <div style={{ ...p.qaBtn, background: '#DCFCE7', color: '#15803D', border: '1px solid #BBF7D0', marginBottom: 8, cursor: 'default' }}>✓ CQ Received</div>
                     ) : (
-                      <button style={{ ...p.qaBtn, background: cqSent ? '#fff' : '#2563EB', color: cqSent ? '#15803D' : '#fff', border: cqSent ? '1px solid #A7F3D0' : 'none', marginBottom: 8 }} onClick={sendCQ} disabled={cqSent}>
+                      <button style={{ ...p.qaBtn, background: cqSent ? '#16A34A' : '#2563EB', color: '#fff', border: 'none', marginBottom: 8, cursor: cqSent ? 'default' : 'pointer', opacity: cqSent ? 0.95 : 1 }} onClick={sendCQ} disabled={cqSent}>
                         {cqSent ? '✓ CQ Sent' : 'Send CQ'}
                       </button>
                     )}
