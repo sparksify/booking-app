@@ -26,14 +26,15 @@ export default async function handler(req, res) {
   if (!session) return res.status(401).json({ error: 'Unauthorized' });
 
   const { bookingId, email, slot_start } = req.body;
-  if (!bookingId || !email) {
-    return res.status(400).json({ error: 'Missing bookingId or email' });
+  // bookingId is optional — the CQ Recovery queue marks received by email + slot.
+  if (!email) {
+    return res.status(400).json({ error: 'Missing email' });
   }
 
   const supabase = getSupabaseAdmin();
   const errors   = [];
   const now      = new Date().toISOString();
-  const isUuidBooking = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bookingId);
+  const isUuidBooking = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bookingId || '');
 
   // Stamp cq_received_at — native booking column when uuid, plus a source-agnostic
   // override keyed by email + slot so it persists for Calendly/GHL bookings too.
@@ -56,12 +57,14 @@ export default async function handler(req, res) {
     errors.push('cq override: missing slot_start');
   }
 
-  // Look up GHL opportunity and move stage
-  const { data: booking } = await supabase
-    .from('bookings')
-    .select('ghl_opportunity_id, ghl_contact_id')
-    .eq('id', bookingId)
-    .single();
+  // Look up GHL opportunity and move stage (uuid-keyed bookings only)
+  const { data: booking } = isUuidBooking
+    ? await supabase
+        .from('bookings')
+        .select('ghl_opportunity_id, ghl_contact_id')
+        .eq('id', bookingId)
+        .single()
+    : { data: null };
 
   try {
     let oppId = booking?.ghl_opportunity_id ?? null;

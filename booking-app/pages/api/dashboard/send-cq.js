@@ -42,21 +42,24 @@ export default async function handler(req, res) {
   if (!session) return res.status(401).json({ error: 'Unauthorized' });
 
   const { bookingId, email, assigned_user_id, slot_start } = req.body;
-  if (!bookingId || !email) {
-    return res.status(400).json({ error: 'Missing bookingId or email' });
+  // bookingId is optional — the CQ Recovery queue resends by email + slot only.
+  if (!email) {
+    return res.status(400).json({ error: 'Missing email' });
   }
 
   const supabase = getSupabaseAdmin();
   const errors   = [];
   const cqSentAt = new Date().toISOString();
-  const isUuidBooking = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bookingId);
+  const isUuidBooking = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bookingId || '');
 
-  // Look up the stored GHL opportunity ID on the booking
-  const { data: booking } = await supabase
-    .from('bookings')
-    .select('ghl_opportunity_id, ghl_contact_id')
-    .eq('id', bookingId)
-    .single();
+  // Look up the stored GHL opportunity ID on the booking (uuid-keyed only)
+  const { data: booking } = isUuidBooking
+    ? await supabase
+        .from('bookings')
+        .select('ghl_opportunity_id, ghl_contact_id')
+        .eq('id', bookingId)
+        .single()
+    : { data: null };
 
   try {
     let oppId = booking?.ghl_opportunity_id ?? null;
@@ -112,8 +115,10 @@ export default async function handler(req, res) {
       const { data: settingsRow } = await supabase.from('settings').select('workflow_mappings').eq('id', 1).single();
       const workflowId = settingsRow?.workflow_mappings?.send_cq?.[assigned_user_id];
       if (workflowId) {
-        // Resolve GHL contact ID for the workflow call
-        const { data: bookingRow } = await supabase.from('bookings').select('ghl_contact_id').eq('id', bookingId).single();
+        // Resolve GHL contact ID for the workflow call (uuid-keyed bookings only)
+        const { data: bookingRow } = isUuidBooking
+          ? await supabase.from('bookings').select('ghl_contact_id').eq('id', bookingId).single()
+          : { data: null };
         let ghlContactId = bookingRow?.ghl_contact_id ?? null;
         if (!ghlContactId) {
           const { lookupGHLContactByEmail } = await import('@/lib/ghl');
