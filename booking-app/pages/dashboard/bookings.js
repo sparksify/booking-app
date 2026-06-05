@@ -407,8 +407,8 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                 { label: 'Scheduled', num: counts.scheduled   || 0, iconBg: '#DBEAFE', iconColor: '#2563EB', icon: 'calendar' },
                 { label: 'Showed',    num: counts.showed      || 0, iconBg: '#D1FAE5', iconColor: '#059669', icon: 'check'    },
                 { label: 'No-Shows',  num: counts['no-show']  || 0, iconBg: '#FEE2E2', iconColor: '#DC2626', icon: 'x-circle' },
-                { label: 'CQ Sent',   num: cqSentCount,            iconBg: '#EDE9FE', iconColor: '#7C3AED', icon: 'mail'     },
                 { label: 'Show Rate', num: showRate,               iconBg: '#DBEAFE', iconColor: '#2563EB', icon: 'trending' },
+                { label: 'CQ Sent',   num: cqSentCount,            iconBg: '#EDE9FE', iconColor: '#7C3AED', icon: 'mail'     },
               ].map((st, i) => (
                 <div key={st.label} style={{ ...s.statCell, ...(i < 4 ? { borderRight: '1px solid #E5E7EB' } : {}) }}>
                   <div style={{ ...s.statIconCircle, background: st.iconBg }}>
@@ -955,13 +955,13 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
     setCqSent(true);
     setCqSentAt(now);
     onCQSent?.(now); // bubble up so the meetings list + CQ Sent KPI update immediately
-    await fetch('/api/dashboard/send-cq', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: booking.id, email: booking.email, assigned_user_id: booking.assigned_user_id || null }) }).catch(console.error);
+    await fetch('/api/dashboard/send-cq', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: booking.id, email: booking.email, assigned_user_id: booking.assigned_user_id || null, slot_start: booking.slot_start }) }).catch(console.error);
   }
   async function markCQReceived() {
     const now = new Date().toISOString();
     if (isDemo) { setCqReceived(true); setCqReceivedAt(now); return; }
     setCqRecvSaving(true);
-    const res = await fetch('/api/dashboard/mark-cq-received', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: booking.id, email: booking.email }) }).catch(console.error);
+    const res = await fetch('/api/dashboard/mark-cq-received', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: booking.id, email: booking.email, slot_start: booking.slot_start }) }).catch(console.error);
     const data = res ? await res.json().catch(() => ({})) : {};
     setCqReceived(true);
     setCqReceivedAt(data.cq_received_at || now);

@@ -41,13 +41,15 @@ export default async function handler(req, res) {
   const session = await getServerSession(req, res, authOptions);
   if (!session) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { bookingId, email, assigned_user_id } = req.body;
+  const { bookingId, email, assigned_user_id, slot_start } = req.body;
   if (!bookingId || !email) {
     return res.status(400).json({ error: 'Missing bookingId or email' });
   }
 
   const supabase = getSupabaseAdmin();
   const errors   = [];
+  const cqSentAt = new Date().toISOString();
+  const isUuidBooking = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bookingId);
 
   // Look up the stored GHL opportunity ID on the booking
   const { data: booking } = await supabase
@@ -83,8 +85,24 @@ export default async function handler(req, res) {
     errors.push(err.message);
   }
 
-  // Stamp cq_sent_at on the booking (fire-and-forget)
-  supabase.from('bookings').update({ cq_sent_at: new Date().toISOString() }).eq('id', bookingId).then(() => {});
+  // Persist cq_sent_at. Native (uuid) bookings get the column updated; for all
+  // sources (Calendly/GHL included) we also write a source-agnostic override
+  // keyed by email + slot so the meetings list and CQ Sent KPI read it back.
+  if (isUuidBooking) {
+    supabase.from('bookings').update({ cq_sent_at: cqSentAt }).eq('id', bookingId).then(() => {});
+  }
+  if (slot_start) {
+    const { error: ovrErr } = await supabase
+      .from('meeting_status_overrides')
+      .upsert(
+        { email, slot_start, cq_sent_at: cqSentAt, updated_by: session.user?.email || 'dashboard', updated_at: cqSentAt },
+        { onConflict: 'email,slot_start' }
+      );
+    if (ovrErr) errors.push(`cq override: ${ovrErr.message}`);
+  } else {
+    console.warn('[send-cq] missing slot_start — CQ sent may not persist for non-native bookings', { bookingId });
+    errors.push('cq override: missing slot_start');
+  }
 
   logLeadEvent(email, 'cq_email_sent', { booking_id: bookingId }).catch(() => {});
 

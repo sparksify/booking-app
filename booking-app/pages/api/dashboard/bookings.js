@@ -181,18 +181,18 @@ export default async function handler(req, res) {
     }
   }
 
-  // Manual status overrides (showed / no-show / closed) keyed by email + 30-min
-  // slot bucket. These let a rep's status stick regardless of booking source —
+  // Manual overrides (status + CQ timestamps) keyed by email + 30-min slot
+  // bucket. These let a rep's actions stick regardless of booking source —
   // Calendly and GHL rows have no row in the bookings table to update.
-  const statusOverrideByKey = {};
+  const overrideByKey = {};
   {
     const { data: overrides } = await supabase
       .from('meeting_status_overrides')
-      .select('email, slot_start, status');
+      .select('email, slot_start, status, cq_sent_at, cq_received_at');
     for (const o of overrides || []) {
       if (!o.email || !o.slot_start) continue;
       const k = `${o.email.toLowerCase()}:${Math.round(new Date(o.slot_start).getTime() / (30 * 60_000))}`;
-      statusOverrideByKey[k] = o.status;
+      overrideByKey[k] = o;
     }
   }
 
@@ -213,13 +213,15 @@ export default async function handler(req, res) {
       const lead = leadsByEmail[emailLow] || {};
       // GHL contact resolved by email (id + liquid capital) for rows missing a contact id
       const ghlC = ghlContactByEmail[emailLow] || {};
+      // Manual override (status + CQ timestamps) for this meeting, if any
+      const ovr = overrideByKey[key] || {};
       deduped.push({
         ...b,
         // Manual override wins over the source's status (e.g. Calendly always
         // reports 'scheduled'; a rep marking no-show must take precedence).
-        status:           statusOverrideByKey[key] || b.status,
-        cq_sent_at:       b.cq_sent_at       || cq.cq_sent_at       || null,
-        cq_received_at:   b.cq_received_at   || cq.cq_received_at   || null,
+        status:           ovr.status         || b.status,
+        cq_sent_at:       ovr.cq_sent_at     || b.cq_sent_at     || cq.cq_sent_at     || null,
+        cq_received_at:   ovr.cq_received_at  || b.cq_received_at || cq.cq_received_at || null,
         ghl_contact_id:   b.ghl_contact_id   || ghlC.id             || null,
         investment_level: b.investment_level || ghlC.liquidCapital  || lead.investment_level || null,
       });

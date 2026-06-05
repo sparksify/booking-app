@@ -25,7 +25,7 @@ export default async function handler(req, res) {
   const session = await getServerSession(req, res, authOptions);
   if (!session) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { bookingId, email } = req.body;
+  const { bookingId, email, slot_start } = req.body;
   if (!bookingId || !email) {
     return res.status(400).json({ error: 'Missing bookingId or email' });
   }
@@ -33,12 +33,28 @@ export default async function handler(req, res) {
   const supabase = getSupabaseAdmin();
   const errors   = [];
   const now      = new Date().toISOString();
+  const isUuidBooking = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bookingId);
 
-  // Stamp cq_received_at on the booking
-  await supabase
-    .from('bookings')
-    .update({ cq_received_at: now })
-    .eq('id', bookingId);
+  // Stamp cq_received_at — native booking column when uuid, plus a source-agnostic
+  // override keyed by email + slot so it persists for Calendly/GHL bookings too.
+  if (isUuidBooking) {
+    await supabase
+      .from('bookings')
+      .update({ cq_received_at: now })
+      .eq('id', bookingId);
+  }
+  if (slot_start) {
+    const { error: ovrErr } = await supabase
+      .from('meeting_status_overrides')
+      .upsert(
+        { email, slot_start, cq_received_at: now, updated_by: session.user?.email || 'dashboard', updated_at: now },
+        { onConflict: 'email,slot_start' }
+      );
+    if (ovrErr) errors.push(`cq override: ${ovrErr.message}`);
+  } else {
+    console.warn('[mark-cq-received] missing slot_start — CQ received may not persist for non-native bookings', { bookingId });
+    errors.push('cq override: missing slot_start');
+  }
 
   // Look up GHL opportunity and move stage
   const { data: booking } = await supabase
@@ -94,7 +110,7 @@ export default async function handler(req, res) {
       const { data: nurtureClient } = await supabase
         .from('nurture_clients')
         .insert({
-          booking_id:  bookingId,
+          booking_id:  isUuidBooking ? bookingId : null,
           lead_id:     lead?.id     || null,
           email,
           first_name:  lead?.first_name || null,
