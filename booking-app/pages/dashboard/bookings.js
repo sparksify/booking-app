@@ -103,6 +103,7 @@ function StatIcon({ name, color }) {
   if (name === 'x-circle') return <svg {...p}><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>;
   if (name === 'award')    return <svg {...p}><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>;
   if (name === 'trending') return <svg {...p}><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>;
+  if (name === 'mail')     return <svg {...p}><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg>;
   return null;
 }
 
@@ -283,6 +284,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   });
 
   const counts = filteredBookings.reduce((acc, b) => { acc[b.status] = (acc[b.status] || 0) + 1; return acc; }, {});
+  const cqSentCount = filteredBookings.filter(b => b.cq_sent_at).length;
   const showRateDenom = (counts.showed || 0) + (counts['no-show'] || 0);
   const showRate = showRateDenom > 0 ? Math.round((counts.showed || 0) / showRateDenom * 100) + '%' : '0%';
 
@@ -405,7 +407,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                 { label: 'Scheduled', num: counts.scheduled   || 0, iconBg: '#DBEAFE', iconColor: '#2563EB', icon: 'calendar' },
                 { label: 'Showed',    num: counts.showed      || 0, iconBg: '#D1FAE5', iconColor: '#059669', icon: 'check'    },
                 { label: 'No-Shows',  num: counts['no-show']  || 0, iconBg: '#FEE2E2', iconColor: '#DC2626', icon: 'x-circle' },
-                { label: 'Closed',    num: counts.closed      || 0, iconBg: '#EDE9FE', iconColor: '#7C3AED', icon: 'award'    },
+                { label: 'CQ Sent',   num: cqSentCount,            iconBg: '#EDE9FE', iconColor: '#7C3AED', icon: 'mail'     },
                 { label: 'Show Rate', num: showRate,               iconBg: '#DBEAFE', iconColor: '#2563EB', icon: 'trending' },
               ].map((st, i) => (
                 <div key={st.label} style={{ ...s.statCell, ...(i < 4 ? { borderRight: '1px solid #E5E7EB' } : {}) }}>
@@ -630,8 +632,13 @@ export default function BookingsDashboard({ brandPitches = {} }) {
             open={panelOpen}
             isDemo={isDemo}
             brandPitches={brandPitches}
+            confirmation={smsConfirmations[panelBooking.id]}
             onClose={closePanel}
             onStatusChange={status => updateStatus(panelBooking, status)}
+            onCQSent={ts => {
+              setBookings(bs => bs.map(b => b.id === panelBooking.id ? { ...b, cq_sent_at: ts } : b));
+              setPanelBooking(b => b ? { ...b, cq_sent_at: ts } : b);
+            }}
           />
         )}
       </div>
@@ -773,7 +780,7 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus,
 }
 
 // ─── CRM Side Panel ───────────────────────────────────────────────────────────
-function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onClose, onStatusChange }) {
+function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, confirmation, onClose, onStatusChange, onCQSent }) {
   const [notes,         setNotes]         = useState('');
   const [interests,     setInterests]     = useState([]);
   const [selectedIdx,   setSelectedIdx]   = useState(null);
@@ -944,9 +951,10 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
   function sendEmail() { setEmailSent(true); setTimeout(() => { setEmailSent(false); setShowEmail(false); }, 2500); }
   async function sendCQ() {
     const now = new Date().toISOString();
-    if (isDemo) { setCqSent(true); setCqSentAt(now); return; }
+    if (isDemo) { setCqSent(true); setCqSentAt(now); onCQSent?.(now); return; }
     setCqSent(true);
     setCqSentAt(now);
+    onCQSent?.(now); // bubble up so the meetings list + CQ Sent KPI update immediately
     await fetch('/api/dashboard/send-cq', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: booking.id, email: booking.email, assigned_user_id: booking.assigned_user_id || null }) }).catch(console.error);
   }
   async function markCQReceived() {
@@ -1011,10 +1019,34 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, onC
             <div style={{ fontSize: 12, color: '#6B7280' }}>{booking.email} {booking.phone ? `· ${booking.phone}` : ''}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>
               <SourceBadge source={booking._source_display || 'KANSO'} />
+              {booking.event_name && (
+                <span
+                  title={booking.event_name}
+                  style={{ padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: '#475569', background: '#F1F5F9', border: '1px solid #E2E8F0', whiteSpace: 'nowrap', maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block' }}
+                >
+                  📅 {booking.event_name}
+                </span>
+              )}
               <span style={{ ...p.statusBadge, color: meta.color, background: meta.bg }}>
                 <span style={{ width: 5, height: 5, borderRadius: '50%', background: meta.dot, display: 'inline-block' }} />
                 {meta.label}
               </span>
+              {(() => {
+                if (!confirmation || confirmation.loading) return null;
+                const CONF = {
+                  confirmed:   { label: '✓ Confirmed', color: '#15803D', bg: '#DCFCE7', border: '#BBF7D0' },
+                  declined:    { label: '✗ Declined',  color: '#DC2626', bg: '#FEE2E2', border: '#FECACA' },
+                  uncertain:   { label: '? Maybe',     color: '#B45309', bg: '#FEF3C7', border: '#FDE68A' },
+                  no_response: { label: 'No Reply',    color: '#64748B', bg: '#F1F5F9', border: '#E2E8F0' },
+                };
+                const c = CONF[confirmation.status];
+                if (!c) return null;
+                return (
+                  <span title={confirmation.note || 'SMS confirmation status'} style={{ padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: c.color, background: c.bg, border: `1px solid ${c.border}`, whiteSpace: 'nowrap', cursor: confirmation.note ? 'help' : 'default' }}>
+                    {c.label}
+                  </span>
+                );
+              })()}
               {booking.health && <span style={{ ...p.statusBadge, color: booking.health.color, background: booking.health.bg }}>{booking.health.emoji} {booking.health.label}</span>}
             </div>
           </div>
