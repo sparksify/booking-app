@@ -1132,9 +1132,29 @@ function CalCard({ cal, expandedBrand, setExpandedBrand, brandSaving, brandSaved
             <div style={s.field}>
               <label style={s.label}>URL Slug *</label>
               <input style={s.input} value={cal.slug} onChange={e => onUpdate(cal.id, 'slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,''))} placeholder={isPers ? 'steve' : 'wetfuel'} />
-              {cal.slug && <div style={{ fontSize: 11, color: '#0057FF', marginTop: 3, fontFamily: 'monospace' }}>bookkanso.co/{cal.slug}</div>}
             </div>
           </div>
+
+          {/* Booking URL */}
+          {cal.slug && (
+            <div style={{ background: '#FAFBFD', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 3 }}>Booking URL</div>
+                <code style={{ fontSize: 12, color: '#0057FF', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                  https://bookkanso.co/{cal.slug}
+                </code>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(`https://bookkanso.co/${cal.slug}`);
+                }}
+                style={{ flexShrink: 0, padding: '5px 12px', background: '#0057FF', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                Copy
+              </button>
+            </div>
+          )}
 
           {/* Booking page content */}
           <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>Booking Page</div>
