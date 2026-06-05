@@ -1168,42 +1168,50 @@ function CalCard({ cal, expandedBrand, setExpandedBrand, brandSaving, brandSaved
           </div>
 
           {/* Calendar settings */}
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>Calendar Event</div>
-          <div style={{ marginBottom: 10 }}>
-            <label style={s.label}>Event Color</label>
-            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', paddingTop: 4 }}>
-              {GC_COLORS.map(c => {
-                const sel = (cal.event_color ?? null) === c.id;
-                return <button key={String(c.id)} type="button" title={c.name} onClick={() => onUpdate(cal.id, 'event_color', c.id)} style={{ width: 24, height: 24, borderRadius: '50%', background: c.hex, border: sel ? '3px solid #0F172A' : '3px solid transparent', boxShadow: sel ? '0 0 0 2px #fff inset' : 'none', cursor: 'pointer', padding: 0 }} />;
-              })}
-            </div>
-          </div>
-          <div style={{ marginBottom: 10 }}>
-            <label style={s.label}>Event Description</label>
-            <textarea
-              style={{ ...s.input, minHeight: 90, resize: 'vertical', lineHeight: 1.6, fontFamily: 'inherit' }}
-              placeholder={'Leave blank for smart defaults, or write a custom message.\n\nExample:\nCall with {name}\nPhone: {phone}\nEmail: {email}\nInvestment: {investment_level}'}
-              value={cal.event_description || ''}
-              onChange={e => onUpdate(cal.id, 'event_description', e.target.value || null)}
-            />
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 5 }}>
-              {['{name}','{first_name}','{phone}','{email}','{investment_level}','{date}','{time}'].map(v => (
-                <button key={v} type="button"
-                  onClick={() => onUpdate(cal.id, 'event_description', (cal.event_description || '') + v)}
-                  style={{ fontSize: 11, padding: '2px 7px', borderRadius: 4, border: '1px solid #E2E8F0', background: '#FAFBFD', color: '#475569', cursor: 'pointer', fontFamily: 'monospace' }}
-                >{v}</button>
-              ))}
-            </div>
-            <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>Click a variable to insert it. Shown inside the Google Calendar event for the rep.</p>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>Calendar Event</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 14 }}>
+            {/* Event Color */}
             <div style={s.field}>
-              <label style={s.label}>Email Reminder</label>
-              <select style={s.select} value={cal.event_reminder_mins || 15} onChange={e => onUpdate(cal.id, 'event_reminder_mins', +e.target.value)}>
-                {[5,10,15,30,60,120,1440].map(m => <option key={m} value={m}>{m<60?`${m} min`:m===60?'1 hr':m===120?'2 hrs':'1 day'}</option>)}
-              </select>
+              <label style={s.label}>Event Color</label>
+              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', paddingTop: 2 }}>
+                {GC_COLORS.map(c => {
+                  const sel = (cal.event_color ?? null) === c.id;
+                  return <button key={String(c.id)} type="button" title={c.name} onClick={() => onUpdate(cal.id, 'event_color', c.id)} style={{ width: 24, height: 24, borderRadius: '50%', background: c.hex, border: sel ? '3px solid #0F172A' : '3px solid transparent', boxShadow: sel ? '0 0 0 2px #fff inset' : 'none', cursor: 'pointer', padding: 0 }} />;
+                })}
+              </div>
             </div>
-            <div style={s.field}><label style={s.label}>Location (optional)</label><input style={s.input} value={cal.event_location || ''} onChange={e => onUpdate(cal.id, 'event_location', e.target.value)} placeholder="Zoom link or address" /></div>
+            {/* Event Description */}
+            <div style={s.field}>
+              <label style={s.label}>Event Description</label>
+              <textarea
+                style={{ ...s.input, minHeight: 90, resize: 'vertical', lineHeight: 1.6, fontFamily: 'inherit' }}
+                placeholder={'Leave blank for smart defaults, or write a custom message.\n\nExample:\nCall with {name} — Phone: {phone} — {investment_level}'}
+                value={cal.event_description || ''}
+                onChange={e => onUpdate(cal.id, 'event_description', e.target.value || null)}
+              />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                {['{name}','{first_name}','{phone}','{email}','{investment_level}','{date}','{time}'].map(v => (
+                  <button key={v} type="button"
+                    onClick={() => onUpdate(cal.id, 'event_description', (cal.event_description || '') + v)}
+                    style={{ fontSize: 11, padding: '2px 7px', borderRadius: 4, border: '1px solid #E2E8F0', background: '#FAFBFD', color: '#475569', cursor: 'pointer', fontFamily: 'monospace' }}
+                  >{v}</button>
+                ))}
+              </div>
+              <p style={{ fontSize: 11, color: '#94A3B8', margin: 0 }}>Click a variable to insert it. Shows inside the rep's Google Calendar event.</p>
+            </div>
+            {/* Email Reminder + Location side by side */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div style={s.field}>
+                <label style={s.label}>Email Reminder</label>
+                <select style={s.select} value={cal.event_reminder_mins || 15} onChange={e => onUpdate(cal.id, 'event_reminder_mins', +e.target.value)}>
+                  {[5,10,15,30,60,120,1440].map(m => <option key={m} value={m}>{m<60?`${m} min`:m===60?'1 hr':m===120?'2 hrs':'1 day'}</option>)}
+                </select>
+              </div>
+              <div style={s.field}>
+                <label style={s.label}>Location (optional)</label>
+                <input style={s.input} value={cal.event_location || ''} onChange={e => onUpdate(cal.id, 'event_location', e.target.value)} placeholder="Zoom link or address" />
+              </div>
+            </div>
           </div>
 
           {/* GHL tags */}
@@ -1218,7 +1226,8 @@ function CalCard({ cal, expandedBrand, setExpandedBrand, brandSaving, brandSaved
 
               <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', margin: '14px 0 8px' }}>Reps</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-                {(members || []).map(m => {
+                {/* dedupe by email in case team_members has duplicates */}
+                {[...new Map((members||[]).filter(m=>m.email).map(m=>[m.email,m])).values()].map(m => {
                   const inc = (cal.rep_emails || []).includes(m.email);
                   return <button key={m.email} type="button" onClick={() => { const cur = cal.rep_emails||[]; onUpdate(cal.id,'rep_emails', inc ? cur.filter(e=>e!==m.email) : [...cur,m.email]); }} style={{ padding:'5px 12px', borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', border: inc?'none':'1px solid #E2E8F0', background: inc?'#0057FF':'#F8FAFC', color: inc?'#fff':'#475569' }}>{m.name||m.email.split('@')[0]}</button>;
                 })}
