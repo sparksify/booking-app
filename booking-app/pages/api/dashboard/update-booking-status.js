@@ -62,7 +62,7 @@ export default async function handler(req, res) {
   const session = await getServerSession(req, res, authOptions);
   if (!session) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { bookingId, email, status, assigned_user_id } = req.body;
+  const { bookingId, email, status, assigned_user_id, slot_start } = req.body;
   if (!bookingId || !email || !status) {
     return res.status(400).json({ error: 'Missing bookingId, email, or status' });
   }
@@ -74,14 +74,30 @@ export default async function handler(req, res) {
   const supabase = getSupabaseAdmin();
   const errors   = [];
 
-  // GHL-sourced bookings have ids like `ghl_<eventId>` and no row in the
-  // bookings table — their displayed status comes from the GHL appointment.
-  const isGhlBooking = typeof bookingId === 'string' && bookingId.startsWith('ghl_');
-  const ghlEventId   = isGhlBooking ? bookingId.slice(4) : null;
+  // Booking id schemes: native = uuid, GHL = `ghl_<eventId>`, Calendly = `cal_<uuid>`.
+  const isGhlBooking  = typeof bookingId === 'string' && bookingId.startsWith('ghl_');
+  const ghlEventId    = isGhlBooking ? bookingId.slice(4) : null;
+  const isUuidBooking = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bookingId);
 
-  // 1. Update booking status in Supabase (no-ops for GHL-only bookings, which
-  //    don't exist in this table — that's why step 1b is required to persist).
-  if (!isGhlBooking) {
+  // 1. Source-agnostic persistence: record a status override keyed by email + slot
+  //    so the meetings list reflects this status no matter the booking source
+  //    (Calendly and GHL rows have no row in the bookings table). The bookings
+  //    API applies this override to whichever source wins dedup.
+  if (slot_start) {
+    const { error: ovrErr } = await supabase
+      .from('meeting_status_overrides')
+      .upsert(
+        { email, slot_start, status, updated_by: session.user?.email || 'dashboard', updated_at: new Date().toISOString() },
+        { onConflict: 'email,slot_start' }
+      );
+    if (ovrErr) errors.push(`status override: ${ovrErr.message}`);
+  } else {
+    console.warn('[update-booking-status] missing slot_start — status may not persist for non-native bookings', { bookingId });
+    errors.push('status override: missing slot_start');
+  }
+
+  // 1a. Update the native bookings row too, when this is a real uuid-keyed booking.
+  if (isUuidBooking) {
     const { error: bookingErr } = await supabase
       .from('bookings')
       .update({ status })
@@ -178,31 +194,30 @@ export default async function handler(req, res) {
   if (status === 'no-show') {
     try {
       const { data: settingsRow } = await supabase.from('settings').select('workflow_mappings').eq('id', 1).single();
-      const mapping  = settingsRow?.workflow_mappings?.mark_no_show || {};
-      const workflowId = assigned_user_id ? mapping[assigned_user_id] : null;
+      const mapping = settingsRow?.workflow_mappings?.mark_no_show || {};
 
-      if (!assigned_user_id) {
-        console.warn('[update-booking-status] no-show workflow skipped: booking has no assigned_user_id (GHL user)', { bookingId, email });
-        errors.push('GHL workflow: no assigned GHL user on this booking');
+      // Resolve the GHL contact once — gives us both the contact id and the
+      // rep it's assigned to. Calendly/native rows carry no GHL user id, so the
+      // contact's assignedTo is how we know which rep's workflow to fire.
+      const ghlContact = process.env.GHL_API_KEY
+        ? await lookupGHLContactByEmail(email).catch(() => null)
+        : null;
+
+      const userId       = assigned_user_id || ghlContact?.assignedTo || null;
+      const workflowId   = userId ? mapping[userId] : null;
+      const ghlContactId = ghlContact?.id ?? lead?.ghl_contact_id ?? null;
+
+      if (!userId) {
+        console.warn('[update-booking-status] no-show workflow skipped: row and contact both unassigned', { email });
+        errors.push('GHL workflow: no assigned GHL user (row + contact)');
       } else if (!workflowId) {
-        console.warn('[update-booking-status] no-show workflow skipped: no mapping for user', assigned_user_id);
-        errors.push(`GHL workflow: no mapping for user ${assigned_user_id}`);
+        console.warn('[update-booking-status] no-show workflow skipped: no mapping for user', userId);
+        errors.push(`GHL workflow: no mapping for user ${userId}`);
+      } else if (!ghlContactId) {
+        console.error('[update-booking-status] no-show workflow: could not resolve GHL contact for', email);
+        errors.push('GHL workflow: no contact id');
       } else {
-        // Resolve GHL contact ID (bookingRow lookup is a no-op for ghl_ ids)
-        const { data: bookingRow } = isGhlBooking
-          ? { data: null }
-          : await supabase.from('bookings').select('ghl_contact_id').eq('id', bookingId).single();
-        let ghlContactId = bookingRow?.ghl_contact_id ?? lead?.ghl_contact_id ?? null;
-        if (!ghlContactId) {
-          const c = await lookupGHLContactByEmail(email).catch(() => null);
-          ghlContactId = c?.id ?? null;
-        }
-        if (!ghlContactId) {
-          console.error('[update-booking-status] no-show workflow: could not resolve GHL contact for', email);
-          errors.push('GHL workflow: no contact id');
-        } else {
-          await triggerWorkflow(ghlContactId, workflowId);
-        }
+        await triggerWorkflow(ghlContactId, workflowId);
       }
     } catch (wfErr) {
       console.error('[update-booking-status] no-show workflow:', wfErr.message);

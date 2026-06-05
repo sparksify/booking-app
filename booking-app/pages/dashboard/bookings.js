@@ -244,7 +244,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
     setUpdating(u => ({ ...u, [booking.id]: true }));
     await fetch('/api/dashboard/update-booking-status', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bookingId: booking.id, email: booking.email, status, assigned_user_id: booking.assigned_user_id || null }),
+      body: JSON.stringify({ bookingId: booking.id, email: booking.email, status, assigned_user_id: booking.assigned_user_id || null, slot_start: booking.slot_start }),
     }).catch(console.error);
     setBookings(bs => bs.map(b => b.id === booking.id ? { ...b, status } : b));
     if (panelBooking?.id === booking.id) setPanelBooking(b => ({ ...b, status }));
