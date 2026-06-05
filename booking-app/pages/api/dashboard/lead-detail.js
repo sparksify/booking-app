@@ -40,5 +40,15 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: error.message });
   }
 
-  res.json({ lead: lead || null });
+  // Notes are stored per-contact by email (works even when no lead row exists).
+  const { data: noteRow } = await supabase
+    .from('contact_notes')
+    .select('notes')
+    .eq('email', email)
+    .maybeSingle();
+
+  const notes = noteRow?.notes ?? lead?.notes ?? '';
+  if (lead) lead.notes = notes;
+
+  res.json({ lead: lead || null, notes });
 }

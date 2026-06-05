@@ -137,6 +137,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   const [repFilter,    setRepFilter]    = useState([]);
   const [panelBooking, setPanelBooking] = useState(null);
   const [lead,         setLead]         = useState(null);
+  const [panelNotes,   setPanelNotes]   = useState('');
   const [panelLoading, setPanelLoading] = useState(false);
   const [panelOpen,    setPanelOpen]    = useState(false);
   const [repAvatars,   setRepAvatars]   = useState({});
@@ -222,18 +223,18 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   }, []);
 
   function openPanel(booking) {
-    setPanelBooking(booking); setLead(null); setPanelOpen(true);
-    if (isDemo) { setLead(makeDemoLead(booking)); return; }
+    setPanelBooking(booking); setLead(null); setPanelNotes(''); setPanelOpen(true);
+    if (isDemo) { const dl = makeDemoLead(booking); setLead(dl); setPanelNotes(dl?.notes || ''); return; }
     setPanelLoading(true);
     fetch(`/api/dashboard/lead-detail?email=${encodeURIComponent(booking.email)}`)
       .then(r => r.json())
-      .then(d => { setLead(d.lead); setPanelLoading(false); })
+      .then(d => { setLead(d.lead); setPanelNotes(d.notes ?? d.lead?.notes ?? ''); setPanelLoading(false); })
       .catch(() => setPanelLoading(false));
   }
 
   function closePanel() {
     setPanelOpen(false);
-    setTimeout(() => { setPanelBooking(null); setLead(null); }, 260);
+    setTimeout(() => { setPanelBooking(null); setLead(null); setPanelNotes(''); }, 260);
   }
 
   async function updateStatus(booking, status) {
@@ -633,6 +634,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
             isDemo={isDemo}
             brandPitches={brandPitches}
             confirmation={smsConfirmations[panelBooking.id]}
+            initialNotes={panelNotes}
             onClose={closePanel}
             onStatusChange={status => updateStatus(panelBooking, status)}
             onCQSent={ts => {
@@ -780,7 +782,7 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus,
 }
 
 // ─── CRM Side Panel ───────────────────────────────────────────────────────────
-function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, confirmation, onClose, onStatusChange, onCQSent }) {
+function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, confirmation, initialNotes = '', onClose, onStatusChange, onCQSent }) {
   const [notes,         setNotes]         = useState('');
   const [interests,     setInterests]     = useState([]);
   const [selectedIdx,   setSelectedIdx]   = useState(null);
@@ -824,12 +826,15 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
 
   useEffect(() => {
     if (lead) {
-      setNotes(lead.notes || '');
       const fi = lead.franchise_interests || [];
       setInterests(fi);
       setSelectedIdx(fi.length > 0 ? 0 : null);
     }
   }, [lead]);
+
+  // Notes are keyed by contact email (not the lead row), so load them from the
+  // value resolved server-side rather than from lead.notes.
+  useEffect(() => { setNotes(initialNotes || ''); }, [initialNotes, booking?.id]);
 
   useEffect(() => {
     setCqSent(!!booking?.cq_sent_at);
@@ -943,9 +948,11 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
     setBrandSaved(true); setTimeout(() => setBrandSaved(false), 2000);
   }
   async function saveNotes() {
-    if (!lead || isDemo) { setNotesSaved(true); setTimeout(() => setNotesSaved(false), 2000); return; }
+    if (isDemo) { setNotesSaved(true); setTimeout(() => setNotesSaved(false), 2000); return; }
+    if (!booking?.email) return;
     setNotesSaving(true);
-    await fetch('/api/dashboard/update-lead', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: lead.id, notes }) }).catch(console.error);
+    // Keyed by email so notes persist even when there's no lead row.
+    await fetch('/api/dashboard/save-note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: booking.email, notes }) }).catch(console.error);
     setNotesSaving(false); setNotesSaved(true); setTimeout(() => setNotesSaved(false), 2000);
   }
   function sendEmail() { setEmailSent(true); setTimeout(() => { setEmailSent(false); setShowEmail(false); }, 2500); }
@@ -1024,7 +1031,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                   title={booking.event_name}
                   style={{ padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: '#475569', background: '#F1F5F9', border: '1px solid #E2E8F0', whiteSpace: 'nowrap', maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block' }}
                 >
-                  📅 {booking.event_name}
+                  {booking.event_name}
                 </span>
               )}
               <span style={{ ...p.statusBadge, color: meta.color, background: meta.bg }}>
@@ -1037,7 +1044,6 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                   confirmed:   { label: '✓ Confirmed', color: '#15803D', bg: '#DCFCE7', border: '#BBF7D0' },
                   declined:    { label: '✗ Declined',  color: '#DC2626', bg: '#FEE2E2', border: '#FECACA' },
                   uncertain:   { label: '? Maybe',     color: '#B45309', bg: '#FEF3C7', border: '#FDE68A' },
-                  no_response: { label: 'No Reply',    color: '#64748B', bg: '#F1F5F9', border: '#E2E8F0' },
                 };
                 const c = CONF[confirmation.status];
                 if (!c) return null;
@@ -1143,60 +1149,6 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                         <button onClick={() => { setNewTagInput(''); setShowTagInput(false); }} style={{ ...p.cancelEditBtn, fontSize: 11, padding: '4px 8px' }}>✕</button>
                       </div>
                     )}
-                  </div>
-                )}
-              </PanelSection>
-
-              {/* Franchise Brands */}
-              <PanelSection title="Franchise Brands">
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: interests.length > 0 ? 14 : 0 }}>
-                  {interests.map((fi, i) => (
-                    <div key={fi.id || i} style={{ display: 'flex', alignItems: 'center' }}>
-                      <button onClick={() => { setSelectedIdx(i); setBrandEditMode(false); }} style={selectedIdx === i ? p.brandChipActive : p.brandChip}>{fi.brand || <em style={{ opacity: 0.6 }}>New Brand</em>}</button>
-                      <button onClick={() => removeBrand(i)} style={p.brandChipX} title="Remove">×</button>
-                    </div>
-                  ))}
-                  <button onClick={addBrand} style={p.addBrandBtn}>+ Brand</button>
-                </div>
-                {selectedFI && (
-                  <div style={p.brandCard}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#1A2B3C' }}>{selectedFI.brand || <em style={{ color: '#9CA3AF', fontWeight: 400 }}>Unnamed brand</em>}</div>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button onClick={() => { setPitchBrandIdx(interests.indexOf(selectedFI)); setPitchOpen(true); }} style={{ ...p.editBtn, color: '#1A7E24', borderColor: '#A8D5AA', background: '#E3F4E5' }}>Brand Pitch</button>
-                        {!brandEditMode ? <button onClick={() => setBrandEditMode(true)} style={p.editBtn}>Edit</button>
-                          : <><button onClick={async () => { await saveBrand(); setBrandEditMode(false); }} disabled={brandSaving} style={{ ...p.saveEditBtn, background: brandSaved ? '#2CA01C' : '#0077C5' }}>{brandSaving ? 'Saving…' : brandSaved ? '✓' : 'Save'}</button><button onClick={() => setBrandEditMode(false)} style={p.cancelEditBtn}>Cancel</button></>}
-                      </div>
-                    </div>
-                    <div style={p.fieldGroupLabel}>Developer</div>
-                    {brandEditMode ? (
-                      <>
-                        <div style={{ marginBottom: 8 }}><input style={p.input} placeholder="e.g. Wet Fuel" value={selectedFI.brand || ''} onChange={e => updateInterest(selectedIdx, 'brand', e.target.value)} /></div>
-                        <div style={{ marginBottom: 8 }}><input style={p.input} placeholder="Developer name" value={selectedFI.developer_name || ''} onChange={e => updateInterest(selectedIdx, 'developer_name', e.target.value)} /></div>
-                        <div style={{ marginBottom: 8 }}><input style={p.input} placeholder="(555) 000-0000" value={selectedFI.developer_phone || ''} onChange={e => updateInterest(selectedIdx, 'developer_phone', e.target.value)} /></div>
-                        <div><input style={p.input} placeholder="developer@brand.com" value={selectedFI.developer_email || ''} onChange={e => updateInterest(selectedIdx, 'developer_email', e.target.value)} /></div>
-                      </>
-                    ) : (
-                      <>
-                        <Row label="Name"><span style={p.val}>{selectedFI.developer_name || <em style={{ color: '#9CA3AF' }}>Not set</em>}</span></Row>
-                        <Row label="Phone">{selectedFI.developer_phone ? <a href={`tel:${selectedFI.developer_phone}`} style={p.link}>{selectedFI.developer_phone}</a> : <em style={{ color: '#9CA3AF', fontSize: 13 }}>Not set</em>}</Row>
-                        <Row label="Email">{selectedFI.developer_email ? <a href={`mailto:${selectedFI.developer_email}`} style={p.link}>{selectedFI.developer_email}</a> : <em style={{ color: '#9CA3AF', fontSize: 13 }}>Not set</em>}</Row>
-                      </>
-                    )}
-                  </div>
-                )}
-                {!selectedFI && interests.length === 0 && <div style={{ color: '#9CA3AF', fontSize: 13, marginBottom: 8 }}>No brands added yet — click + Brand to add one.</div>}
-                {selectedFI?.developer_email && <button onClick={() => setShowEmail(v => !v)} style={p.emailToggleBtn}>{showEmail ? 'Hide email' : 'Email developer'}</button>}
-                {showEmail && selectedFI && (
-                  <div style={p.emailBox}>
-                    <div style={p.emailHeader}>New Email</div>
-                    <div style={p.emailField}><span style={p.emailLabel}>To</span><input style={p.emailInput} value={email.to} onChange={e => setEmail(em => ({ ...em, to: e.target.value }))} placeholder="developer@brand.com" /></div>
-                    <div style={p.emailField}><span style={p.emailLabel}>Subject</span><input style={p.emailInput} value={email.subject} onChange={e => setEmail(em => ({ ...em, subject: e.target.value }))} placeholder={`Re: ${booking.first_name} ${booking.last_name}`} /></div>
-                    <textarea style={p.emailBody} rows={5} value={email.body} onChange={e => setEmail(em => ({ ...em, body: e.target.value }))} placeholder={`Hi ${selectedFI.developer_name || 'there'},\n\nI wanted to follow up…`} />
-                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                      <button onClick={sendEmail} disabled={!email.to || emailSent} style={{ ...p.actionBtn, background: emailSent ? '#2CA01C' : '#0077C5', opacity: !email.to ? 0.5 : 1 }}>{emailSent ? '✓ Sent!' : 'Send Email'}</button>
-                      <button onClick={() => setShowEmail(false)} style={p.cancelBtn}>Cancel</button>
-                    </div>
                   </div>
                 )}
               </PanelSection>
