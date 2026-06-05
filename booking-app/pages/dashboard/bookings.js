@@ -139,6 +139,8 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   const [panelLoading, setPanelLoading] = useState(false);
   const [panelOpen,    setPanelOpen]    = useState(false);
   const [repAvatars,   setRepAvatars]   = useState({});
+  // smsConfirmations: { [bookingId]: { status, note, loading } }
+  const [smsConfirmations, setSmsConfirmations] = useState({});
   const nowLineRef = useRef(null);
 
   // Auto-scroll to the "Now" divider once data loads so the current appointment
@@ -150,6 +152,49 @@ export default function BookingsDashboard({ brandPitches = {} }) {
       });
     }
   }, [loading]);
+
+  // After bookings load, auto-check SMS confirmation for bookings that have a GHL contact.
+  // Batched in groups of 5 to stay within GHL rate limits.
+  useEffect(() => {
+    if (loading || isDemo || !bookings.length) return;
+    const toCheck = bookings.filter(b => b.ghl_contact_id && !b.id?.startsWith('ghl_'));
+    if (!toCheck.length) return;
+
+    // Mark all as loading
+    setSmsConfirmations(prev => {
+      const next = { ...prev };
+      toCheck.forEach(b => { if (!next[b.id]) next[b.id] = { loading: true }; });
+      return next;
+    });
+
+    // Fetch in batches of 5
+    async function checkBatch(batch) {
+      await Promise.allSettled(batch.map(async b => {
+        try {
+          const r = await fetch('/api/dashboard/check-confirmation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              bookingId:          b.id,
+              ghl_contact_id:     b.ghl_contact_id,
+              booking_created_at: b.created_at,
+            }),
+          });
+          const d = await r.json();
+          setSmsConfirmations(prev => ({ ...prev, [b.id]: { status: d.status, note: d.note, loading: false } }));
+        } catch {
+          setSmsConfirmations(prev => ({ ...prev, [b.id]: { status: 'no_response', loading: false } }));
+        }
+      }));
+    }
+
+    (async () => {
+      for (let i = 0; i < toCheck.length; i += 5) {
+        await checkBatch(toCheck.slice(i, i + 5));
+        if (i + 5 < toCheck.length) await new Promise(r => setTimeout(r, 300));
+      }
+    })();
+  }, [loading, isDemo]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -516,7 +561,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                 <table style={s.table}>
                   <thead>
                     <tr>
-                      {['Time', 'Client', 'Source / Type', 'Rep', 'Liquid Capital', 'Status', 'Actions'].map(h => (
+                      {['Time', 'Client', 'Source / Type', 'Rep', 'Liquid Capital', 'Confirmed', 'Status', 'Actions'].map(h => (
                         <th key={h} style={s.th}>{h}</th>
                       ))}
                     </tr>
@@ -561,6 +606,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                             onStatus={status => updateStatus(b, status)}
                             inProgress={b.id === inProgressId}
                             repAvatars={repAvatars}
+                            confirmation={smsConfirmations[b.id]}
                           />
                         );
                         return rows;
@@ -592,7 +638,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
 }
 
 // ─── Table Row ────────────────────────────────────────────────────────────────
-function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus, inProgress, repAvatars }) {
+function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus, inProgress, repAvatars, confirmation }) {
   const slot      = b.slot_start ? new Date(b.slot_start) : null;
   const timeLabel = slot ? slot.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—';
   const dateLabel = slot ? slot.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '';
@@ -645,6 +691,34 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus,
         {b.investment_level
           ? <span style={{ fontSize: 12, color: '#374151' }}>{b.investment_level}</span>
           : <span style={{ color: '#D1D5DB' }}>—</span>}
+      </td>
+
+      {/* Confirmation */}
+      <td style={s.td}>
+        {!confirmation || confirmation.loading ? (
+          b.ghl_contact_id
+            ? <span style={{ fontSize: 11, color: '#CBD5E1' }}>checking…</span>
+            : <span style={{ color: '#E2E8F0' }}>—</span>
+        ) : (() => {
+          const STATUS = {
+            confirmed:   { label: 'Confirmed',   color: '#15803D', bg: '#DCFCE7', border: '#BBF7D0' },
+            declined:    { label: 'Declined',     color: '#DC2626', bg: '#FEE2E2', border: '#FECACA' },
+            uncertain:   { label: 'Maybe',        color: '#B45309', bg: '#FEF3C7', border: '#FDE68A' },
+            no_response: { label: 'No Response',  color: '#94A3B8', bg: '#F1F5F9', border: '#E2E8F0' },
+          };
+          const st = STATUS[confirmation.status] || STATUS.no_response;
+          return (
+            <span
+              title={confirmation.note || ''}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: st.color, background: st.bg, border: `1px solid ${st.border}`, cursor: confirmation.note ? 'help' : 'default' }}
+            >
+              {confirmation.status === 'confirmed'   && '✓ '}
+              {confirmation.status === 'declined'    && '✗ '}
+              {confirmation.status === 'uncertain'   && '? '}
+              {st.label}
+            </span>
+          );
+        })()}
       </td>
 
       {/* Status */}
