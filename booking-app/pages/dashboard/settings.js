@@ -1136,25 +1136,29 @@ function CalCard({ cal, expandedBrand, setExpandedBrand, brandSaving, brandSaved
           </div>
 
           {/* Booking URL */}
-          {cal.slug && (
-            <div style={{ background: '#FAFBFD', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 3 }}>Booking URL</div>
-                <code style={{ fontSize: 12, color: '#0057FF', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                  https://bookkanso.co/{cal.slug}
-                </code>
+          {cal.slug && (() => {
+            const fullUrl = `https://bookkanso.co/${cal.slug}?first_name={{first_name}}&last_name={{last_name}}&phone={{phone_number}}&email={{email}}&liquid_capital={{liquid_capital}}`;
+            return (
+              <div style={{ background: '#FAFBFD', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 14px', marginBottom: 14 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 6 }}>Booking URL — paste as Facebook Lead Ad thank-you URL</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <code style={{ flex: 1, fontSize: 11, color: '#0057FF', fontFamily: 'monospace', wordBreak: 'break-all', lineHeight: 1.5 }}>
+                    {fullUrl}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard.writeText(fullUrl)}
+                    style={{ flexShrink: 0, padding: '5px 12px', background: '#0057FF', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    Copy
+                  </button>
+                </div>
+                <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 6, marginBottom: 0 }}>
+                  Facebook substitutes <code style={{ fontSize: 11, background: '#F1F5F9', padding: '1px 4px', borderRadius: 3 }}>{'{{first_name}}'}</code> etc. with the lead's real data. The liquid_capital field drives the routing rules above.
+                </p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(`https://bookkanso.co/${cal.slug}`);
-                }}
-                style={{ flexShrink: 0, padding: '5px 12px', background: '#0057FF', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
-              >
-                Copy
-              </button>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Booking page content */}
           <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>Booking Page</div>
@@ -1180,12 +1184,12 @@ function CalCard({ cal, expandedBrand, setExpandedBrand, brandSaving, brandSaved
                 })}
               </div>
             </div>
-            {/* Event Description */}
-            <div style={s.field}>
+            {/* Event Description — half width */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: '50%' }}>
               <label style={s.label}>Event Description</label>
               <textarea
-                style={{ ...s.input, minHeight: 90, resize: 'vertical', lineHeight: 1.6, fontFamily: 'inherit' }}
-                placeholder={'Leave blank for smart defaults, or write a custom message.\n\nExample:\nCall with {name} — Phone: {phone} — {investment_level}'}
+                style={{ ...s.input, minHeight: 110, resize: 'vertical', lineHeight: 1.7, fontFamily: 'inherit', padding: '12px 14px' }}
+                placeholder={'Leave blank for smart defaults, or write a custom message.\n\nExample:\nCall with {name}\nPhone: {phone}\nInvestment: {investment_level}'}
                 value={cal.event_description || ''}
                 onChange={e => onUpdate(cal.id, 'event_description', e.target.value || null)}
               />
