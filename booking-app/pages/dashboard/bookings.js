@@ -183,30 +183,41 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   const [repAvatars,   setRepAvatars]   = useState({});
   // smsConfirmations: { [bookingId]: { status, note, loading } }
   const [smsConfirmations, setSmsConfirmations] = useState({});
-  const nowLineRef = useRef(null);
+  const nowLineRef    = useRef(null);
+  const scrollBodyRef = useRef(null);
 
-  // Auto-scroll so past meetings sit above the fold and the current/next one is
-  // near the top of the table. The user can still scroll up to see earlier ones.
+  // Scroll so past meetings sit above the fold and the current/next one is near
+  // the top. The "Now" line only exists when there's an upcoming meeting; if the
+  // whole day is in the past we jump to the bottom (the latest meeting).
   useEffect(() => {
     if (loading) return;
-    const t = setTimeout(() => {
+    const sc = scrollBodyRef.current;
+    if (!sc) return;
+    let cancelled = false;
+    const scrollToNow = () => {
+      if (cancelled) return;
       const el = nowLineRef.current;
-      if (!el) return;
-      let sc = el.parentElement;
-      while (sc && sc !== document.body) {
-        const oy = getComputedStyle(sc).overflowY;
-        if (oy === 'auto' || oy === 'scroll') break;
-        sc = sc.parentElement;
-      }
-      if (sc && sc !== document.body) {
-        const r = el.getBoundingClientRect();
+      if (el) {
+        const r  = el.getBoundingClientRect();
         const sr = sc.getBoundingClientRect();
-        sc.scrollTop += (r.top - sr.top) - 12;
+        sc.scrollTop += (r.top - sr.top) - 8;
       } else {
-        el.scrollIntoView({ block: 'start' });
+        sc.scrollTop = sc.scrollHeight;
       }
-    }, 180);
-    return () => clearTimeout(t);
+    };
+    // Run a few times so the position survives the SMS-confirmation re-renders,
+    // but stop if the user starts scrolling on their own.
+    const ts = [150, 500, 1000].map(d => setTimeout(scrollToNow, d));
+    const stop = () => { cancelled = true; };
+    sc.addEventListener('wheel', stop, { passive: true });
+    sc.addEventListener('touchstart', stop, { passive: true });
+    window.addEventListener('keydown', stop);
+    return () => {
+      ts.forEach(clearTimeout);
+      sc.removeEventListener('wheel', stop);
+      sc.removeEventListener('touchstart', stop);
+      window.removeEventListener('keydown', stop);
+    };
   }, [loading, bookings.length, filter, repFilter, statusFilter, sourceFilter]);
 
   // Remember the last-used filters (default: Today + Steve Sparks).
@@ -483,7 +494,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
           </div>
 
           {/* Body */}
-          <div style={s.body}>
+          <div style={s.body} ref={scrollBodyRef}>
 
             {/* Demo banner */}
             {isDemo && (
@@ -722,6 +733,9 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                 </table>
               )}
             </div>
+            {/* Spacer so the current/next meeting can scroll to the top even when
+                it's the last row of the day. */}
+            <div style={{ height: '75vh' }} aria-hidden="true" />
           </div>
         </div>
 
