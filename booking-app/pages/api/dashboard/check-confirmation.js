@@ -40,7 +40,10 @@ async function findConversation(contactId) {
     `${GHL_API}/conversations/search?locationId=${locationId}&contactId=${contactId}&limit=5`,
     { headers: { 'Authorization': `Bearer ${apiKey}`, 'Version': GHL_VERSION } }
   );
-  if (!res.ok) return null;
+  if (!res.ok) {
+    console.error(`[check-confirmation] conversation search HTTP ${res.status} for contact ${contactId}`);
+    return null;
+  }
   const data = await res.json();
   return data.conversations?.[0] ?? null;
 }
@@ -53,9 +56,17 @@ async function getConversationMessages(conversationId, limit = 30) {
     `${GHL_API}/conversations/${conversationId}/messages?limit=${limit}`,
     { headers: { 'Authorization': `Bearer ${apiKey}`, 'Version': GHL_VERSION } }
   );
-  if (!res.ok) return [];
+  if (!res.ok) {
+    // A 401 here almost always means the GHL private-integration token is
+    // missing the "conversations/message.readonly" scope. Surface it.
+    console.error(`[check-confirmation] messages fetch HTTP ${res.status} for conversation ${conversationId}`);
+    return [];
+  }
   const data = await res.json();
-  return data.messages ?? [];
+  // GHL nests the array: { messages: { messages: [...], nextPage, lastMessageId } }.
+  // Guard against the flat shape too, and never hand a non-array to the analyzer.
+  const list = data?.messages?.messages ?? data?.messages ?? [];
+  return Array.isArray(list) ? list : [];
 }
 
 // ─── Analysis ─────────────────────────────────────────────────────────────────

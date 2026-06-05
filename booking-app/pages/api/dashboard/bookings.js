@@ -145,33 +145,38 @@ export default async function handler(req, res) {
     if (b.cq_received_at) cqByEmail[key].cq_received_at = b.cq_received_at;
   }
 
-  // For Calendly bookings still missing investment_level, look up their GHL contact by email.
-  // This is the same data the side panel fetches lazily — we just do it eagerly here so the
-  // list row shows liquid capital without the user having to open the panel first.
-  const ghlLiquidByEmail = {};
+  // Resolve the GHL contact (id + liquid capital) by email for every booking that
+  // doesn't already carry a contact id. Everyone who reaches a booking page came in
+  // as a GHL contact (Facebook Lead Ad → GHL), so this lets the SMS-confirmation
+  // check run on every row — not just GHL-sourced ones — and also fills liquid
+  // capital on the list without opening the side panel. Keyed by lowercased email.
+  const ghlContactByEmail = {};
   const apiKey = process.env.GHL_API_KEY;
   const locationId = process.env.GHL_LOCATION_ID;
   if (apiKey && locationId) {
-    const calEmailsMissingInv = [...new Set(
-      calBks
-        .filter(b => !b.investment_level && b.email)
+    const emailsNeedingContact = [...new Set(
+      [...ghlBks, ...sbBks, ...calBks]
+        .filter(b => !b.ghl_contact_id && b.email)
         .map(b => b.email.toLowerCase())
-        .filter(e => !leadsByEmail[e]?.investment_level) // skip if we already have it from leads
     )];
-    if (calEmailsMissingInv.length) {
+    if (emailsNeedingContact.length) {
       const ghlHeaders = { 'Authorization': `Bearer ${apiKey}`, 'Version': GHL_VERSION };
       const contactResults = await Promise.allSettled(
-        calEmailsMissingInv.map(email =>
+        emailsNeedingContact.map(email =>
           fetch(`${GHL_API}/contacts/?locationId=${locationId}&query=${encodeURIComponent(email)}`, { headers: ghlHeaders })
             .then(r => r.ok ? r.json() : null)
             .then(d => d?.contacts?.[0] ?? null)
             .catch(() => null)
         )
       );
-      calEmailsMissingInv.forEach((email, i) => {
+      emailsNeedingContact.forEach((email, i) => {
         const contact = contactResults[i].status === 'fulfilled' ? contactResults[i].value : null;
-        const lc = getGHLLiquidCapital(contact);
-        if (lc) ghlLiquidByEmail[email] = lc;
+        if (contact) {
+          ghlContactByEmail[email] = {
+            id:            contact.id || null,
+            liquidCapital: getGHLLiquidCapital(contact),
+          };
+        }
       });
     }
   }
@@ -191,11 +196,14 @@ export default async function handler(req, res) {
       const cq   = cqByEmail[emailLow] || {};
       // Apply investment_level from leads table if the booking doesn't have it (Calendly rows)
       const lead = leadsByEmail[emailLow] || {};
+      // GHL contact resolved by email (id + liquid capital) for rows missing a contact id
+      const ghlC = ghlContactByEmail[emailLow] || {};
       deduped.push({
         ...b,
         cq_sent_at:       b.cq_sent_at       || cq.cq_sent_at       || null,
         cq_received_at:   b.cq_received_at   || cq.cq_received_at   || null,
-        investment_level: b.investment_level || ghlLiquidByEmail[emailLow] || lead.investment_level || null,
+        ghl_contact_id:   b.ghl_contact_id   || ghlC.id             || null,
+        investment_level: b.investment_level || ghlC.liquidCapital  || lead.investment_level || null,
       });
     }
   }
