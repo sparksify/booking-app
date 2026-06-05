@@ -51,9 +51,11 @@ const GHL_STAGE_CLOSED  = '435ab3d7-8889-4b16-b72f-0ae633e0cff6';
 // "Showed" has no explicit stage — lead stays at Booked Appointment until CQ is sent
 
 const STATUS_MAP = {
-  showed:    { tag: 'showed',     leadStatus: 'showed',    stageId: null,              apptStatus: 'showed' },
-  'no-show': { tag: 'no-show',    leadStatus: 'no-show',   stageId: GHL_STAGE_NO_SHOW, apptStatus: 'noshow' },
-  closed:    { tag: 'closed-won', leadStatus: 'qualified', stageId: GHL_STAGE_CLOSED,  apptStatus: null     },
+  showed:           { tag: 'showed',         leadStatus: 'showed',         stageId: null,              apptStatus: 'showed' },
+  'no-show':        { tag: 'no-show',        leadStatus: 'no-show',        stageId: GHL_STAGE_NO_SHOW, apptStatus: 'noshow' },
+  closed:           { tag: 'closed-won',     leadStatus: 'qualified',      stageId: GHL_STAGE_CLOSED,  apptStatus: null     },
+  // Not interested = closed lost. Tag it; don't touch the appointment (they showed).
+  'not-interested': { tag: 'not-interested', leadStatus: 'not-interested', stageId: null,              apptStatus: null     },
 };
 
 export default async function handler(req, res) {

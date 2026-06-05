@@ -24,11 +24,45 @@ const FILTERS = [
 ];
 
 const STATUS_META = {
-  scheduled: { label: 'Scheduled',  color: '#2563EB', bg: '#EFF6FF', dot: '#2563EB' },
-  showed:    { label: 'Showed',     color: '#059669', bg: '#D1FAE5', dot: '#059669' },
-  'no-show': { label: 'No Show',    color: '#DC2626', bg: '#FEE2E2', dot: '#DC2626' },
-  closed:    { label: 'Closed Won', color: '#7C3AED', bg: '#EDE9FE', dot: '#7C3AED' },
+  scheduled:        { label: 'Scheduled',      color: '#2563EB', bg: '#EFF6FF', dot: '#2563EB' },
+  showed:           { label: 'Showed',         color: '#059669', bg: '#D1FAE5', dot: '#059669' },
+  'no-show':        { label: 'No Show',        color: '#DC2626', bg: '#FEE2E2', dot: '#DC2626' },
+  closed:           { label: 'Closed Won',     color: '#7C3AED', bg: '#EDE9FE', dot: '#7C3AED' },
+  'not-interested': { label: 'Not Interested', color: '#64748B', bg: '#F1F5F9', dot: '#94A3B8' },
 };
+
+// ─── Lead score (commitment stack) ────────────────────────────────────────────
+function computeLeadScore({ liquidRaw, confStatus, status, cqSent, cqReceived, emailOpened }) {
+  let score = 10;
+  const reasons = [];
+  const num = parseFloat(String(liquidRaw || '').replace(/[^0-9.]/g, '')) || 0;
+  const liquidHigh = num >= 500000 || /\$?\b(500|750)\s?k|million|\$?1\s?m|1,000,000/i.test(String(liquidRaw || ''));
+
+  if (liquidHigh)        { score += 30; reasons.push({ t: `Liquid capital ${liquidRaw || '$500k+'}`, good: true }); }
+  else if (num >= 250000){ score += 22; reasons.push({ t: `Liquid capital ${liquidRaw}`, good: true }); }
+  else if (num >= 100000){ score += 14; reasons.push({ t: `Liquid capital ${liquidRaw}`, good: true }); }
+  else if (liquidRaw)    { score += 6;  reasons.push({ t: `Liquid capital ${liquidRaw}`, good: true }); }
+
+  if (confStatus === 'confirmed')      { score += 20; reasons.push({ t: 'Confirmed appointment by text', good: true }); }
+  else if (confStatus === 'uncertain') { score += 6;  reasons.push({ t: 'Tentative reply on confirmation', good: true }); }
+  else if (confStatus === 'declined')  { score -= 15; reasons.push({ t: 'Declined / cancelled by text', good: false }); }
+
+  if (status === 'showed')        { score += 20; reasons.push({ t: 'Showed for the meeting', good: true }); }
+  else if (status === 'no-show')  { score -= 20; reasons.push({ t: 'No-showed the appointment', good: false }); }
+
+  if (cqReceived)   { score += 15; reasons.push({ t: 'Returned the CQ', good: true }); }
+  else if (cqSent)  { score += 8;  reasons.push({ t: 'CQ sent', good: true }); }
+
+  if (emailOpened)  { score += 6;  reasons.push({ t: 'Opened the CQ email', good: true }); }
+
+  return { score: Math.max(0, Math.min(100, score)), reasons };
+}
+
+function scoreTier(score) {
+  if (score >= 70) return { label: 'Hot',  color: '#15803D', bg: '#DCFCE7', border: '#BBF7D0' };
+  if (score >= 45) return { label: 'Warm', color: '#B45309', bg: '#FEF3C7', border: '#FDE68A' };
+  return { label: 'Cool', color: '#64748B', bg: '#F1F5F9', border: '#E2E8F0' };
+}
 
 const DEMO = [
   { id: 'd1', first_name: 'Marcus',   last_name: 'Thompson', email: 'marcus.t@email.com',     phone: '(512) 555-0192', slot_start: (() => { const d = new Date(); d.setHours(9,  0); return d.toISOString(); })(), status: 'scheduled', investment_level: '$100k–$200k', assigned_to_email: 'steve@sparksify.com', meet_link: 'https://meet.google.com/abc-defg-hij', _source_display: 'Calendly',      event_name: 'Franchise Intro Call' },
@@ -583,7 +617,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                 <table style={s.table}>
                   <thead>
                     <tr>
-                      {['Time', 'Client', 'Source / Type', 'Rep', 'Liquid Capital', 'Confirmed', 'Status', 'Actions'].map(h => (
+                      {['Time', 'Client', 'Source / Type', 'Rep', 'Liquid Capital', 'Confirmed', 'CQ Sent', 'Status', 'Actions'].map(h => (
                         <th key={h} style={s.th}>{h}</th>
                       ))}
                     </tr>
@@ -607,7 +641,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                           nowInserted = true;
                           rows.push(
                             <tr key="now-divider" ref={nowLineRef} style={{ pointerEvents: 'none' }}>
-                              <td colSpan={7} style={{ padding: '2px 16px' }}>
+                              <td colSpan={9} style={{ padding: '2px 16px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                   <div style={{ flex: 1, height: 1, background: '#EF4444', opacity: 0.4 }} />
                                   <span style={{ fontSize: 10, fontWeight: 700, color: '#EF4444', letterSpacing: '.05em', textTransform: 'uppercase', flexShrink: 0 }}>Now</span>
@@ -747,6 +781,20 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus,
             </span>
           );
         })()}
+      </td>
+
+      {/* CQ Sent */}
+      <td style={s.td}>
+        {b.cq_sent_at ? (
+          <span style={{ fontSize: 11, color: '#475569', whiteSpace: 'nowrap' }} title={new Date(b.cq_sent_at).toLocaleString('en-US')}>
+            {b.cq_received_at && <span style={{ color: '#15803D', marginRight: 4, fontWeight: 700 }}>✓</span>}
+            {new Date(b.cq_sent_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            {' · '}
+            {new Date(b.cq_sent_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+          </span>
+        ) : (
+          <span style={{ color: '#E2E8F0' }}>—</span>
+        )}
       </td>
 
       {/* Status */}
@@ -1102,6 +1150,32 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
             <div style={p.loadingMsg}>Loading…</div>
           ) : (
             <>
+              {/* Lead Score */}
+              {(() => {
+                const emailOpened = (ghlTags || []).some(t => String(t).toLowerCase().includes('emailopen'));
+                const { score, reasons } = computeLeadScore({ liquidRaw: liquidCapital, confStatus: confirmation?.status, status: booking.status, cqSent, cqReceived, emailOpened });
+                const tier = scoreTier(score);
+                return (
+                  <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', padding: '14px 16px', borderBottom: '1px solid #F0F0F0', background: '#FCFCFD' }}>
+                    <div style={{ flexShrink: 0, width: 58, textAlign: 'center' }}>
+                      <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1, color: tier.color }}>{score}</div>
+                      <span style={{ display: 'inline-block', marginTop: 5, padding: '1px 9px', borderRadius: 20, fontSize: 10, fontWeight: 700, color: tier.color, background: tier.bg, border: `1px solid ${tier.border}` }}>{tier.label}</span>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 6 }}>Lead Score</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                        {reasons.length === 0 ? <span style={{ fontSize: 12, color: '#9CA3AF' }}>No signals yet</span> :
+                          reasons.map((r, i) => (
+                            <span key={i} style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, color: r.good ? '#334155' : '#B91C1C', background: r.good ? '#F1F5F9' : '#FEF2F2', border: `1px solid ${r.good ? '#E2E8F0' : '#FECACA'}` }}>
+                              {r.good ? '+ ' : '− '}{r.t}
+                            </span>
+                          ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Contact */}
               <PanelSection title="Contact">
                 {(() => { const phone = booking.phone || lead?.phone || ghlContact?.phone || ''; return <Row label="Phone"><a href={`tel:${phone}`} style={phone ? p.link : undefined}>{phone || '—'}</a></Row>; })()}
@@ -1113,38 +1187,31 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                 {territory && <Row label="Territory"><span style={p.val}>{territory.primary}{territory.sub && <span style={{ color: '#9CA3AF', fontSize: 11, marginLeft: 6 }}>{territory.sub}</span>}</span></Row>}
                 {booking.meet_link && <Row label="Meet Link"><a href={booking.meet_link} target="_blank" rel="noreferrer" style={p.link}>Join call →</a></Row>}
 
-                <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #F0F0F0' }}>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <QBBtn variant="cq" onClick={sendCQ} disabled={cqSent}>{cqSent ? '✓ CQ Sent' : 'Send CQ'}</QBBtn>
-                    {cqSent && !cqReceived && <QBBtn variant="pitch" onClick={markCQReceived} disabled={cqRecvSaving}>{cqRecvSaving ? 'Saving…' : 'Mark CQ Received'}</QBBtn>}
-                    {cqReceived && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 3, fontSize: 12, fontWeight: 600, color: '#15803D', background: '#DCFCE7', border: '1px solid #BBF7D0' }}>✓ CQ Received</span>}
+                {(cqSentAt || cqReceivedAt) && (
+                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #F0F0F0', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {cqSentAt && (
+                      <div style={{ fontSize: 11, color: '#64748B' }}>
+                        <span style={{ fontWeight: 600, color: '#7C3AED' }}>CQ Sent:</span>{' '}
+                        {new Date(cqSentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {' · '}
+                        {new Date(cqSentAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                      </div>
+                    )}
+                    {cqReceivedAt && (
+                      <div style={{ fontSize: 11, color: '#64748B' }}>
+                        <span style={{ fontWeight: 600, color: '#15803D' }}>CQ Received:</span>{' '}
+                        {new Date(cqReceivedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {' · '}
+                        {new Date(cqReceivedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                        {cqSentAt && (
+                          <span style={{ marginLeft: 6, color: '#94A3B8' }}>
+                            ({Math.round((new Date(cqReceivedAt) - new Date(cqSentAt)) / 3600000 * 10) / 10}h turnaround)
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  {(cqSentAt || cqReceivedAt) && (
-                    <div style={{ marginTop: 7, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      {cqSentAt && (
-                        <div style={{ fontSize: 11, color: '#64748B' }}>
-                          <span style={{ fontWeight: 600, color: '#7C3AED' }}>Sent:</span>{' '}
-                          {new Date(cqSentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                          {' · '}
-                          {new Date(cqSentAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                        </div>
-                      )}
-                      {cqReceivedAt && (
-                        <div style={{ fontSize: 11, color: '#64748B' }}>
-                          <span style={{ fontWeight: 600, color: '#15803D' }}>Received:</span>{' '}
-                          {new Date(cqReceivedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                          {' · '}
-                          {new Date(cqReceivedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                          {cqSentAt && (
-                            <span style={{ marginLeft: 6, color: '#94A3B8' }}>
-                              ({Math.round((new Date(cqReceivedAt) - new Date(cqSentAt)) / 3600000 * 10) / 10}h turnaround)
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                )}
               </PanelSection>
 
               {/* GHL Tags */}
@@ -1200,13 +1267,32 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                   </>
                 )}
                 {booking.status === 'showed' && (
-                  <button style={{ ...p.qaBtn, background: '#7C3AED', color: '#fff', border: 'none' }} onClick={() => onStatusChange('closed')}>
-                    Mark Closed Won
-                  </button>
+                  <>
+                    {cqReceived ? (
+                      <div style={{ ...p.qaBtn, background: '#DCFCE7', color: '#15803D', border: '1px solid #BBF7D0', marginBottom: 8, cursor: 'default' }}>✓ CQ Received</div>
+                    ) : (
+                      <button style={{ ...p.qaBtn, background: cqSent ? '#fff' : '#2563EB', color: cqSent ? '#15803D' : '#fff', border: cqSent ? '1px solid #A7F3D0' : 'none', marginBottom: 8 }} onClick={sendCQ} disabled={cqSent}>
+                        {cqSent ? '✓ CQ Sent' : 'Send CQ'}
+                      </button>
+                    )}
+                    {cqSent && !cqReceived && (
+                      <button style={{ ...p.qaBtn, background: '#fff', color: '#374151', border: '1px solid #E5E7EB', marginBottom: 8 }} onClick={markCQReceived} disabled={cqRecvSaving}>
+                        {cqRecvSaving ? 'Saving…' : 'Mark CQ Received'}
+                      </button>
+                    )}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={() => setShowFollowUp(true)}>
+                        Schedule Follow-up
+                      </button>
+                      <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#B91C1C', border: '1px solid #FECACA' }} onClick={() => onStatusChange('not-interested')}>
+                        Not Interested
+                      </button>
+                    </div>
+                  </>
                 )}
-                {(booking.status === 'no-show' || booking.status === 'closed') && (
+                {(booking.status === 'no-show' || booking.status === 'closed' || booking.status === 'not-interested') && (
                   <div style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '8px 0' }}>
-                    {booking.status === 'closed' ? 'Deal closed' : 'No further actions'}
+                    {booking.status === 'closed' ? 'Deal closed' : booking.status === 'not-interested' ? 'Marked not interested' : 'No further actions'}
                   </div>
                 )}
               </div>
