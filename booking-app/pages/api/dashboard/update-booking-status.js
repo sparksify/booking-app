@@ -56,6 +56,8 @@ const STATUS_MAP = {
   closed:           { tag: 'closed-won',     leadStatus: 'qualified',      stageId: GHL_STAGE_CLOSED,  apptStatus: null     },
   // Not interested = closed lost. Tag it; don't touch the appointment (they showed).
   'not-interested': { tag: 'not-interested', leadStatus: 'not-interested', stageId: null,              apptStatus: null     },
+  // Not a good fit = rep disqualified the lead.
+  'not-a-fit':      { tag: 'not-a-good-fit', leadStatus: 'disqualified',   stageId: null,              apptStatus: null     },
 };
 
 export default async function handler(req, res) {

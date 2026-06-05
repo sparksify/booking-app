@@ -29,6 +29,7 @@ const STATUS_META = {
   'no-show':        { label: 'No Show',        color: '#DC2626', bg: '#FEE2E2', dot: '#DC2626' },
   closed:           { label: 'Closed Won',     color: '#7C3AED', bg: '#EDE9FE', dot: '#7C3AED' },
   'not-interested': { label: 'Not Interested', color: '#64748B', bg: '#F1F5F9', dot: '#94A3B8' },
+  'not-a-fit':      { label: 'Not a Good Fit', color: '#9A3412', bg: '#FFF7ED', dot: '#C2410C' },
 };
 
 // ─── Lead score (commitment stack) ────────────────────────────────────────────
@@ -494,7 +495,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
             {/* Stats row — connected */}
             <div style={s.statsCard}>
               {[
-                { label: 'Scheduled', num: counts.scheduled   || 0, iconBg: '#DBEAFE', iconColor: '#2563EB', icon: 'calendar' },
+                { label: 'Booked', num: filteredBookings.length, iconBg: '#DBEAFE', iconColor: '#2563EB', icon: 'calendar' },
                 { label: 'Showed',    num: counts.showed      || 0, iconBg: '#D1FAE5', iconColor: '#059669', icon: 'check'    },
                 { label: 'No-Shows',  num: counts['no-show']  || 0, iconBg: '#FEE2E2', iconColor: '#DC2626', icon: 'x-circle' },
                 { label: 'Show Rate', num: showRate,               iconBg: '#DBEAFE', iconColor: '#2563EB', icon: 'trending' },
@@ -625,6 +626,8 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                     <option value="showed">Showed</option>
                     <option value="no-show">No Show</option>
                     <option value="closed">Closed Won</option>
+                    <option value="not-interested">Not Interested</option>
+                    <option value="not-a-fit">Not a Good Fit</option>
                   </select>
                   <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6B7280', fontSize: 10 }}>▼</span>
                 </div>
@@ -952,6 +955,14 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
   const [fuSaving,     setFuSaving]     = useState(false);
   const [fuSaved,      setFuSaved]      = useState(false);
   const panelRef = useRef(null);
+  const notesRef = useRef(null);
+  function focusNotes() {
+    setPanelTab('info');
+    setTimeout(() => {
+      notesRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      notesRef.current?.focus();
+    }, 80);
+  }
 
   useEffect(() => {
     if (lead) {
@@ -1303,7 +1314,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
 
               {/* Notes */}
               <PanelSection title="Notes" bg="#FFFEF5">
-                <textarea style={{ ...p.notesArea, background: '#FFFDF0' }} rows={5} value={notes} placeholder="Add notes about this client…" onChange={e => setNotes(e.target.value)} />
+                <textarea ref={notesRef} style={{ ...p.notesArea, background: '#FFFDF0' }} rows={5} value={notes} placeholder="Add notes about this client…" onChange={e => setNotes(e.target.value)} />
                 <div style={{ marginTop: 10 }}>
                   <button onClick={saveNotes} disabled={notesSaving} style={{ ...p.actionBtn, background: notesSaved ? '#2CA01C' : '#0077C5' }}>{notesSaving ? 'Saving…' : notesSaved ? '✓ Saved' : 'Save Notes'}</button>
                 </div>
@@ -1317,16 +1328,16 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                     <button style={{ ...p.qaBtn, background: '#2563EB', color: '#fff', border: 'none', marginBottom: 8 }} onClick={() => onStatusChange('showed')}>
                       ✓ Mark Showed
                     </button>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={() => setShowFollowUp(true)}>
-                        Reschedule
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                      <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#6B7280', border: '1px solid #E5E7EB' }} onClick={() => onStatusChange('no-show')}>
+                        Mark No-Show
                       </button>
-                      <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={() => { setPanelTab('info'); }}>
+                      <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={focusNotes}>
                         + Add Note
                       </button>
                     </div>
-                    <button style={{ ...p.qaBtn, background: '#fff', color: '#6B7280', border: '1px solid #E5E7EB', marginTop: 8 }} onClick={() => onStatusChange('no-show')}>
-                      ··· Mark No-Show
+                    <button style={{ ...p.qaBtn, background: '#fff', color: '#9A3412', border: '1px solid #FED7AA' }} onClick={() => onStatusChange('not-a-fit')}>
+                      Not a Good Fit
                     </button>
                   </>
                 )}
@@ -1344,7 +1355,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                         {cqRecvSaving ? 'Saving…' : 'Mark CQ Received'}
                       </button>
                     )}
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                       <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={() => setShowFollowUp(true)}>
                         Schedule Follow-up
                       </button>
@@ -1352,11 +1363,14 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                         Not Interested
                       </button>
                     </div>
+                    <button style={{ ...p.qaBtn, background: '#fff', color: '#9A3412', border: '1px solid #FED7AA' }} onClick={() => onStatusChange('not-a-fit')}>
+                      Not a Good Fit
+                    </button>
                   </>
                 )}
-                {(booking.status === 'no-show' || booking.status === 'closed' || booking.status === 'not-interested') && (
+                {(booking.status === 'no-show' || booking.status === 'closed' || booking.status === 'not-interested' || booking.status === 'not-a-fit') && (
                   <div style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '8px 0' }}>
-                    {booking.status === 'closed' ? 'Deal closed' : booking.status === 'not-interested' ? 'Marked not interested' : 'No further actions'}
+                    {booking.status === 'closed' ? 'Deal closed' : booking.status === 'not-interested' ? 'Marked not interested' : booking.status === 'not-a-fit' ? 'Marked not a good fit' : 'No further actions'}
                   </div>
                 )}
               </div>
