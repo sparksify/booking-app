@@ -199,7 +199,12 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
     lastName:  prefill.lastName,
     phone:     prefill.phone,
     email:     prefill.email,
+    goals:     '',
   });
+  const [isDesktop,   setIsDesktop]   = useState(false);
+  const [recommended, setRecommended] = useState(null);
+  const dateStripRef = useRef(null);
+  const setField = (k, v) => setAnswers(a => ({ ...a, [k]: v }));
   const [inputVal,   setInputVal]   = useState('');
   const [workdays,   setWorkdays]   = useState([]);
   const [dayIdx,     setDayIdx]     = useState(0);
@@ -284,6 +289,7 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
         liquid_capital: prefill.liquidCapital || null,
         lead_id:        leadId || null,
         source:         'brand_booking',
+        notes:          answers.goals || null,
       };
 
       const r = await fetch('/api/book', {
@@ -332,6 +338,47 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
     }
   }, [step, phase]);
 
+  // Desktop detection (≥1024px). Mobile keeps the existing step-by-step flow.
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const upd = () => setIsDesktop(mq.matches);
+    upd();
+    mq.addEventListener ? mq.addEventListener('change', upd) : mq.addListener(upd);
+    return () => { mq.removeEventListener ? mq.removeEventListener('change', upd) : mq.removeListener(upd); };
+  }, []);
+
+  // The redesigned single-screen layout is ONLY for the personal calendar.
+  // Brand calendars (Facebook lead-ad destinations) keep the existing flow.
+  const isPersonal = brand?.type === 'personal';
+
+  // On the personal desktop layout the calendar + form show together — skip the wizard.
+  useEffect(() => {
+    if (isDesktop && isPersonal && phase === 'questions') {
+      setPhase('calendar');
+      track('booking_page_viewed', leadId);
+    }
+  }, [isDesktop, isPersonal, phase]);
+
+  // Capture the soonest slot as the "Recommended for you" suggestion.
+  useEffect(() => {
+    if (!recommended && selDate && workdays.length && selDate.dateStr === workdays[0].dateStr && slots.length) {
+      setRecommended({ date: selDate, slot: slots[0] });
+    }
+  }, [slots, selDate, workdays, recommended]);
+
+  function reserveRecommended() {
+    if (!recommended) return;
+    if (selDate?.dateStr !== recommended.date.dateStr) {
+      const idx = workdays.findIndex(d => d.dateStr === recommended.date.dateStr);
+      setDayIdx(idx >= 0 ? idx : 0);
+      setSelDate(recommended.date);
+      fetchSlots(recommended.date.dateStr);
+    }
+    setSelSlot(recommended.slot);
+  }
+
+  const canBook = !!(answers.firstName?.trim() && answers.lastName?.trim() && answers.email?.trim() && isValidPhone(answers.phone || '') && selSlot && selDate);
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   if (phase === 'booked' && bookedSlot) {
@@ -366,6 +413,127 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
                 A confirmation email is on its way to {answers.email}
               </p>
             </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // ── Desktop, personal calendar only: single-screen 3-column layout ──────────
+  if (isDesktop && isPersonal) {
+    const slotSel = sl => selSlot && selSlot.h === sl.h && selSlot.m === sl.m;
+    const scrollStrip = dir => dateStripRef.current?.scrollBy({ left: dir * 220, behavior: 'smooth' });
+    return (
+      <>
+        <Head><title>{cfg.brandName} — Book a Call</title></Head>
+        <div style={d.page}>
+          <div style={d.shell}>
+
+            {/* LEFT — info */}
+            <div style={d.left}>
+              <h1 style={d.h1}>{cfg.headline || "Let’s see if this could be a fit."}</h1>
+              <p style={d.sub}>{cfg.subtitle || `A quick ${cfg.duration}-minute call to learn about your needs and see how I can help.`}</p>
+              <div style={d.metaList}>
+                <div style={d.metaRow}><span style={d.metaIc}><DIc name="clock" /></span>{cfg.duration} minutes</div>
+                <div style={d.metaRow}><span style={d.metaIc}><DIc name="phone" /></span>Phone call</div>
+                <div style={d.metaRow}><span style={d.metaIc}><DIc name="globe" /></span>{cfg.tz}</div>
+              </div>
+              <div style={d.expectTitle}>What to expect</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 26 }}>
+                {['Brief discovery of your goals', `Explore how ${cfg.brandName} can help`, 'Answer your questions'].map(t => (
+                  <div key={t} style={d.expectRow}><span style={d.checkIc}><DIc name="check" size={13} /></span>{t}</div>
+                ))}
+              </div>
+              <div style={d.consultCard}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  {cfg.hostAvatarUrl
+                    ? <img src={cfg.hostAvatarUrl} alt="" style={d.avatar} />
+                    : <div style={{ ...d.avatar, background: '#15803D', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{(cfg.brandName || 'A')[0]}</div>}
+                  <div>
+                    <div style={{ fontWeight: 700, color: '#0F172A' }}>{cfg.brandName}</div>
+                    <div style={{ fontSize: 12.5, color: '#64748B' }}>Top consultant</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                      <span style={{ color: '#16A34A', letterSpacing: 1, fontSize: 13 }}>★★★★★</span>
+                      <span style={{ fontSize: 12, color: '#64748B', fontWeight: 600 }}>4.9</span>
+                    </div>
+                  </div>
+                </div>
+                <div style={{ borderTop: '1px solid #EEF2F6', marginTop: 14, paddingTop: 12, fontSize: 11.5, color: '#94A3B8' }}>Trusted by founders and teams</div>
+              </div>
+            </div>
+
+            {/* MIDDLE — calendar */}
+            <div style={d.mid}>
+              {recommended && (
+                <>
+                  <div style={d.recoLabel}><DIc name="spark" size={16} /> Recommended for you</div>
+                  <div style={d.recoCard}>
+                    <span style={d.recoStar}><DIc name="star" size={18} /></span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: '#0F172A' }}>{getDayLabel(recommended.date.dateStr)} at {recommended.slot.label}</div>
+                      <div style={{ fontSize: 12.5, color: '#64748B' }}>Usually a great time to connect</div>
+                    </div>
+                    <button style={d.reserveBtn} onClick={reserveRecommended}>Reserve this time</button>
+                  </div>
+                </>
+              )}
+
+              <div style={d.midSection}>Select a date</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button style={d.arrow} onClick={() => scrollStrip(-1)}><DIc name="chevL" size={16} /></button>
+                <div ref={dateStripRef} style={d.dateStrip}>
+                  {workdays.map((day, i) => (
+                    <button key={day.dateStr} onClick={() => selectDay(day, i)} style={{ ...d.dayChip, ...(dayIdx === i ? d.dayChipOn : {}) }}>
+                      <div style={{ fontSize: 12, color: dayIdx === i ? '#15803D' : '#64748B', fontWeight: 600 }}>{day.dow}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: dayIdx === i ? '#15803D' : '#0F172A' }}>{day.mon} {day.day}</div>
+                    </button>
+                  ))}
+                </div>
+                <button style={d.arrow} onClick={() => scrollStrip(1)}><DIc name="chevR" size={16} /></button>
+              </div>
+
+              <div style={d.availTitle}>Available times{selDate ? ` for ${getDayLabel(selDate.dateStr)}` : ''}</div>
+              {slotsLoading ? (
+                <div style={d.slotsMsg}>Loading…</div>
+              ) : slotErr ? (
+                <div style={d.slotsMsg}>{slotErr}</div>
+              ) : (
+                <div style={d.slotGrid}>
+                  {slots.map((sl, i) => (
+                    <button key={i} onClick={() => setSelSlot(sl)} style={{ ...d.slot, ...(slotSel(sl) ? d.slotOn : {}) }}>
+                      {sl.label}
+                      {slotSel(sl) && <span style={{ color: '#15803D' }}><DIc name="check" size={15} /></span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div style={d.tzRow}><span style={{ color: '#16A34A' }}><DIc name="globe" size={16} /></span> Time zone&nbsp;<strong style={{ color: '#334155', fontWeight: 600 }}>{cfg.tz} (US &amp; Canada)</strong></div>
+              <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>All times are shown in your local time zone.</div>
+            </div>
+
+            {/* RIGHT — form */}
+            <div style={d.right}>
+              <h2 style={d.h2}>Tell us about yourself</h2>
+              <p style={d.rsub}>So we can make the most of our time together.</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div><label style={d.label}>First name</label><input style={d.input} value={answers.firstName} onChange={e => setField('firstName', e.target.value)} placeholder="First name" /></div>
+                <div><label style={d.label}>Last name</label><input style={d.input} value={answers.lastName} onChange={e => setField('lastName', e.target.value)} placeholder="Last name" /></div>
+              </div>
+              <label style={d.label}>Email</label>
+              <input style={d.input} type="email" value={answers.email} onChange={e => setField('email', e.target.value)} placeholder="you@example.com" />
+              <label style={d.label}>Phone</label>
+              <input style={d.input} type="tel" value={answers.phone} onChange={e => setField('phone', e.target.value)} placeholder="(555) 123-4567" />
+              <label style={d.label}>Goals or questions <span style={{ color: '#94A3B8', fontWeight: 400 }}>(optional)</span></label>
+              <textarea style={{ ...d.input, minHeight: 92, resize: 'vertical' }} maxLength={250} value={answers.goals} onChange={e => setField('goals', e.target.value)} placeholder="What would you like to achieve in this call?" />
+              <div style={{ textAlign: 'right', fontSize: 11, color: '#94A3B8', marginTop: -8, marginBottom: 14 }}>{(answers.goals || '').length}/250</div>
+              <button style={{ ...d.bookBtn, opacity: canBook && !booking ? 1 : 0.5, cursor: canBook && !booking ? 'pointer' : 'not-allowed' }} disabled={!canBook || booking} onClick={confirmBooking}>
+                {booking ? 'Booking…' : 'Book My Call →'}
+              </button>
+              {bookErr && <div style={{ marginTop: 10, fontSize: 13, color: '#DC2626' }}>{bookErr}</div>}
+              <div style={d.secure}><DIc name="lock" size={13} /> Your information is secure and will only be used to schedule and prepare for our call.</div>
+            </div>
+
           </div>
         </div>
       </>
@@ -512,4 +680,64 @@ const ss = {
   card:  { background: '#FFFFFF', borderRadius: 16, boxShadow: '0 4px 24px rgba(15,23,42,.10)', width: '100%', maxWidth: 480, overflow: 'hidden' },
   input: { width: '100%', padding: '12px 14px', fontSize: 15, border: '1px solid #E2E8F0', borderRadius: 8, fontFamily: 'inherit', outline: 'none', marginBottom: 14, boxSizing: 'border-box', color: '#0F172A' },
   btn:   { width: '100%', padding: '13px 0', background: '#0057FF', color: '#fff', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
+};
+
+// ─── Desktop (personal calendar) icons + styles ────────────────────────────────
+function DIc({ name, size = 18 }) {
+  const p = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', style: { display: 'block' } };
+  switch (name) {
+    case 'clock':  return <svg {...p}><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>;
+    case 'phone':  return <svg {...p}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>;
+    case 'globe':  return <svg {...p}><circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z"/></svg>;
+    case 'check':  return <svg {...p}><polyline points="20 6 9 17 4 12"/></svg>;
+    case 'star':   return <svg {...{ ...p, fill: 'currentColor', stroke: 'none' }}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>;
+    case 'spark':  return <svg {...{ ...p, fill: 'currentColor', stroke: 'none' }}><path d="M12 2l1.6 5.4L19 9l-5.4 1.6L12 16l-1.6-5.4L5 9l5.4-1.6L12 2z"/></svg>;
+    case 'chevL':  return <svg {...p}><polyline points="15 18 9 12 15 6"/></svg>;
+    case 'chevR':  return <svg {...p}><polyline points="9 18 15 12 9 6"/></svg>;
+    case 'lock':   return <svg {...p}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
+    default: return null;
+  }
+}
+
+const GREEN = '#15803D';
+const d = {
+  page:  { minHeight: '100vh', background: '#F4F5F7', display: 'flex', justifyContent: 'center', padding: '40px 24px', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" },
+  shell: { display: 'grid', gridTemplateColumns: '300px 1fr 360px', gap: 0, width: '100%', maxWidth: 1180, background: '#fff', borderRadius: 20, boxShadow: '0 8px 40px rgba(15,23,42,.10)', overflow: 'hidden' },
+
+  left:  { padding: '40px 34px', borderRight: '1px solid #EEF2F6' },
+  h1:    { fontSize: 30, fontWeight: 800, color: '#0F172A', lineHeight: 1.15, margin: 0, letterSpacing: '-0.5px' },
+  sub:   { fontSize: 14.5, color: '#64748B', lineHeight: 1.6, margin: '14px 0 26px' },
+  metaList: { display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: 24, borderBottom: '1px solid #EEF2F6', marginBottom: 22 },
+  metaRow:  { display: 'flex', alignItems: 'center', gap: 12, fontSize: 14.5, color: '#0F172A', fontWeight: 500 },
+  metaIc:   { color: GREEN, display: 'flex' },
+  expectTitle: { fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 14 },
+  expectRow:   { display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: '#475569' },
+  checkIc:     { width: 18, height: 18, borderRadius: '50%', background: '#DCFCE7', color: GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  consultCard: { border: '1px solid #E5E7EB', borderRadius: 14, padding: 16, background: '#fff' },
+  avatar:      { width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 },
+
+  mid:    { padding: '36px 34px' },
+  recoLabel: { display: 'flex', alignItems: 'center', gap: 6, color: GREEN, fontWeight: 700, fontSize: 14, marginBottom: 12 },
+  recoCard:  { display: 'flex', alignItems: 'center', gap: 14, border: `1.5px solid ${'#BBF7D0'}`, background: '#F0FDF4', borderRadius: 14, padding: '16px 18px', marginBottom: 28 },
+  recoStar:  { width: 40, height: 40, borderRadius: '50%', background: '#16A34A', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  reserveBtn:{ background: '#16A34A', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  midSection:{ fontSize: 17, fontWeight: 700, color: '#0F172A', marginBottom: 12 },
+  arrow:     { width: 34, height: 34, flexShrink: 0, borderRadius: '50%', border: '1px solid #E2E8F0', background: '#fff', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' },
+  dateStrip: { display: 'flex', gap: 8, overflowX: 'auto', flex: 1, scrollbarWidth: 'none', padding: '2px 0' },
+  dayChip:   { flexShrink: 0, minWidth: 64, padding: '10px 12px', borderRadius: 12, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center' },
+  dayChipOn: { border: `2px solid ${GREEN}`, background: '#F0FDF4' },
+  availTitle:{ fontSize: 15, fontWeight: 700, color: '#0F172A', margin: '26px 0 14px' },
+  slotsMsg:  { padding: '24px 0', color: '#94A3B8', fontSize: 14 },
+  slotGrid:  { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 },
+  slot:      { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '13px 8px', borderRadius: 12, border: '1px solid #E2E8F0', background: '#fff', color: '#0F172A', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  slotOn:    { border: `2px solid ${GREEN}`, background: '#F0FDF4', color: GREEN },
+  tzRow:     { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: '#64748B', marginTop: 26, paddingTop: 18, borderTop: '1px solid #EEF2F6' },
+
+  right:  { padding: '40px 34px', borderLeft: '1px solid #EEF2F6' },
+  h2:     { fontSize: 22, fontWeight: 800, color: '#0F172A', margin: 0 },
+  rsub:   { fontSize: 13.5, color: '#64748B', margin: '8px 0 22px' },
+  label:  { display: 'block', fontSize: 13, fontWeight: 700, color: '#0F172A', marginBottom: 7, marginTop: 14 },
+  input:  { width: '100%', boxSizing: 'border-box', padding: '12px 13px', fontSize: 14, border: '1px solid #E2E8F0', borderRadius: 10, fontFamily: 'inherit', outline: 'none', color: '#0F172A' },
+  bookBtn:{ width: '100%', padding: '15px 0', background: '#16A34A', color: '#fff', border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, fontFamily: 'inherit', marginTop: 6 },
+  secure: { display: 'flex', alignItems: 'flex-start', gap: 7, fontSize: 12, color: '#94A3B8', marginTop: 16, lineHeight: 1.5 },
 };
