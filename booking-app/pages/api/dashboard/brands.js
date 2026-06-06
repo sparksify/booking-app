@@ -32,7 +32,7 @@ export default async function handler(req, res) {
   // ── POST — create brand ────────────────────────────────────────────────────
   if (req.method === 'POST') {
     const {
-      type, slug, name, active,
+      type, slug, name, active, accent_color,
       booking_headline, booking_subtitle, booking_description,
       meeting_title, meeting_duration,
       event_description, event_location, event_color, event_reminder_mins,
@@ -54,6 +54,7 @@ export default async function handler(req, res) {
         slug:                slug.trim().toLowerCase(),
         name:                name.trim(),
         active:              active !== false,
+        accent_color:        accent_color        || null,
         booking_headline:    booking_headline    || null,
         booking_subtitle:    booking_subtitle    || null,
         booking_description: booking_description || null,
@@ -83,7 +84,7 @@ export default async function handler(req, res) {
     if (!id) return res.status(400).json({ error: 'id is required' });
 
     const allowed = [
-      'type', 'slug', 'name', 'active',
+      'type', 'slug', 'name', 'active', 'accent_color',
       'booking_headline', 'booking_subtitle', 'booking_description',
       'meeting_title', 'meeting_duration',
       'event_description', 'event_location', 'event_color', 'event_reminder_mins',

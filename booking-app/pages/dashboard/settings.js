@@ -1215,6 +1215,29 @@ function CalCard({ cal, expandedBrand, setExpandedBrand, brandSaving, brandSaved
           <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>GHL Tags</div>
           <ChipInput values={cal.ghl_tags || []} onChange={v => onUpdate(cal.id, 'ghl_tags', v)} placeholder={isPers ? 'personal-inquiry' : 'wetfuel'} />
 
+          {/* Personal-only fields */}
+          {isPers && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', margin: '14px 0 8px' }}>Assigned To</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
+                {[...new Map((members || []).filter(m => m.email).map(m => [m.email, m])).values()].map(m => {
+                  const sel = (cal.rep_emails || [])[0] === m.email;
+                  return <button key={m.email} type="button" onClick={() => onUpdate(cal.id, 'rep_emails', [m.email])} style={{ padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', border: sel ? 'none' : '1px solid #E2E8F0', background: sel ? '#7C3AED' : '#F8FAFC', color: sel ? '#fff' : '#475569' }}>{m.name || m.email.split('@')[0]}</button>;
+                })}
+              </div>
+              <p style={{ fontSize: 11, color: '#94A3B8', margin: '0 0 16px' }}>This person's uploaded photo and Google Calendar power this booking page.</p>
+
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>Booking Page Color</div>
+              <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap', paddingTop: 2, marginBottom: 6 }}>
+                {['#16A34A','#0057FF','#7C3AED','#DC2626','#EA580C','#0D9488','#DB2777','#0EA5E9','#CA8A04','#0F172A'].map(hex => {
+                  const sel = (cal.accent_color || '#16A34A') === hex;
+                  return <button key={hex} type="button" onClick={() => onUpdate(cal.id, 'accent_color', hex)} style={{ width: 26, height: 26, borderRadius: '50%', background: hex, border: sel ? '3px solid #0F172A' : '3px solid transparent', boxShadow: sel ? '0 0 0 2px #fff inset' : 'none', cursor: 'pointer', padding: 0 }} />;
+                })}
+              </div>
+              <p style={{ fontSize: 11, color: '#94A3B8', margin: '0 0 14px' }}>Accent color for the desktop booking page.</p>
+            </>
+          )}
+
           {/* Brand-only fields */}
           {!isPers && (
             <>

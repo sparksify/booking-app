@@ -176,6 +176,7 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
     duration:     brand.meeting_duration || 15,
     tz:           'Central Time',
     daysAhead:    settings.days_ahead   || 14,
+    accent:       brand.accent_color    || '#16A34A',
     // Prefer the uploaded photo of the rep assigned to this calendar; fall back to the global host avatar.
     hostAvatarUrl: ((brand.rep_emails?.[0] && settings.rep_avatars?.[brand.rep_emails[0]]) || settings.host_avatar_url) || null,
     // Booking page content
@@ -427,7 +428,7 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
     return (
       <>
         <Head><title>{cfg.brandName} — Book a Call</title></Head>
-        <div style={d.page}>
+        <div style={{ ...d.page, '--ac': cfg.accent, '--acL': cfg.accent + '1A', '--acB': cfg.accent + '55' }}>
           <div style={d.shell}>
 
             {/* LEFT — info */}
@@ -449,12 +450,12 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                   {cfg.hostAvatarUrl
                     ? <img src={cfg.hostAvatarUrl} alt="" style={d.avatar} />
-                    : <div style={{ ...d.avatar, background: '#15803D', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{(cfg.brandName || 'A')[0]}</div>}
+                    : <div style={{ ...d.avatar, background: 'var(--ac, #15803D)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{(cfg.brandName || 'A')[0]}</div>}
                   <div>
                     <div style={{ fontWeight: 700, color: '#0F172A' }}>{cfg.brandName}</div>
                     <div style={{ fontSize: 12.5, color: '#64748B' }}>Top consultant</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
-                      <span style={{ color: '#16A34A', letterSpacing: 1, fontSize: 13 }}>★★★★★</span>
+                      <span style={{ color: 'var(--ac, #16A34A)', letterSpacing: 1, fontSize: 13 }}>★★★★★</span>
                       <span style={{ fontSize: 12, color: '#64748B', fontWeight: 600 }}>4.9</span>
                     </div>
                   </div>
@@ -489,8 +490,8 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
                       <div ref={dateStripRef} style={d.dateStrip}>
                         {workdays.map((day, i) => (
                           <button key={day.dateStr} onClick={() => selectDay(day, i)} style={{ ...d.dayChip, ...(dayIdx === i ? d.dayChipOn : {}) }}>
-                            <div style={{ fontSize: 12, color: dayIdx === i ? '#15803D' : '#64748B', fontWeight: 600 }}>{day.dow}</div>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: dayIdx === i ? '#15803D' : '#0F172A' }}>{day.mon} {day.day}</div>
+                            <div style={{ fontSize: 12, color: dayIdx === i ? 'var(--ac, #15803D)' : '#64748B', fontWeight: 600 }}>{day.dow}</div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: dayIdx === i ? 'var(--ac, #15803D)' : '#0F172A' }}>{day.mon} {day.day}</div>
                           </button>
                         ))}
                       </div>
@@ -506,12 +507,12 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
                         {slots.map((sl, i) => (
                           <button key={i} onClick={() => setSelSlot(sl)} style={{ ...d.slot, ...(slotSel(sl) ? d.slotOn : {}) }}>
                             {sl.label}
-                            {slotSel(sl) && <span style={{ color: '#15803D' }}><DIc name="check" size={15} /></span>}
+                            {slotSel(sl) && <span style={{ color: 'var(--ac, #15803D)' }}><DIc name="check" size={15} /></span>}
                           </button>
                         ))}
                       </div>
                     )}
-                    <div style={d.tzRow}><span style={{ color: '#16A34A' }}><DIc name="globe" size={16} /></span> Time zone&nbsp;<strong style={{ color: '#334155', fontWeight: 600 }}>{cfg.tz} (US &amp; Canada)</strong></div>
+                    <div style={d.tzRow}><span style={{ color: 'var(--ac, #16A34A)' }}><DIc name="globe" size={16} /></span> Time zone&nbsp;<strong style={{ color: '#334155', fontWeight: 600 }}>{cfg.tz} (US &amp; Canada)</strong></div>
                     <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>All times are shown in your local time zone.</div>
                   </div>
 
@@ -522,10 +523,10 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
                     <p style={d.rsub}>So we can make the most of our time together.</p>
                     {selDate && selSlot && (
                       <div style={d.drawerTimeChip}>
-                        <span style={{ color: '#16A34A', display: 'flex' }}><DIc name="check" size={16} /></span>
+                        <span style={{ color: 'var(--ac, #16A34A)', display: 'flex' }}><DIc name="check" size={16} /></span>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#15803D' }}>{getDayLabel(selDate.dateStr)} at {selSlot.label}</div>
-                          <div style={{ fontSize: 11, color: '#16A34A' }}>{cfg.tz}</div>
+                          <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--ac, #15803D)' }}>{getDayLabel(selDate.dateStr)} at {selSlot.label}</div>
+                          <div style={{ fontSize: 11, color: 'var(--ac, #16A34A)' }}>{cfg.tz}</div>
                         </div>
                         <button style={d.changeBtn} onClick={() => setSelSlot(null)}>Change</button>
                       </div>
@@ -718,7 +719,7 @@ function DIc({ name, size = 18 }) {
   }
 }
 
-const GREEN = '#15803D';
+const GREEN = 'var(--ac, #15803D)';
 const d = {
   page:  { minHeight: '100vh', background: '#F4F5F7', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" },
   footer:{ marginTop: 18, fontSize: 12, color: '#94A3B8', letterSpacing: '.2px' },
@@ -732,25 +733,25 @@ const d = {
   metaIc:   { color: GREEN, display: 'flex' },
   expectTitle: { fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 14 },
   expectRow:   { display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: '#475569' },
-  checkIc:     { width: 18, height: 18, borderRadius: '50%', background: '#DCFCE7', color: GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  checkIc:     { width: 18, height: 18, borderRadius: '50%', background: 'var(--acL, #DCFCE7)', color: GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   consultCard: { border: '1px solid #E5E7EB', borderRadius: 14, padding: 16, background: '#fff' },
   avatar:      { width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 },
 
   mid:    { padding: '36px 34px', minWidth: 0 },
   recoLabel: { display: 'flex', alignItems: 'center', gap: 6, color: GREEN, fontWeight: 700, fontSize: 14, marginBottom: 12 },
-  recoCard:  { display: 'flex', alignItems: 'center', gap: 14, border: `1.5px solid ${'#BBF7D0'}`, background: '#F0FDF4', borderRadius: 14, padding: '16px 18px', marginBottom: 28 },
-  recoStar:  { width: 40, height: 40, borderRadius: '50%', background: '#16A34A', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  reserveBtn:{ background: '#16A34A', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  recoCard:  { display: 'flex', alignItems: 'center', gap: 14, border: `1.5px solid ${'var(--acB, #BBF7D0)'}`, background: 'var(--acL, #F0FDF4)', borderRadius: 14, padding: '16px 18px', marginBottom: 28 },
+  recoStar:  { width: 40, height: 40, borderRadius: '50%', background: 'var(--ac, #16A34A)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  reserveBtn:{ background: 'var(--ac, #16A34A)', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   midSection:{ fontSize: 17, fontWeight: 700, color: '#0F172A', marginBottom: 12 },
   arrow:     { width: 34, height: 34, flexShrink: 0, borderRadius: '50%', border: '1px solid #E2E8F0', background: '#fff', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' },
   dateStrip: { display: 'flex', gap: 8, overflowX: 'auto', flex: 1, minWidth: 0, scrollbarWidth: 'none', padding: '2px 0' },
   dayChip:   { flexShrink: 0, minWidth: 64, padding: '10px 12px', borderRadius: 12, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center' },
-  dayChipOn: { border: `2px solid ${GREEN}`, background: '#F0FDF4' },
+  dayChipOn: { border: `2px solid ${GREEN}`, background: 'var(--acL, #F0FDF4)' },
   availTitle:{ fontSize: 15, fontWeight: 700, color: '#0F172A', margin: '26px 0 14px' },
   slotsMsg:  { padding: '24px 0', color: '#94A3B8', fontSize: 14 },
   slotGrid:  { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 },
   slot:      { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '13px 8px', borderRadius: 12, border: '1px solid #E2E8F0', background: '#fff', color: '#0F172A', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  slotOn:    { border: `2px solid ${GREEN}`, background: '#F0FDF4', color: GREEN },
+  slotOn:    { border: `2px solid ${GREEN}`, background: 'var(--acL, #F0FDF4)', color: GREEN },
   tzRow:     { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: '#64748B', marginTop: 26, paddingTop: 18, borderTop: '1px solid #EEF2F6' },
 
   right:  { padding: '40px 34px', borderLeft: '1px solid #EEF2F6' },
@@ -758,10 +759,10 @@ const d = {
   rsub:   { fontSize: 13.5, color: '#64748B', margin: '8px 0 22px' },
   label:  { display: 'block', fontSize: 13, fontWeight: 700, color: '#0F172A', marginBottom: 7, marginTop: 14 },
   input:  { width: '100%', boxSizing: 'border-box', padding: '12px 13px', fontSize: 14, border: '1px solid #E2E8F0', borderRadius: 10, fontFamily: 'inherit', outline: 'none', color: '#0F172A' },
-  bookBtn:{ width: '100%', padding: '15px 0', background: '#16A34A', color: '#fff', border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, fontFamily: 'inherit', marginTop: 6 },
+  bookBtn:{ width: '100%', padding: '15px 0', background: 'var(--ac, #16A34A)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, fontFamily: 'inherit', marginTop: 6 },
   secure: { display: 'flex', alignItems: 'flex-start', gap: 7, fontSize: 12, color: '#94A3B8', marginTop: 16, lineHeight: 1.5 },
 
-  backBtn:       { display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#16A34A', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', padding: 0 },
-  drawerTimeChip:{ display: 'flex', alignItems: 'center', gap: 10, background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '10px 12px', margin: '14px 0 18px' },
-  changeBtn:     { background: 'none', border: 'none', color: '#16A34A', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline', flexShrink: 0 },
+  backBtn:       { display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--ac, #16A34A)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', padding: 0 },
+  drawerTimeChip:{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--acL, #F0FDF4)', border: '1px solid var(--acB, #BBF7D0)', borderRadius: 10, padding: '10px 12px', margin: '14px 0 18px' },
+  changeBtn:     { background: 'none', border: 'none', color: 'var(--ac, #16A34A)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline', flexShrink: 0 },
 };
