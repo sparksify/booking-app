@@ -930,6 +930,29 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus,
   );
 }
 
+// ─── Panel icons ──────────────────────────────────────────────────────────────
+function PIc({ name, size = 16 }) {
+  const a = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', style: { display: 'block' } };
+  switch (name) {
+    case 'mail':      return <svg {...a}><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg>;
+    case 'phone':     return <svg {...a}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>;
+    case 'chat':      return <svg {...a}><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>;
+    case 'external':  return <svg {...a}><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>;
+    case 'calendar':  return <svg {...a}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
+    case 'user':      return <svg {...a}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+    case 'dollar':    return <svg {...a}><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>;
+    case 'briefcase': return <svg {...a}><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
+    case 'pin':       return <svg {...a}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>;
+    case 'send':      return <svg {...a}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>;
+    case 'check':     return <svg {...a}><polyline points="20 6 9 17 4 12"/></svg>;
+    case 'ban':       return <svg {...a}><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>;
+    case 'userx':     return <svg {...a}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg>;
+    default: return null;
+  }
+}
+
+const GHL_LOCATION = 'tsIW5P8nYSjx55tuMI43';
+
 // ─── CRM Side Panel ───────────────────────────────────────────────────────────
 function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, confirmation, initialNotes = '', onClose, onStatusChange, onCQSent }) {
   const [notes,         setNotes]         = useState('');
@@ -1176,45 +1199,78 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
       <div ref={panelRef} style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 440, background: '#fff', boxShadow: '-4px 0 24px rgba(0,0,0,.10)', zIndex: 101, display: 'flex', flexDirection: 'column', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform .25s cubic-bezier(.4,0,.2,1)', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" }}>
 
         {/* Header */}
+        {(() => {
+          const hdrPhone = booking.phone || lead?.phone || ghlContact?.phone || '';
+          const hdrCid = booking.ghl_contact_id || ghlContact?.id || '';
+          return (
         <div style={p.panelHdr}>
-          <div style={p.avatar}>{initials}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={p.clientName}>{booking.first_name} {booking.last_name}</div>
-            <div style={{ fontSize: 12, color: '#6B7280' }}>{booking.email} {booking.phone ? `· ${booking.phone}` : ''}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>
-              <SourceBadge source={booking._source_display || 'KANSO'} />
-              {booking.event_name && (
-                <span
-                  title={booking.event_name}
-                  style={{ padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: '#475569', background: '#F1F5F9', border: '1px solid #E2E8F0', whiteSpace: 'nowrap', maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block' }}
-                >
-                  {booking.event_name}
-                </span>
-              )}
-              <span style={{ ...p.statusBadge, color: meta.color, background: meta.bg }}>
-                <span style={{ width: 5, height: 5, borderRadius: '50%', background: meta.dot, display: 'inline-block' }} />
-                {meta.label}
-              </span>
-              {(() => {
-                if (!confirmation || confirmation.loading) return null;
-                const CONF = {
-                  confirmed:   { label: '✓ Confirmed', color: '#15803D', bg: '#DCFCE7', border: '#BBF7D0' },
-                  declined:    { label: '✗ Declined',  color: '#DC2626', bg: '#FEE2E2', border: '#FECACA' },
-                  uncertain:   { label: '? Maybe',     color: '#B45309', bg: '#FEF3C7', border: '#FDE68A' },
-                };
-                const c = CONF[confirmation.status];
-                if (!c) return null;
-                return (
-                  <span title={confirmation.note || 'SMS confirmation status'} style={{ padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: c.color, background: c.bg, border: `1px solid ${c.border}`, whiteSpace: 'nowrap', cursor: confirmation.note ? 'help' : 'default' }}>
-                    {c.label}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+            <div style={{ ...p.avatar, width: 60, height: 60, fontSize: 21 }}>{initials}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ ...p.clientName, fontSize: 18 }}>{booking.first_name} {booking.last_name}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 14px', marginTop: 5, fontSize: 12.5, color: '#64748B' }}>
+                {booking.email && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minWidth: 0, maxWidth: '100%' }}>
+                    <span style={{ color: '#94A3B8', flexShrink: 0, display: 'inline-flex' }}><PIc name="mail" size={14} /></span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{booking.email}</span>
                   </span>
-                );
-              })()}
-              {booking.health && <span style={{ ...p.statusBadge, color: booking.health.color, background: booking.health.bg }}>{booking.health.emoji} {booking.health.label}</span>}
+                )}
+                {hdrPhone && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ color: '#94A3B8', display: 'inline-flex' }}><PIc name="phone" size={14} /></span>{hdrPhone}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 9, flexWrap: 'wrap' }}>
+                <SourceBadge source={booking._source_display || 'KANSO'} />
+                {booking.event_name && (
+                  <span title={booking.event_name} style={{ padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: '#475569', background: '#F1F5F9', border: '1px solid #E2E8F0', whiteSpace: 'nowrap', maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block' }}>{booking.event_name}</span>
+                )}
+                <span style={{ ...p.statusBadge, color: meta.color, background: meta.bg }}>
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: meta.dot, display: 'inline-block' }} />
+                  {meta.label}
+                </span>
+                {(() => {
+                  if (!confirmation || confirmation.loading) return null;
+                  const CONF = {
+                    confirmed:   { label: '✓ Confirmed', color: '#15803D', bg: '#DCFCE7', border: '#BBF7D0' },
+                    declined:    { label: '✗ Declined',  color: '#DC2626', bg: '#FEE2E2', border: '#FECACA' },
+                    uncertain:   { label: '? Maybe',     color: '#B45309', bg: '#FEF3C7', border: '#FDE68A' },
+                  };
+                  const c = CONF[confirmation.status];
+                  if (!c) return null;
+                  return (
+                    <span title={confirmation.note || 'SMS confirmation status'} style={{ padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: c.color, background: c.bg, border: `1px solid ${c.border}`, whiteSpace: 'nowrap', cursor: confirmation.note ? 'help' : 'default' }}>
+                      {c.label}
+                    </span>
+                  );
+                })()}
+              </div>
             </div>
+            <button onClick={onClose} style={p.closeBtn}>✕</button>
           </div>
-          <button onClick={onClose} style={p.closeBtn}>✕</button>
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+            <a href={hdrPhone ? `tel:${hdrPhone}` : undefined} style={{ ...p.hdrBtn, ...(hdrPhone ? {} : { opacity: 0.45, pointerEvents: 'none' }) }}>
+              <PIc name="phone" size={15} /> Call
+            </a>
+            <a href={`mailto:${booking.email}`} style={p.hdrBtn}>
+              <PIc name="mail" size={15} /> Email
+            </a>
+            <button onClick={openImessage} style={{ ...p.hdrBtn, cursor: 'pointer' }}>
+              <PIc name="chat" size={15} /> iMessage
+            </button>
+            <a
+              href={hdrCid ? `https://app.gohighlevel.com/v2/location/${GHL_LOCATION}/contacts/detail/${hdrCid}` : undefined}
+              target="_blank" rel="noreferrer"
+              style={{ ...p.hdrBtn, ...(hdrCid ? {} : { opacity: 0.45, pointerEvents: 'none' }) }}
+            >
+              <PIc name="external" size={15} /> Open
+            </a>
+          </div>
         </div>
+          );
+        })()}
 
         {/* Tab bar */}
         <div style={p.tabBar}>
@@ -1248,36 +1304,38 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                 const { score, reasons } = computeLeadScore({ liquidRaw: liquidCapital, confStatus: confirmation?.status, status: booking.status, cqSent, cqReceived, emailOpened });
                 const tier = scoreTier(score);
                 return (
-                  <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', padding: '14px 16px', borderBottom: '1px solid #F0F0F0', background: '#FCFCFD' }}>
-                    <div style={{ flexShrink: 0, width: 58, textAlign: 'center' }}>
-                      <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1, color: tier.color }}>{score}</div>
-                      <span style={{ display: 'inline-block', marginTop: 5, padding: '1px 9px', borderRadius: 20, fontSize: 10, fontWeight: 700, color: tier.color, background: tier.bg, border: `1px solid ${tier.border}` }}>{tier.label}</span>
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 6 }}>Lead Score</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                        {reasons.length === 0 ? <span style={{ fontSize: 12, color: '#9CA3AF' }}>No signals yet</span> :
-                          reasons.map((r, i) => (
-                            <span key={i} style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, color: r.good ? '#334155' : '#B91C1C', background: r.good ? '#F1F5F9' : '#FEF2F2', border: `1px solid ${r.good ? '#E2E8F0' : '#FECACA'}` }}>
-                              {r.good ? '+ ' : '− '}{r.t}
-                            </span>
-                          ))}
+                  <div style={p.card}>
+                    <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                      <div style={{ flexShrink: 0, width: 60, textAlign: 'center' }}>
+                        <div style={{ fontSize: 32, fontWeight: 800, lineHeight: 1, color: tier.color }}>{score}</div>
+                        <span style={{ display: 'inline-block', marginTop: 6, padding: '1px 9px', borderRadius: 20, fontSize: 10, fontWeight: 700, color: tier.color, background: tier.bg, border: `1px solid ${tier.border}` }}>{tier.label}</span>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={p.sectionTitle}>Lead Score</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                          {reasons.length === 0 ? <span style={{ fontSize: 12, color: '#9CA3AF' }}>No signals yet</span> :
+                            reasons.map((r, i) => (
+                              <span key={i} style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, color: r.good ? '#334155' : '#B91C1C', background: r.good ? '#F1F5F9' : '#FEF2F2', border: `1px solid ${r.good ? '#E2E8F0' : '#FECACA'}` }}>
+                                {r.good ? '+ ' : '− '}{r.t}
+                              </span>
+                            ))}
+                        </div>
                       </div>
                     </div>
                   </div>
                 );
               })()}
 
-              {/* Contact */}
-              <PanelSection title="Contact">
-                {(() => { const phone = booking.phone || lead?.phone || ghlContact?.phone || ''; return <Row label="Phone"><a href={`tel:${phone}`} style={phone ? p.link : undefined}>{phone || '—'}</a></Row>; })()}
-                <Row label="Email"><a href={`mailto:${booking.email}`} style={p.link}>{booking.email}</a></Row>
-                <Row label="Scheduled"><span style={p.val}>{slotLabel}</span></Row>
-                <Row label="Consultant"><span style={p.val}>{booking.assigned_to_email || ghlContact?.owner_name || '—'}</span></Row>
-                {liquidCapital && <Row label="Liquid Cap."><span style={p.val}>{liquidCapital}</span></Row>}
-                {ownedBusiness && <Row label="Owned Biz"><span style={p.val}>{ownedBusiness}</span></Row>}
-                {territory && <Row label="Territory"><span style={p.val}>{territory.primary}{territory.sub && <span style={{ color: '#9CA3AF', fontSize: 11, marginLeft: 6 }}>{territory.sub}</span>}</span></Row>}
-                {booking.meet_link && <Row label="Meet Link"><a href={booking.meet_link} target="_blank" rel="noreferrer" style={p.link}>Join call →</a></Row>}
+              {/* Contact / Booking Details */}
+              <PanelSection title="Contact / Booking Details">
+                {(() => { const phone = booking.phone || lead?.phone || ghlContact?.phone || ''; return <Row label="Phone" icon="phone"><a href={`tel:${phone}`} style={phone ? p.link : undefined}>{phone || '—'}</a></Row>; })()}
+                <Row label="Email" icon="mail"><a href={`mailto:${booking.email}`} style={p.link}>{booking.email}</a></Row>
+                <Row label="Scheduled" icon="calendar"><span style={p.val}>{slotLabel}</span></Row>
+                <Row label="Consultant" icon="user"><span style={p.val}>{booking.assigned_to_email || ghlContact?.owner_name || '—'}</span></Row>
+                {liquidCapital && <Row label="Liquid Cap." icon="dollar"><span style={p.val}>{liquidCapital}</span></Row>}
+                {ownedBusiness && <Row label="Owned Biz" icon="briefcase"><span style={p.val}>{ownedBusiness}</span></Row>}
+                {territory && <Row label="Territory" icon="pin"><span style={p.val}>{territory.primary}{territory.sub && <span style={{ color: '#9CA3AF', fontSize: 11, marginLeft: 6 }}>{territory.sub}</span>}</span></Row>}
+                {booking.meet_link && <Row label="Meet Link" icon="external"><a href={booking.meet_link} target="_blank" rel="noreferrer" style={p.link}>Join call →</a></Row>}
 
                 {(cqSentAt || cqReceivedAt) && (
                   <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #F0F0F0', display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -1338,33 +1396,33 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
               </PanelSection>
 
               {/* Quick Actions */}
-              <div style={{ ...p.quickActions, borderBottom: 'none', borderTop: '1px solid #F0F0F0' }}>
+              <div style={p.card}>
                 <div style={p.sectionTitle}>Quick Actions</div>
                 {booking.status === 'scheduled' && (
                   <>
                     <button style={{ ...p.qaBtn, background: '#2563EB', color: '#fff', border: 'none', marginBottom: 8 }} onClick={() => onStatusChange('showed')}>
-                      ✓ Mark Showed
+                      <PIc name="check" size={15} /> Mark Showed
                     </button>
                     <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                       <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#6B7280', border: '1px solid #E5E7EB' }} onClick={() => onStatusChange('no-show')}>
-                        Mark No-Show
+                        <PIc name="userx" size={15} /> No-Show
                       </button>
                       <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={focusNotes}>
                         + Add Note
                       </button>
                     </div>
                     <button style={{ ...p.qaBtn, background: '#fff', color: '#9A3412', border: '1px solid #FED7AA' }} onClick={() => onStatusChange('not-a-fit')}>
-                      Not a Good Fit
+                      <PIc name="ban" size={15} /> Not a Good Fit
                     </button>
                   </>
                 )}
                 {booking.status === 'showed' && (
                   <>
                     {cqReceived ? (
-                      <div style={{ ...p.qaBtn, background: '#DCFCE7', color: '#15803D', border: '1px solid #BBF7D0', marginBottom: 8, cursor: 'default' }}>✓ CQ Received</div>
+                      <div style={{ ...p.qaBtn, background: '#DCFCE7', color: '#15803D', border: '1px solid #BBF7D0', marginBottom: 8, cursor: 'default' }}><PIc name="check" size={15} /> CQ Received</div>
                     ) : (
                       <button style={{ ...p.qaBtn, background: cqSent ? '#16A34A' : '#2563EB', color: '#fff', border: 'none', marginBottom: 8, cursor: cqSent ? 'default' : 'pointer', opacity: cqSent ? 0.95 : 1 }} onClick={sendCQ} disabled={cqSent}>
-                        {cqSent ? '✓ CQ Sent' : 'Send CQ'}
+                        {cqSent ? <><PIc name="check" size={15} /> CQ Sent</> : <><PIc name="send" size={15} /> Send CQ</>}
                       </button>
                     )}
                     {cqSent && !cqReceived && (
@@ -1374,14 +1432,14 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                     )}
                     <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                       <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={() => setShowFollowUp(true)}>
-                        Schedule Follow-up
+                        <PIc name="calendar" size={15} /> Follow-up
                       </button>
                       <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#B91C1C', border: '1px solid #FECACA' }} onClick={() => onStatusChange('not-interested')}>
                         Not Interested
                       </button>
                     </div>
                     <button style={{ ...p.qaBtn, background: '#fff', color: '#9A3412', border: '1px solid #FED7AA' }} onClick={() => onStatusChange('not-a-fit')}>
-                      Not a Good Fit
+                      <PIc name="ban" size={15} /> Not a Good Fit
                     </button>
                   </>
                 )}
@@ -1473,8 +1531,18 @@ function PanelSection({ title, bg, children }) {
     </div>
   );
 }
-function Row({ label, children }) {
-  return <div style={p.row}>{label && <span style={p.rowLabel}>{label}</span>}<span style={p.rowVal}>{children}</span></div>;
+function Row({ label, icon, children }) {
+  return (
+    <div style={p.row}>
+      {label && (
+        <span style={p.rowLabel}>
+          {icon && <span style={{ color: '#94A3B8', marginRight: 7, display: 'inline-flex', verticalAlign: '-2px' }}><PIc name={icon} size={14} /></span>}
+          {label}
+        </span>
+      )}
+      <span style={p.rowVal}>{children}</span>
+    </div>
+  );
 }
 function EditRow({ label, children }) {
   return <div style={{ marginBottom: 10 }}><label style={p.editLabel}>{label}</label>{children}</div>;
@@ -1717,9 +1785,9 @@ const s = {
 
 // ─── Panel styles ─────────────────────────────────────────────────────────────
 const p = {
-  panelHdr:      { display: 'flex', alignItems: 'flex-start', gap: 14, padding: '28px 20px 22px', borderBottom: '1px solid #EBEBEB', flexShrink: 0 },
+  panelHdr:      { display: 'flex', flexDirection: 'column', padding: '22px 20px 18px', borderBottom: '1px solid #EBEBEB', flexShrink: 0, background: '#fff' },
   avatar:        { width: 54, height: 54, borderRadius: '50%', background: '#2563EB', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, fontWeight: 700, flexShrink: 0 },
-  clientName:    { fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 2 },
+  clientName:    { fontSize: 16, fontWeight: 800, color: '#111827', marginBottom: 2, letterSpacing: '-0.2px' },
   statusBadge:   { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600 },
   closeBtn:      { background: 'none', border: 'none', fontSize: 18, color: '#9CA3AF', cursor: 'pointer', padding: '0 0 0 8px', lineHeight: 1, flexShrink: 0 },
 
@@ -1727,17 +1795,23 @@ const p = {
   panelTab:      { flex: 1, padding: '10px 0', fontSize: 12, fontWeight: 500, color: '#6B7280', background: 'none', border: 'none', borderBottom: '2px solid transparent', cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' },
   panelTabActive:{ color: '#2563EB', borderBottom: '2px solid #2563EB', fontWeight: 600 },
 
-  scrollBody:    { flex: 1, overflowY: 'auto', padding: '0 0 24px' },
+  scrollBody:    { flex: 1, overflowY: 'auto', padding: '16px 16px 28px', background: '#F4F5F7' },
   loadingMsg:    { textAlign: 'center', padding: 40, color: '#9CA3AF', fontSize: 14 },
 
-  // Quick actions section
-  quickActions:  { padding: '16px 20px', borderBottom: '1px solid #F0F0F0', background: '#FAFAFA' },
+  // Header action buttons
+  hdrBtn:        { flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 6px', fontSize: 12.5, fontWeight: 600, color: '#334155', background: '#fff', border: '1px solid #E2E8F0', borderRadius: 9, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none' },
 
-  section:       { padding: '16px 20px', borderBottom: '1px solid #F0F0F0' },
-  sectionTitle:  { fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.6px', marginBottom: 12 },
+  // Card wrapper (white rounded card on gray body)
+  card:          { background: '#fff', border: '1px solid #EAECEF', borderRadius: 14, padding: '16px 18px', marginBottom: 14 },
+
+  // Quick actions section
+  quickActions:  { background: '#fff', border: '1px solid #EAECEF', borderRadius: 14, padding: '16px 18px', marginBottom: 14 },
+
+  section:       { background: '#fff', border: '1px solid #EAECEF', borderRadius: 14, padding: '16px 18px', marginBottom: 14 },
+  sectionTitle:  { fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 14 },
 
   // Quick action buttons
-  qaBtn:         { width: '100%', padding: '11px 16px', fontSize: 13, fontWeight: 600, borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center', display: 'block' },
+  qaBtn:         { width: '100%', padding: '12px 10px', fontSize: 13, fontWeight: 600, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, boxSizing: 'border-box' },
 
   editBtn:       { fontSize: 12, fontWeight: 500, color: '#0077C5', background: 'transparent', border: '1px solid #B3D4EE', borderRadius: 3, padding: '3px 10px', cursor: 'pointer', fontFamily: 'inherit' },
   saveEditBtn:   { fontSize: 12, fontWeight: 600, color: '#fff', border: 'none', borderRadius: 3, padding: '4px 12px', cursor: 'pointer', fontFamily: 'inherit', transition: 'background .15s' },
