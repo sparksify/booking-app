@@ -40,7 +40,7 @@ export async function getServerSideProps({ params, query }) {
       .maybeSingle(),
     supabase
       .from('settings')
-      .select('work_start, work_end, timezone, days_ahead, buffer_minutes, max_slots_per_day, hidden_slots_count, host_avatar_url')
+      .select('work_start, work_end, timezone, days_ahead, buffer_minutes, max_slots_per_day, hidden_slots_count, host_avatar_url, rep_avatars')
       .eq('id', 1)
       .single(),
   ]);
@@ -176,7 +176,8 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
     duration:     brand.meeting_duration || 15,
     tz:           'Central Time',
     daysAhead:    settings.days_ahead   || 14,
-    hostAvatarUrl: settings.host_avatar_url || null,
+    // Prefer the uploaded photo of the rep assigned to this calendar; fall back to the global host avatar.
+    hostAvatarUrl: ((brand.rep_emails?.[0] && settings.rep_avatars?.[brand.rep_emails[0]]) || settings.host_avatar_url) || null,
     // Booking page content
     headline:    brand.booking_headline    || `Book Your Free ${brand.name} Call`,
     subtitle:    brand.booking_subtitle    || 'Choose a time that works for you',
@@ -552,6 +553,7 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
             </div>
 
           </div>
+          <div style={d.footer}>Powered by <strong style={{ color: '#475569', fontWeight: 700 }}>Kanso</strong>&nbsp; ·&nbsp; © 2026 Kanso</div>
         </div>
       </>
     );
@@ -718,7 +720,8 @@ function DIc({ name, size = 18 }) {
 
 const GREEN = '#15803D';
 const d = {
-  page:  { minHeight: '100vh', background: '#F4F5F7', display: 'flex', justifyContent: 'center', padding: '40px 24px', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" },
+  page:  { minHeight: '100vh', background: '#F4F5F7', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" },
+  footer:{ marginTop: 18, fontSize: 12, color: '#94A3B8', letterSpacing: '.2px' },
   shell: { display: 'grid', gridTemplateColumns: '320px minmax(0, 1fr)', gap: 0, width: '100%', maxWidth: 1000, background: '#fff', borderRadius: 20, boxShadow: '0 8px 40px rgba(15,23,42,.10)', overflow: 'hidden' },
 
   left:  { padding: '40px 34px', borderRight: '1px solid #EEF2F6' },
