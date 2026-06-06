@@ -32,7 +32,7 @@ export default async function handler(req, res) {
   // ── POST — create brand ────────────────────────────────────────────────────
   if (req.method === 'POST') {
     const {
-      slug, name, active,
+      type, slug, name, active,
       booking_headline, booking_subtitle, booking_description,
       meeting_title, meeting_duration,
       event_description, event_location, event_color, event_reminder_mins,
@@ -50,6 +50,7 @@ export default async function handler(req, res) {
     const { data, error } = await supabase
       .from('brands')
       .insert({
+        type:                type === 'personal' ? 'personal' : 'brand',
         slug:                slug.trim().toLowerCase(),
         name:                name.trim(),
         active:              active !== false,
@@ -82,7 +83,7 @@ export default async function handler(req, res) {
     if (!id) return res.status(400).json({ error: 'id is required' });
 
     const allowed = [
-      'slug', 'name', 'active',
+      'type', 'slug', 'name', 'active',
       'booking_headline', 'booking_subtitle', 'booking_description',
       'meeting_title', 'meeting_duration',
       'event_description', 'event_location', 'event_color', 'event_reminder_mins',

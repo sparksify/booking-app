@@ -1124,12 +1124,14 @@ function CalCard({ cal, expandedBrand, setExpandedBrand, brandSaving, brandSaved
             </div>
           </div>
 
-          {/* Booking URL */}
+          {/* Booking URL — personal calendars get a clean share link (no FB params) */}
           {cal.slug && (() => {
-            const fullUrl = `https://bookkanso.co/${cal.slug}?first_name={{first_name}}&last_name={{last_name}}&phone={{phone_number}}&email={{email}}&liquid_capital={{liquid_capital}}`;
+            const fullUrl = isPers
+              ? `https://bookkanso.co/${cal.slug}`
+              : `https://bookkanso.co/${cal.slug}?first_name={{first_name}}&last_name={{last_name}}&phone={{phone_number}}&email={{email}}&liquid_capital={{liquid_capital}}`;
             return (
               <div style={{ background: '#FAFBFD', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 14px', marginBottom: 14 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 6 }}>Booking URL — paste as Facebook Lead Ad thank-you URL</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 6 }}>{isPers ? 'Booking URL — share this link' : 'Booking URL — paste as Facebook Lead Ad thank-you URL'}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <code style={{ flex: 1, fontSize: 11, color: '#0057FF', fontFamily: 'monospace', wordBreak: 'break-all', lineHeight: 1.5 }}>
                     {fullUrl}
@@ -1142,9 +1144,11 @@ function CalCard({ cal, expandedBrand, setExpandedBrand, brandSaving, brandSaved
                     Copy
                   </button>
                 </div>
-                <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 6, marginBottom: 0 }}>
-                  Facebook substitutes <code style={{ fontSize: 11, background: '#F1F5F9', padding: '1px 4px', borderRadius: 3 }}>{'{{first_name}}'}</code> etc. with the lead's real data. The liquid_capital field drives the routing rules above.
-                </p>
+                {!isPers && (
+                  <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 6, marginBottom: 0 }}>
+                    Facebook substitutes <code style={{ fontSize: 11, background: '#F1F5F9', padding: '1px 4px', borderRadius: 3 }}>{'{{first_name}}'}</code> etc. with the lead's real data. The liquid_capital field drives the routing rules above.
+                  </p>
+                )}
               </div>
             );
           })()}
