@@ -469,7 +469,7 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
                   <div style={d.recoLabel}><DIc name="spark" size={16} /> Recommended for you</div>
                   <div style={d.recoCard}>
                     <span style={d.recoStar}><DIc name="star" size={18} /></span>
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 16, fontWeight: 700, color: '#0F172A' }}>{getDayLabel(recommended.date.dateStr)} at {recommended.slot.label}</div>
                       <div style={{ fontSize: 12.5, color: '#64748B' }}>Usually a great time to connect</div>
                     </div>
@@ -702,7 +702,7 @@ function DIc({ name, size = 18 }) {
 const GREEN = '#15803D';
 const d = {
   page:  { minHeight: '100vh', background: '#F4F5F7', display: 'flex', justifyContent: 'center', padding: '40px 24px', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" },
-  shell: { display: 'grid', gridTemplateColumns: '300px 1fr 360px', gap: 0, width: '100%', maxWidth: 1180, background: '#fff', borderRadius: 20, boxShadow: '0 8px 40px rgba(15,23,42,.10)', overflow: 'hidden' },
+  shell: { display: 'grid', gridTemplateColumns: '300px minmax(0, 1fr) 360px', gap: 0, width: '100%', maxWidth: 1180, background: '#fff', borderRadius: 20, boxShadow: '0 8px 40px rgba(15,23,42,.10)', overflow: 'hidden' },
 
   left:  { padding: '40px 34px', borderRight: '1px solid #EEF2F6' },
   h1:    { fontSize: 30, fontWeight: 800, color: '#0F172A', lineHeight: 1.15, margin: 0, letterSpacing: '-0.5px' },
@@ -716,19 +716,19 @@ const d = {
   consultCard: { border: '1px solid #E5E7EB', borderRadius: 14, padding: 16, background: '#fff' },
   avatar:      { width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 },
 
-  mid:    { padding: '36px 34px' },
+  mid:    { padding: '36px 34px', minWidth: 0 },
   recoLabel: { display: 'flex', alignItems: 'center', gap: 6, color: GREEN, fontWeight: 700, fontSize: 14, marginBottom: 12 },
   recoCard:  { display: 'flex', alignItems: 'center', gap: 14, border: `1.5px solid ${'#BBF7D0'}`, background: '#F0FDF4', borderRadius: 14, padding: '16px 18px', marginBottom: 28 },
   recoStar:  { width: 40, height: 40, borderRadius: '50%', background: '#16A34A', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   reserveBtn:{ background: '#16A34A', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   midSection:{ fontSize: 17, fontWeight: 700, color: '#0F172A', marginBottom: 12 },
   arrow:     { width: 34, height: 34, flexShrink: 0, borderRadius: '50%', border: '1px solid #E2E8F0', background: '#fff', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' },
-  dateStrip: { display: 'flex', gap: 8, overflowX: 'auto', flex: 1, scrollbarWidth: 'none', padding: '2px 0' },
+  dateStrip: { display: 'flex', gap: 8, overflowX: 'auto', flex: 1, minWidth: 0, scrollbarWidth: 'none', padding: '2px 0' },
   dayChip:   { flexShrink: 0, minWidth: 64, padding: '10px 12px', borderRadius: 12, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center' },
   dayChipOn: { border: `2px solid ${GREEN}`, background: '#F0FDF4' },
   availTitle:{ fontSize: 15, fontWeight: 700, color: '#0F172A', margin: '26px 0 14px' },
   slotsMsg:  { padding: '24px 0', color: '#94A3B8', fontSize: 14 },
-  slotGrid:  { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 },
+  slotGrid:  { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 },
   slot:      { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '13px 8px', borderRadius: 12, border: '1px solid #E2E8F0', background: '#fff', color: '#0F172A', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   slotOn:    { border: `2px solid ${GREEN}`, background: '#F0FDF4', color: GREEN },
   tzRow:     { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: '#64748B', marginTop: 26, paddingTop: 18, borderTop: '1px solid #EEF2F6' },
