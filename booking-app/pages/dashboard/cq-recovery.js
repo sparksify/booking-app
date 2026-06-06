@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Head from 'next/head';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../api/auth/[...nextauth]';
+import { CRMPanel } from '@/components/CrmPanel';
 
 export async function getServerSideProps(ctx) {
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
@@ -53,6 +54,53 @@ export default function CQRecovery() {
   const [busy,       setBusy]       = useState({});
   const [composer,   setComposer]   = useState(null);
   const [snoozeFor,  setSnoozeFor]  = useState(null);
+
+  // Slide-out CRM panel (shared with the Meetings page)
+  const [panelOpen,    setPanelOpen]    = useState(false);
+  const [panelBooking, setPanelBooking] = useState(null);
+  const [panelLead,    setPanelLead]    = useState(null);
+  const [panelNotes,   setPanelNotes]   = useState('');
+  const [panelLoading, setPanelLoading] = useState(false);
+  const [panelConf,    setPanelConf]    = useState(null);
+
+  function openPanel(l) {
+    const booking = {
+      id:                l.booking_id || `cqr_${l.email}_${l.slot_start}`,
+      first_name:        l.first_name,
+      last_name:         l.last_name,
+      email:             l.email,
+      phone:             l.phone,
+      slot_start:        l.slot_start,
+      status:            'showed', // CQ was sent post-call, so the panel shows the post-show actions
+      investment_level:  l.liquid_capital,
+      ghl_contact_id:    l.ghl_contact_id,
+      assigned_to_email: l.assigned_rep,
+      cq_sent_at:        l.cq_sent_at,
+      cq_received_at:    null,
+      _source_display:   'GoHighLevel',
+      event_name:        null,
+    };
+    setPanelBooking(booking);
+    setPanelConf(l.confirmation ? { status: l.confirmation } : null);
+    setPanelLead(null); setPanelNotes(''); setPanelOpen(true); setPanelLoading(true);
+    fetch(`/api/dashboard/lead-detail?email=${encodeURIComponent(l.email)}`)
+      .then(r => r.json())
+      .then(d => { setPanelLead(d.lead); setPanelNotes(d.notes ?? d.lead?.notes ?? ''); setPanelLoading(false); })
+      .catch(() => setPanelLoading(false));
+  }
+  function closePanel() {
+    setPanelOpen(false);
+    setTimeout(() => { setPanelBooking(null); setPanelLead(null); setPanelNotes(''); setPanelConf(null); }, 260);
+    load(); // refresh queue so dispositions / CQ-received drop out
+  }
+  async function panelStatusChange(status) {
+    if (!panelBooking) return;
+    await fetch('/api/dashboard/update-booking-status', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bookingId: panelBooking.id, email: panelBooking.email, status, slot_start: panelBooking.slot_start }),
+    }).catch(() => {});
+    setPanelBooking(b => b ? { ...b, status } : b);
+  }
 
   const load = useCallback(() => {
     setLoading(true);
@@ -126,7 +174,7 @@ export default function CQRecovery() {
           <div style={s.scoreUnit}>score</div>
           <div style={{ ...s.daysPill }}>{l.days_waiting}d</div>
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => openPanel(l)}>
           <div style={s.name}>{(l.first_name || l.last_name) ? `${l.first_name} ${l.last_name}`.trim() : l.email}</div>
           <div style={s.metaRow}>
             {l.phone && <span>{l.phone}</span>}
@@ -153,7 +201,7 @@ export default function CQRecovery() {
               </div>
             )}
           </div>
-          <button style={s.actBtnGhost} onClick={() => router.push(`/dashboard/bookings?focus=${encodeURIComponent(l.email)}`)}>Open card →</button>
+          <button style={s.actBtnGhost} onClick={() => openPanel(l)}>Open card →</button>
         </div>
       </div>
     );
@@ -185,7 +233,7 @@ export default function CQRecovery() {
             <button style={s.refreshBtn} onClick={load} disabled={loading}>{loading ? 'Loading…' : '↻ Refresh'}</button>
           </div>
 
-          <div style={s.content}>
+          <div style={s.headerArea}>
             <div style={s.metricsRow}>
               {metricCards.map((m, i) => (
                 <div key={m.label} style={{ ...s.metricCell, ...(i < metricCards.length - 1 ? { borderRight: '1px solid #E5E7EB' } : {}) }}>
@@ -194,7 +242,9 @@ export default function CQRecovery() {
                 </div>
               ))}
             </div>
+          </div>
 
+          <div style={s.scrollArea}>
             {loading ? (
               <div style={s.empty}>Scoring your queue…</div>
             ) : leads.length === 0 ? (
@@ -225,6 +275,22 @@ export default function CQRecovery() {
           </div>
         </main>
       </div>
+
+      {panelBooking && (
+        <CRMPanel
+          booking={panelBooking}
+          lead={panelLead}
+          loading={panelLoading}
+          open={panelOpen}
+          isDemo={false}
+          brandPitches={{}}
+          confirmation={panelConf}
+          initialNotes={panelNotes}
+          onClose={closePanel}
+          onStatusChange={panelStatusChange}
+          onCQSent={ts => setPanelBooking(b => b ? { ...b, cq_sent_at: ts } : b)}
+        />
+      )}
 
       {composer && (
         <div style={s.modalOverlay} onClick={() => !composer.sending && setComposer(null)}>
@@ -257,7 +323,7 @@ export default function CQRecovery() {
 }
 
 const s = {
-  page: { display: 'flex', minHeight: '100vh', background: '#F4F5F7', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" },
+  page: { display: 'flex', height: '100vh', overflow: 'hidden', background: '#F4F5F7', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" },
   sidebar:          { width: 210, flexShrink: 0, background: '#FFFFFF', borderRight: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh' },
   sideLogoWrap:     { padding: '20px 16px 16px', borderBottom: '1px solid #E2E8F0' },
   sideLogoRow:      { display: 'flex', alignItems: 'center', gap: 9 },
@@ -269,8 +335,10 @@ const s = {
   sideBottom:       { borderTop: '1px solid #E2E8F0', padding: '8px 8px 16px' },
   sideHelpRow:      { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 7, cursor: 'pointer' },
 
-  main:    { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 },
+  main:    { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' },
   topbar:  { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 28px', background: '#fff', borderBottom: '1px solid #E2E8F0' },
+  headerArea: { flexShrink: 0, padding: '20px 28px 16px', borderBottom: '1px solid #EDEFF2', background: '#F4F5F7' },
+  scrollArea: { flex: 1, minHeight: 0, overflowY: 'auto', padding: '18px 28px 28px' },
   topTitle:{ fontSize: 19, fontWeight: 700, color: '#0F172A' },
   topSub:  { fontSize: 13, color: '#64748B', marginTop: 2 },
   refreshBtn: { padding: '7px 14px', background: '#fff', color: '#475569', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
