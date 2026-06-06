@@ -462,93 +462,96 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
               </div>
             </div>
 
-            {/* MIDDLE — calendar */}
+            {/* MIDDLE — calendar ⇄ form, sliding within the card */}
             <div style={d.mid}>
-              {recommended && (
-                <>
-                  <div style={d.recoLabel}><DIc name="spark" size={16} /> Recommended for you</div>
-                  <div style={d.recoCard}>
-                    <span style={d.recoStar}><DIc name="star" size={18} /></span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 16, fontWeight: 700, color: '#0F172A' }}>{getDayLabel(recommended.date.dateStr)} at {recommended.slot.label}</div>
-                      <div style={{ fontSize: 12.5, color: '#64748B' }}>Usually a great time to connect</div>
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', width: '200%', transition: 'transform .32s cubic-bezier(.4,0,.2,1)', transform: selSlot ? 'translateX(-50%)' : 'translateX(0)' }}>
+
+                  {/* Panel 1 — calendar */}
+                  <div style={{ width: '50%', flexShrink: 0, boxSizing: 'border-box', paddingRight: 4 }}>
+                    {recommended && (
+                      <>
+                        <div style={d.recoLabel}><DIc name="spark" size={16} /> Recommended for you</div>
+                        <div style={d.recoCard}>
+                          <span style={d.recoStar}><DIc name="star" size={18} /></span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: '#0F172A' }}>{getDayLabel(recommended.date.dateStr)} at {recommended.slot.label}</div>
+                            <div style={{ fontSize: 12.5, color: '#64748B' }}>Usually a great time to connect</div>
+                          </div>
+                          <button style={d.reserveBtn} onClick={reserveRecommended}>Reserve this time</button>
+                        </div>
+                      </>
+                    )}
+                    <div style={d.midSection}>Select a date</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <button style={d.arrow} onClick={() => scrollStrip(-1)}><DIc name="chevL" size={16} /></button>
+                      <div ref={dateStripRef} style={d.dateStrip}>
+                        {workdays.map((day, i) => (
+                          <button key={day.dateStr} onClick={() => selectDay(day, i)} style={{ ...d.dayChip, ...(dayIdx === i ? d.dayChipOn : {}) }}>
+                            <div style={{ fontSize: 12, color: dayIdx === i ? '#15803D' : '#64748B', fontWeight: 600 }}>{day.dow}</div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: dayIdx === i ? '#15803D' : '#0F172A' }}>{day.mon} {day.day}</div>
+                          </button>
+                        ))}
+                      </div>
+                      <button style={d.arrow} onClick={() => scrollStrip(1)}><DIc name="chevR" size={16} /></button>
                     </div>
-                    <button style={d.reserveBtn} onClick={reserveRecommended}>Reserve this time</button>
+                    <div style={d.availTitle}>Available times{selDate ? ` for ${getDayLabel(selDate.dateStr)}` : ''}</div>
+                    {slotsLoading ? (
+                      <div style={d.slotsMsg}>Loading…</div>
+                    ) : slotErr ? (
+                      <div style={d.slotsMsg}>{slotErr}</div>
+                    ) : (
+                      <div style={d.slotGrid}>
+                        {slots.map((sl, i) => (
+                          <button key={i} onClick={() => setSelSlot(sl)} style={{ ...d.slot, ...(slotSel(sl) ? d.slotOn : {}) }}>
+                            {sl.label}
+                            {slotSel(sl) && <span style={{ color: '#15803D' }}><DIc name="check" size={15} /></span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div style={d.tzRow}><span style={{ color: '#16A34A' }}><DIc name="globe" size={16} /></span> Time zone&nbsp;<strong style={{ color: '#334155', fontWeight: 600 }}>{cfg.tz} (US &amp; Canada)</strong></div>
+                    <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>All times are shown in your local time zone.</div>
                   </div>
-                </>
-              )}
 
-              <div style={d.midSection}>Select a date</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button style={d.arrow} onClick={() => scrollStrip(-1)}><DIc name="chevL" size={16} /></button>
-                <div ref={dateStripRef} style={d.dateStrip}>
-                  {workdays.map((day, i) => (
-                    <button key={day.dateStr} onClick={() => selectDay(day, i)} style={{ ...d.dayChip, ...(dayIdx === i ? d.dayChipOn : {}) }}>
-                      <div style={{ fontSize: 12, color: dayIdx === i ? '#15803D' : '#64748B', fontWeight: 600 }}>{day.dow}</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: dayIdx === i ? '#15803D' : '#0F172A' }}>{day.mon} {day.day}</div>
+                  {/* Panel 2 — form (slides in over the date/time area) */}
+                  <div style={{ width: '50%', flexShrink: 0, boxSizing: 'border-box', paddingLeft: 4 }}>
+                    <button style={d.backBtn} onClick={() => setSelSlot(null)}><DIc name="chevL" size={14} /> Back to times</button>
+                    <h2 style={{ ...d.h2, marginTop: 10 }}>Tell us about yourself</h2>
+                    <p style={d.rsub}>So we can make the most of our time together.</p>
+                    {selDate && selSlot && (
+                      <div style={d.drawerTimeChip}>
+                        <span style={{ color: '#16A34A', display: 'flex' }}><DIc name="check" size={16} /></span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#15803D' }}>{getDayLabel(selDate.dateStr)} at {selSlot.label}</div>
+                          <div style={{ fontSize: 11, color: '#16A34A' }}>{cfg.tz}</div>
+                        </div>
+                        <button style={d.changeBtn} onClick={() => setSelSlot(null)}>Change</button>
+                      </div>
+                    )}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <div><label style={d.label}>First name</label><input style={d.input} value={answers.firstName} onChange={e => setField('firstName', e.target.value)} placeholder="First name" /></div>
+                      <div><label style={d.label}>Last name</label><input style={d.input} value={answers.lastName} onChange={e => setField('lastName', e.target.value)} placeholder="Last name" /></div>
+                    </div>
+                    <label style={d.label}>Email</label>
+                    <input style={d.input} type="email" value={answers.email} onChange={e => setField('email', e.target.value)} placeholder="you@example.com" />
+                    <label style={d.label}>Phone</label>
+                    <input style={d.input} type="tel" value={answers.phone} onChange={e => setField('phone', e.target.value)} placeholder="(555) 123-4567" />
+                    <label style={d.label}>Goals or questions <span style={{ color: '#94A3B8', fontWeight: 400 }}>(optional)</span></label>
+                    <textarea style={{ ...d.input, minHeight: 80, resize: 'vertical' }} maxLength={250} value={answers.goals} onChange={e => setField('goals', e.target.value)} placeholder="What would you like to achieve in this call?" />
+                    <div style={{ textAlign: 'right', fontSize: 11, color: '#94A3B8', marginTop: -8, marginBottom: 14 }}>{(answers.goals || '').length}/250</div>
+                    <button style={{ ...d.bookBtn, opacity: canBook && !booking ? 1 : 0.5, cursor: canBook && !booking ? 'pointer' : 'not-allowed' }} disabled={!canBook || booking} onClick={confirmBooking}>
+                      {booking ? 'Booking…' : 'Book My Call →'}
                     </button>
-                  ))}
+                    {bookErr && <div style={{ marginTop: 10, fontSize: 13, color: '#DC2626' }}>{bookErr}</div>}
+                    <div style={d.secure}><DIc name="lock" size={13} /> Your information is secure and will only be used to schedule and prepare for our call.</div>
+                  </div>
+
                 </div>
-                <button style={d.arrow} onClick={() => scrollStrip(1)}><DIc name="chevR" size={16} /></button>
               </div>
-
-              <div style={d.availTitle}>Available times{selDate ? ` for ${getDayLabel(selDate.dateStr)}` : ''}</div>
-              {slotsLoading ? (
-                <div style={d.slotsMsg}>Loading…</div>
-              ) : slotErr ? (
-                <div style={d.slotsMsg}>{slotErr}</div>
-              ) : (
-                <div style={d.slotGrid}>
-                  {slots.map((sl, i) => (
-                    <button key={i} onClick={() => setSelSlot(sl)} style={{ ...d.slot, ...(slotSel(sl) ? d.slotOn : {}) }}>
-                      {sl.label}
-                      {slotSel(sl) && <span style={{ color: '#15803D' }}><DIc name="check" size={15} /></span>}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div style={d.tzRow}><span style={{ color: '#16A34A' }}><DIc name="globe" size={16} /></span> Time zone&nbsp;<strong style={{ color: '#334155', fontWeight: 600 }}>{cfg.tz} (US &amp; Canada)</strong></div>
-              <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>All times are shown in your local time zone.</div>
             </div>
 
           </div>
-        </div>
-
-        {/* Slide-out form drawer — opens the moment a time is selected */}
-        <div style={{ ...d.drawerOverlay, opacity: selSlot ? 1 : 0, pointerEvents: selSlot ? 'auto' : 'none' }} onClick={() => setSelSlot(null)} />
-        <div style={{ ...d.drawer, transform: selSlot ? 'translateX(0)' : 'translateX(100%)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <h2 style={d.h2}>Tell us about yourself</h2>
-            <button style={d.drawerClose} onClick={() => setSelSlot(null)} aria-label="Close">✕</button>
-          </div>
-          <p style={d.rsub}>So we can make the most of our time together.</p>
-          {selDate && selSlot && (
-            <div style={d.drawerTimeChip}>
-              <span style={{ color: '#16A34A', display: 'flex' }}><DIc name="check" size={16} /></span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: '#15803D' }}>{getDayLabel(selDate.dateStr)} at {selSlot.label}</div>
-                <div style={{ fontSize: 11, color: '#16A34A' }}>{cfg.tz}</div>
-              </div>
-              <button style={d.changeBtn} onClick={() => setSelSlot(null)}>Change</button>
-            </div>
-          )}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div><label style={d.label}>First name</label><input style={d.input} value={answers.firstName} onChange={e => setField('firstName', e.target.value)} placeholder="First name" /></div>
-            <div><label style={d.label}>Last name</label><input style={d.input} value={answers.lastName} onChange={e => setField('lastName', e.target.value)} placeholder="Last name" /></div>
-          </div>
-          <label style={d.label}>Email</label>
-          <input style={d.input} type="email" value={answers.email} onChange={e => setField('email', e.target.value)} placeholder="you@example.com" />
-          <label style={d.label}>Phone</label>
-          <input style={d.input} type="tel" value={answers.phone} onChange={e => setField('phone', e.target.value)} placeholder="(555) 123-4567" />
-          <label style={d.label}>Goals or questions <span style={{ color: '#94A3B8', fontWeight: 400 }}>(optional)</span></label>
-          <textarea style={{ ...d.input, minHeight: 80, resize: 'vertical' }} maxLength={250} value={answers.goals} onChange={e => setField('goals', e.target.value)} placeholder="What would you like to achieve in this call?" />
-          <div style={{ textAlign: 'right', fontSize: 11, color: '#94A3B8', marginTop: -8, marginBottom: 14 }}>{(answers.goals || '').length}/250</div>
-          <button style={{ ...d.bookBtn, opacity: canBook && !booking ? 1 : 0.5, cursor: canBook && !booking ? 'pointer' : 'not-allowed' }} disabled={!canBook || booking} onClick={confirmBooking}>
-            {booking ? 'Booking…' : 'Book My Call →'}
-          </button>
-          {bookErr && <div style={{ marginTop: 10, fontSize: 13, color: '#DC2626' }}>{bookErr}</div>}
-          <div style={d.secure}><DIc name="lock" size={13} /> Your information is secure and will only be used to schedule and prepare for our call.</div>
         </div>
       </>
     );
@@ -755,9 +758,7 @@ const d = {
   bookBtn:{ width: '100%', padding: '15px 0', background: '#16A34A', color: '#fff', border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, fontFamily: 'inherit', marginTop: 6 },
   secure: { display: 'flex', alignItems: 'flex-start', gap: 7, fontSize: 12, color: '#94A3B8', marginTop: 16, lineHeight: 1.5 },
 
-  drawerOverlay: { position: 'fixed', inset: 0, background: 'rgba(15,23,42,.35)', transition: 'opacity .25s', zIndex: 60 },
-  drawer:        { position: 'fixed', top: 0, right: 0, bottom: 0, width: 400, maxWidth: '92vw', background: '#fff', boxShadow: '-8px 0 44px rgba(15,23,42,.20)', padding: '26px 28px 32px', overflowY: 'auto', transition: 'transform .3s cubic-bezier(.4,0,.2,1)', zIndex: 61, boxSizing: 'border-box' },
-  drawerClose:   { background: 'none', border: 'none', fontSize: 18, color: '#94A3B8', cursor: 'pointer', lineHeight: 1, padding: 4 },
+  backBtn:       { display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#16A34A', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', padding: 0 },
   drawerTimeChip:{ display: 'flex', alignItems: 'center', gap: 10, background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '10px 12px', margin: '14px 0 18px' },
   changeBtn:     { background: 'none', border: 'none', color: '#16A34A', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline', flexShrink: 0 },
 };
