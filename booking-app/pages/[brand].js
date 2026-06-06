@@ -512,29 +512,43 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
               <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>All times are shown in your local time zone.</div>
             </div>
 
-            {/* RIGHT — form */}
-            <div style={d.right}>
-              <h2 style={d.h2}>Tell us about yourself</h2>
-              <p style={d.rsub}>So we can make the most of our time together.</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div><label style={d.label}>First name</label><input style={d.input} value={answers.firstName} onChange={e => setField('firstName', e.target.value)} placeholder="First name" /></div>
-                <div><label style={d.label}>Last name</label><input style={d.input} value={answers.lastName} onChange={e => setField('lastName', e.target.value)} placeholder="Last name" /></div>
-              </div>
-              <label style={d.label}>Email</label>
-              <input style={d.input} type="email" value={answers.email} onChange={e => setField('email', e.target.value)} placeholder="you@example.com" />
-              <label style={d.label}>Phone</label>
-              <input style={d.input} type="tel" value={answers.phone} onChange={e => setField('phone', e.target.value)} placeholder="(555) 123-4567" />
-              <label style={d.label}>Goals or questions <span style={{ color: '#94A3B8', fontWeight: 400 }}>(optional)</span></label>
-              <textarea style={{ ...d.input, minHeight: 92, resize: 'vertical' }} maxLength={250} value={answers.goals} onChange={e => setField('goals', e.target.value)} placeholder="What would you like to achieve in this call?" />
-              <div style={{ textAlign: 'right', fontSize: 11, color: '#94A3B8', marginTop: -8, marginBottom: 14 }}>{(answers.goals || '').length}/250</div>
-              <button style={{ ...d.bookBtn, opacity: canBook && !booking ? 1 : 0.5, cursor: canBook && !booking ? 'pointer' : 'not-allowed' }} disabled={!canBook || booking} onClick={confirmBooking}>
-                {booking ? 'Booking…' : 'Book My Call →'}
-              </button>
-              {bookErr && <div style={{ marginTop: 10, fontSize: 13, color: '#DC2626' }}>{bookErr}</div>}
-              <div style={d.secure}><DIc name="lock" size={13} /> Your information is secure and will only be used to schedule and prepare for our call.</div>
-            </div>
-
           </div>
+        </div>
+
+        {/* Slide-out form drawer — opens the moment a time is selected */}
+        <div style={{ ...d.drawerOverlay, opacity: selSlot ? 1 : 0, pointerEvents: selSlot ? 'auto' : 'none' }} onClick={() => setSelSlot(null)} />
+        <div style={{ ...d.drawer, transform: selSlot ? 'translateX(0)' : 'translateX(100%)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h2 style={d.h2}>Tell us about yourself</h2>
+            <button style={d.drawerClose} onClick={() => setSelSlot(null)} aria-label="Close">✕</button>
+          </div>
+          <p style={d.rsub}>So we can make the most of our time together.</p>
+          {selDate && selSlot && (
+            <div style={d.drawerTimeChip}>
+              <span style={{ color: '#16A34A', display: 'flex' }}><DIc name="check" size={16} /></span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: '#15803D' }}>{getDayLabel(selDate.dateStr)} at {selSlot.label}</div>
+                <div style={{ fontSize: 11, color: '#16A34A' }}>{cfg.tz}</div>
+              </div>
+              <button style={d.changeBtn} onClick={() => setSelSlot(null)}>Change</button>
+            </div>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div><label style={d.label}>First name</label><input style={d.input} value={answers.firstName} onChange={e => setField('firstName', e.target.value)} placeholder="First name" /></div>
+            <div><label style={d.label}>Last name</label><input style={d.input} value={answers.lastName} onChange={e => setField('lastName', e.target.value)} placeholder="Last name" /></div>
+          </div>
+          <label style={d.label}>Email</label>
+          <input style={d.input} type="email" value={answers.email} onChange={e => setField('email', e.target.value)} placeholder="you@example.com" />
+          <label style={d.label}>Phone</label>
+          <input style={d.input} type="tel" value={answers.phone} onChange={e => setField('phone', e.target.value)} placeholder="(555) 123-4567" />
+          <label style={d.label}>Goals or questions <span style={{ color: '#94A3B8', fontWeight: 400 }}>(optional)</span></label>
+          <textarea style={{ ...d.input, minHeight: 80, resize: 'vertical' }} maxLength={250} value={answers.goals} onChange={e => setField('goals', e.target.value)} placeholder="What would you like to achieve in this call?" />
+          <div style={{ textAlign: 'right', fontSize: 11, color: '#94A3B8', marginTop: -8, marginBottom: 14 }}>{(answers.goals || '').length}/250</div>
+          <button style={{ ...d.bookBtn, opacity: canBook && !booking ? 1 : 0.5, cursor: canBook && !booking ? 'pointer' : 'not-allowed' }} disabled={!canBook || booking} onClick={confirmBooking}>
+            {booking ? 'Booking…' : 'Book My Call →'}
+          </button>
+          {bookErr && <div style={{ marginTop: 10, fontSize: 13, color: '#DC2626' }}>{bookErr}</div>}
+          <div style={d.secure}><DIc name="lock" size={13} /> Your information is secure and will only be used to schedule and prepare for our call.</div>
         </div>
       </>
     );
@@ -702,7 +716,7 @@ function DIc({ name, size = 18 }) {
 const GREEN = '#15803D';
 const d = {
   page:  { minHeight: '100vh', background: '#F4F5F7', display: 'flex', justifyContent: 'center', padding: '40px 24px', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" },
-  shell: { display: 'grid', gridTemplateColumns: '300px minmax(0, 1fr) 360px', gap: 0, width: '100%', maxWidth: 1180, background: '#fff', borderRadius: 20, boxShadow: '0 8px 40px rgba(15,23,42,.10)', overflow: 'hidden' },
+  shell: { display: 'grid', gridTemplateColumns: '320px minmax(0, 1fr)', gap: 0, width: '100%', maxWidth: 1000, background: '#fff', borderRadius: 20, boxShadow: '0 8px 40px rgba(15,23,42,.10)', overflow: 'hidden' },
 
   left:  { padding: '40px 34px', borderRight: '1px solid #EEF2F6' },
   h1:    { fontSize: 30, fontWeight: 800, color: '#0F172A', lineHeight: 1.15, margin: 0, letterSpacing: '-0.5px' },
@@ -740,4 +754,10 @@ const d = {
   input:  { width: '100%', boxSizing: 'border-box', padding: '12px 13px', fontSize: 14, border: '1px solid #E2E8F0', borderRadius: 10, fontFamily: 'inherit', outline: 'none', color: '#0F172A' },
   bookBtn:{ width: '100%', padding: '15px 0', background: '#16A34A', color: '#fff', border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, fontFamily: 'inherit', marginTop: 6 },
   secure: { display: 'flex', alignItems: 'flex-start', gap: 7, fontSize: 12, color: '#94A3B8', marginTop: 16, lineHeight: 1.5 },
+
+  drawerOverlay: { position: 'fixed', inset: 0, background: 'rgba(15,23,42,.35)', transition: 'opacity .25s', zIndex: 60 },
+  drawer:        { position: 'fixed', top: 0, right: 0, bottom: 0, width: 400, maxWidth: '92vw', background: '#fff', boxShadow: '-8px 0 44px rgba(15,23,42,.20)', padding: '26px 28px 32px', overflowY: 'auto', transition: 'transform .3s cubic-bezier(.4,0,.2,1)', zIndex: 61, boxSizing: 'border-box' },
+  drawerClose:   { background: 'none', border: 'none', fontSize: 18, color: '#94A3B8', cursor: 'pointer', lineHeight: 1, padding: 4 },
+  drawerTimeChip:{ display: 'flex', alignItems: 'center', gap: 10, background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '10px 12px', margin: '14px 0 18px' },
+  changeBtn:     { background: 'none', border: 'none', color: '#16A34A', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline', flexShrink: 0 },
 };
