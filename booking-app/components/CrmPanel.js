@@ -344,6 +344,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.2)', zIndex: 100, opacity: open ? 1 : 0, transition: 'opacity .25s', pointerEvents: open ? 'auto' : 'none' }} />
       <div ref={panelRef} style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 440, background: '#fff', boxShadow: '-4px 0 24px rgba(0,0,0,.10)', zIndex: 101, display: 'flex', flexDirection: 'column', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform .25s cubic-bezier(.4,0,.2,1)', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" }}>
+        <style>{`.crmRow:last-child{border-bottom:none !important;margin-bottom:0 !important;padding-bottom:0 !important}`}</style>
 
         {/* Header */}
         {(() => {
@@ -463,7 +464,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                           {reasons.length === 0 ? <span style={{ fontSize: 12, color: '#9CA3AF' }}>No signals yet</span> :
                             reasons.map((r, i) => (
                               <span key={i} style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, color: r.good ? '#334155' : '#B91C1C', background: r.good ? '#F1F5F9' : '#FEF2F2', border: `1px solid ${r.good ? '#E2E8F0' : '#FECACA'}` }}>
-                                {r.good ? '+ ' : '− '}{r.t}
+                                {r.good ? '+ ' : '− '}{String(r.t).replace(/_/g, ' ')}
                               </span>
                             ))}
                         </div>
@@ -479,8 +480,8 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                 <Row label="Email" icon="mail"><a href={`mailto:${booking.email}`} style={p.link}>{booking.email}</a></Row>
                 <Row label="Scheduled" icon="calendar"><span style={p.val}>{slotLabel}</span></Row>
                 <Row label="Consultant" icon="user"><span style={p.val}>{booking.assigned_to_email || ghlContact?.owner_name || '—'}</span></Row>
-                {liquidCapital && <Row label="Liquid Cap." icon="dollar"><span style={p.val}>{liquidCapital}</span></Row>}
-                {ownedBusiness && <Row label="Owned Biz" icon="briefcase"><span style={p.val}>{ownedBusiness}</span></Row>}
+                {liquidCapital && <Row label="Liquid Cap." icon="dollar"><span style={p.val}>{String(liquidCapital).replace(/_/g, ' ')}</span></Row>}
+                {ownedBusiness && <Row label="Owned Biz" icon="briefcase"><span style={p.val}>{String(ownedBusiness).replace(/_/g, ' ')}</span></Row>}
                 {territory && <Row label="Territory" icon="pin"><span style={p.val}>{territory.primary}{territory.sub && <span style={{ color: '#9CA3AF', fontSize: 11, marginLeft: 6 }}>{territory.sub}</span>}</span></Row>}
                 {booking.meet_link && <Row label="Meet Link" icon="external"><a href={booking.meet_link} target="_blank" rel="noreferrer" style={p.link}>Join call →</a></Row>}
 
@@ -546,49 +547,45 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
               <div style={p.card}>
                 <div style={p.sectionTitle}>Quick Actions</div>
                 {booking.status === 'scheduled' && (
-                  <>
-                    <button style={{ ...p.qaBtn, background: '#2563EB', color: '#fff', border: 'none', marginBottom: 8 }} onClick={() => onStatusChange('showed')}>
-                      <PIc name="check" size={15} /> Mark Showed
+                  <div style={p.qaGrid}>
+                    <button style={{ ...p.qaBtn, background: '#2563EB', color: '#fff', border: 'none' }} onClick={() => onStatusChange('showed')}>
+                      <PIc name="check" size={16} /> Mark Showed
                     </button>
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                      <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#6B7280', border: '1px solid #E5E7EB' }} onClick={() => onStatusChange('no-show')}>
-                        <PIc name="userx" size={15} /> No-Show
-                      </button>
-                      <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={focusNotes}>
-                        + Add Note
-                      </button>
-                    </div>
-                    <button style={{ ...p.qaBtn, background: '#fff', color: '#9A3412', border: '1px solid #FED7AA' }} onClick={() => onStatusChange('not-a-fit')}>
-                      <PIc name="ban" size={15} /> Not a Good Fit
+                    <button style={{ ...p.qaBtn, background: '#F3F4F6', color: '#374151', border: '1px solid #E5E7EB' }} onClick={() => onStatusChange('no-show')}>
+                      <PIc name="ban" size={16} /> No-Show
                     </button>
-                  </>
+                    <button style={{ ...p.qaBtn, background: '#fff', color: cqSent ? '#16A34A' : '#2563EB', border: `1px solid ${cqSent ? '#BBF7D0' : '#C7D9FF'}`, cursor: cqSent ? 'default' : 'pointer' }} onClick={sendCQ} disabled={cqSent}>
+                      {cqSent ? <><PIc name="check" size={16} /> CQ Sent</> : <><PIc name="send" size={16} /> Send CQ</>}
+                    </button>
+                    <button style={{ ...p.qaBtn, background: '#fff', color: '#EA580C', border: '1px solid #FED7AA' }} onClick={() => onStatusChange('not-a-fit')}>
+                      <PIc name="userx" size={16} /> Not a Good Fit
+                    </button>
+                  </div>
                 )}
                 {booking.status === 'showed' && (
-                  <>
+                  <div style={p.qaGrid}>
                     {cqReceived ? (
-                      <div style={{ ...p.qaBtn, background: '#DCFCE7', color: '#15803D', border: '1px solid #BBF7D0', marginBottom: 8, cursor: 'default' }}><PIc name="check" size={15} /> CQ Received</div>
+                      <div style={{ ...p.qaBtn, ...p.qaSpan, background: '#DCFCE7', color: '#15803D', border: '1px solid #BBF7D0', cursor: 'default' }}><PIc name="check" size={16} /> CQ Received</div>
                     ) : (
-                      <button style={{ ...p.qaBtn, background: cqSent ? '#16A34A' : '#2563EB', color: '#fff', border: 'none', marginBottom: 8, cursor: cqSent ? 'default' : 'pointer', opacity: cqSent ? 0.95 : 1 }} onClick={sendCQ} disabled={cqSent}>
-                        {cqSent ? <><PIc name="check" size={15} /> CQ Sent</> : <><PIc name="send" size={15} /> Send CQ</>}
+                      <button style={{ ...p.qaBtn, ...p.qaSpan, background: cqSent ? '#16A34A' : '#2563EB', color: '#fff', border: 'none', cursor: cqSent ? 'default' : 'pointer', opacity: cqSent ? 0.95 : 1 }} onClick={sendCQ} disabled={cqSent}>
+                        {cqSent ? <><PIc name="check" size={16} /> CQ Sent</> : <><PIc name="send" size={16} /> Send CQ</>}
                       </button>
                     )}
                     {cqSent && !cqReceived && (
-                      <button style={{ ...p.qaBtn, background: '#fff', color: '#374151', border: '1px solid #E5E7EB', marginBottom: 8 }} onClick={markCQReceived} disabled={cqRecvSaving}>
+                      <button style={{ ...p.qaBtn, ...p.qaSpan, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={markCQReceived} disabled={cqRecvSaving}>
                         {cqRecvSaving ? 'Saving…' : 'Mark CQ Received'}
                       </button>
                     )}
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                      <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={() => setShowFollowUp(true)}>
-                        <PIc name="calendar" size={15} /> Follow-up
-                      </button>
-                      <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#B91C1C', border: '1px solid #FECACA' }} onClick={() => onStatusChange('not-interested')}>
-                        Not Interested
-                      </button>
-                    </div>
-                    <button style={{ ...p.qaBtn, background: '#fff', color: '#9A3412', border: '1px solid #FED7AA' }} onClick={() => onStatusChange('not-a-fit')}>
-                      <PIc name="ban" size={15} /> Not a Good Fit
+                    <button style={{ ...p.qaBtn, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={() => setShowFollowUp(true)}>
+                      <PIc name="calendar" size={16} /> Follow-up
                     </button>
-                  </>
+                    <button style={{ ...p.qaBtn, background: '#fff', color: '#DC2626', border: '1px solid #FECACA' }} onClick={() => onStatusChange('not-interested')}>
+                      <PIc name="ban" size={16} /> Not Interested
+                    </button>
+                    <button style={{ ...p.qaBtn, ...p.qaSpan, background: '#fff', color: '#EA580C', border: '1px solid #FED7AA' }} onClick={() => onStatusChange('not-a-fit')}>
+                      <PIc name="userx" size={16} /> Not a Good Fit
+                    </button>
+                  </div>
                 )}
                 {(booking.status === 'no-show' || booking.status === 'closed' || booking.status === 'not-interested' || booking.status === 'not-a-fit') && (
                   <div style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '8px 0' }}>
@@ -680,11 +677,11 @@ function PanelSection({ title, bg, children }) {
 }
 function Row({ label, icon, children }) {
   return (
-    <div style={p.row}>
+    <div className="crmRow" style={p.row}>
       {label && (
         <span style={p.rowLabel}>
-          {icon && <span style={{ color: '#94A3B8', marginRight: 7, display: 'inline-flex', verticalAlign: '-2px' }}><PIc name={icon} size={14} /></span>}
-          {label}
+          {icon && <span style={{ color: '#9AA4B2', display: 'inline-flex', flexShrink: 0 }}><PIc name={icon} size={15} /></span>}
+          <span>{label}</span>
         </span>
       )}
       <span style={p.rowVal}>{children}</span>
@@ -952,6 +949,8 @@ const p = {
   sectionTitle:  { fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 14 },
 
   // Quick action buttons
+  qaGrid:        { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 },
+  qaSpan:        { gridColumn: '1 / -1' },
   qaBtn:         { width: '100%', padding: '12px 10px', fontSize: 13, fontWeight: 600, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, boxSizing: 'border-box' },
   hdrBtn:        { flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 6px', fontSize: 12.5, fontWeight: 600, color: '#334155', background: '#fff', border: '1px solid #E2E8F0', borderRadius: 9, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none' },
   card:          { background: '#fff', border: '1px solid #EAECEF', borderRadius: 14, padding: '16px 18px', marginBottom: 14 },
@@ -961,9 +960,9 @@ const p = {
   cancelEditBtn: { fontSize: 12, fontWeight: 400, color: '#4A5568', background: '#F5F6F7', border: '1px solid #C8CDD2', borderRadius: 3, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit' },
 
   fieldGroupLabel:{ fontSize: 10, fontWeight: 700, color: '#B0B8C4', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 },
-  row:           { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, fontSize: 14 },
-  rowLabel:      { color: '#6B7280', width: 84, flexShrink: 0, fontSize: 13 },
-  rowVal:        { color: '#1A2B3C', flex: 1 },
+  row:           { display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 11, marginBottom: 11, fontSize: 14, borderBottom: '1px solid #F1F3F5' },
+  rowLabel:      { display: 'inline-flex', alignItems: 'center', gap: 8, color: '#6B7280', width: 112, flexShrink: 0, fontSize: 13, whiteSpace: 'nowrap' },
+  rowVal:        { color: '#1A2B3C', flex: 1, minWidth: 0, fontWeight: 500 },
   link:          { color: '#2563EB', textDecoration: 'none', fontSize: 14 },
   val:           { fontSize: 13, color: '#1A2B3C' },
   input:         { width: '100%', padding: '8px 10px', border: '1px solid #C8CDD2', borderRadius: 3, fontSize: 13, color: '#1A2B3C', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' },
