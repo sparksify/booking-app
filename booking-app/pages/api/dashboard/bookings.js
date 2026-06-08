@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { computeLeadScore, computeShowProbability, getHealthBadge } from '@/lib/scoring';
+import { getRole, getRepIdentity, repMatches } from '@/lib/role';
 
 const GHL_API     = 'https://services.leadconnectorhq.com';
 const GHL_VERSION = '2021-07-28';
@@ -238,7 +239,15 @@ export default async function handler(req, res) {
     })
     .sort((a, b) => new Date(a.slot_start).getTime() - new Date(b.slot_start).getTime());
 
-  res.json({ bookings: all, rep_avatars: repAvatars });
+  // ── Role scoping: members only see appointments assigned to them ───────────
+  let visible = all;
+  const role = await getRole(session.user?.email);
+  if (role !== 'admin') {
+    const ident = await getRepIdentity(session.user?.email);
+    visible = all.filter(b => repMatches(b.assigned_to_email, ident));
+  }
+
+  res.json({ bookings: visible, rep_avatars: repAvatars, role });
 }
 
 // ─── Supabase ─────────────────────────────────────────────────────────────────

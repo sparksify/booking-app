@@ -181,6 +181,8 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   const [panelLoading, setPanelLoading] = useState(false);
   const [panelOpen,    setPanelOpen]    = useState(false);
   const [repAvatars,   setRepAvatars]   = useState({});
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [isAdmin,      setIsAdmin]      = useState(true);
   // smsConfirmations: { [bookingId]: { status, note, loading } }
   const [smsConfirmations, setSmsConfirmations] = useState({});
   const nowLineRef    = useRef(null);
@@ -294,6 +296,9 @@ export default function BookingsDashboard({ brandPitches = {} }) {
       .then(r => r.json())
       .then(d => {
         const real = d.bookings || [];
+        const admin = d.role !== 'member';
+        setIsAdmin(admin);
+        if (!admin) setRepFilter([]);   // members are already scoped server-side
         if (real.length === 0) { setBookings(DEMO); setIsDemo(true); }
         else                   { setBookings(real); setIsDemo(false); }
         if (d.rep_avatars) setRepAvatars(d.rep_avatars);
@@ -374,7 +379,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   const allReps = [...new Set(bookings.map(b => b.assigned_to_email).filter(Boolean))];
 
   const filteredBookings = bookings
-    .filter(b => repFilter.length === 0 || repFilter.includes(b.assigned_to_email))
+    .filter(b => !isAdmin || repFilter.length === 0 || repFilter.includes(b.assigned_to_email))
     .filter(b => !sourceFilter || (b._source_display || 'KANSO') === sourceFilter)
     .filter(b => !statusFilter || b.status === statusFilter);
 
@@ -488,6 +493,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                 />
               </div>
               <button style={s.topBtn}>≡ Filters</button>
+              <button onClick={() => setTransferOpen(true)} style={s.topBtn}>⇄ Transfer</button>
               <button onClick={load} style={s.topBtn}>↻ Refresh</button>
               <button onClick={downloadCSV} style={s.topBtnPrimary}>+ Export ▾</button>
             </div>
@@ -646,8 +652,8 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                 <button style={s.filterMoreBtn}>≡ More Filters</button>
               </div>
 
-              {/* Rep chips (right side) */}
-              {allReps.length > 1 && (
+              {/* Rep chips (right side) — admin only */}
+              {isAdmin && allReps.length > 1 && (
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                   <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600 }}>Rep:</span>
                   {allReps.map(email => {
@@ -761,10 +767,185 @@ export default function BookingsDashboard({ brandPitches = {} }) {
             }}
           />
         )}
+
+        {transferOpen && <TransferModal onClose={() => setTransferOpen(false)} onDone={load} />}
       </div>
     </>
   );
 }
+
+// ─── Transfer Appointments Modal ────────────────────────────────────────────────
+function TransferModal({ onClose, onDone }) {
+  const [reps,       setReps]       = useState([]);
+  const [target,     setTarget]     = useState('');
+  const [appts,      setAppts]      = useState([]);
+  const [selected,   setSelected]   = useState({});   // { [id]: true }
+  const [loadingReps, setLoadingReps] = useState(true);
+  const [checking,   setChecking]   = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [result,     setResult]     = useState(null);
+
+  // Load reps once
+  useEffect(() => {
+    fetch('/api/dashboard/team-members')
+      .then(r => r.json())
+      .then(d => {
+        const me = (d.me || '').toLowerCase();
+        setReps((d.reps || []).filter(r => r.email.toLowerCase() !== me));
+      })
+      .catch(() => setReps([]))
+      .finally(() => setLoadingReps(false));
+  }, []);
+
+  // When target changes, fetch my appts + conflict flags
+  useEffect(() => {
+    if (!target) { setAppts([]); setSelected({}); return; }
+    setChecking(true); setResult(null);
+    fetch(`/api/dashboard/transfer-check?target=${encodeURIComponent(target)}`)
+      .then(r => r.json())
+      .then(d => {
+        const list = d.appointments || [];
+        setAppts(list);
+        // Pre-select all conflict-free appointments
+        const pre = {};
+        list.forEach(a => { if (!a.conflict) pre[a.id] = true; });
+        setSelected(pre);
+      })
+      .catch(() => setAppts([]))
+      .finally(() => setChecking(false));
+  }, [target]);
+
+  const targetRep   = reps.find(r => r.email === target);
+  const selectedIds = appts.filter(a => selected[a.id] && !a.conflict).map(a => a.id);
+  const freeCount   = appts.filter(a => !a.conflict).length;
+
+  function toggle(a) {
+    if (a.conflict) return;
+    setSelected(s => ({ ...s, [a.id]: !s[a.id] }));
+  }
+
+  async function submit() {
+    if (!selectedIds.length) return;
+    setSubmitting(true); setResult(null);
+    try {
+      const res = await fetch('/api/dashboard/transfer-bookings', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ targetEmail: target, bookingIds: selectedIds }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setResult({ error: d.error || 'Transfer failed' }); }
+      else {
+        setResult({ transferred: d.transferred, total: d.total });
+        onDone && onDone();
+      }
+    } catch (e) {
+      setResult({ error: e.message });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div style={t.overlay} onClick={onClose}>
+      <div style={t.modal} onClick={e => e.stopPropagation()}>
+        <div style={t.header}>
+          <div>
+            <div style={t.title}>Transfer Appointments</div>
+            <div style={t.sub}>Hand off your upcoming meetings to another rep — only conflict-free times can be selected.</div>
+          </div>
+          <button onClick={onClose} style={t.close}>✕</button>
+        </div>
+
+        <div style={t.body}>
+          <label style={t.label}>Transfer to</label>
+          <select value={target} onChange={e => setTarget(e.target.value)} style={t.select} disabled={loadingReps}>
+            <option value="">{loadingReps ? 'Loading reps…' : 'Select a rep…'}</option>
+            {reps.map(r => (
+              <option key={r.email} value={r.email} disabled={!r.has_calendar}>
+                {r.name}{!r.has_calendar ? ' (no calendar connected)' : ''}
+              </option>
+            ))}
+          </select>
+
+          {target && (
+            <div style={{ marginTop: 18 }}>
+              <div style={t.listHead}>
+                <span>Your upcoming appointments</span>
+                {!checking && appts.length > 0 && (
+                  <span style={{ color: '#64748B', fontWeight: 500 }}>{freeCount} of {appts.length} available for {targetRep?.name?.split(' ')[0] || 'them'}</span>
+                )}
+              </div>
+
+              {checking ? (
+                <div style={t.empty}>Checking {targetRep?.name?.split(' ')[0] || 'their'}’s calendar…</div>
+              ) : appts.length === 0 ? (
+                <div style={t.empty}>You have no upcoming scheduled appointments to transfer.</div>
+              ) : (
+                <div style={t.list}>
+                  {appts.map(a => (
+                    <label key={a.id} style={{ ...t.row, ...(a.conflict ? t.rowDisabled : {}) }}>
+                      <input
+                        type="checkbox"
+                        checked={!!selected[a.id] && !a.conflict}
+                        disabled={a.conflict}
+                        onChange={() => toggle(a)}
+                        style={{ width: 16, height: 16, flexShrink: 0, accentColor: '#2563EB' }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
+                        <div style={{ fontSize: 12, color: '#64748B' }}>{a.date_label} · {a.time_label}</div>
+                      </div>
+                      {a.conflict
+                        ? <span style={t.conflictTag}>Conflict</span>
+                        : <span style={t.freeTag}>Available</span>}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {result && (
+            result.error
+              ? <div style={{ ...t.note, color: '#B91C1C', background: '#FEF2F2', border: '1px solid #FECACA' }}>{result.error}</div>
+              : <div style={{ ...t.note, color: '#15803D', background: '#DCFCE7', border: '1px solid #BBF7D0' }}>✓ Transferred {result.transferred} of {result.total} appointment{result.total === 1 ? '' : 's'} to {targetRep?.name || target}.</div>
+          )}
+        </div>
+
+        <div style={t.footer}>
+          <button onClick={onClose} style={t.btnGhost}>Close</button>
+          <button onClick={submit} disabled={!selectedIds.length || submitting} style={{ ...t.btnPrimary, opacity: (!selectedIds.length || submitting) ? 0.5 : 1, cursor: (!selectedIds.length || submitting) ? 'default' : 'pointer' }}>
+            {submitting ? 'Transferring…' : `Transfer ${selectedIds.length || ''} ${selectedIds.length === 1 ? 'appointment' : 'appointments'}`.trim()}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const t = {
+  overlay:   { position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  modal:     { background: '#fff', borderRadius: 16, width: '100%', maxWidth: 520, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,.25)', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif", overflow: 'hidden' },
+  header:    { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, padding: '20px 22px 16px', borderBottom: '1px solid #EEF0F3' },
+  title:     { fontSize: 18, fontWeight: 800, color: '#0F172A', letterSpacing: '-0.2px' },
+  sub:       { fontSize: 12.5, color: '#64748B', marginTop: 4, lineHeight: 1.5, maxWidth: 420 },
+  close:     { background: 'none', border: 'none', fontSize: 18, color: '#9CA3AF', cursor: 'pointer', lineHeight: 1, padding: 0, flexShrink: 0 },
+  body:      { padding: '18px 22px', overflowY: 'auto' },
+  label:     { display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 7 },
+  select:    { width: '100%', padding: '11px 12px', fontSize: 14, color: '#0F172A', border: '1px solid #D7DCE3', borderRadius: 10, background: '#fff', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' },
+  listHead:  { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 8 },
+  list:      { display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' },
+  row:       { display: 'flex', alignItems: 'center', gap: 11, padding: '11px 12px', border: '1px solid #E5E8EC', borderRadius: 10, cursor: 'pointer' },
+  rowDisabled: { background: '#FAFAFB', cursor: 'not-allowed', opacity: 0.7 },
+  freeTag:     { fontSize: 11, fontWeight: 700, color: '#15803D', background: '#DCFCE7', border: '1px solid #BBF7D0', borderRadius: 20, padding: '2px 9px', whiteSpace: 'nowrap' },
+  conflictTag: { fontSize: 11, fontWeight: 700, color: '#B45309', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 20, padding: '2px 9px', whiteSpace: 'nowrap' },
+  empty:     { fontSize: 13, color: '#94A3B8', textAlign: 'center', padding: '24px 0' },
+  note:      { marginTop: 16, padding: '10px 12px', borderRadius: 10, fontSize: 13, fontWeight: 600 },
+  footer:    { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '14px 22px', borderTop: '1px solid #EEF0F3' },
+  btnGhost:  { padding: '10px 16px', fontSize: 13, fontWeight: 600, color: '#475569', background: '#fff', border: '1px solid #D7DCE3', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit' },
+  btnPrimary:{ padding: '10px 18px', fontSize: 13, fontWeight: 700, color: '#fff', background: '#2563EB', border: 'none', borderRadius: 10, fontFamily: 'inherit' },
+};
 
 // ─── Table Row ────────────────────────────────────────────────────────────────
 function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus, inProgress, repAvatars, confirmation }) {

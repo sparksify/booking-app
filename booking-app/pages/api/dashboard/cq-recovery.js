@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { lookupGHLContactByEmail } from '@/lib/ghl';
+import { getRole, getRepIdentity, repMatches } from '@/lib/role';
 
 /**
  * GET /api/dashboard/cq-recovery
@@ -144,6 +145,8 @@ export default async function handler(req, res) {
     const lastEv        = evs[0] || null;
     const recentEngaged = evs.some(x => (now - new Date(x.created_at).getTime()) < 7 * DAY_MS);
     const pageViews     = evs.filter(x => x.event_type === 'booking_page_viewed').length;
+    const cqViews       = evs.filter(x => x.event_type === 'cq_page_viewed').length;
+    const clickedCQ     = cqViews > 0;
 
     const cqSentAt = i.cq_sent_at;
     const days     = cqSentAt ? Math.floor((now - new Date(cqSentAt).getTime()) / DAY_MS) : 0;
@@ -160,6 +163,10 @@ export default async function handler(req, res) {
     else if (noShow) { base -= 18; reasons.push('No-showed the appointment'); }
 
     if (emailOpened) { base += 18; reasons.push('Opened the CQ email'); }
+
+    // Clicked through to the questionnaire — strongest "interested, didn't finish" signal.
+    if (cqViews >= 3)      { base += 26; reasons.push(`Opened the CQ ${cqViews}× but hasn’t submitted`); }
+    else if (cqViews >= 1) { base += 16; reasons.push(`Opened the CQ page ${cqViews}×`); }
 
     if (liquidHigh)      { base += 16; reasons.push(`High liquid capital${liquidRaw ? `: ${liquidRaw}` : ''}`); }
     else if (liquidRaw)  { base += 6;  reasons.push(`Liquid capital: ${liquidRaw}`); }
@@ -183,11 +190,13 @@ export default async function handler(req, res) {
     const score = Math.max(1, Math.min(100, Math.round(base * decay)));
 
     // ── Bucket (priority order) ──
-    const commitments = [conf === 'confirmed', emailOpened, showed, liquidHigh].filter(Boolean).length;
+    // Repeat CQ views count as an extra commitment — they're clearly interested.
+    const commitments = [conf === 'confirmed', emailOpened || clickedCQ, showed, liquidHigh].filter(Boolean).length
+      + (cqViews >= 3 ? 1 : 0);
     let bucket;
     if      (commitments >= 3)                          bucket = 'hot';
     else if (liquidHigh)                                bucket = 'big_fish';
-    else if (emailOpened || recentEngaged || conf === 'confirmed') bucket = 'engaged';
+    else if (clickedCQ || emailOpened || recentEngaged || conf === 'confirmed') bucket = 'engaged';
     else if (showed)                                    bucket = 'warm';
     else if (noShow || conf === 'declined' || days > 21) bucket = 'at_risk';
     else                                                bucket = 'cold';
@@ -205,6 +214,7 @@ export default async function handler(req, res) {
       cq_sent_at:     cqSentAt,
       days_waiting:   days,
       email_opened:   emailOpened,
+      cq_views:       cqViews,
       confirmation:   conf,
       showed,
       score,
@@ -218,20 +228,28 @@ export default async function handler(req, res) {
     };
   }).sort((a, b) => b.score - a.score);
 
+  // Role scoping: members only see leads assigned to them
+  const role = await getRole(session.user?.email);
+  let viewLeads = leads;
+  if (role !== 'admin') {
+    const ident = await getRepIdentity(session.user?.email);
+    viewLeads = leads.filter(l => repMatches(l.assigned_rep, ident));
+  }
+
   // 6. Bucket counts + hero metrics
   const bucketCounts = {};
-  for (const l of leads) bucketCounts[l.bucket] = (bucketCounts[l.bucket] || 0) + 1;
+  for (const l of viewLeads) bucketCounts[l.bucket] = (bucketCounts[l.bucket] || 0) + 1;
 
-  const total   = leads.length;
-  const avgDays = total ? Math.round(leads.reduce((s, l) => s + l.days_waiting, 0) / total) : 0;
+  const total   = viewLeads.length;
+  const avgDays = total ? Math.round(viewLeads.reduce((s, l) => s + l.days_waiting, 0) / total) : 0;
   const metrics = {
     total,
     hot:       bucketCounts.hot || 0,
     bigFish:   bucketCounts.big_fish || 0,
     engaged:   bucketCounts.engaged || 0,
     avgDays,
-    goingCold: leads.filter(l => l.days_waiting >= 14).length,
+    goingCold: viewLeads.filter(l => l.days_waiting >= 14).length,
   };
 
-  res.json({ leads, metrics, bucketCounts, bucketMeta: BUCKET_META });
+  res.json({ leads: viewLeads, metrics, bucketCounts, bucketMeta: BUCKET_META, role });
 }

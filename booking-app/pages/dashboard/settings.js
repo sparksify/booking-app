@@ -24,7 +24,7 @@ export async function getServerSideProps(context) {
   const supabase = getSupabaseAdmin();
 
   const [{ data: members }, { data: bookings }, { data: settingsRow }] = await Promise.all([
-    supabase.from('team_members').select('id, name, email, active, investment_ranges, created_at').order('created_at'),
+    supabase.from('team_members').select('id, name, email, active, investment_ranges, role, created_at').order('created_at'),
     supabase.from('bookings')
       .select('id, first_name, last_name, email, phone, slot_start, assigned_to_email, meet_link')
       .order('slot_start', { ascending: false })
@@ -32,9 +32,13 @@ export async function getServerSideProps(context) {
     supabase.from('settings').select('*').eq('id', 1).single(),
   ]);
 
+  const { getRole } = await import('@/lib/role');
+  const role = await getRole(session.user?.email);
+
   return {
     props: {
       session,
+      isAdmin: role === 'admin',
       initialMembers:  members  || [],
       initialBookings: bookings || [],
       initialSettings: settingsRow || {
@@ -65,7 +69,7 @@ function SideIcon({ name }) {
 }
 
 // ─── Dashboard page ───────────────────────────────────────────────────────────
-export default function Dashboard({ initialMembers, initialBookings, initialSettings }) {
+export default function Dashboard({ initialMembers, initialBookings, initialSettings, isAdmin = true }) {
   const { data: session } = useSession();
   const [members,       setMembers]       = useState(initialMembers);
   const [bookings]                        = useState(initialBookings);
@@ -473,7 +477,8 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
 
         <main style={s.main}>
 
-          {/* ── Team Members ────────────────────────────────────────────── */}
+          {/* ── Team Members (admin only) ───────────────────────────────── */}
+          {isAdmin && (
           <Section
             title="Team Members"
             subtitle="Each person's Google Calendar is queried for availability. Sign in at /dashboard/login to connect a new calendar."
@@ -507,13 +512,23 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
               </a>
             </div>
           </Section>
+          )}
+
+          {/* ── Permissions (admin only) ────────────────────────────────── */}
+          {isAdmin && (
+            <PermissionsPanel members={members} myEmail={session?.user?.email} styles={s} />
+          )}
 
           {/* ── Calendars ─────────────────────────────────────────────── */}
           <Section
-            title="Calendars"
-            subtitle="Set up personal calendars (bookkanso.co/yourname) and brand calendars (bookkanso.co/wetfuel). Each gets its own booking URL, page content, calendar color, and rep routing."
+            title={isAdmin ? 'Calendars' : 'My Personal Calendar'}
+            subtitle={isAdmin
+              ? 'Set up personal calendars (bookkanso.co/yourname) and brand calendars (bookkanso.co/wetfuel). Each gets its own booking URL, page content, calendar color, and rep routing.'
+              : 'Set up your personal booking page (bookkanso.co/yourname) — its booking URL, page content, and calendar color.'}
           >
             <CalendarsEditor
+              personalOnly={!isAdmin}
+              myEmail={session?.user?.email}
               brands={brands}
               loading={brandsLoading}
               expandedBrand={expandedBrand}
@@ -618,7 +633,8 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
             </form>
           </Section>
 
-          {/* ── Analytics Display ───────────────────────────────────────── */}
+          {/* ── Analytics Display (admin only) ──────────────────────────── */}
+          {isAdmin && (
           <Section title="Analytics Display" subtitle="Choose which sections appear on the Analytics page. Changes take effect on next page load.">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
@@ -648,6 +664,7 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
               </button>
             </div>
           </Section>
+          )}
 
           {/* ── Brand Pitches ───────────────────────────────────────────── */}
           <Section title="Brand Pitches" subtitle="Phone pitch scripts shown in the CRM panel when you click 'Brand Pitch'. Keyed by brand name.">
@@ -743,7 +760,8 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
             )}
           </Section>
 
-          {/* ── Recent Bookings ──────────────────────────────────────────── */}
+          {/* ── Recent Bookings (admin only) ────────────────────────────── */}
+          {isAdmin && (
           <Section
             title="Recent Bookings"
             subtitle={`Last ${bookings.length} bookings`}
@@ -780,8 +798,10 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
               </div>
             )}
           </Section>
+          )}
 
-          {/* ── BlueBubbles iMessage ─────────────────────────────────────── */}
+          {/* ── BlueBubbles iMessage (admin only) ───────────────────────── */}
+          {isAdmin && (
           <Section
             title="BlueBubbles iMessage"
             subtitle="Connect a BlueBubbles server to send and receive iMessages directly from the CRM. Requires a dedicated always-on Mac running the BlueBubbles server app."
@@ -858,6 +878,7 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
               </div>
             </div>
           </Section>
+          )}
 
         </main>
         </div>{/* /mainCol */}
@@ -867,6 +888,79 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+function PermissionsPanel({ members = [], myEmail, styles: s }) {
+  const [roles, setRoles] = useState(() =>
+    Object.fromEntries(members.map(m => [m.email, m.role || 'member']))
+  );
+  const [savingEmail, setSavingEmail] = useState(null);
+  const [savedEmail,  setSavedEmail]  = useState(null);
+
+  async function changeRole(email, newRole) {
+    const prev = roles[email] || 'member';
+    setRoles(r => ({ ...r, [email]: newRole }));
+    setSavingEmail(email);
+    try {
+      const res = await fetch('/api/dashboard/set-role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, role: newRole }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setRoles(r => ({ ...r, [email]: prev })); alert(d.error || 'Failed to update role'); }
+      else { setSavedEmail(email); setTimeout(() => setSavedEmail(null), 1500); }
+    } catch (e) {
+      setRoles(r => ({ ...r, [email]: prev }));
+      alert(e.message);
+    } finally {
+      setSavingEmail(null);
+    }
+  }
+
+  return (
+    <Section
+      title="Permissions"
+      subtitle="Admins see everything. Members only see their own meetings, leads, and CQ recovery, plus a limited Settings page (personal calendar, availability, brand pitches, and workflow automations)."
+    >
+      {members.length === 0 ? (
+        <EmptyState icon="🔒" message="No team members yet." />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {members.map(m => {
+            const isMe = (m.email || '').toLowerCase() === (myEmail || '').toLowerCase();
+            const role = roles[m.email] || 'member';
+            return (
+              <div key={m.email} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '11px 13px', border: '1px solid #E5E8EC', borderRadius: 10, background: '#fff' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, color: '#0F172A' }}>
+                    {m.name}{isMe && <span style={{ color: '#94A3B8', fontWeight: 500 }}> (you)</span>}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  {savedEmail === m.email && <span style={{ fontSize: 12, color: '#15803D', fontWeight: 600 }}>✓ Saved</span>}
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 20, color: role === 'admin' ? '#7C3AED' : '#475569', background: role === 'admin' ? '#F3E8FF' : '#F1F5F9', border: `1px solid ${role === 'admin' ? '#E9D5FF' : '#E2E8F0'}` }}>
+                    {role === 'admin' ? 'Admin' : 'Member'}
+                  </span>
+                  <select
+                    value={role}
+                    disabled={isMe || savingEmail === m.email}
+                    onChange={e => changeRole(m.email, e.target.value)}
+                    title={isMe ? "You can't change your own role" : 'Change role'}
+                    style={{ ...s.select, width: 'auto', padding: '6px 10px', opacity: isMe ? 0.5 : 1 }}
+                  >
+                    <option value="admin">Admin</option>
+                    <option value="member">Member</option>
+                  </select>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Section>
+  );
+}
 
 function Section({ title, subtitle, children }) {
   return (
@@ -1275,23 +1369,33 @@ function CalCard({ cal, expandedBrand, setExpandedBrand, brandSaving, brandSaved
   );
 }
 
-function CalendarsEditor({ brands, loading, expandedBrand, setExpandedBrand, brandSaving, brandSaved, members, onSave, onDelete, onAddPersonal, onAddBrand, onUpdate, styles: s }) {
+function CalendarsEditor({ brands, loading, expandedBrand, setExpandedBrand, brandSaving, brandSaved, members, onSave, onDelete, onAddPersonal, onAddBrand, onUpdate, personalOnly = false, myEmail = null, styles: s }) {
   if (loading) return <div style={{ padding: 20, color: '#64748B', fontSize: 13 }}>Loading calendars…</div>;
 
-  const personal = brands.filter(b => b.type === 'personal');
-  const brand    = brands.filter(b => b.type !== 'personal');
+  let personal = brands.filter(b => b.type === 'personal');
+  const brand  = brands.filter(b => b.type !== 'personal');
+
+  // Members only manage their own personal calendars (plus any they're adding now)
+  if (personalOnly && myEmail) {
+    const mine = String(myEmail).toLowerCase();
+    personal = personal.filter(c =>
+      String(c.id).startsWith('new_') ||
+      !(c.rep_emails?.length) ||
+      (c.rep_emails || []).some(e => String(e).toLowerCase() === mine)
+    );
+  }
 
   return (
     <div>
-      {personal.length > 0 && <div style={{ fontSize: 12, fontWeight: 700, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 8 }}>Personal Calendars</div>}
+      {!personalOnly && personal.length > 0 && <div style={{ fontSize: 12, fontWeight: 700, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 8 }}>Personal Calendars</div>}
       {personal.map(cal => <CalCard key={cal.id} cal={cal} expandedBrand={expandedBrand} setExpandedBrand={setExpandedBrand} brandSaving={brandSaving} brandSaved={brandSaved} members={members} onSave={onSave} onDelete={onDelete} onUpdate={onUpdate} styles={s} />)}
 
-      {brand.length > 0 && <div style={{ fontSize: 12, fontWeight: 700, color: '#0057FF', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 8, marginTop: personal.length ? 16 : 0 }}>Brand Calendars</div>}
-      {brand.map(cal => <CalCard key={cal.id} cal={cal} expandedBrand={expandedBrand} setExpandedBrand={setExpandedBrand} brandSaving={brandSaving} brandSaved={brandSaved} members={members} onSave={onSave} onDelete={onDelete} onUpdate={onUpdate} styles={s} />)}
+      {!personalOnly && brand.length > 0 && <div style={{ fontSize: 12, fontWeight: 700, color: '#0057FF', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 8, marginTop: personal.length ? 16 : 0 }}>Brand Calendars</div>}
+      {!personalOnly && brand.map(cal => <CalCard key={cal.id} cal={cal} expandedBrand={expandedBrand} setExpandedBrand={setExpandedBrand} brandSaving={brandSaving} brandSaved={brandSaved} members={members} onSave={onSave} onDelete={onDelete} onUpdate={onUpdate} styles={s} />)}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
         <button style={{ ...s.saveBtn, background:'#F5F3FF', color:'#7C3AED', border:'1px solid #DDD6FE' }} onClick={onAddPersonal}>+ Personal Calendar</button>
-        <button style={{ ...s.saveBtn, background:'#EFF6FF', color:'#0057FF', border:'1px solid #BFDBFE' }} onClick={onAddBrand}>+ Brand Calendar</button>
+        {!personalOnly && <button style={{ ...s.saveBtn, background:'#EFF6FF', color:'#0057FF', border:'1px solid #BFDBFE' }} onClick={onAddBrand}>+ Brand Calendar</button>}
       </div>
     </div>
   );
