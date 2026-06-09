@@ -47,18 +47,32 @@ export async function getServerSideProps({ params, query }) {
 
   if (!brandRes.data) return { notFound: true };
 
+  // Drop unresolved merge tokens — if a value still looks like "{{first_name}}"
+  // the substitution never happened, so it must never reach the form.
+  const clean = v => {
+    const s = (v || '').toString().trim();
+    if (!s || /\{\{.*\}\}/.test(s) || /%7B%7B/i.test(s)) return '';
+    return s;
+  };
+  // Facebook stores multiple-choice answers with underscores where spaces go
+  // (e.g. "$50,000_-_$75,000"); turn them back into readable text.
+  const cleanText = v => clean(v).replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+
   return {
     props: {
       brand:    brandRes.data,
       settings: settingsRes.data || {},
-      // URL params pre-filled from Facebook Lead Ad
+      // URL params pre-filled from the Facebook Lead Ad redirect
       prefill: {
-        firstName:     query.first_name     || '',
-        lastName:      query.last_name      || '',
-        phone:         query.phone_number   || query.phone || '',
-        email:         query.email          || '',
-        liquidCapital: query.liquid_capital || '',  // raw string e.g. "$150,000 – $500,000"
-        leadId:        query.lead_id        || '',
+        firstName:     clean(query.first_name),
+        lastName:      clean(query.last_name),
+        phone:         clean(query.phone_number) || clean(query.phone),
+        email:         clean(query.email),
+        // Liquid capital comes from the FB "Cash Available?" question — accept
+        // its real field name (cash_available) plus our own aliases.
+        liquidCapital: cleanText(query.liquid_capital) || cleanText(query.cash_available)
+                    || cleanText(query['cash_available?']) || cleanText(query.investment_level),
+        leadId:        clean(query.lead_id),
       },
     },
   };
