@@ -5,15 +5,17 @@ import { getServerSession } from 'next-auth/next';
 import Head from 'next/head';
 import Link from 'next/link';
 import { authOptions } from '../api/auth/[...nextauth]';
+import { visibleNav } from '@/lib/nav';
 
 export async function getServerSideProps(context) {
-  const session = await getServerSession(context.req, context.res, authOptions);
-  if (!session) return { redirect: { destination: '/dashboard/login', permanent: false } };
+  const { guardDashboardPage } = await import('@/lib/pageAccess');
+  const gate = await guardDashboardPage(context, '/dashboard/bookings');
+  if (gate.redirect) return gate;
   const { getSupabaseAdmin } = await import('@/lib/supabase');
   const supabase = getSupabaseAdmin();
   const { data: settingsRow } = await supabase
     .from('settings').select('brand_pitches').eq('id', 1).single();
-  return { props: { session, brandPitches: settingsRow?.brand_pitches || {} } };
+  return { props: { session: gate.session, perms: gate.perms, brandPitches: settingsRow?.brand_pitches || {} } };
 }
 
 const FILTERS = [
@@ -161,7 +163,7 @@ function SourceBadge({ source }) {
 }
 
 // ─── Main dashboard ───────────────────────────────────────────────────────────
-export default function BookingsDashboard({ brandPitches = {} }) {
+export default function BookingsDashboard({ brandPitches = {}, perms = {} }) {
   const { data: session } = useSession();
   const router = useRouter();
   const focusedRef = useRef(false);
@@ -431,23 +433,18 @@ export default function BookingsDashboard({ brandPitches = {} }) {
 
           {/* Nav */}
           <nav style={s.sideNav}>
-            {[
-              { href: '/dashboard/analytics', label: 'Dashboard',   icon: 'dashboard' },
-              { href: '/dashboard/leads',      label: 'Leads',       icon: 'leads' },
-              { href: '/dashboard/prospects',  label: 'Prospecting', icon: 'clients' },
-              { href: '/dashboard/bookings',   label: 'Meetings',    icon: 'meetings', active: true },
-              { href: '/dashboard/cq-recovery', label: 'CQ Recovery', icon: 'cq' },
-              { href: '/dashboard/nurture',    label: 'Nurture',     icon: 'nurture' },
-              { href: '/dashboard/settings',   label: 'Settings',    icon: 'settings' },
-            ].map(({ href, label, icon, active }) => (
-              <Link key={label} href={href}
-                style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>
-                <span style={{ color: active ? '#0057FF' : '#9CA3AF', display: 'flex', alignItems: 'center' }}>
-                  <SideIcon name={icon} />
-                </span>
-                <span>{label}</span>
-              </Link>
-            ))}
+            {visibleNav(perms).map(({ href, label, icon }) => {
+              const active = href === '/dashboard/bookings';
+              return (
+                <Link key={label} href={href}
+                  style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>
+                  <span style={{ color: active ? '#0057FF' : '#9CA3AF', display: 'flex', alignItems: 'center' }}>
+                    <SideIcon name={icon} />
+                  </span>
+                  <span>{label}</span>
+                </Link>
+              );
+            })}
           </nav>
 
           {/* Bottom */}

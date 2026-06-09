@@ -10,6 +10,18 @@
 
 export const PERMISSION_GROUPS = [
   {
+    group: 'Pages',
+    items: [
+      { key: 'page_dashboard',   label: 'Dashboard',   desc: 'Analytics & executive summary' },
+      { key: 'page_leads',       label: 'Leads' },
+      { key: 'page_prospecting', label: 'Prospecting' },
+      { key: 'page_meetings',    label: 'Meetings' },
+      { key: 'page_cq',          label: 'CQ Recovery' },
+      { key: 'page_nurture',     label: 'Nurture' },
+      { key: 'page_settings',    label: 'Settings' },
+    ],
+  },
+  {
     group: 'Data access',
     items: [
       { key: 'meetings_view_all', label: 'See all reps’ meetings',     desc: 'Off = only their own assigned meetings' },
@@ -43,6 +55,13 @@ export const ALL_PERMISSION_KEYS = PERMISSION_GROUPS.flatMap(g => g.items.map(i 
 
 /** Default capabilities granted to a Member (before per-member overrides). */
 export const MEMBER_DEFAULTS = {
+  page_dashboard:             true,
+  page_leads:                 true,
+  page_prospecting:           true,
+  page_meetings:              true,
+  page_cq:                    true,
+  page_nurture:               true,
+  page_settings:              true,
   meetings_view_all:          false,
   cq_view_all:                false,
   settings_personal_calendar: true,

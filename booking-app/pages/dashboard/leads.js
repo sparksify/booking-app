@@ -4,6 +4,8 @@ import { getServerSession } from 'next-auth/next';
 import Head from 'next/head';
 import Link from 'next/link';
 import { authOptions } from '../api/auth/[...nextauth]';
+import { guardDashboardPage } from '@/lib/pageAccess';
+import { visibleNav } from '@/lib/nav';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -46,8 +48,9 @@ function getSourceBadge(lead) {
 // ─── Server-side data fetch ───────────────────────────────────────────────────
 
 export async function getServerSideProps(context) {
-  const session = await getServerSession(context.req, context.res, authOptions);
-  if (!session) return { redirect: { destination: '/dashboard/login', permanent: false } };
+  const gate = await guardDashboardPage(context, '/dashboard/leads');
+  if (gate.redirect) return gate;
+  const { session, perms } = gate;
 
   const supabase = getSupabaseAdmin();
 
@@ -110,6 +113,7 @@ export async function getServerSideProps(context) {
   return {
     props: {
       session,
+      perms,
       initialLeads: allContacts,
       baseUrl: `https://${context.req.headers.host}`,
     },
@@ -133,7 +137,7 @@ function SideIcon({ name }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function LeadsDashboard({ initialLeads, baseUrl }) {
+export default function LeadsDashboard({ initialLeads, baseUrl, perms = {} }) {
   const { data: session } = useSession();
 
   const [leads,        setLeads]       = useState(initialLeads);
@@ -199,22 +203,17 @@ export default function LeadsDashboard({ initialLeads, baseUrl }) {
             </div>
           </div>
           <nav style={s.sideNav}>
-            {[
-              { href: '/dashboard/analytics', label: 'Dashboard',   icon: 'dashboard' },
-              { href: '/dashboard/leads',     label: 'Leads',       icon: 'leads', active: true },
-              { href: '/dashboard/prospects', label: 'Prospecting', icon: 'clients' },
-              { href: '/dashboard/bookings',  label: 'Meetings',    icon: 'meetings' },
-              { href: '/dashboard/cq-recovery', label: 'CQ Recovery', icon: 'cq' },
-              { href: '/dashboard/nurture',   label: 'Nurture',     icon: 'nurture' },
-              { href: '/dashboard/settings',  label: 'Settings',    icon: 'settings' },
-            ].map(({ href, label, icon, active }) => (
-              <Link key={label} href={href} style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>
-                <span style={{ color: active ? '#0057FF' : '#9CA3AF', display: 'flex', alignItems: 'center' }}>
-                  <SideIcon name={icon} />
-                </span>
-                <span>{label}</span>
-              </Link>
-            ))}
+            {visibleNav(perms).map(({ href, label, icon }) => {
+              const active = href === '/dashboard/leads';
+              return (
+                <Link key={label} href={href} style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>
+                  <span style={{ color: active ? '#0057FF' : '#9CA3AF', display: 'flex', alignItems: 'center' }}>
+                    <SideIcon name={icon} />
+                  </span>
+                  <span>{label}</span>
+                </Link>
+              );
+            })}
           </nav>
           <div style={s.sideBottom}>
             <div style={s.sideHelpRow}>

@@ -4,11 +4,13 @@ import { getServerSession } from 'next-auth/next';
 import Head from 'next/head';
 import Link from 'next/link';
 import { authOptions } from '../api/auth/[...nextauth]';
+import { guardDashboardPage } from '@/lib/pageAccess';
+import { visibleNav } from '@/lib/nav';
 
 export async function getServerSideProps(context) {
-  const session = await getServerSession(context.req, context.res, authOptions);
-  if (!session) return { redirect: { destination: '/dashboard/login', permanent: false } };
-  return { props: { session } };
+  const gate = await guardDashboardPage(context, '/dashboard/nurture');
+  if (gate.redirect) return gate;
+  return { props: { session: gate.session, perms: gate.perms } };
 }
 
 // ── Pipeline stage definitions ─────────────────────────────────────────────────
@@ -105,7 +107,7 @@ function SideIcon({ name }) {
   return null;
 }
 
-export default function NurturePage() {
+export default function NurturePage({ perms = {} }) {
   const { data: session } = useSession();
   const [clients,        setClients]        = useState([]);
   const [stats,          setStats]          = useState(null);
@@ -244,22 +246,17 @@ export default function NurturePage() {
             </div>
           </div>
           <nav style={s.sideNav}>
-            {[
-              { href: '/dashboard/analytics', label: 'Dashboard',   icon: 'dashboard' },
-              { href: '/dashboard/leads',     label: 'Leads',       icon: 'leads' },
-              { href: '/dashboard/prospects', label: 'Prospecting', icon: 'clients' },
-              { href: '/dashboard/bookings',  label: 'Meetings',    icon: 'meetings' },
-              { href: '/dashboard/cq-recovery', label: 'CQ Recovery', icon: 'cq' },
-              { href: '/dashboard/nurture',   label: 'Nurture',     icon: 'nurture', active: true },
-              { href: '/dashboard/settings',  label: 'Settings',    icon: 'settings' },
-            ].map(({ href, label, icon, active }) => (
-              <Link key={label} href={href} style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>
-                <span style={{ color: active ? '#0057FF' : '#9CA3AF', display: 'flex', alignItems: 'center' }}>
-                  <SideIcon name={icon} />
-                </span>
-                <span>{label}</span>
-              </Link>
-            ))}
+            {visibleNav(perms).map(({ href, label, icon }) => {
+              const active = href === '/dashboard/nurture';
+              return (
+                <Link key={label} href={href} style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>
+                  <span style={{ color: active ? '#0057FF' : '#9CA3AF', display: 'flex', alignItems: 'center' }}>
+                    <SideIcon name={icon} />
+                  </span>
+                  <span>{label}</span>
+                </Link>
+              );
+            })}
           </nav>
           <div style={s.sideBottom}>
             <div style={s.sideHelpRow}>

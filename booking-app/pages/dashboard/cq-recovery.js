@@ -5,11 +5,13 @@ import Head from 'next/head';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../api/auth/[...nextauth]';
 import { CRMPanel } from '@/components/CrmPanel';
+import { guardDashboardPage } from '@/lib/pageAccess';
+import { visibleNav } from '@/lib/nav';
 
 export async function getServerSideProps(ctx) {
-  const session = await getServerSession(ctx.req, ctx.res, authOptions);
-  if (!session) return { redirect: { destination: '/dashboard/login', permanent: false } };
-  return { props: {} };
+  const gate = await guardDashboardPage(ctx, '/dashboard/cq-recovery');
+  if (gate.redirect) return gate;
+  return { props: { perms: gate.perms } };
 }
 
 const DEAL_VALUE = 30000; // estimated revenue per recovered lead
@@ -95,7 +97,7 @@ function timelineOf(l) {
   return items;
 }
 
-export default function CQRecovery() {
+export default function CQRecovery({ perms = {} }) {
   const { data: session } = useSession();
   const [leads,      setLeads]      = useState([]);
   const [metrics,    setMetrics]    = useState({});
@@ -246,12 +248,15 @@ export default function CQRecovery() {
         <aside style={s.sidebar}>
           <div style={s.sideLogoWrap}><div style={s.sideLogoRow}><div style={s.sideLogoIcon}>K</div><span style={s.sideLogoText}>KANSO</span></div></div>
           <nav style={s.sideNav}>
-            {NAV.map(({ href, label, icon, active }) => (
-              <Link key={label} href={href} style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>
-                <span style={{ color: active ? '#0057FF' : '#9CA3AF', display: 'flex', alignItems: 'center' }}><SideIcon name={icon} /></span>
-                <span>{label}</span>
-              </Link>
-            ))}
+            {visibleNav(perms).map(({ href, label, icon }) => {
+              const active = href === '/dashboard/cq-recovery';
+              return (
+                <Link key={label} href={href} style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>
+                  <span style={{ color: active ? '#0057FF' : '#9CA3AF', display: 'flex', alignItems: 'center' }}><SideIcon name={icon} /></span>
+                  <span>{label}</span>
+                </Link>
+              );
+            })}
           </nav>
           <div style={s.sideBottom}><div style={s.sideHelpRow}><span style={{ color: '#9CA3AF', display: 'flex' }}><SideIcon name="help" /></span><span style={{ fontSize: 13, color: '#6B7280' }}>Help</span></div></div>
         </aside>

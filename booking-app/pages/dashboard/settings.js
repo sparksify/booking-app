@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { authOptions } from '../api/auth/[...nextauth]';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { PERMISSION_GROUPS, resolvePermissions } from '@/lib/permissions';
+import { visibleNav } from '@/lib/nav';
 
 const TIMEZONES = [
   { label: 'Eastern  (ET)',  value: 'America/New_York'    },
@@ -38,6 +39,12 @@ export async function getServerSideProps(context) {
     getRole(session.user?.email),
     getPermissions(session.user?.email),
   ]);
+
+  // Block direct access if this member doesn't have the Settings page
+  if (perms.page_settings === false) {
+    const { firstAllowedPath } = await import('@/lib/nav');
+    return { redirect: { destination: firstAllowedPath(perms), permanent: false } };
+  }
 
   return {
     props: {
@@ -436,22 +443,17 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
             </div>
           </div>
           <nav style={s.sideNav}>
-            {[
-              { href: '/dashboard/analytics', label: 'Dashboard',   icon: 'dashboard' },
-              { href: '/dashboard/leads',     label: 'Leads',       icon: 'leads' },
-              { href: '/dashboard/prospects', label: 'Prospecting', icon: 'clients' },
-              { href: '/dashboard/bookings',  label: 'Meetings',    icon: 'meetings' },
-              { href: '/dashboard/cq-recovery', label: 'CQ Recovery', icon: 'cq' },
-              { href: '/dashboard/nurture',   label: 'Nurture',     icon: 'nurture' },
-              { href: '/dashboard/settings',  label: 'Settings',    icon: 'settings', active: true },
-            ].map(({ href, label, icon, active }) => (
-              <Link key={label} href={href} style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>
-                <span style={{ color: active ? '#0057FF' : '#9CA3AF', display: 'flex', alignItems: 'center' }}>
-                  <SideIcon name={icon} />
-                </span>
-                <span>{label}</span>
-              </Link>
-            ))}
+            {visibleNav(perms).map(({ href, label, icon }) => {
+              const active = href === '/dashboard/settings';
+              return (
+                <Link key={label} href={href} style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>
+                  <span style={{ color: active ? '#0057FF' : '#9CA3AF', display: 'flex', alignItems: 'center' }}>
+                    <SideIcon name={icon} />
+                  </span>
+                  <span>{label}</span>
+                </Link>
+              );
+            })}
           </nav>
           <div style={s.sideBottom}>
             <div style={s.sideHelpRow}>
@@ -1004,15 +1006,13 @@ function PermissionsPanel({ members = [], myEmail, styles: s }) {
                             {g.items.map(it => {
                               const on = !!st.perms[it.key];
                               return (
-                                <label key={it.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: savingEmail === m.email ? 'default' : 'pointer' }}>
-                                  <input type="checkbox" checked={on} disabled={savingEmail === m.email}
-                                    onChange={() => togglePerm(m.email, it.key)}
-                                    style={{ width: 15, height: 15, marginTop: 2, accentColor: '#2563EB', flexShrink: 0 }} />
+                                <div key={it.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                                   <div style={{ minWidth: 0 }}>
                                     <div style={{ fontSize: 13, fontWeight: 500, color: '#0F172A' }}>{it.label}</div>
                                     {it.desc && <div style={{ fontSize: 11.5, color: '#94A3B8' }}>{it.desc}</div>}
                                   </div>
-                                </label>
+                                  <ToggleSwitch checked={on} onChange={() => { if (savingEmail !== m.email) togglePerm(m.email, it.key); }} />
+                                </div>
                               );
                             })}
                           </div>
