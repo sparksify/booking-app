@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { authOptions } from '../api/auth/[...nextauth]';
 import { visibleNav } from '@/lib/nav';
 import BrandLogo from '@/components/BrandLogo';
+import SidebarUser from '@/components/SidebarUser';
 
 export async function getServerSideProps(context) {
   const { guardDashboardPage } = await import('@/lib/pageAccess');
@@ -453,14 +454,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
               <span style={{ color: '#9CA3AF', display: 'flex' }}><SideIcon name="help" /></span>
               <span style={{ fontSize: 13, color: '#6B7280' }}>Help</span>
             </div>
-            <div style={s.sideUserRow}>
-              <RepAvatar emailOrName={session?.user?.email} repAvatars={repAvatars} size={30} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userName}</div>
-                <div style={{ fontSize: 11, color: '#9CA3AF' }}>Rep</div>
-              </div>
-              <span style={{ color: '#9CA3AF', fontSize: 14 }}>›</span>
-            </div>
+            <SidebarUser avatarUrl={repAvatars?.[session?.user?.email] || null} />
           </div>
         </aside>
 

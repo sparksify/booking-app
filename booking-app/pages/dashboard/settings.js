@@ -8,6 +8,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { PERMISSION_GROUPS, resolvePermissions } from '@/lib/permissions';
 import { visibleNav, orderedNavItems } from '@/lib/nav';
 import BrandLogo from '@/components/BrandLogo';
+import SidebarUser from '@/components/SidebarUser';
 
 const TIMEZONES = [
   { label: 'Eastern  (ET)',  value: 'America/New_York'    },
@@ -488,16 +489,7 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
               <span style={{ color: '#9CA3AF', display: 'flex' }}><SideIcon name="help" /></span>
               <span style={{ fontSize: 13, color: '#6B7280' }}>Help</span>
             </div>
-            <div style={s.sideUserRow}>
-              <div style={s.sideUserAvatar}>{(session?.user?.email?.[0] || 'U').toUpperCase()}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {session?.user?.name || session?.user?.email?.split('@')[0] || 'User'}
-                </div>
-                <div style={{ fontSize: 11, color: '#9CA3AF' }}>Rep</div>
-              </div>
-              <span style={{ color: '#9CA3AF', fontSize: 14 }}>›</span>
-            </div>
+            <SidebarUser />
           </div>
         </aside>
 

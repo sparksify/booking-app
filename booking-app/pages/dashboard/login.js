@@ -1,20 +1,36 @@
 import { signIn } from 'next-auth/react';
 import Head from 'next/head';
+import BrandLogo from '@/components/BrandLogo';
+import { getSupabaseAdmin } from '@/lib/supabase';
 
-export default function Login() {
+export async function getServerSideProps() {
+  let logo = null;
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data } = await supabase.from('settings').select('platform_logo_url').eq('id', 1).single();
+    logo = data?.platform_logo_url || null;
+  } catch { /* non-fatal */ }
+  return { props: { logo } };
+}
+
+export default function Login({ logo = null }) {
   return (
     <>
       <Head><title>Sign In — KANSO</title></Head>
       <div style={st.root}>
         {/* Top bar matching QB dark nav */}
         <div style={st.topBar}>
-          <span style={st.topLogo}>⬡ KANSO</span>
+          {logo
+            ? <img src={logo} alt="Logo" style={{ maxHeight: 30, maxWidth: 160, objectFit: 'contain', display: 'block' }} />
+            : <span style={st.topLogo}>⬡ KANSO</span>}
         </div>
 
         {/* Centered card */}
         <div style={st.body}>
           <div style={st.card}>
-            <div style={st.brandMark}>⬡</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+              <BrandLogo logo={logo} />
+            </div>
             <h1 style={st.heading}>Sign in</h1>
             <p style={st.sub}>
               Access your operator dashboard and connect your Google Calendar to start receiving bookings.
