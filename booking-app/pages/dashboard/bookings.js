@@ -694,8 +694,8 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
                 <table style={s.table}>
                   <thead>
                     <tr>
-                      {['Time', 'Client', 'Score', 'Source / Type', 'Rep', 'Liquid Capital', 'Confirmed', 'CQ Sent', 'Status', 'Actions'].map(h => (
-                        <th key={h} style={s.th}>{h}</th>
+                      {['Time', 'Client', 'Score', 'Source / Type', 'Rep', 'Liquid Capital', 'Confirmed', 'CQ Sent', 'Status', 'Actions'].map((h, idx, arr) => (
+                        <th key={h} style={{ ...s.th, ...(idx === 0 ? { borderTopLeftRadius: 10 } : {}), ...(idx === arr.length - 1 ? { borderTopRightRadius: 10 } : {}) }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -711,7 +711,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
                         return cands.reduce((a, b) => new Date(b.slot_start) > new Date(a.slot_start) ? b : a).id;
                       })();
                       let nowInserted = false;
-                      return displayBookings.flatMap((b, i) => {
+                      const rendered = displayBookings.flatMap((b, i) => {
                         const slotMs = b.slot_start ? new Date(b.slot_start).getTime() : 0;
                         const rows = [];
                         if (!nowInserted && slotMs > nowMs) {
@@ -744,6 +744,21 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
                         );
                         return rows;
                       });
+                      // No upcoming meetings left in this view → show a clear
+                      // "caught up" marker instead of scrolling into blank space.
+                      if (!nowInserted) {
+                        rendered.push(
+                          <tr key="all-done" ref={nowLineRef} style={{ pointerEvents: 'none' }}>
+                            <td colSpan={10} style={{ padding: '18px 16px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#16A34A', fontSize: 13, fontWeight: 600 }}>
+                                <span style={{ fontSize: 15 }}>✓</span>
+                                <span>No more appointments — you're all caught up for this view.</span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
+                      return rendered;
                     })()}
                   </tbody>
                 </table>
@@ -1171,6 +1186,8 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
   const imBottomRef = useRef(null);
   const [convMessages, setConvMessages] = useState([]);
   const [convLoading,  setConvLoading]  = useState(false);
+  const [convText,     setConvText]     = useState('');
+  const [convSending,  setConvSending]  = useState(false);
   const convBottomRef = useRef(null);
   const [ghlContact,        setGhlContact]        = useState(null);
   const [ghlContactLoading, setGhlContactLoading] = useState(false);
@@ -1254,7 +1271,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
       setPanelTab('info'); setTimeline([]); setShowFollowUp(false); setFuSaved(false);
       setNewTagInput(''); setShowTagInput(false); setGhlContact(null); setGhlContactLoading(false);
       setImMessages([]); setImText(''); setImSending(false);
-      setConvMessages([]); setConvLoading(false);
+      setConvMessages([]); setConvLoading(false); setConvText(''); setConvSending(false);
     }
   }, [open]);
 
@@ -1271,6 +1288,30 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
   function openConversation() {
     setPanelTab('conversation');
     if (convMessages.length === 0 && !convLoading) loadConversation();
+  }
+  async function sendConversation() {
+    const cid   = booking?.ghl_contact_id || ghlContact?.id || '';
+    const phone = booking?.phone || lead?.phone || ghlContact?.phone || '';
+    const msg   = convText.trim();
+    if (!msg || convSending) return;
+    if (!cid) { alert('No HighLevel contact connected for this lead.'); return; }
+    setConvSending(true);
+    setConvText('');
+    setConvMessages(prev => [...prev, { id: `tmp_${Date.now()}`, direction: 'outbound', body: msg, type: 'SMS', date: new Date().toISOString() }]);
+    setTimeout(() => convBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 30);
+    try {
+      const r = await fetch('/api/dashboard/send-sms', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, message: msg, contactId: cid }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!d.ok) alert(d.error || 'Could not send the text — check the HighLevel connection.');
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setConvSending(false);
+      setTimeout(loadConversation, 1200);
+    }
   }
 
   function openImessage() {
@@ -1490,7 +1531,9 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
         {/* Body */}
         <div style={p.scrollBody}>
           {panelTab === 'conversation' ? (
-            <ConversationView messages={convMessages} loading={convLoading} onRefresh={loadConversation} bottomRef={convBottomRef} />
+            <ConversationView messages={convMessages} loading={convLoading} onRefresh={loadConversation} bottomRef={convBottomRef}
+              text={convText} onTextChange={setConvText} sending={convSending} onSend={sendConversation}
+              canSend={!!(booking?.ghl_contact_id || ghlContact?.id)} />
           ) : panelTab === 'imessage' ? (
             <ImessagePanel
               messages={imMessages}
@@ -1777,20 +1820,21 @@ const SOURCE_LABELS = { direct: 'Direct', facebook_lead: 'Facebook Lead', closeb
 
 // ─── iMessage Panel ───────────────────────────────────────────────────────────
 
-function ConversationView({ messages, loading, onRefresh, bottomRef }) {
+function ConversationView({ messages, loading, onRefresh, bottomRef, text, onTextChange, sending, onSend, canSend }) {
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 320 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px 10px' }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>HighLevel Conversation</div>
         <button onClick={onRefresh} style={{ fontSize: 12, fontWeight: 600, color: '#2563EB', background: '#EFF6FF', border: '1px solid #BFD3FF', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>↻ Refresh</button>
       </div>
-      {loading ? (
-        <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, padding: '24px 0' }}>Loading conversation…</div>
-      ) : messages.length === 0 ? (
-        <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, padding: '24px 0' }}>No HighLevel conversation found for this contact.</div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {messages.map((m, i) => {
+
+      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, paddingRight: 2 }}>
+        {loading ? (
+          <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, padding: '24px 0' }}>Loading conversation…</div>
+        ) : messages.length === 0 ? (
+          <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, padding: '24px 0' }}>No messages yet. Send the first one below.</div>
+        ) : (
+          messages.map((m, i) => {
             const out = m.direction === 'outbound';
             return (
               <div key={m.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: out ? 'flex-end' : 'flex-start' }}>
@@ -1808,10 +1852,25 @@ function ConversationView({ messages, loading, onRefresh, bottomRef }) {
                 </div>
               </div>
             );
-          })}
-          <div ref={bottomRef} />
-        </div>
-      )}
+          })
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', paddingTop: 10, marginTop: 10, borderTop: '1px solid #E5E8EC' }}>
+        <textarea
+          value={text}
+          onChange={e => onTextChange(e.target.value)}
+          placeholder={canSend ? 'Text message…' : 'No HighLevel contact connected'}
+          disabled={!canSend || sending}
+          rows={1}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); } }}
+          style={{ flex: 1, resize: 'none', maxHeight: 110, padding: '9px 12px', fontSize: 13, border: '1px solid #D7DCE3', borderRadius: 10, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: canSend ? '#fff' : '#F3F4F6' }}
+        />
+        <button onClick={onSend} disabled={!canSend || sending || !text.trim()} style={{ padding: '9px 16px', fontSize: 13, fontWeight: 700, color: '#fff', background: '#2563EB', border: 'none', borderRadius: 10, cursor: (!canSend || sending || !text.trim()) ? 'default' : 'pointer', opacity: (!canSend || sending || !text.trim()) ? 0.5 : 1, fontFamily: 'inherit', flexShrink: 0 }}>
+          {sending ? '…' : 'Send'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -2019,9 +2078,9 @@ const s = {
   filterMoreBtn:     { padding: '7px 12px', background: 'none', border: 'none', fontSize: 13, color: '#6B7280', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
 
   // Table
-  tableCard:  { background: '#fff', borderRadius: 10, border: '1px solid #E5E7EB', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,.04)' },
+  tableCard:  { background: '#fff', borderRadius: 10, border: '1px solid #E5E7EB', marginTop: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)' },
   table:      { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-  th:         { textAlign: 'left', padding: '10px 14px', fontWeight: 600, color: '#9CA3AF', fontSize: 11, letterSpacing: '.4px', borderBottom: '1px solid #E5E7EB', background: '#F9FAFB', textTransform: 'uppercase' },
+  th:         { textAlign: 'left', padding: '10px 14px', fontWeight: 600, color: '#9CA3AF', fontSize: 11, letterSpacing: '.4px', background: '#F9FAFB', textTransform: 'uppercase', position: 'sticky', top: 0, zIndex: 5, boxShadow: '0 1px 0 #E5E7EB' },
   tr:         { borderBottom: '1px solid #F3F4F6', transition: 'background .1s' },
   td:         { padding: '14px 14px', verticalAlign: 'middle' },
   tableEmpty: { textAlign: 'center', padding: 56, color: '#9CA3AF', fontSize: 14 },
