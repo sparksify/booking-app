@@ -90,11 +90,16 @@ export async function removeGHLTags(contactId, tags) {
 
 /**
  * Add a note to a GHL contact.
+ * `userId` is optional in GHL — only send it when we actually have a valid one
+ * (sending an empty string fails validation).
  */
-export async function addGHLNote(contactId, body) {
+export async function addGHLNote(contactId, body, userId) {
   const apiKey     = process.env.GHL_API_KEY;
   const locationId = process.env.GHL_LOCATION_ID;
   if (!apiKey || !locationId) return null;
+
+  const payload = { body };
+  if (userId) payload.userId = userId;
 
   const res = await fetch(`${GHL_API}/contacts/${contactId}/notes`, {
     method:  'POST',
@@ -103,19 +108,26 @@ export async function addGHLNote(contactId, body) {
       'Content-Type':  'application/json',
       'Version':       GHL_VERSION,
     },
-    body: JSON.stringify({ userId: '', body, contactId }),
+    body: JSON.stringify(payload),
   });
 
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    console.error(`[ghl] addNote failed ${res.status}: ${text}`);
+    return null;
+  }
   return res.json();
 }
 
 /**
  * Update an existing note on a GHL contact. Returns the parsed response or null.
  */
-export async function updateGHLNote(contactId, noteId, body) {
+export async function updateGHLNote(contactId, noteId, body, userId) {
   const apiKey = process.env.GHL_API_KEY;
   if (!apiKey || !contactId || !noteId) return null;
+
+  const payload = { body };
+  if (userId) payload.userId = userId;
 
   const res = await fetch(`${GHL_API}/contacts/${contactId}/notes/${noteId}`, {
     method:  'PUT',
@@ -124,10 +136,14 @@ export async function updateGHLNote(contactId, noteId, body) {
       'Content-Type':  'application/json',
       'Version':       GHL_VERSION,
     },
-    body: JSON.stringify({ userId: '', body, contactId }),
+    body: JSON.stringify(payload),
   });
 
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    console.error(`[ghl] updateNote failed ${res.status}: ${text}`);
+    return null;
+  }
   return res.json();
 }
 
