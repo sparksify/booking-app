@@ -128,6 +128,9 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
   const [imText,        setImText]        = useState('');
   const [imSending,     setImSending]     = useState(false);
   const imBottomRef = useRef(null);
+  const [convMessages, setConvMessages] = useState([]);
+  const [convLoading,  setConvLoading]  = useState(false);
+  const convBottomRef = useRef(null);
   const [ghlContact,        setGhlContact]        = useState(null);
   const [ghlContactLoading, setGhlContactLoading] = useState(false);
   const [ghlTags,        setGhlTags]        = useState([]);
@@ -210,8 +213,24 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
       setPanelTab('info'); setTimeline([]); setShowFollowUp(false); setFuSaved(false);
       setNewTagInput(''); setShowTagInput(false); setGhlContact(null); setGhlContactLoading(false);
       setImMessages([]); setImText(''); setImSending(false);
+      setConvMessages([]); setConvLoading(false);
     }
   }, [open]);
+
+  function loadConversation() {
+    const cid = booking?.ghl_contact_id || ghlContact?.id || '';
+    const qs = cid ? `contactId=${encodeURIComponent(cid)}` : (booking?.email ? `email=${encodeURIComponent(booking.email)}` : '');
+    if (!qs) return;
+    setConvLoading(true);
+    fetch(`/api/dashboard/ghl-conversation?${qs}`)
+      .then(r => r.json())
+      .then(d => { setConvMessages(d.messages || []); setConvLoading(false); setTimeout(() => convBottomRef.current?.scrollIntoView(), 50); })
+      .catch(() => setConvLoading(false));
+  }
+  function openConversation() {
+    setPanelTab('conversation');
+    if (convMessages.length === 0 && !convLoading) loadConversation();
+  }
 
   function openImessage() {
     setPanelTab('imessage');
@@ -422,14 +441,17 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
 
         {/* Tab bar */}
         <div style={p.tabBar}>
-          <button style={{ ...p.panelTab, ...(panelTab === 'info'     ? p.panelTabActive : {}) }} onClick={() => setPanelTab('info')}>Info</button>
-          <button style={{ ...p.panelTab, ...(panelTab === 'imessage' ? p.panelTabActive : {}) }} onClick={openImessage}>iMessage</button>
-          <button style={{ ...p.panelTab, ...(panelTab === 'timeline' ? p.panelTabActive : {}) }} onClick={openTimeline}>Timeline</button>
+          <button style={{ ...p.panelTab, ...(panelTab === 'info'         ? p.panelTabActive : {}) }} onClick={() => setPanelTab('info')}>Info</button>
+          <button style={{ ...p.panelTab, ...(panelTab === 'conversation' ? p.panelTabActive : {}) }} onClick={openConversation}>Conversation</button>
+          <button style={{ ...p.panelTab, ...(panelTab === 'imessage'     ? p.panelTabActive : {}) }} onClick={openImessage}>iMessage</button>
+          <button style={{ ...p.panelTab, ...(panelTab === 'timeline'     ? p.panelTabActive : {}) }} onClick={openTimeline}>Timeline</button>
         </div>
 
         {/* Body */}
         <div style={p.scrollBody}>
-          {panelTab === 'imessage' ? (
+          {panelTab === 'conversation' ? (
+            <ConversationView messages={convMessages} loading={convLoading} onRefresh={loadConversation} bottomRef={convBottomRef} />
+          ) : panelTab === 'imessage' ? (
             <ImessagePanel
               messages={imMessages}
               loading={imLoading}
@@ -751,6 +773,46 @@ const EVENT_META = {
   opportunity_closed:        { label: 'Deal Closed',               color: '#7C3AED' },
 };
 const SOURCE_LABELS = { direct: 'Direct', facebook_lead: 'Facebook Lead', closebot: 'CloseBot', sms: 'SMS', email: 'Email', retargeting: 'Retargeting', calendly: 'Calendly', gohighlevel: 'GoHighLevel' };
+
+// ─── HighLevel Conversation View ───────────────────────────────────────────────
+function ConversationView({ messages, loading, onRefresh, bottomRef }) {
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>HighLevel Conversation</div>
+        <button onClick={onRefresh} style={{ fontSize: 12, fontWeight: 600, color: '#2563EB', background: '#EFF6FF', border: '1px solid #BFD3FF', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>↻ Refresh</button>
+      </div>
+      {loading ? (
+        <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, padding: '24px 0' }}>Loading conversation…</div>
+      ) : messages.length === 0 ? (
+        <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, padding: '24px 0' }}>No HighLevel conversation found for this contact.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {messages.map((m, i) => {
+            const out = m.direction === 'outbound';
+            return (
+              <div key={m.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: out ? 'flex-end' : 'flex-start' }}>
+                <div style={{
+                  maxWidth: '82%', padding: '9px 12px', borderRadius: 14, fontSize: 13, lineHeight: 1.45,
+                  whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                  background: out ? '#2563EB' : '#fff', color: out ? '#fff' : '#0F172A',
+                  border: out ? 'none' : '1px solid #E5E8EC',
+                  borderBottomRightRadius: out ? 4 : 14, borderBottomLeftRadius: out ? 14 : 4,
+                }}>
+                  {m.body}
+                </div>
+                <div style={{ fontSize: 10.5, color: '#94A3B8', margin: '3px 4px 0' }}>
+                  {m.type}{m.date ? ` · ${new Date(m.date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}
+                </div>
+              </div>
+            );
+          })}
+          <div ref={bottomRef} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── iMessage Panel ───────────────────────────────────────────────────────────
 

@@ -172,6 +172,30 @@ export async function addGHLTags(contactId, tags) {
 }
 
 /**
+ * Fetch the message thread for a GHL contact's most recent conversation.
+ * Returns the raw GHL message array (newest-or-oldest order as GHL returns it),
+ * or [] if none / on error.
+ */
+export async function getGHLConversationMessages(contactId, limit = 100) {
+  const apiKey     = process.env.GHL_API_KEY;
+  const locationId = process.env.GHL_LOCATION_ID;
+  if (!apiKey || !locationId || !contactId) return [];
+  const headers = { 'Authorization': `Bearer ${apiKey}`, 'Version': GHL_VERSION };
+
+  const sRes = await fetch(`${GHL_API}/conversations/search?locationId=${locationId}&contactId=${contactId}&limit=5`, { headers });
+  if (!sRes.ok) { console.error(`[ghl] conversation search ${sRes.status} for ${contactId}`); return []; }
+  const sData = await sRes.json();
+  const conv = sData.conversations?.[0];
+  if (!conv) return [];
+
+  const mRes = await fetch(`${GHL_API}/conversations/${conv.id}/messages?limit=${limit}`, { headers });
+  if (!mRes.ok) { console.error(`[ghl] conversation messages ${mRes.status} for ${conv.id}`); return []; }
+  const mData = await mRes.json();
+  const list = mData?.messages?.messages ?? mData?.messages ?? [];
+  return Array.isArray(list) ? list : [];
+}
+
+/**
  * Look up a GHL contact by email.
  * Returns the first matching contact or null.
  */
