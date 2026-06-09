@@ -624,6 +624,27 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
             </div>
 
             <div style={{ padding: '16px 24px' }}>
+              {/* Recommended for you */}
+              {recommended && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#0057FF', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                    <DIc name="spark" size={15} /> Recommended for you
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#F0F6FF', border: '1px solid #BFD3FF', borderRadius: 10, padding: '12px 14px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>{getDayLabel(recommended.date.dateStr)} at {recommended.slot.label}</div>
+                      <div style={{ fontSize: 12, color: '#64748B' }}>Usually a great time to connect</div>
+                    </div>
+                    <button
+                      onClick={() => { reserveRecommended(); setPhase('confirm'); }}
+                      style={{ padding: '9px 14px', background: '#0057FF', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
+                    >
+                      Reserve
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Day strip */}
               <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 12, marginBottom: 4 }}>
                 {workdays.map((d, i) => (
