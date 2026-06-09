@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { sendLeadAlert } from '@/lib/resend';
 
 /**
  * POST /api/webhooks/pabbly
@@ -129,6 +130,26 @@ export default async function handler(req, res) {
   }
 
   console.log(`[pabbly-webhook] lead stored id=${lead.id} email=${email}`);
+
+  // ── Notify the team (if enabled in settings) ────────────────────────────────
+  try {
+    const { data: cfg } = await supabase
+      .from('settings')
+      .select('notify_on_lead, notify_recipients')
+      .eq('id', 1)
+      .maybeSingle();
+    if (cfg?.notify_on_lead && Array.isArray(cfg.notify_recipients) && cfg.notify_recipients.length) {
+      await sendLeadAlert({
+        to: cfg.notify_recipients,
+        firstName, lastName, email, phone,
+        investmentLevel: investmentRaw || investmentLevel || null,
+        source: body.fb_ad_name || body.fb_form_id || 'Facebook Lead Ad',
+      });
+    }
+  } catch (err) {
+    console.error('[pabbly-webhook] lead alert error:', err.message);
+  }
+
   return res.json({ ok: true, id: lead.id, token: lead.token });
 }
 

@@ -41,6 +41,7 @@ export default async function handler(req, res) {
       bluebubbles_url, bluebubbles_password,
       platform_logo_url,
       nav_order,
+      notify_on_lead, notify_on_booking, notify_recipients,
     } = req.body;
 
     const update = { updated_at: new Date().toISOString() };
@@ -73,6 +74,11 @@ export default async function handler(req, res) {
     if (bluebubbles_password    !== undefined) update.bluebubbles_password    = bluebubbles_password    || null;
     if (platform_logo_url       !== undefined) update.platform_logo_url       = platform_logo_url       || null;
     if (nav_order               !== undefined) update.nav_order               = Array.isArray(nav_order) ? nav_order : null;
+    if (notify_on_lead          !== undefined) update.notify_on_lead          = !!notify_on_lead;
+    if (notify_on_booking       !== undefined) update.notify_on_booking       = !!notify_on_booking;
+    if (notify_recipients       !== undefined) update.notify_recipients       = Array.isArray(notify_recipients)
+      ? [...new Set(notify_recipients.map(s => (s || '').trim().toLowerCase()).filter(s => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s)))]
+      : [];
 
     const { data, error } = await supabase
       .from('settings')

@@ -735,6 +735,66 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
           </Section>
           )}
 
+          {/* ── Notifications ───────────────────────────────────────────── */}
+          {isAdmin && (
+          <Section title="Notifications" subtitle="Get an email when new leads and bookings come in. Toggle each on or off and choose who gets notified.">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+                <ToggleSwitch
+                  checked={settings.notify_on_lead !== false}
+                  onChange={val => setSettings(p => ({ ...p, notify_on_lead: val }))}
+                />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1A2B3C' }}>New Facebook lead</div>
+                  <div style={{ fontSize: 12, color: '#6B7280' }}>Email the moment a lead comes in from a Facebook ad — before they book.</div>
+                </div>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+                <ToggleSwitch
+                  checked={settings.notify_on_booking !== false}
+                  onChange={val => setSettings(p => ({ ...p, notify_on_booking: val }))}
+                />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1A2B3C' }}>New booked appointment</div>
+                  <div style={{ fontSize: 12, color: '#6B7280' }}>Email whenever someone completes a booking on the calendar.</div>
+                </div>
+              </label>
+            </div>
+
+            <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #E0E3E7' }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#1A2B3C', marginBottom: 4 }}>Recipients</div>
+              <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 10 }}>Everyone here gets every notification you've turned on above.</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {(settings.notify_recipients || []).map((addr, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input
+                      style={{ ...s.input, flex: 1, maxWidth: 340 }}
+                      type="email"
+                      placeholder="name@company.com"
+                      value={addr}
+                      onChange={e => setSettings(p => { const r = [...(p.notify_recipients || [])]; r[i] = e.target.value; return { ...p, notify_recipients: r }; })}
+                    />
+                    <button type="button" title="Remove"
+                      onClick={() => setSettings(p => ({ ...p, notify_recipients: (p.notify_recipients || []).filter((_, j) => j !== i) }))}
+                      style={{ background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: '0 4px' }}>×</button>
+                  </div>
+                ))}
+              </div>
+              <button type="button"
+                onClick={() => setSettings(p => ({ ...p, notify_recipients: [...(p.notify_recipients || []), ''] }))}
+                style={{ marginTop: 10, padding: '6px 12px', fontSize: 12, fontWeight: 600, borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', color: '#2563EB', cursor: 'pointer', fontFamily: 'inherit' }}>
+                + Add recipient
+              </button>
+            </div>
+
+            <div style={{ marginTop: 18 }}>
+              <button type="button" style={s.saveBtn} onClick={saveSettings} disabled={saving}>
+                {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save settings'}
+              </button>
+            </div>
+          </Section>
+          )}
+
           {/* ── Brand Pitches ───────────────────────────────────────────── */}
           {perms.settings_brand_pitches && (
           <Section title="Brand Pitches" subtitle="Phone pitch scripts shown in the CRM panel when you click 'Brand Pitch'. Keyed by brand name.">

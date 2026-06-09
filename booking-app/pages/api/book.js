@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createCalendarEvent } from '@/lib/googleCalendar';
-import { sendConfirmationEmail } from '@/lib/resend';
+import { sendConfirmationEmail, sendBookingAlert } from '@/lib/resend';
 import { sendCapiEvents, buildCapiEvent } from '@/lib/fbConversionsApi';
 import { upsertGHLContact, createGHLOpportunity, addGHLTags } from '@/lib/ghl';
 import { computeLeadScore, computeShowProbability } from '@/lib/scoring';
@@ -292,6 +292,28 @@ export default async function handler(req, res) {
     } catch (err) {
       console.error('[book] sendConfirmationEmail error:', err.message);
     }
+  }
+
+  // ── Notify the team of the new booking (if enabled in settings) ─────────────
+  try {
+    const { data: cfg } = await supabase
+      .from('settings')
+      .select('notify_on_booking, notify_recipients')
+      .eq('id', 1)
+      .maybeSingle();
+    if (cfg?.notify_on_booking && Array.isArray(cfg.notify_recipients) && cfg.notify_recipients.length) {
+      const d2 = new Date(date + 'T12:00:00');
+      await sendBookingAlert({
+        to: cfg.notify_recipients,
+        firstName, lastName, email, phone,
+        investmentLevel: liquid_capital || investment_level || null,
+        dateLabel: `${DOW[d2.getDay()]}, ${MON[d2.getMonth()]} ${d2.getDate()}`,
+        timeLabel: label,
+        repName: assignedName || null,
+      });
+    }
+  } catch (err) {
+    console.error('[book] sendBookingAlert error:', err.message);
   }
 
   // ── GHL opportunity ─────────────────────────────────────────────────────────
