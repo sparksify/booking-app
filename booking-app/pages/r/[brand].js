@@ -22,8 +22,11 @@ export async function getServerSideProps({ params }) {
   const dest = `/${slug}`;
   const supabase = getSupabaseAdmin();
 
+  // Wait up to ~8s for the lead to arrive from Pabbly. Returns the instant it
+  // finds one, so when the lead is already there (the common case) there's no
+  // delay; the long tail only applies when Pabbly is a few seconds behind.
   let lead = null;
-  for (let attempt = 0; attempt < 4 && !lead; attempt++) {
+  for (let attempt = 0; attempt < 11 && !lead; attempt++) {
     if (attempt > 0) await sleep(800);
 
     const sinceIso = new Date(Date.now() - 5 * 60 * 1000).toISOString();
