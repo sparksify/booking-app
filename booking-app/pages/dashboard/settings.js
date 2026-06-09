@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { authOptions } from '../api/auth/[...nextauth]';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { PERMISSION_GROUPS, resolvePermissions } from '@/lib/permissions';
-import { visibleNav } from '@/lib/nav';
+import { visibleNav, orderedNavItems } from '@/lib/nav';
 import BrandLogo from '@/components/BrandLogo';
 
 const TIMEZONES = [
@@ -53,6 +53,7 @@ export async function getServerSideProps(context) {
       isAdmin: role === 'admin',
       perms,
       platformLogo: settingsRow?.platform_logo_url || null,
+      navOrder: Array.isArray(settingsRow?.nav_order) ? settingsRow.nav_order : null,
       initialMembers:  members  || [],
       initialBookings: bookings || [],
       initialSettings: settingsRow || {
@@ -83,7 +84,7 @@ function SideIcon({ name }) {
 }
 
 // ─── Dashboard page ───────────────────────────────────────────────────────────
-export default function Dashboard({ initialMembers, initialBookings, initialSettings, isAdmin = true, perms = {}, platformLogo: initialLogo = null }) {
+export default function Dashboard({ initialMembers, initialBookings, initialSettings, isAdmin = true, perms = {}, platformLogo: initialLogo = null, navOrder: initialNavOrder = null }) {
   const { data: session } = useSession();
   const [members,       setMembers]       = useState(initialMembers);
   const [bookings]                        = useState(initialBookings);
@@ -128,6 +129,7 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
   const [repAvatarUploading, setRepAvatarUploading] = useState({});
   const [platformLogo,     setPlatformLogo]     = useState(initialLogo);
   const [logoUploading,    setLogoUploading]    = useState(false);
+  const [navOrder,         setNavOrder]         = useState(initialNavOrder);
 
   async function handleLogoUpload(e) {
     const file = e.target.files?.[0];
@@ -469,7 +471,7 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
             <BrandLogo logo={platformLogo} />
           </div>
           <nav style={s.sideNav}>
-            {visibleNav(perms).map(({ href, label, icon }) => {
+            {visibleNav(perms, navOrder).map(({ href, label, icon }) => {
               const active = href === '/dashboard/settings';
               return (
                 <Link key={label} href={href} style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>
@@ -575,6 +577,11 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
                 </div>
               </div>
             </Section>
+          )}
+
+          {/* ── Sidebar Navigation order ─────────────────────────────────── */}
+          {perms.settings_branding && (
+            <NavOrderEditor order={navOrder} onChange={setNavOrder} styles={s} />
           )}
 
           {/* ── Calendars ─────────────────────────────────────────────── */}
@@ -954,6 +961,70 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+function NavOrderEditor({ order, onChange, styles: s }) {
+  const [list, setList] = useState(() => orderedNavItems(order));
+  const [dragIdx, setDragIdx] = useState(null);
+  const [overIdx, setOverIdx] = useState(null);
+  const [saved, setSaved] = useState(false);
+
+  async function persist(next) {
+    const hrefs = next.map(i => i.href);
+    onChange && onChange(hrefs);
+    try {
+      await fetch('/api/dashboard/settings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nav_order: hrefs }),
+      });
+      setSaved(true); setTimeout(() => setSaved(false), 1500);
+    } catch { /* ignore */ }
+  }
+
+  function handleDrop(i) {
+    const from = dragIdx;
+    setDragIdx(null); setOverIdx(null);
+    if (from === null || from === i) return;
+    setList(prev => {
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(i, 0, moved);
+      persist(next);
+      return next;
+    });
+  }
+
+  return (
+    <Section
+      title="Sidebar Navigation"
+      subtitle="Drag the pages to set the order they appear in the sidebar. This order applies to everyone."
+    >
+      <div style={{ maxWidth: 460, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {list.map((it, i) => (
+          <div
+            key={it.href}
+            draggable
+            onDragStart={() => setDragIdx(i)}
+            onDragOver={e => { e.preventDefault(); setOverIdx(i); }}
+            onDrop={() => handleDrop(i)}
+            onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px',
+              border: `1px solid ${overIdx === i && dragIdx !== null ? '#2563EB' : '#E5E8EC'}`,
+              borderRadius: 10, background: dragIdx === i ? '#F8FAFF' : '#fff',
+              cursor: 'grab', opacity: dragIdx === i ? 0.6 : 1,
+              boxShadow: overIdx === i && dragIdx !== null ? '0 0 0 2px rgba(37,99,235,.15)' : 'none',
+            }}
+          >
+            <span style={{ color: '#CBD5E1', fontSize: 15, lineHeight: 1, letterSpacing: '-2px', userSelect: 'none' }}>⠿</span>
+            <span style={{ color: '#9CA3AF', display: 'flex' }}><SideIcon name={it.icon} /></span>
+            <span style={{ fontSize: 14, fontWeight: 500, color: '#0F172A' }}>{it.label}</span>
+          </div>
+        ))}
+      </div>
+      {saved && <div style={{ fontSize: 12, color: '#15803D', fontWeight: 600, marginTop: 12 }}>✓ Saved</div>}
+    </Section>
+  );
+}
 
 function PermissionsPanel({ members = [], myEmail, styles: s }) {
   const [state, setState] = useState(() => {

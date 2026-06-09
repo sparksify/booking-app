@@ -11,7 +11,7 @@ import BrandLogo from '@/components/BrandLogo';
 export async function getServerSideProps(context) {
   const gate = await guardDashboardPage(context, '/dashboard/prospects');
   if (gate.redirect) return gate;
-  return { props: { session: gate.session, perms: gate.perms, platformLogo: gate.logo } };
+  return { props: { session: gate.session, perms: gate.perms, platformLogo: gate.logo, navOrder: gate.navOrder } };
 }
 
 // ─── Demo leads (20 leads across all 8 buckets) ───────────────────────────────
@@ -490,7 +490,7 @@ function SideIcon({ name }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function ProspectsPage({ perms = {}, platformLogo = null }) {
+export default function ProspectsPage({ perms = {}, platformLogo = null, navOrder = null }) {
   const { data: session } = useSession();
 
   const [data,         setData]         = useState(null);
@@ -680,7 +680,7 @@ export default function ProspectsPage({ perms = {}, platformLogo = null }) {
             </div>
           </div>
           <nav style={s.sideNav}>
-            {visibleNav(perms).map(({ href, label, icon }) => {
+            {visibleNav(perms, navOrder).map(({ href, label, icon }) => {
               const active = href === '/dashboard/prospects';
               return (
                 <Link key={label} href={href} style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>

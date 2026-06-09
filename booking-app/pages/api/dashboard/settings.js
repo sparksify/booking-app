@@ -37,6 +37,7 @@ export default async function handler(req, res) {
       rep_avatars,
       bluebubbles_url, bluebubbles_password,
       platform_logo_url,
+      nav_order,
     } = req.body;
 
     const update = { updated_at: new Date().toISOString() };
@@ -68,6 +69,7 @@ export default async function handler(req, res) {
     if (bluebubbles_url         !== undefined) update.bluebubbles_url         = bluebubbles_url         || null;
     if (bluebubbles_password    !== undefined) update.bluebubbles_password    = bluebubbles_password    || null;
     if (platform_logo_url       !== undefined) update.platform_logo_url       = platform_logo_url       || null;
+    if (nav_order               !== undefined) update.nav_order               = Array.isArray(nav_order) ? nav_order : null;
 
     const { data, error } = await supabase
       .from('settings')

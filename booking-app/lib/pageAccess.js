@@ -28,13 +28,15 @@ export async function guardDashboardPage(context, pathname) {
     return { redirect: { destination: dest, permanent: false } };
   }
 
-  // Platform logo (shown in every sidebar)
+  // Chrome settings shown in every sidebar (logo + nav order)
   let logo = null;
+  let navOrder = null;
   try {
     const supabase = getSupabaseAdmin();
-    const { data } = await supabase.from('settings').select('platform_logo_url').eq('id', 1).single();
+    const { data } = await supabase.from('settings').select('platform_logo_url, nav_order').eq('id', 1).single();
     logo = data?.platform_logo_url || null;
+    navOrder = Array.isArray(data?.nav_order) ? data.nav_order : null;
   } catch { /* non-fatal */ }
 
-  return { session, perms, logo };
+  return { session, perms, logo, navOrder };
 }

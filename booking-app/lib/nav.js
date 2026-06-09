@@ -13,10 +13,19 @@ export const NAV_ITEMS = [
   { href: '/dashboard/settings',    label: 'Settings',    icon: 'settings',  perm: 'page_settings' },
 ];
 
-/** Nav items the user is allowed to see (perm !== false). */
-export function visibleNav(perms) {
-  if (!perms) return NAV_ITEMS;
-  return NAV_ITEMS.filter(i => perms[i.perm] !== false);
+/** NAV_ITEMS sorted by a stored order of hrefs (unknown items keep default order at the end). */
+export function orderedNavItems(order) {
+  if (!Array.isArray(order) || order.length === 0) return NAV_ITEMS;
+  const rank = href => {
+    const i = order.indexOf(href);
+    return i === -1 ? NAV_ITEMS.length + NAV_ITEMS.findIndex(n => n.href === href) : i;
+  };
+  return [...NAV_ITEMS].sort((a, b) => rank(a.href) - rank(b.href));
+}
+
+/** Nav items the user is allowed to see (perm !== false), in the configured order. */
+export function visibleNav(perms, order) {
+  return orderedNavItems(order).filter(i => !perms || perms[i.perm] !== false);
 }
 
 /** First page the user is allowed to open (fallback target for redirects). */

@@ -12,7 +12,7 @@ import BrandLogo from '@/components/BrandLogo';
 export async function getServerSideProps(ctx) {
   const gate = await guardDashboardPage(ctx, '/dashboard/cq-recovery');
   if (gate.redirect) return gate;
-  return { props: { perms: gate.perms, platformLogo: gate.logo } };
+  return { props: { perms: gate.perms, platformLogo: gate.logo, navOrder: gate.navOrder } };
 }
 
 const DEAL_VALUE = 30000; // estimated revenue per recovered lead
@@ -98,7 +98,7 @@ function timelineOf(l) {
   return items;
 }
 
-export default function CQRecovery({ perms = {}, platformLogo = null }) {
+export default function CQRecovery({ perms = {}, platformLogo = null, navOrder = null }) {
   const { data: session } = useSession();
   const [leads,      setLeads]      = useState([]);
   const [metrics,    setMetrics]    = useState({});
@@ -249,7 +249,7 @@ export default function CQRecovery({ perms = {}, platformLogo = null }) {
         <aside style={s.sidebar}>
           <div style={s.sideLogoWrap}><BrandLogo logo={platformLogo} /></div>
           <nav style={s.sideNav}>
-            {visibleNav(perms).map(({ href, label, icon }) => {
+            {visibleNav(perms, navOrder).map(({ href, label, icon }) => {
               const active = href === '/dashboard/cq-recovery';
               return (
                 <Link key={label} href={href} style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>

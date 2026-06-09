@@ -16,7 +16,7 @@ export async function getServerSideProps(context) {
   const supabase = getSupabaseAdmin();
   const { data: settingsRow } = await supabase
     .from('settings').select('brand_pitches').eq('id', 1).single();
-  return { props: { session: gate.session, perms: gate.perms, platformLogo: gate.logo, brandPitches: settingsRow?.brand_pitches || {} } };
+  return { props: { session: gate.session, perms: gate.perms, platformLogo: gate.logo, navOrder: gate.navOrder, brandPitches: settingsRow?.brand_pitches || {} } };
 }
 
 const FILTERS = [
@@ -164,7 +164,7 @@ function SourceBadge({ source }) {
 }
 
 // ─── Main dashboard ───────────────────────────────────────────────────────────
-export default function BookingsDashboard({ brandPitches = {}, perms = {}, platformLogo = null }) {
+export default function BookingsDashboard({ brandPitches = {}, perms = {}, platformLogo = null, navOrder = null }) {
   const { data: session } = useSession();
   const router = useRouter();
   const focusedRef = useRef(false);
@@ -433,7 +433,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
 
           {/* Nav */}
           <nav style={s.sideNav}>
-            {visibleNav(perms).map(({ href, label, icon }) => {
+            {visibleNav(perms, navOrder).map(({ href, label, icon }) => {
               const active = href === '/dashboard/bookings';
               return (
                 <Link key={label} href={href}

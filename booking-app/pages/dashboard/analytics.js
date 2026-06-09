@@ -28,6 +28,7 @@ export async function getServerSideProps(context) {
       session,
       perms,
       platformLogo: gate.logo,
+      navOrder: gate.navOrder,
       showRevenueProp:   settingsRow?.show_revenue           ?? false,
       showFranchiseProp: settingsRow?.show_franchise_metrics ?? false,
     },
@@ -66,7 +67,7 @@ function SideIcon({ name }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function AnalyticsDashboard({ showRevenueProp, showFranchiseProp, perms = {}, platformLogo = null }) {
+export default function AnalyticsDashboard({ showRevenueProp, showFranchiseProp, perms = {}, platformLogo = null, navOrder = null }) {
   const { data: session } = useSession();
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
@@ -101,7 +102,7 @@ export default function AnalyticsDashboard({ showRevenueProp, showFranchiseProp,
             </div>
           </div>
           <nav style={s.sideNav}>
-            {visibleNav(perms).map(({ href, label, icon }) => {
+            {visibleNav(perms, navOrder).map(({ href, label, icon }) => {
               const active = href === '/dashboard/analytics';
               return (
                 <Link key={label} href={href} style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>

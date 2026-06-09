@@ -116,6 +116,7 @@ export async function getServerSideProps(context) {
       session,
       perms,
       platformLogo: gate.logo,
+      navOrder: gate.navOrder,
       initialLeads: allContacts,
       baseUrl: `https://${context.req.headers.host}`,
     },
@@ -139,7 +140,7 @@ function SideIcon({ name }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function LeadsDashboard({ initialLeads, baseUrl, perms = {}, platformLogo = null }) {
+export default function LeadsDashboard({ initialLeads, baseUrl, perms = {}, platformLogo = null, navOrder = null }) {
   const { data: session } = useSession();
 
   const [leads,        setLeads]       = useState(initialLeads);
@@ -204,7 +205,7 @@ export default function LeadsDashboard({ initialLeads, baseUrl, perms = {}, plat
             </div>
           </div>
           <nav style={s.sideNav}>
-            {visibleNav(perms).map(({ href, label, icon }) => {
+            {visibleNav(perms, navOrder).map(({ href, label, icon }) => {
               const active = href === '/dashboard/leads';
               return (
                 <Link key={label} href={href} style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>
