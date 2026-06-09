@@ -2,6 +2,9 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
+// Image uploads (logo, rep avatars) arrive as base64 data URLs — allow larger bodies.
+export const config = { api: { bodyParser: { sizeLimit: '8mb' } } };
+
 /**
  * GET    /api/dashboard/settings  → returns current settings row
  * POST   /api/dashboard/settings  → updates settings row

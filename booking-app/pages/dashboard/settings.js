@@ -136,17 +136,25 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
     const file = e.target.files?.[0];
     if (!file) return;
     setLogoUploading(true);
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const dataUrl = ev.target.result;
-      await fetch('/api/dashboard/settings', {
+    try {
+      // Downscale in the browser so the stored data URL stays small (and well
+      // under the API body limit). PNG keeps transparency for logos.
+      const dataUrl = await downscaleImage(file, 600, 160);
+      const res = await fetch('/api/dashboard/settings', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ platform_logo_url: dataUrl }),
       });
-      setPlatformLogo(dataUrl);
+      if (!res.ok) {
+        const msg = await res.text().catch(() => '');
+        alert(`Logo didn't save (${res.status}). ${msg.slice(0, 200)}`);
+      } else {
+        setPlatformLogo(dataUrl);
+      }
+    } catch (err) {
+      alert(`Could not process that image: ${err.message}`);
+    } finally {
       setLogoUploading(false);
-    };
-    reader.readAsDataURL(file);
+    }
   }
 
   async function removePlatformLogo() {
@@ -1323,6 +1331,29 @@ function ToggleSwitch({ checked, onChange }) {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// Load an image file, scale it to fit within maxW×maxH, return a PNG data URL.
+function downscaleImage(file, maxW, maxH) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read file'));
+    reader.onload = ev => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Unsupported image'));
+      img.onload = () => {
+        const scale = Math.min(1, maxW / img.width, maxH / img.height);
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 function hours() {
   const out = [];
