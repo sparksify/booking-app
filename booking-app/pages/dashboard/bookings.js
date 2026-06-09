@@ -6,6 +6,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { authOptions } from '../api/auth/[...nextauth]';
 import { visibleNav } from '@/lib/nav';
+import BrandLogo from '@/components/BrandLogo';
 
 export async function getServerSideProps(context) {
   const { guardDashboardPage } = await import('@/lib/pageAccess');
@@ -15,7 +16,7 @@ export async function getServerSideProps(context) {
   const supabase = getSupabaseAdmin();
   const { data: settingsRow } = await supabase
     .from('settings').select('brand_pitches').eq('id', 1).single();
-  return { props: { session: gate.session, perms: gate.perms, brandPitches: settingsRow?.brand_pitches || {} } };
+  return { props: { session: gate.session, perms: gate.perms, platformLogo: gate.logo, brandPitches: settingsRow?.brand_pitches || {} } };
 }
 
 const FILTERS = [
@@ -163,7 +164,7 @@ function SourceBadge({ source }) {
 }
 
 // ─── Main dashboard ───────────────────────────────────────────────────────────
-export default function BookingsDashboard({ brandPitches = {}, perms = {} }) {
+export default function BookingsDashboard({ brandPitches = {}, perms = {}, platformLogo = null }) {
   const { data: session } = useSession();
   const router = useRouter();
   const focusedRef = useRef(false);
@@ -426,8 +427,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {} }) {
           {/* Logo */}
           <div style={s.sideLogoWrap}>
             <div style={s.sideLogoRow}>
-              <div style={s.sideLogoIcon}>K</div>
-              <span style={s.sideLogoText}>KANSO</span>
+              <BrandLogo logo={platformLogo} />
             </div>
           </div>
 

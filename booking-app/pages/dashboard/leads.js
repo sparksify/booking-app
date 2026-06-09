@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { authOptions } from '../api/auth/[...nextauth]';
 import { guardDashboardPage } from '@/lib/pageAccess';
 import { visibleNav } from '@/lib/nav';
+import BrandLogo from '@/components/BrandLogo';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -114,6 +115,7 @@ export async function getServerSideProps(context) {
     props: {
       session,
       perms,
+      platformLogo: gate.logo,
       initialLeads: allContacts,
       baseUrl: `https://${context.req.headers.host}`,
     },
@@ -137,7 +139,7 @@ function SideIcon({ name }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function LeadsDashboard({ initialLeads, baseUrl, perms = {} }) {
+export default function LeadsDashboard({ initialLeads, baseUrl, perms = {}, platformLogo = null }) {
   const { data: session } = useSession();
 
   const [leads,        setLeads]       = useState(initialLeads);
@@ -198,8 +200,7 @@ export default function LeadsDashboard({ initialLeads, baseUrl, perms = {} }) {
         <aside style={s.sidebar}>
           <div style={s.sideLogoWrap}>
             <div style={s.sideLogoRow}>
-              <div style={s.sideLogoIcon}>K</div>
-              <span style={s.sideLogoText}>KANSO</span>
+              <BrandLogo logo={platformLogo} />
             </div>
           </div>
           <nav style={s.sideNav}>

@@ -6,11 +6,12 @@ import Link from 'next/link';
 import { authOptions } from '../api/auth/[...nextauth]';
 import { guardDashboardPage } from '@/lib/pageAccess';
 import { visibleNav } from '@/lib/nav';
+import BrandLogo from '@/components/BrandLogo';
 
 export async function getServerSideProps(context) {
   const gate = await guardDashboardPage(context, '/dashboard/nurture');
   if (gate.redirect) return gate;
-  return { props: { session: gate.session, perms: gate.perms } };
+  return { props: { session: gate.session, perms: gate.perms, platformLogo: gate.logo } };
 }
 
 // ── Pipeline stage definitions ─────────────────────────────────────────────────
@@ -107,7 +108,7 @@ function SideIcon({ name }) {
   return null;
 }
 
-export default function NurturePage({ perms = {} }) {
+export default function NurturePage({ perms = {}, platformLogo = null }) {
   const { data: session } = useSession();
   const [clients,        setClients]        = useState([]);
   const [stats,          setStats]          = useState(null);
@@ -241,8 +242,7 @@ export default function NurturePage({ perms = {} }) {
         <aside style={s.sidebar}>
           <div style={s.sideLogoWrap}>
             <div style={s.sideLogoRow}>
-              <div style={s.sideLogoIcon}>K</div>
-              <span style={s.sideLogoText}>KANSO</span>
+              <BrandLogo logo={platformLogo} />
             </div>
           </div>
           <nav style={s.sideNav}>

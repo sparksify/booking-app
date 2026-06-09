@@ -7,6 +7,7 @@ import { authOptions } from '../api/auth/[...nextauth]';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { guardDashboardPage } from '@/lib/pageAccess';
 import { visibleNav } from '@/lib/nav';
+import BrandLogo from '@/components/BrandLogo';
 
 // ─── Server-side auth + settings ─────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ export async function getServerSideProps(context) {
     props: {
       session,
       perms,
+      platformLogo: gate.logo,
       showRevenueProp:   settingsRow?.show_revenue           ?? false,
       showFranchiseProp: settingsRow?.show_franchise_metrics ?? false,
     },
@@ -64,7 +66,7 @@ function SideIcon({ name }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function AnalyticsDashboard({ showRevenueProp, showFranchiseProp, perms = {} }) {
+export default function AnalyticsDashboard({ showRevenueProp, showFranchiseProp, perms = {}, platformLogo = null }) {
   const { data: session } = useSession();
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
@@ -95,8 +97,7 @@ export default function AnalyticsDashboard({ showRevenueProp, showFranchiseProp,
         <aside style={s.sidebar}>
           <div style={s.sideLogoWrap}>
             <div style={s.sideLogoRow}>
-              <div style={s.sideLogoIcon}>K</div>
-              <span style={s.sideLogoText}>KANSO</span>
+              <BrandLogo logo={platformLogo} />
             </div>
           </div>
           <nav style={s.sideNav}>

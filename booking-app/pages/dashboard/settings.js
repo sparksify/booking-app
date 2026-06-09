@@ -7,6 +7,7 @@ import { authOptions } from '../api/auth/[...nextauth]';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { PERMISSION_GROUPS, resolvePermissions } from '@/lib/permissions';
 import { visibleNav } from '@/lib/nav';
+import BrandLogo from '@/components/BrandLogo';
 
 const TIMEZONES = [
   { label: 'Eastern  (ET)',  value: 'America/New_York'    },
@@ -51,6 +52,7 @@ export async function getServerSideProps(context) {
       session,
       isAdmin: role === 'admin',
       perms,
+      platformLogo: settingsRow?.platform_logo_url || null,
       initialMembers:  members  || [],
       initialBookings: bookings || [],
       initialSettings: settingsRow || {
@@ -81,7 +83,7 @@ function SideIcon({ name }) {
 }
 
 // ─── Dashboard page ───────────────────────────────────────────────────────────
-export default function Dashboard({ initialMembers, initialBookings, initialSettings, isAdmin = true, perms = {} }) {
+export default function Dashboard({ initialMembers, initialBookings, initialSettings, isAdmin = true, perms = {}, platformLogo: initialLogo = null }) {
   const { data: session } = useSession();
   const [members,       setMembers]       = useState(initialMembers);
   const [bookings]                        = useState(initialBookings);
@@ -124,6 +126,33 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
   const [avatarUploading,  setAvatarUploading]  = useState(false);
   const [repAvatars,       setRepAvatars]       = useState(initialSettings.rep_avatars || {});
   const [repAvatarUploading, setRepAvatarUploading] = useState({});
+  const [platformLogo,     setPlatformLogo]     = useState(initialLogo);
+  const [logoUploading,    setLogoUploading]    = useState(false);
+
+  async function handleLogoUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoUploading(true);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const dataUrl = ev.target.result;
+      await fetch('/api/dashboard/settings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform_logo_url: dataUrl }),
+      });
+      setPlatformLogo(dataUrl);
+      setLogoUploading(false);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function removePlatformLogo() {
+    await fetch('/api/dashboard/settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platform_logo_url: null }),
+    });
+    setPlatformLogo(null);
+  }
 
   async function handleAvatarUpload(e) {
     const file = e.target.files?.[0];
@@ -437,10 +466,7 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
         {/* App sidebar */}
         <aside style={s.appSidebar}>
           <div style={s.sideLogoWrap}>
-            <div style={s.sideLogoRow}>
-              <div style={s.sideLogoIcon}>K</div>
-              <span style={s.sideLogoText}>KANSO</span>
-            </div>
+            <BrandLogo logo={platformLogo} />
           </div>
           <nav style={s.sideNav}>
             {visibleNav(perms).map(({ href, label, icon }) => {
@@ -524,6 +550,31 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
           {/* ── Permissions ─────────────────────────────────────────────── */}
           {perms.settings_permissions && (
             <PermissionsPanel members={members} myEmail={session?.user?.email} styles={s} />
+          )}
+
+          {/* ── Platform Logo ───────────────────────────────────────────── */}
+          {perms.settings_branding && (
+            <Section
+              title="Platform Logo"
+              subtitle="Upload your logo to replace the KANSO mark in the sidebar across the whole app. A PNG or SVG with a transparent background works best."
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+                <div style={{ width: 210, height: 66, border: '1px solid #E5E8EC', borderRadius: 10, background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 16px' }}>
+                  <BrandLogo logo={platformLogo} />
+                </div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <label style={{ ...s.saveBtn, cursor: logoUploading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+                    {logoUploading ? 'Uploading…' : (platformLogo ? 'Replace logo' : 'Upload logo')}
+                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoUpload} disabled={logoUploading} />
+                  </label>
+                  {platformLogo && (
+                    <button type="button" onClick={removePlatformLogo} style={{ ...s.saveBtn, background: '#fff', color: '#B91C1C', border: '1px solid #FECACA' }}>
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </div>
+            </Section>
           )}
 
           {/* ── Calendars ─────────────────────────────────────────────── */}

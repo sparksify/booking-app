@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../pages/api/auth/[...nextauth]';
 import { getPermissions } from '@/lib/role';
 import { firstAllowedPath, permForPath } from '@/lib/nav';
+import { getSupabaseAdmin } from '@/lib/supabase';
 
 /**
  * Shared dashboard page guard for getServerSideProps.
@@ -26,5 +27,14 @@ export async function guardDashboardPage(context, pathname) {
     const dest = firstAllowedPath(perms);
     return { redirect: { destination: dest, permanent: false } };
   }
-  return { session, perms };
+
+  // Platform logo (shown in every sidebar)
+  let logo = null;
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data } = await supabase.from('settings').select('platform_logo_url').eq('id', 1).single();
+    logo = data?.platform_logo_url || null;
+  } catch { /* non-fatal */ }
+
+  return { session, perms, logo };
 }

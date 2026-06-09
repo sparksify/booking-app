@@ -6,11 +6,12 @@ import Link from 'next/link';
 import { authOptions } from '../api/auth/[...nextauth]';
 import { guardDashboardPage } from '@/lib/pageAccess';
 import { visibleNav } from '@/lib/nav';
+import BrandLogo from '@/components/BrandLogo';
 
 export async function getServerSideProps(context) {
   const gate = await guardDashboardPage(context, '/dashboard/prospects');
   if (gate.redirect) return gate;
-  return { props: { session: gate.session, perms: gate.perms } };
+  return { props: { session: gate.session, perms: gate.perms, platformLogo: gate.logo } };
 }
 
 // ─── Demo leads (20 leads across all 8 buckets) ───────────────────────────────
@@ -489,7 +490,7 @@ function SideIcon({ name }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function ProspectsPage({ perms = {} }) {
+export default function ProspectsPage({ perms = {}, platformLogo = null }) {
   const { data: session } = useSession();
 
   const [data,         setData]         = useState(null);
@@ -675,8 +676,7 @@ export default function ProspectsPage({ perms = {} }) {
         <aside style={s.sidebar}>
           <div style={s.sideLogoWrap}>
             <div style={s.sideLogoRow}>
-              <div style={s.sideLogoIcon}>K</div>
-              <span style={s.sideLogoText}>KANSO</span>
+              <BrandLogo logo={platformLogo} />
             </div>
           </div>
           <nav style={s.sideNav}>

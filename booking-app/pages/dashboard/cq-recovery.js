@@ -7,11 +7,12 @@ import { authOptions } from '../api/auth/[...nextauth]';
 import { CRMPanel } from '@/components/CrmPanel';
 import { guardDashboardPage } from '@/lib/pageAccess';
 import { visibleNav } from '@/lib/nav';
+import BrandLogo from '@/components/BrandLogo';
 
 export async function getServerSideProps(ctx) {
   const gate = await guardDashboardPage(ctx, '/dashboard/cq-recovery');
   if (gate.redirect) return gate;
-  return { props: { perms: gate.perms } };
+  return { props: { perms: gate.perms, platformLogo: gate.logo } };
 }
 
 const DEAL_VALUE = 30000; // estimated revenue per recovered lead
@@ -97,7 +98,7 @@ function timelineOf(l) {
   return items;
 }
 
-export default function CQRecovery({ perms = {} }) {
+export default function CQRecovery({ perms = {}, platformLogo = null }) {
   const { data: session } = useSession();
   const [leads,      setLeads]      = useState([]);
   const [metrics,    setMetrics]    = useState({});
@@ -246,7 +247,7 @@ export default function CQRecovery({ perms = {} }) {
       <div style={s.page}>
         {/* Sidebar */}
         <aside style={s.sidebar}>
-          <div style={s.sideLogoWrap}><div style={s.sideLogoRow}><div style={s.sideLogoIcon}>K</div><span style={s.sideLogoText}>KANSO</span></div></div>
+          <div style={s.sideLogoWrap}><BrandLogo logo={platformLogo} /></div>
           <nav style={s.sideNav}>
             {visibleNav(perms).map(({ href, label, icon }) => {
               const active = href === '/dashboard/cq-recovery';
