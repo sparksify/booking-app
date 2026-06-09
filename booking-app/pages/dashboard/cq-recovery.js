@@ -117,6 +117,7 @@ export default function CQRecovery({ perms = {}, platformLogo = null, navOrder =
   const [panelNotes,   setPanelNotes]   = useState('');
   const [panelLoading, setPanelLoading] = useState(false);
   const [panelConf,    setPanelConf]    = useState(null);
+  const [panelRecovery, setPanelRecovery] = useState(null);
 
   const keyOf = l => `${l.email}|${l.slot_start}`;
   const setRowBusy = (l, v) => setBusy(b => ({ ...b, [keyOf(l)]: v }));
@@ -133,7 +134,6 @@ export default function CQRecovery({ perms = {}, platformLogo = null, navOrder =
       .catch(() => setLoading(false));
   }, []);
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { if (!selected && leads.length) setSelected(leads[0]); }, [leads, selected]);
 
   async function markReceived(l) {
     setRowBusy(l, true);
@@ -173,6 +173,7 @@ export default function CQRecovery({ perms = {}, platformLogo = null, navOrder =
   }
 
   function openPanel(l) {
+    setSelected(l);
     const booking = {
       id: l.booking_id || `cqr_${l.email}_${l.slot_start}`,
       first_name: l.first_name, last_name: l.last_name, email: l.email, phone: l.phone,
@@ -180,6 +181,17 @@ export default function CQRecovery({ perms = {}, platformLogo = null, navOrder =
       ghl_contact_id: l.ghl_contact_id, assigned_to_email: l.assigned_rep,
       cq_sent_at: l.cq_sent_at, cq_received_at: null, _source_display: 'GoHighLevel', event_name: null,
     };
+    const t = scoreTier(l.score);
+    const nba = nextBestAction(l);
+    setPanelRecovery({
+      bucketLabel: l.bucket === 'engaged' ? 'Engaged — No Submit' : (l.bucket || '').replace(/_/g, ' '),
+      score: l.score,
+      tierLabel: t.label,
+      tierColor: t.color,
+      signals: l.reasons || [],
+      dealValue: money(DEAL_VALUE),
+      nextStep: { label: nba.label, sub: nba.sub, color: nba.color, bg: nba.bg },
+    });
     setPanelBooking(booking);
     setPanelConf(l.confirmation ? { status: l.confirmation } : null);
     setPanelLead(null); setPanelNotes(''); setPanelOpen(true); setPanelLoading(true);
@@ -345,7 +357,7 @@ export default function CQRecovery({ perms = {}, platformLogo = null, navOrder =
                 const t = scoreTier(l.score); const nba = nextBestAction(l); const rb = busy[keyOf(l)];
                 const sel = selected && keyOf(selected) === keyOf(l);
                 return (
-                  <div key={keyOf(l)} style={{ ...s.tRow, ...(sel ? s.tRowSel : {}) }} onClick={() => setSelected(l)}>
+                  <div key={keyOf(l)} style={{ ...s.tRow, ...(sel ? s.tRowSel : {}) }} onClick={() => openPanel(l)}>
                     <div style={{ width: 70 }}>
                       <div style={{ fontSize: 22, fontWeight: 800, color: t.color, lineHeight: 1 }}>{l.score}</div>
                       <div style={{ fontSize: 10, fontWeight: 700, color: t.color }}>{t.label}</div>
@@ -395,84 +407,13 @@ export default function CQRecovery({ perms = {}, platformLogo = null, navOrder =
           </div>
         </main>
 
-        {/* Selected Lead docked panel */}
-        {selected && (
-          <aside style={s.rightPanel}>
-            {(() => {
-              const l = selected; const t = scoreTier(l.score); const nba = nextBestAction(l);
-              return (
-                <>
-                  <div style={s.rpHdr}>
-                    <span style={{ fontSize: 14, fontWeight: 800, color: '#0F172A' }}>Selected Lead</span>
-                    <button style={s.rpClose} onClick={() => setSelected(null)}>✕</button>
-                  </div>
-                  <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                    <div style={{ textAlign: 'center', flexShrink: 0 }}>
-                      <div style={{ fontSize: 28, fontWeight: 800, color: t.color, lineHeight: 1 }}>{l.score}</div>
-                      <span style={{ ...s.tierPill, color: t.color, background: t.bg, border: `1px solid ${t.border}` }}>{t.label}</span>
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontWeight: 800, color: '#0F172A' }}>{`${l.first_name || ''} ${l.last_name || ''}`.trim() || l.email}</span>
-                        {l.assigned_rep && <span style={s.repTag}>{l.assigned_rep}</span>}
-                      </div>
-                      <div style={{ fontSize: 12, color: '#C2410C', fontWeight: 600, marginTop: 2 }}>● {l.bucket === 'engaged' ? 'Engaged — No Submit' : (l.bucket || '').replace(/_/g, ' ')}</div>
-                      <div style={{ fontSize: 12, color: '#64748B', marginTop: 6 }}>{l.phone || '—'}</div>
-                      <div style={{ fontSize: 12, color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.email}</div>
-                    </div>
-                  </div>
-
-                  <div style={s.rpBox}>
-                    <Ic name="dollar" size={16} />
-                    <div>
-                      <div style={{ fontSize: 11, color: '#64748B' }}>Estimated Deal Value</div>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: '#0F172A' }}>${DEAL_VALUE.toLocaleString()}</div>
-                    </div>
-                  </div>
-
-                  <div style={s.rpSectionTitle}>Recent Activity</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 18 }}>
-                    {timelineOf(l).length === 0 ? <div style={{ fontSize: 12, color: '#94A3B8' }}>No activity logged yet.</div> :
-                      timelineOf(l).map((it, i) => (
-                        <div key={i} style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
-                          <span style={{ color: '#94A3B8', marginTop: 1 }}><Ic name={it.icon} size={15} /></span>
-                          <div><div style={{ fontSize: 12.5, color: '#334155', fontWeight: 600 }}>{it.text}</div>{it.sub && <div style={{ fontSize: 11, color: '#94A3B8' }}>{it.sub}</div>}</div>
-                        </div>
-                      ))}
-                  </div>
-
-                  <div style={s.rpSectionTitle}>Recommended Next Step</div>
-                  <div style={{ ...s.rpNextStep, background: nba.bg }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: nba.color }}>{nba.label}</div>
-                      <div style={{ fontSize: 11, color: '#64748B' }}>{nba.sub}</div>
-                    </div>
-                    <span style={{ color: nba.color }}><Ic name={nba.icon} size={18} /></span>
-                  </div>
-
-                  <div style={s.rpSectionTitle}>Quick Actions</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    <button style={s.qa} onClick={() => openComposer(l, 'imessage')} disabled={!l.phone}><Ic name="chat" size={16} /> iMessage</button>
-                    <button style={s.qa} onClick={() => openComposer(l, 'sms')} disabled={!l.phone}><Ic name="chat" size={16} /> SMS</button>
-                    <button style={s.qa} onClick={() => openComposer(l, 'email')}><Ic name="mail" size={16} /> Email</button>
-                    <button style={s.qa} onClick={() => resendCQ(l)}><Ic name="send" size={16} /> Resend CQ</button>
-                    <button style={s.qa} onClick={() => setSnoozeFor(snoozeFor === 'rp' ? null : 'rp')}>Snooze ▾</button>
-                    <button style={{ ...s.qa, color: '#0057FF', borderColor: '#BFD3FF' }} onClick={() => openPanel(l)}>Open card →</button>
-                  </div>
-                  {snoozeFor === 'rp' && (
-                    <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>{[1, 3, 7].map(d => <button key={d} style={s.mini} onClick={() => snooze(l, d)}>{d === 1 ? '1 day' : d === 7 ? '1 week' : `${d} days`}</button>)}</div>
-                  )}
-                </>
-              );
-            })()}
-          </aside>
-        )}
+        {/* (Row click opens the shared slide-out CRM panel below.) */}
       </div>
 
       {/* Full slide-out CRM panel */}
       {panelBooking && (
         <CRMPanel booking={panelBooking} lead={panelLead} loading={panelLoading} open={panelOpen} isDemo={false}
-          brandPitches={{}} confirmation={panelConf} initialNotes={panelNotes}
+          brandPitches={{}} confirmation={panelConf} initialNotes={panelNotes} recovery={panelRecovery}
           onClose={closePanel} onStatusChange={panelStatusChange}
           onCQSent={ts => setPanelBooking(b => b ? { ...b, cq_sent_at: ts } : b)} />
       )}

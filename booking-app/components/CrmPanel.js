@@ -101,7 +101,7 @@ function PIc({ name, size = 16 }) {
 
 const GHL_LOCATION = 'tsIW5P8nYSjx55tuMI43';
 
-function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, confirmation, initialNotes = '', onClose, onStatusChange, onCQSent }) {
+function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, confirmation, initialNotes = '', onClose, onStatusChange, onCQSent, recovery = null }) {
   const [notes,         setNotes]         = useState('');
   const [interests,     setInterests]     = useState([]);
   const [selectedIdx,   setSelectedIdx]   = useState(null);
@@ -473,6 +473,45 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                   </div>
                 );
               })()}
+
+              {/* CQ Recovery (only on the CQ Recovery page) */}
+              {recovery && (
+                <div style={p.card}>
+                  <div style={p.sectionTitle}>CQ Recovery</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+                    {recovery.bucketLabel && (
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 11px', borderRadius: 20, color: recovery.tierColor || '#C2410C', background: (recovery.tierColor || '#C2410C') + '18', border: `1px solid ${(recovery.tierColor || '#C2410C')}33` }}>{recovery.bucketLabel}</span>
+                    )}
+                    {recovery.dealValue && (
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 11, color: '#94A3B8' }}>Est. deal value</div>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: '#15803D' }}>{recovery.dealValue}</div>
+                      </div>
+                    )}
+                  </div>
+                  {(recovery.score != null) && (
+                    <div style={{ fontSize: 12.5, color: '#475569', marginBottom: 10 }}>
+                      Recovery priority: <b style={{ color: recovery.tierColor || '#0F172A' }}>{recovery.score}{recovery.tierLabel ? ` · ${recovery.tierLabel}` : ''}</b>
+                    </div>
+                  )}
+                  {recovery.signals?.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: recovery.nextStep ? 12 : 0 }}>
+                      {recovery.signals.map((sig, i) => (
+                        <span key={i} style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, color: '#334155', background: '#F1F5F9', border: '1px solid #E2E8F0' }}>{sig}</span>
+                      ))}
+                    </div>
+                  )}
+                  {recovery.nextStep && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 12px', borderRadius: 10, background: recovery.nextStep.bg || '#F8FAFC' }}>
+                      <div>
+                        <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: '#94A3B8' }}>Recommended next step</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: recovery.nextStep.color || '#0F172A' }}>{recovery.nextStep.label}</div>
+                        {recovery.nextStep.sub && <div style={{ fontSize: 11, color: '#64748B' }}>{recovery.nextStep.sub}</div>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Contact / Booking Details */}
               <PanelSection title="Contact / Booking Details">
