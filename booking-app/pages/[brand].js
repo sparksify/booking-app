@@ -367,13 +367,13 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
   // Brand calendars (Facebook lead-ad destinations) keep the existing flow.
   const isPersonal = brand?.type === 'personal';
 
-  // On the personal desktop layout the calendar + form show together — skip the wizard.
+  // On the desktop layout the calendar + form show together — skip the wizard.
   useEffect(() => {
-    if (isDesktop && isPersonal && phase === 'questions') {
+    if (isDesktop && phase === 'questions') {
       setPhase('calendar');
       track('booking_page_viewed', leadId);
     }
-  }, [isDesktop, isPersonal, phase]);
+  }, [isDesktop, phase]);
 
   // Capture the soonest slot as the "Recommended for you" suggestion.
   useEffect(() => {
@@ -436,7 +436,7 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
   }
 
   // ── Desktop, personal calendar only: single-screen 3-column layout ──────────
-  if (isDesktop && isPersonal) {
+  if (isDesktop) {
     const slotSel = sl => selSlot && selSlot.h === sl.h && selSlot.m === sl.m;
     const scrollStrip = dir => dateStripRef.current?.scrollBy({ left: dir * 220, behavior: 'smooth' });
     return (
