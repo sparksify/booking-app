@@ -443,7 +443,6 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
         <div style={p.tabBar}>
           <button style={{ ...p.panelTab, ...(panelTab === 'info'         ? p.panelTabActive : {}) }} onClick={() => setPanelTab('info')}>Info</button>
           <button style={{ ...p.panelTab, ...(panelTab === 'conversation' ? p.panelTabActive : {}) }} onClick={openConversation}>Conversation</button>
-          <button style={{ ...p.panelTab, ...(panelTab === 'imessage'     ? p.panelTabActive : {}) }} onClick={openImessage}>iMessage</button>
           <button style={{ ...p.panelTab, ...(panelTab === 'timeline'     ? p.panelTabActive : {}) }} onClick={openTimeline}>Timeline</button>
         </div>
 
