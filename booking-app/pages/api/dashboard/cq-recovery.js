@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { lookupGHLContactByEmail } from '@/lib/ghl';
-import { getRole, getRepIdentity, repMatches } from '@/lib/role';
+import { getPermissions, getRepIdentity, repMatches } from '@/lib/role';
 
 /**
  * GET /api/dashboard/cq-recovery
@@ -228,10 +228,10 @@ export default async function handler(req, res) {
     };
   }).sort((a, b) => b.score - a.score);
 
-  // Role scoping: members only see leads assigned to them
-  const role = await getRole(session.user?.email);
+  // Permission scoping: unless granted "see all CQ recovery", restrict to own
+  const perms = await getPermissions(session.user?.email);
   let viewLeads = leads;
-  if (role !== 'admin') {
+  if (!perms.cq_view_all) {
     const ident = await getRepIdentity(session.user?.email);
     viewLeads = leads.filter(l => repMatches(l.assigned_rep, ident));
   }
@@ -251,5 +251,5 @@ export default async function handler(req, res) {
     goingCold: viewLeads.filter(l => l.days_waiting >= 14).length,
   };
 
-  res.json({ leads: viewLeads, metrics, bucketCounts, bucketMeta: BUCKET_META, role });
+  res.json({ leads: viewLeads, metrics, bucketCounts, bucketMeta: BUCKET_META, viewAll: !!perms.cq_view_all });
 }

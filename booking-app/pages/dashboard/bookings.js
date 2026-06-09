@@ -182,7 +182,8 @@ export default function BookingsDashboard({ brandPitches = {} }) {
   const [panelOpen,    setPanelOpen]    = useState(false);
   const [repAvatars,   setRepAvatars]   = useState({});
   const [transferOpen, setTransferOpen] = useState(false);
-  const [isAdmin,      setIsAdmin]      = useState(true);
+  const [isAdmin,      setIsAdmin]      = useState(true);   // "can view all reps"
+  const [canTransfer,  setCanTransfer]  = useState(true);
   // smsConfirmations: { [bookingId]: { status, note, loading } }
   const [smsConfirmations, setSmsConfirmations] = useState({});
   const nowLineRef    = useRef(null);
@@ -296,9 +297,10 @@ export default function BookingsDashboard({ brandPitches = {} }) {
       .then(r => r.json())
       .then(d => {
         const real = d.bookings || [];
-        const admin = d.role !== 'member';
-        setIsAdmin(admin);
-        if (!admin) setRepFilter([]);   // members are already scoped server-side
+        const viewAll = !!d.viewAll;
+        setIsAdmin(viewAll);
+        setCanTransfer(d.canTransfer !== false);
+        if (!viewAll) setRepFilter([]);   // members are already scoped server-side
         if (real.length === 0) { setBookings(DEMO); setIsDemo(true); }
         else                   { setBookings(real); setIsDemo(false); }
         if (d.rep_avatars) setRepAvatars(d.rep_avatars);
@@ -493,7 +495,7 @@ export default function BookingsDashboard({ brandPitches = {} }) {
                 />
               </div>
               <button style={s.topBtn}>≡ Filters</button>
-              <button onClick={() => setTransferOpen(true)} style={s.topBtn}>⇄ Transfer</button>
+              {canTransfer && <button onClick={() => setTransferOpen(true)} style={s.topBtn}>⇄ Transfer</button>}
               <button onClick={load} style={s.topBtn}>↻ Refresh</button>
               <button onClick={downloadCSV} style={s.topBtnPrimary}>+ Export ▾</button>
             </div>

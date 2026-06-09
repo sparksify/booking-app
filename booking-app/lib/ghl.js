@@ -264,6 +264,61 @@ export async function updateGHLOpportunityStage(opportunityId, stageId) {
 }
 
 /**
+ * Resolve a GHL user id from an email address by scanning the location's users.
+ * Used when reassigning a contact's owner during an appointment transfer.
+ * Returns the user id string or null if not found.
+ *
+ * @param {string} email
+ */
+export async function getGHLUserIdByEmail(email) {
+  const apiKey     = process.env.GHL_API_KEY;
+  const locationId = process.env.GHL_LOCATION_ID;
+  if (!apiKey || !locationId || !email) return null;
+
+  const res = await fetch(`${GHL_API}/users/?locationId=${locationId}`, {
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Version':       GHL_VERSION,
+    },
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const users = data.users || data || [];
+  const want = String(email).trim().toLowerCase();
+  const match = (Array.isArray(users) ? users : []).find(
+    u => String(u.email || '').trim().toLowerCase() === want
+  );
+  return match?.id ?? null;
+}
+
+/**
+ * Reassign the owner (assignedTo) of a GHL contact.
+ *
+ * @param {string} contactId
+ * @param {string} assignedToUserId  GHL user id
+ */
+export async function updateGHLContactOwner(contactId, assignedToUserId) {
+  const apiKey = process.env.GHL_API_KEY;
+  if (!apiKey || !contactId || !assignedToUserId) return null;
+
+  const res = await fetch(`${GHL_API}/contacts/${contactId}`, {
+    method:  'PUT',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type':  'application/json',
+      'Version':       GHL_VERSION,
+    },
+    body: JSON.stringify({ assignedTo: assignedToUserId }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`GHL updateContactOwner failed ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+/**
  * Update a GHL calendar appointment's status. This is what the meetings list
  * reads back (appointmentStatus), so it's required for a status change to
  * persist across refreshes for GHL-sourced bookings.

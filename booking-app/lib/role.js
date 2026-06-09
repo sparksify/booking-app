@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { resolvePermissions } from '@/lib/permissions';
 
 /**
  * Canonicalize a rep name-or-email to a display name. Kept in sync with the
@@ -33,6 +34,23 @@ export async function getRole(email) {
     .ilike('email', email)
     .maybeSingle();
   return data?.role === 'admin' ? 'admin' : 'member';
+}
+
+/**
+ * Resolve a user's effective permission object (admin → all true; member →
+ * defaults merged with their stored overrides).
+ */
+export async function getPermissions(email) {
+  const role = await getRole(email);
+  if (role === 'admin') return resolvePermissions('admin', {});
+
+  const supabase = getSupabaseAdmin();
+  const { data } = await supabase
+    .from('team_members')
+    .select('permissions')
+    .ilike('email', email)
+    .maybeSingle();
+  return resolvePermissions('member', data?.permissions || {});
 }
 
 /**

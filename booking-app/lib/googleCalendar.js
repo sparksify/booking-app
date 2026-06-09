@@ -201,6 +201,99 @@ export async function createCalendarEvent(member, booking, settings) {
   return { eventId: event.data.id, meetLink };
 }
 
+// ─── Transfer helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Creates a "silent" copy of an appointment on a rep's calendar — used when an
+ * appointment is transferred to another rep. The client is NOT invited and no
+ * notifications are sent (sendUpdates: 'none'), so the client never sees that
+ * the meeting was reassigned. The original Meet link is embedded so the new rep
+ * can join the existing call.
+ *
+ * @param {Object} member    team_members row (must have google tokens + calendar_id)
+ * @param {Object} details   { firstName, lastName, email, phone, date, h, m,
+ *                             meetLink, investmentLevel, title, fromName, colorId }
+ * @param {Object} settings  { meetingDuration, timezone }
+ * @returns {Promise<{ eventId: string }>}
+ */
+export async function createSilentCalendarEvent(member, details, settings) {
+  const auth = makeOAuthClient({
+    access_token:  member.google_access_token,
+    refresh_token: member.google_refresh_token,
+  });
+  const calendar = google.calendar({ version: 'v3', auth });
+
+  const startDT   = `${details.date}T${pad(details.h)}:${pad(details.m)}:00`;
+  const totalMins = details.h * 60 + details.m + (settings.meetingDuration || 15);
+  const endDT     = `${details.date}T${pad(Math.floor(totalMins / 60))}:${pad(totalMins % 60)}:00`;
+
+  const name = `${details.firstName || ''} ${details.lastName || ''}`.trim() || 'Lead';
+  const lines = [
+    `${name} — transferred appointment${details.fromName ? ` (from ${details.fromName})` : ''}.`,
+    '',
+    `Phone: ${details.phone || 'N/A'}`,
+    `Email: ${details.email || 'N/A'}`,
+    `Investment Level: ${details.investmentLevel || 'Not specified'}`,
+  ];
+  if (details.meetLink) lines.push('', `Join: ${details.meetLink}`);
+
+  const requestBody = {
+    summary:     `${name} — ${details.title || 'Discovery Call'}`,
+    description: lines.join('\n'),
+    start: { dateTime: startDT, timeZone: settings.timezone },
+    end:   { dateTime: endDT,   timeZone: settings.timezone },
+    reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 10 }] },
+  };
+  if (details.meetLink) requestBody.location = details.meetLink;
+  if (details.colorId)  requestBody.colorId  = String(details.colorId);
+
+  const event = await calendar.events.insert({
+    calendarId:  member.calendar_id || 'primary',
+    sendUpdates: 'none',
+    requestBody,
+  });
+
+  return { eventId: event.data.id };
+}
+
+/**
+ * Recolors an existing calendar event without notifying attendees.
+ * Used to "gray out" the original rep's event after a transfer.
+ * Google colorId '8' is Graphite (gray).
+ */
+export async function recolorCalendarEvent(member, eventId, colorId = '8') {
+  if (!eventId) return null;
+  const auth = makeOAuthClient({
+    access_token:  member.google_access_token,
+    refresh_token: member.google_refresh_token,
+  });
+  const calendar = google.calendar({ version: 'v3', auth });
+
+  return calendar.events.patch({
+    calendarId:  member.calendar_id || 'primary',
+    eventId,
+    sendUpdates: 'none',
+    requestBody: { colorId: String(colorId) },
+  });
+}
+
+/**
+ * Deletes a calendar event without notifying attendees. (Helper for undo flows.)
+ */
+export async function deleteCalendarEvent(member, eventId) {
+  if (!eventId) return null;
+  const auth = makeOAuthClient({
+    access_token:  member.google_access_token,
+    refresh_token: member.google_refresh_token,
+  });
+  const calendar = google.calendar({ version: 'v3', auth });
+  return calendar.events.delete({
+    calendarId:  member.calendar_id || 'primary',
+    eventId,
+    sendUpdates: 'none',
+  });
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function pad(n) {

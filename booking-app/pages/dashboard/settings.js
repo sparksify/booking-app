@@ -5,6 +5,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { authOptions } from '../api/auth/[...nextauth]';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { PERMISSION_GROUPS, resolvePermissions } from '@/lib/permissions';
 
 const TIMEZONES = [
   { label: 'Eastern  (ET)',  value: 'America/New_York'    },
@@ -24,7 +25,7 @@ export async function getServerSideProps(context) {
   const supabase = getSupabaseAdmin();
 
   const [{ data: members }, { data: bookings }, { data: settingsRow }] = await Promise.all([
-    supabase.from('team_members').select('id, name, email, active, investment_ranges, role, created_at').order('created_at'),
+    supabase.from('team_members').select('id, name, email, active, investment_ranges, role, permissions, created_at').order('created_at'),
     supabase.from('bookings')
       .select('id, first_name, last_name, email, phone, slot_start, assigned_to_email, meet_link')
       .order('slot_start', { ascending: false })
@@ -32,13 +33,17 @@ export async function getServerSideProps(context) {
     supabase.from('settings').select('*').eq('id', 1).single(),
   ]);
 
-  const { getRole } = await import('@/lib/role');
-  const role = await getRole(session.user?.email);
+  const { getRole, getPermissions } = await import('@/lib/role');
+  const [role, perms] = await Promise.all([
+    getRole(session.user?.email),
+    getPermissions(session.user?.email),
+  ]);
 
   return {
     props: {
       session,
       isAdmin: role === 'admin',
+      perms,
       initialMembers:  members  || [],
       initialBookings: bookings || [],
       initialSettings: settingsRow || {
@@ -69,7 +74,7 @@ function SideIcon({ name }) {
 }
 
 // ─── Dashboard page ───────────────────────────────────────────────────────────
-export default function Dashboard({ initialMembers, initialBookings, initialSettings, isAdmin = true }) {
+export default function Dashboard({ initialMembers, initialBookings, initialSettings, isAdmin = true, perms = {} }) {
   const { data: session } = useSession();
   const [members,       setMembers]       = useState(initialMembers);
   const [bookings]                        = useState(initialBookings);
@@ -477,8 +482,8 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
 
         <main style={s.main}>
 
-          {/* ── Team Members (admin only) ───────────────────────────────── */}
-          {isAdmin && (
+          {/* ── Team Members ────────────────────────────────────────────── */}
+          {perms.settings_team_members && (
           <Section
             title="Team Members"
             subtitle="Each person's Google Calendar is queried for availability. Sign in at /dashboard/login to connect a new calendar."
@@ -514,20 +519,21 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
           </Section>
           )}
 
-          {/* ── Permissions (admin only) ────────────────────────────────── */}
-          {isAdmin && (
+          {/* ── Permissions ─────────────────────────────────────────────── */}
+          {perms.settings_permissions && (
             <PermissionsPanel members={members} myEmail={session?.user?.email} styles={s} />
           )}
 
           {/* ── Calendars ─────────────────────────────────────────────── */}
+          {(perms.settings_personal_calendar || perms.settings_brand_calendars) && (
           <Section
-            title={isAdmin ? 'Calendars' : 'My Personal Calendar'}
-            subtitle={isAdmin
+            title={perms.settings_brand_calendars ? 'Calendars' : 'My Personal Calendar'}
+            subtitle={perms.settings_brand_calendars
               ? 'Set up personal calendars (bookkanso.co/yourname) and brand calendars (bookkanso.co/wetfuel). Each gets its own booking URL, page content, calendar color, and rep routing.'
               : 'Set up your personal booking page (bookkanso.co/yourname) — its booking URL, page content, and calendar color.'}
           >
             <CalendarsEditor
-              personalOnly={!isAdmin}
+              personalOnly={!perms.settings_brand_calendars}
               myEmail={session?.user?.email}
               brands={brands}
               loading={brandsLoading}
@@ -550,8 +556,10 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
               styles={s}
             />
           </Section>
+          )}
 
           {/* ── Availability Settings ────────────────────────────────────── */}
+          {perms.settings_availability && (
           <Section title="Availability Settings" subtitle="Changes take effect immediately for new availability lookups.">
             <form onSubmit={saveSettings} style={s.form}>
               <div style={s.formRow}>
@@ -632,9 +640,10 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
               </div>
             </form>
           </Section>
+          )}
 
-          {/* ── Analytics Display (admin only) ──────────────────────────── */}
-          {isAdmin && (
+          {/* ── Analytics Display ───────────────────────────────────────── */}
+          {perms.settings_analytics_display && (
           <Section title="Analytics Display" subtitle="Choose which sections appear on the Analytics page. Changes take effect on next page load.">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
@@ -667,6 +676,7 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
           )}
 
           {/* ── Brand Pitches ───────────────────────────────────────────── */}
+          {perms.settings_brand_pitches && (
           <Section title="Brand Pitches" subtitle="Phone pitch scripts shown in the CRM panel when you click 'Brand Pitch'. Keyed by brand name.">
             {Object.entries(brandPitches).map(([brand, pitch]) => (
               <div key={brand} style={{ marginBottom: 18, background: '#FAFBFD', border: '1px solid #E2E8F0', borderRadius: 8, padding: '14px 16px' }}>
@@ -703,8 +713,10 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
               <button style={s.saveBtn} onClick={addPitch}>+ Add Brand</button>
             </div>
           </Section>
+          )}
 
           {/* ── Workflow Automations ─────────────────────────────────────── */}
+          {perms.settings_workflows && (
           <Section
             title="Workflow Automations"
             subtitle="Map each button action to a GoHighLevel workflow, per consultant. The workflow fires automatically when the button is clicked on a meeting."
@@ -759,9 +771,10 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
               </>
             )}
           </Section>
+          )}
 
-          {/* ── Recent Bookings (admin only) ────────────────────────────── */}
-          {isAdmin && (
+          {/* ── Recent Bookings ─────────────────────────────────────────── */}
+          {perms.settings_recent_bookings && (
           <Section
             title="Recent Bookings"
             subtitle={`Last ${bookings.length} bookings`}
@@ -800,8 +813,8 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
           </Section>
           )}
 
-          {/* ── BlueBubbles iMessage (admin only) ───────────────────────── */}
-          {isAdmin && (
+          {/* ── BlueBubbles iMessage ────────────────────────────────────── */}
+          {perms.settings_imessage && (
           <Section
             title="BlueBubbles iMessage"
             subtitle="Connect a BlueBubbles server to send and receive iMessages directly from the CRM. Requires a dedicated always-on Mac running the BlueBubbles server app."
@@ -890,69 +903,124 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function PermissionsPanel({ members = [], myEmail, styles: s }) {
-  const [roles, setRoles] = useState(() =>
-    Object.fromEntries(members.map(m => [m.email, m.role || 'member']))
-  );
+  const [state, setState] = useState(() => {
+    const o = {};
+    for (const m of members) {
+      const role = m.role || 'member';
+      o[m.email] = { role, perms: resolvePermissions(role, m.permissions || {}) };
+    }
+    return o;
+  });
+  const [expanded, setExpanded] = useState(null);
   const [savingEmail, setSavingEmail] = useState(null);
   const [savedEmail,  setSavedEmail]  = useState(null);
 
+  function flashSaved(email) { setSavedEmail(email); setTimeout(() => setSavedEmail(e => e === email ? null : e), 1500); }
+
   async function changeRole(email, newRole) {
-    const prev = roles[email] || 'member';
-    setRoles(r => ({ ...r, [email]: newRole }));
+    const prev = state[email];
+    setState(st => ({ ...st, [email]: { role: newRole, perms: resolvePermissions(newRole, prev?.perms || {}) } }));
     setSavingEmail(email);
     try {
       const res = await fetch('/api/dashboard/set-role', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, role: newRole }),
       });
       const d = await res.json();
-      if (!res.ok) { setRoles(r => ({ ...r, [email]: prev })); alert(d.error || 'Failed to update role'); }
-      else { setSavedEmail(email); setTimeout(() => setSavedEmail(null), 1500); }
-    } catch (e) {
-      setRoles(r => ({ ...r, [email]: prev }));
-      alert(e.message);
-    } finally {
-      setSavingEmail(null);
-    }
+      if (!res.ok) { setState(st => ({ ...st, [email]: prev })); alert(d.error || 'Failed to update role'); }
+      else flashSaved(email);
+    } catch (e) { setState(st => ({ ...st, [email]: prev })); alert(e.message); }
+    finally { setSavingEmail(null); }
+  }
+
+  async function togglePerm(email, key) {
+    const cur = state[email];
+    if (!cur || cur.role === 'admin') return;
+    const nextPerms = { ...cur.perms, [key]: !cur.perms[key] };
+    setState(st => ({ ...st, [email]: { ...cur, perms: nextPerms } }));
+    setSavingEmail(email);
+    try {
+      const res = await fetch('/api/dashboard/set-permissions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, permissions: nextPerms }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setState(st => ({ ...st, [email]: cur })); alert(d.error || 'Failed to save'); }
+      else flashSaved(email);
+    } catch (e) { setState(st => ({ ...st, [email]: cur })); alert(e.message); }
+    finally { setSavingEmail(null); }
   }
 
   return (
     <Section
       title="Permissions"
-      subtitle="Admins see everything. Members only see their own meetings, leads, and CQ recovery, plus a limited Settings page (personal calendar, availability, brand pitches, and workflow automations)."
+      subtitle="Admins have full access. For each member, set their role and toggle exactly which pages, settings, and actions they can use."
     >
       {members.length === 0 ? (
         <EmptyState icon="🔒" message="No team members yet." />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {members.map(m => {
             const isMe = (m.email || '').toLowerCase() === (myEmail || '').toLowerCase();
-            const role = roles[m.email] || 'member';
+            const st = state[m.email] || { role: 'member', perms: {} };
+            const isAdminRow = st.role === 'admin';
+            const open = expanded === m.email;
             return (
-              <div key={m.email} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '11px 13px', border: '1px solid #E5E8EC', borderRadius: 10, background: '#fff' }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, color: '#0F172A' }}>
-                    {m.name}{isMe && <span style={{ color: '#94A3B8', fontWeight: 500 }}> (you)</span>}
+              <div key={m.email} style={{ border: '1px solid #E5E8EC', borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '11px 13px', background: '#fff' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, color: '#0F172A' }}>
+                      {m.name}{isMe && <span style={{ color: '#94A3B8', fontWeight: 500 }}> (you)</span>}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}</div>
                   </div>
-                  <div style={{ fontSize: 12, color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    {savedEmail === m.email && <span style={{ fontSize: 12, color: '#15803D', fontWeight: 600 }}>✓ Saved</span>}
+                    <select
+                      value={st.role}
+                      disabled={isMe || savingEmail === m.email}
+                      onChange={e => changeRole(m.email, e.target.value)}
+                      title={isMe ? "You can't change your own role" : 'Change role'}
+                      style={{ ...s.select, width: 'auto', padding: '6px 10px', opacity: isMe ? 0.5 : 1 }}
+                    >
+                      <option value="admin">Admin</option>
+                      <option value="member">Member</option>
+                    </select>
+                    <button type="button" onClick={() => setExpanded(open ? null : m.email)}
+                      style={{ fontSize: 12, fontWeight: 600, color: '#2563EB', background: '#EFF6FF', border: '1px solid #BFD3FF', borderRadius: 8, padding: '6px 11px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                      {open ? 'Hide access' : 'Edit access'}
+                    </button>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                  {savedEmail === m.email && <span style={{ fontSize: 12, color: '#15803D', fontWeight: 600 }}>✓ Saved</span>}
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 20, color: role === 'admin' ? '#7C3AED' : '#475569', background: role === 'admin' ? '#F3E8FF' : '#F1F5F9', border: `1px solid ${role === 'admin' ? '#E9D5FF' : '#E2E8F0'}` }}>
-                    {role === 'admin' ? 'Admin' : 'Member'}
-                  </span>
-                  <select
-                    value={role}
-                    disabled={isMe || savingEmail === m.email}
-                    onChange={e => changeRole(m.email, e.target.value)}
-                    title={isMe ? "You can't change your own role" : 'Change role'}
-                    style={{ ...s.select, width: 'auto', padding: '6px 10px', opacity: isMe ? 0.5 : 1 }}
-                  >
-                    <option value="admin">Admin</option>
-                    <option value="member">Member</option>
-                  </select>
-                </div>
+                {open && (
+                  <div style={{ borderTop: '1px solid #EEF0F3', background: '#FAFBFC', padding: '14px' }}>
+                    {isAdminRow ? (
+                      <div style={{ fontSize: 13, color: '#7C3AED', fontWeight: 600 }}>Admins have full access to every page, setting, and action.</div>
+                    ) : (
+                      PERMISSION_GROUPS.map(g => (
+                        <div key={g.group} style={{ marginBottom: 14 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 8 }}>{g.group}</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                            {g.items.map(it => {
+                              const on = !!st.perms[it.key];
+                              return (
+                                <label key={it.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: savingEmail === m.email ? 'default' : 'pointer' }}>
+                                  <input type="checkbox" checked={on} disabled={savingEmail === m.email}
+                                    onChange={() => togglePerm(m.email, it.key)}
+                                    style={{ width: 15, height: 15, marginTop: 2, accentColor: '#2563EB', flexShrink: 0 }} />
+                                  <div style={{ minWidth: 0 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 500, color: '#0F172A' }}>{it.label}</div>
+                                    {it.desc && <div style={{ fontSize: 11.5, color: '#94A3B8' }}>{it.desc}</div>}
+                                  </div>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
