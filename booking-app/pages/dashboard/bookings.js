@@ -6,6 +6,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { authOptions } from '../api/auth/[...nextauth]';
 import { visibleNav } from '@/lib/nav';
+import { repIdentitySet, repInSet } from '@/lib/repName';
 import BrandLogo from '@/components/BrandLogo';
 import SidebarUser from '@/components/SidebarUser';
 
@@ -188,6 +189,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
   const [transferOpen, setTransferOpen] = useState(false);
   const [isAdmin,      setIsAdmin]      = useState(true);   // "can view all reps"
   const [canTransfer,  setCanTransfer]  = useState(true);
+  const [activeReps,   setActiveReps]   = useState(null);  // null until loaded
   // smsConfirmations: { [bookingId]: { status, note, loading } }
   const [smsConfirmations, setSmsConfirmations] = useState({});
   const nowLineRef    = useRef(null);
@@ -315,6 +317,14 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
 
   useEffect(() => { load(); }, [load]);
 
+  // Active team members (paused reps are excluded from the rep filter chips)
+  useEffect(() => {
+    fetch('/api/dashboard/team-members')
+      .then(r => r.json())
+      .then(d => setActiveReps(d.reps || []))
+      .catch(() => setActiveReps([]));
+  }, []);
+
   useEffect(() => {
     const handler = e => { if (e.key === 'Escape') closePanel(); };
     document.addEventListener('keydown', handler);
@@ -383,6 +393,10 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
   }
 
   const allReps = [...new Set(bookings.map(b => b.assigned_to_email).filter(Boolean))];
+  // Only show active team members as filter chips (paused reps are dropped).
+  // While the active list is still loading (null), show everyone.
+  const activeIdent = activeReps ? repIdentitySet(activeReps) : null;
+  const filterReps = activeIdent ? allReps.filter(r => repInSet(r, activeIdent)) : allReps;
 
   const filteredBookings = bookings
     .filter(b => !isAdmin || repFilter.length === 0 || repFilter.includes(b.assigned_to_email))
@@ -645,11 +659,11 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
                 <button style={s.filterMoreBtn}>≡ More Filters</button>
               </div>
 
-              {/* Rep chips (right side) — admin only */}
-              {isAdmin && allReps.length > 1 && (
+              {/* Rep chips (right side) — admin only, active reps only */}
+              {isAdmin && filterReps.length > 1 && (
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                   <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600 }}>Rep:</span>
-                  {allReps.map(email => {
+                  {filterReps.map(email => {
                     const name = email.split('@')[0];
                     const active = repFilter.includes(email);
                     return (
