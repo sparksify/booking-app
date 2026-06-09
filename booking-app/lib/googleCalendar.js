@@ -1,4 +1,16 @@
 import { google } from 'googleapis';
+import { getSupabaseAdmin } from '@/lib/supabase';
+
+// Busy times are cached in Supabase so the booking page reads them in ~30ms
+// instead of waiting ~1-2s for a live Google round-trip. External calendar
+// events can be up to this stale; the app's OWN bookings are always checked
+// live in the endpoint, so this can't cause a double-book through KANSO.
+const FREEBUSY_CACHE_TTL_MS = 90_000;
+
+function freebusyCacheKey(members, fromDateStr, toDateStr) {
+  const emails = members.map(m => m.email).sort().join(',');
+  return `${fromDateStr}|${toDateStr}|${emails}`;
+}
 
 // ─── OAuth client ─────────────────────────────────────────────────────────────
 
@@ -102,6 +114,23 @@ export async function getBusyTimesRange(members, fromDateStr, toDateStr, timezon
   const timeMin = new Date(localToUTCMs(fromDateStr,  0,  0, offFrom)).toISOString();
   const timeMax = new Date(localToUTCMs(toDateStr,   23, 59, offTo)).toISOString();
 
+  // Fast path: serve fresh cached busy times without touching Google.
+  const supabase = getSupabaseAdmin();
+  const key = freebusyCacheKey(members, fromDateStr, toDateStr);
+  try {
+    const { data: cached } = await supabase
+      .from('freebusy_cache')
+      .select('busy, computed_at')
+      .eq('cache_key', key)
+      .maybeSingle();
+    if (cached && (Date.now() - new Date(cached.computed_at).getTime()) < FREEBUSY_CACHE_TTL_MS) {
+      return Array.isArray(cached.busy) ? cached.busy : [];
+    }
+  } catch { /* cache miss / table issue → fall through to live query */ }
+
+  // Hard cap per rep so one stale/broken calendar connection can't stall the page.
+  const FREEBUSY_TIMEOUT_MS = 2500;
+
   const perMember = await Promise.all(members.map(async member => {
     try {
       const auth = makeOAuthClient({
@@ -109,12 +138,19 @@ export async function getBusyTimesRange(members, fromDateStr, toDateStr, timezon
         refresh_token: member.google_refresh_token,
       });
       const calendar = google.calendar({ version: 'v3', auth });
-      const response = await calendar.freebusy.query({
-        requestBody: {
-          timeMin, timeMax, timeZone: timezone,
-          items: [{ id: member.calendar_id || 'primary' }],
-        },
-      });
+      const response = await Promise.race([
+        calendar.freebusy.query({
+          requestBody: {
+            timeMin, timeMax, timeZone: timezone,
+            items: [{ id: member.calendar_id || 'primary' }],
+          },
+        }),
+        new Promise(resolve => setTimeout(() => resolve(null), FREEBUSY_TIMEOUT_MS)),
+      ]);
+      if (!response) {
+        console.warn(`[getBusyTimesRange] ${member.email} timed out after ${FREEBUSY_TIMEOUT_MS}ms — skipping`);
+        return [];
+      }
       const cals = response.data.calendars || {};
       const busy = [];
       Object.values(cals).forEach(cal => { if (cal.busy) busy.push(...cal.busy); });
@@ -125,7 +161,14 @@ export async function getBusyTimesRange(members, fromDateStr, toDateStr, timezon
     }
   }));
 
-  return perMember.flat();
+  const busy = perMember.flat();
+  // Write-through so the next visitor reads from cache instead of Google.
+  try {
+    await supabase
+      .from('freebusy_cache')
+      .upsert({ cache_key: key, busy, computed_at: new Date().toISOString() });
+  } catch { /* non-fatal: caching is best-effort */ }
+  return busy;
 }
 
 // ─── Slot generation ──────────────────────────────────────────────────────────
