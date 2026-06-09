@@ -89,6 +89,45 @@ export async function getBusyTimes(members, dateStr, timezone) {
   return allBusy; // [{ start: ISO, end: ISO }, ...]
 }
 
+/**
+ * Free/busy for all members across a whole date RANGE in one query per member
+ * (queried concurrently). Returns a flat [{ start, end }] array. This is the
+ * fast path: one round-trip per rep for the entire booking window, instead of
+ * one per rep per day.
+ */
+export async function getBusyTimesRange(members, fromDateStr, toDateStr, timezone) {
+  if (!members.length) return [];
+  const offFrom = getOffsetMinutes(fromDateStr, timezone);
+  const offTo   = getOffsetMinutes(toDateStr, timezone);
+  const timeMin = new Date(localToUTCMs(fromDateStr,  0,  0, offFrom)).toISOString();
+  const timeMax = new Date(localToUTCMs(toDateStr,   23, 59, offTo)).toISOString();
+
+  const perMember = await Promise.all(members.map(async member => {
+    try {
+      const auth = makeOAuthClient({
+        access_token:  member.google_access_token,
+        refresh_token: member.google_refresh_token,
+      });
+      const calendar = google.calendar({ version: 'v3', auth });
+      const response = await calendar.freebusy.query({
+        requestBody: {
+          timeMin, timeMax, timeZone: timezone,
+          items: [{ id: member.calendar_id || 'primary' }],
+        },
+      });
+      const cals = response.data.calendars || {};
+      const busy = [];
+      Object.values(cals).forEach(cal => { if (cal.busy) busy.push(...cal.busy); });
+      return busy;
+    } catch (err) {
+      console.error(`[getBusyTimesRange] error querying ${member.email}:`, err.message);
+      return [];
+    }
+  }));
+
+  return perMember.flat();
+}
+
 // ─── Slot generation ──────────────────────────────────────────────────────────
 
 /**

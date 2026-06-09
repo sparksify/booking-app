@@ -299,14 +299,38 @@ export default function BookingPage() {
       });
       return next;
     });
-    days.forEach(({ dateStr }) => {
-      const inv = investmentLevel ? `&investment_level=${encodeURIComponent(investmentLevel)}` : '';
-      const brd = brandRef.current ? `&brand=${encodeURIComponent(brandRef.current)}` : '';
-      fetch(`/api/availability?date=${dateStr}${inv}${brd}`)
+    const inv = investmentLevel ? `&investment_level=${encodeURIComponent(investmentLevel)}` : '';
+    const brd = brandRef.current ? `&brand=${encodeURIComponent(brandRef.current)}` : '';
+
+    // 1) Soonest day first → the recommended slot appears almost immediately.
+    const firstDay = days[0]?.dateStr;
+    if (firstDay) {
+      fetch(`/api/availability?date=${firstDay}${inv}${brd}`)
         .then(r => r.json())
-        .then(data => setSlotMap(prev => ({ ...prev, [dateStr]: { slots: data.slots || [], loading: false, loaded: true } })))
-        .catch(() => setSlotMap(prev => ({ ...prev, [dateStr]: { slots: [], loading: false, loaded: true } })));
-    });
+        .then(data => setSlotMap(prev => (prev[firstDay]?.loaded ? prev : { ...prev, [firstDay]: { slots: data.slots || [], loading: false, loaded: true } })))
+        .catch(() => {});
+    }
+
+    // 2) The whole range in ONE background request (one calendar query per rep),
+    //    so "Choose Another Time" is already populated when they tap it.
+    const dateStrs = days.map(d => d.dateStr).join(',');
+    fetch(`/api/availability-range?dates=${dateStrs}${inv}${brd}`)
+      .then(r => r.json())
+      .then(data => {
+        const map = data.days || {};
+        setSlotMap(prev => {
+          const next = { ...prev };
+          days.forEach(d => { next[d.dateStr] = { slots: map[d.dateStr] || [], loading: false, loaded: true }; });
+          return next;
+        });
+      })
+      .catch(() => {
+        setSlotMap(prev => {
+          const next = { ...prev };
+          days.forEach(d => { if (!next[d.dateStr]?.loaded) next[d.dateStr] = { slots: [], loading: false, loaded: true }; });
+          return next;
+        });
+      });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, days]);
 
