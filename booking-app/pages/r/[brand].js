@@ -19,7 +19,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 export async function getServerSideProps({ params }) {
   const slug = (params?.brand || '').toString().toLowerCase();
-  const dest = `/${slug}`;
+  // Send leads to the optimized root booking page, scoped to this brand.
+  const dest = `/?brand=${encodeURIComponent(slug)}`;
   const supabase = getSupabaseAdmin();
 
   // Wait up to ~8s for the lead to arrive from Pabbly. Returns the instant it
@@ -70,7 +71,7 @@ export async function getServerSideProps({ params }) {
   if (lead.token)      qp.set('lead_id', lead.token);
 
   const qs = qp.toString();
-  return { redirect: { destination: qs ? `${dest}?${qs}` : dest, permanent: false } };
+  return { redirect: { destination: qs ? `${dest}&${qs}` : dest, permanent: false } };
 }
 
 export default function PrefillRedirect() {

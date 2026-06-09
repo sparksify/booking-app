@@ -186,6 +186,7 @@ export default function BookingPage() {
   const [hostAvatar,     setHostAvatar]     = useState(null);
   const [pageContent,    setPageContent]    = useState({});
   const inputRef = useRef(null);
+  const brandRef = useRef(null);   // optional ?brand=<slug> for brand-specific routing
 
   // Load public settings (avatar + editable copy) on mount
   useEffect(() => {
@@ -218,6 +219,7 @@ export default function BookingPage() {
     const p      = new URLSearchParams(window.location.search);
     const token  = p.get('t');
     const source = p.get('source') || 'direct';
+    brandRef.current = p.get('brand') || null;
     setBookingSource(source);
 
     if (token) {
@@ -299,7 +301,8 @@ export default function BookingPage() {
     });
     days.forEach(({ dateStr }) => {
       const inv = investmentLevel ? `&investment_level=${encodeURIComponent(investmentLevel)}` : '';
-      fetch(`/api/availability?date=${dateStr}${inv}`)
+      const brd = brandRef.current ? `&brand=${encodeURIComponent(brandRef.current)}` : '';
+      fetch(`/api/availability?date=${dateStr}${inv}${brd}`)
         .then(r => r.json())
         .then(data => setSlotMap(prev => ({ ...prev, [dateStr]: { slots: data.slots || [], loading: false, loaded: true } })))
         .catch(() => setSlotMap(prev => ({ ...prev, [dateStr]: { slots: [], loading: false, loaded: true } })));
@@ -397,6 +400,7 @@ export default function BookingPage() {
           investment_level: investmentLevel || undefined,
           lead_id:          leadId || undefined,
           source:           bookingSource || 'direct',
+          brand:            brandRef.current || undefined,
         }),
       });
       const data = res.ok ? await res.json() : {};
@@ -435,6 +439,7 @@ export default function BookingPage() {
           investment_level: investmentLevel || undefined,
           lead_id:          leadId || undefined,
           source:           bookingSource || 'direct',
+          brand:            brandRef.current || undefined,
         }),
       });
       const data = res.ok ? await res.json() : {};
