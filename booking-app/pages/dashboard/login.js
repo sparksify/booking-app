@@ -18,13 +18,6 @@ export default function Login({ logo = null }) {
     <>
       <Head><title>Sign In — KANSO</title></Head>
       <div style={st.root}>
-        {/* Top bar matching QB dark nav */}
-        <div style={st.topBar}>
-          {logo
-            ? <img src={logo} alt="Logo" style={{ maxHeight: 30, maxWidth: 160, objectFit: 'contain', display: 'block' }} />
-            : <span style={st.topLogo}>⬡ KANSO</span>}
-        </div>
-
         {/* Centered card */}
         <div style={st.body}>
           <div style={st.card}>
