@@ -1053,14 +1053,14 @@ function PermissionsPanel({ members = [], myEmail, styles: s }) {
                       PERMISSION_GROUPS.map(g => (
                         <div key={g.group} style={{ marginBottom: 14 }}>
                           <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 8 }}>{g.group}</div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                            {g.items.map(it => {
+                          <div style={{ display: 'flex', flexDirection: 'column', maxWidth: 460, border: '1px solid #ECEEF1', borderRadius: 10, background: '#fff', padding: '2px 14px' }}>
+                            {g.items.map((it, idx) => {
                               const on = !!st.perms[it.key];
                               return (
-                                <div key={it.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                                <div key={it.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '10px 0', borderTop: idx === 0 ? 'none' : '1px solid #F1F3F5' }}>
                                   <div style={{ minWidth: 0 }}>
                                     <div style={{ fontSize: 13, fontWeight: 500, color: '#0F172A' }}>{it.label}</div>
-                                    {it.desc && <div style={{ fontSize: 11.5, color: '#94A3B8' }}>{it.desc}</div>}
+                                    {it.desc && <div style={{ fontSize: 11.5, color: '#94A3B8', marginTop: 1 }}>{it.desc}</div>}
                                   </div>
                                   <ToggleSwitch checked={on} onChange={() => { if (savingEmail !== m.email) togglePerm(m.email, it.key); }} />
                                 </div>
