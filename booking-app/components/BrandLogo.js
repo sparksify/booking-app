@@ -8,7 +8,7 @@ export default function BrandLogo({ logo }) {
       <img
         src={logo}
         alt="Logo"
-        style={{ maxHeight: 36, maxWidth: 168, objectFit: 'contain', display: 'block' }}
+        style={{ maxHeight: 48, maxWidth: 200, objectFit: 'contain', display: 'block' }}
       />
     );
   }
