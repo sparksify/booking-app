@@ -76,6 +76,7 @@ export default async function handler(req, res) {
       slot_start: b.slot_start,
       slot_end:   b.slot_end,
       source:     b._source_display || null,
+      event_name: b.event_name || null,
       date_label: dateLabel(b.slot_start, tz),
       time_label: timeLabel(b.slot_start, tz),
       conflict,

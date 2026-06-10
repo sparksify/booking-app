@@ -840,22 +840,29 @@ function TransferModal({ onClose, onDone }) {
       .then(d => {
         const list = d.appointments || [];
         setAppts(list);
-        // Pre-select all conflict-free appointments
-        const pre = {};
-        list.forEach(a => { if (!a.conflict) pre[a.id] = true; });
-        setSelected(pre);
+        // Start with nothing selected — the rep picks (or hits "Select all").
+        setSelected({});
       })
       .catch(() => setAppts([]))
       .finally(() => setChecking(false));
   }, [target]);
 
   const targetRep   = reps.find(r => r.email === target);
-  const selectedIds = appts.filter(a => selected[a.id] && !a.conflict).map(a => a.id);
-  const freeCount   = appts.filter(a => !a.conflict).length;
+  const freeAppts   = appts.filter(a => !a.conflict);
+  const selectedIds = freeAppts.filter(a => selected[a.id]).map(a => a.id);
+  const freeCount   = freeAppts.length;
+  const allFreeSelected = freeCount > 0 && freeAppts.every(a => selected[a.id]);
 
   function toggle(a) {
     if (a.conflict) return;
     setSelected(s => ({ ...s, [a.id]: !s[a.id] }));
+  }
+
+  function toggleAll() {
+    if (allFreeSelected) { setSelected({}); return; }
+    const next = {};
+    freeAppts.forEach(a => { next[a.id] = true; });
+    setSelected(next);
   }
 
   async function submit() {
@@ -907,7 +914,14 @@ function TransferModal({ onClose, onDone }) {
               <div style={t.listHead}>
                 <span>Your upcoming appointments</span>
                 {!checking && appts.length > 0 && (
-                  <span style={{ color: '#64748B', fontWeight: 500 }}>{freeCount} of {appts.length} available for {targetRep?.name?.split(' ')[0] || 'them'}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ color: '#64748B', fontWeight: 500 }}>{freeCount} of {appts.length} available for {targetRep?.name?.split(' ')[0] || 'them'}</span>
+                    {freeCount > 0 && (
+                      <button type="button" onClick={toggleAll} style={{ background: 'none', border: 'none', color: '#2563EB', fontWeight: 600, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                        {allFreeSelected ? 'Deselect all' : 'Select all'}
+                      </button>
+                    )}
+                  </span>
                 )}
               </div>
 
@@ -929,6 +943,15 @@ function TransferModal({ onClose, onDone }) {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
                         <div style={{ fontSize: 12, color: '#64748B' }}>{a.date_label} · {a.time_label}</div>
+                        {(a.source || a.event_name) && (
+                          <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {a.source && (
+                              <span style={{ fontWeight: 700, color: a.source === 'GoHighLevel' ? '#2563EB' : a.source === 'KANSO' ? '#475569' : '#6D28D9' }}>{a.source}</span>
+                            )}
+                            {a.source && a.event_name ? ' · ' : ''}
+                            {a.event_name || ''}
+                          </div>
+                        )}
                       </div>
                       {a.conflict
                         ? <span style={t.conflictTag}>Conflict</span>
