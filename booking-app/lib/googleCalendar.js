@@ -360,6 +360,43 @@ export async function recolorCalendarEvent(member, eventId, colorId = '8') {
 }
 
 /**
+ * Finds the id of an event on a rep's calendar within a time window, matched by
+ * attendee email (preferred) or by the client's name appearing in the summary.
+ * Used to locate the original event for a Calendly/GHL meeting (which has no
+ * stored Google event id) so it can be grayed out on transfer.
+ *
+ * @returns {Promise<string|null>} the matched event id, or null
+ */
+export async function findCalendarEventId(member, { fromIso, toIso, matchEmail, matchName }) {
+  if (!member?.google_refresh_token) return null;
+  try {
+    const auth = makeOAuthClient({
+      access_token:  member.google_access_token,
+      refresh_token: member.google_refresh_token,
+    });
+    const calendar = google.calendar({ version: 'v3', auth });
+    const resp = await calendar.events.list({
+      calendarId:   member.calendar_id || 'primary',
+      timeMin:      fromIso,
+      timeMax:      toIso,
+      singleEvents: true,
+      maxResults:   25,
+    });
+    const items   = resp.data.items || [];
+    const emailLc = (matchEmail || '').toLowerCase();
+    const nameLc  = (matchName  || '').toLowerCase();
+    let hit = emailLc
+      ? items.find(ev => (ev.attendees || []).some(a => (a.email || '').toLowerCase() === emailLc))
+      : null;
+    if (!hit && nameLc) hit = items.find(ev => (ev.summary || '').toLowerCase().includes(nameLc));
+    return hit ? hit.id : null;
+  } catch (err) {
+    console.error('[findCalendarEventId] error:', err.message);
+    return null;
+  }
+}
+
+/**
  * Deletes a calendar event without notifying attendees. (Helper for undo flows.)
  */
 export async function deleteCalendarEvent(member, eventId) {

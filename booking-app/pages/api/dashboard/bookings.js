@@ -17,14 +17,14 @@ const DEFAULT_GHL_CALENDAR_ID   = 'Zd3fg5KnNbH5FEIHhq8R';
 const DEFAULT_GHL_CALENDAR_ID_2 = 'h35V7plFqYf6DyY4zsdV';
 
 // Timezone used for date boundary calculations — must match settings.timezone
-const BOOKING_TZ = process.env.BOOKING_TIMEZONE || 'America/Chicago';
+export const BOOKING_TZ = process.env.BOOKING_TIMEZONE || 'America/Chicago';
 
 /**
  * Returns { from, to } as UTC Date objects that bound the full day
  * of `refDate` in the target timezone.
  * Uses noon as a DST-safe probe to compute the UTC offset.
  */
-function getDayBoundsUTC(refDate, tz) {
+export function getDayBoundsUTC(refDate, tz) {
   const dateStr = refDate.toLocaleDateString('en-CA', { timeZone: tz }); // 'YYYY-MM-DD'
   const probeNoon = new Date(`${dateStr}T12:00:00Z`);
   const locStr    = probeNoon.toLocaleString('en-US', { timeZone: tz, timeZoneName: 'shortOffset' });
@@ -197,6 +197,21 @@ export default async function handler(req, res) {
     }
   }
 
+  // Transfers: reassign a meeting to another rep (Calendly/GHL meetings have no
+  // bookings row to update, so the reassignment lives here). Keyed by client
+  // email + 30-min slot bucket, same scheme as overrides.
+  const transferByKey = {};
+  {
+    const { data: transfers } = await supabase
+      .from('meeting_transfers')
+      .select('client_email, slot_start, to_email');
+    for (const t of transfers || []) {
+      if (!t.client_email || !t.slot_start) continue;
+      const k = `${t.client_email.toLowerCase()}:${Math.round(new Date(t.slot_start).getTime() / (30 * 60_000))}`;
+      transferByKey[k] = t;
+    }
+  }
+
   // Merge — GHL first so it wins dedup (has liquid capital); then KANSO; then Calendly
   // Dedup: same email + same 30-min bucket across sources = same meeting, keep first seen
   const seenKeys = new Map();
@@ -216,8 +231,13 @@ export default async function handler(req, res) {
       const ghlC = ghlContactByEmail[emailLow] || {};
       // Manual override (status + CQ timestamps) for this meeting, if any
       const ovr = overrideByKey[key] || {};
+      // Transfer (reassignment to another rep) for this meeting, if any
+      const tr  = transferByKey[key] || {};
       deduped.push({
         ...b,
+        // A transfer reassigns the meeting to the target rep so it moves to
+        // their dashboard and leaves the original rep's.
+        assigned_to_email: tr.to_email || b.assigned_to_email,
         // Manual override wins over the source's status (e.g. Calendly always
         // reports 'scheduled'; a rep marking no-show must take precedence).
         status:           ovr.status         || b.status,
@@ -257,7 +277,7 @@ export default async function handler(req, res) {
 
 // ─── Supabase ─────────────────────────────────────────────────────────────────
 
-async function fetchSupabase(supabase, from, to) {
+export async function fetchSupabase(supabase, from, to) {
   let q = supabase
     .from('bookings')
     .select('id, first_name, last_name, email, phone, slot_start, slot_end, status, investment_level, assigned_to_email, meet_link, created_at, lead_score, show_probability, fb_attribution, booking_source, cq_sent_at, cq_received_at')
@@ -270,7 +290,7 @@ async function fetchSupabase(supabase, from, to) {
 
 // ─── Calendly ─────────────────────────────────────────────────────────────────
 
-async function fetchCalendly(from, to) {
+export async function fetchCalendly(from, to) {
   const apiKey  = process.env.CALENDLY_API_KEY;
   if (!apiKey) return [];
 
@@ -402,7 +422,7 @@ function getGHLLiquidCapital(contact) {
  * Handles GHL names ("S Sparks", "Steve"), Calendly emails ("ssparks@..."),
  * and Calendly user_name values ("ssparks", "john").
  */
-function normalizeRepName(nameOrEmail) {
+export function normalizeRepName(nameOrEmail) {
   if (!nameOrEmail) return nameOrEmail;
   const raw   = nameOrEmail.trim();
   // If it looks like an email, use only the local part for matching
@@ -415,7 +435,7 @@ function normalizeRepName(nameOrEmail) {
   return raw;
 }
 
-async function fetchGHL(from, to) {
+export async function fetchGHL(from, to) {
   const apiKey     = process.env.GHL_API_KEY;
   const locationId = process.env.GHL_LOCATION_ID;
   if (!apiKey || !locationId) return [];
