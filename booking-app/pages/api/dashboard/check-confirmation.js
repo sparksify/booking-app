@@ -103,31 +103,48 @@ function analyzeMessages(messages, afterDate) {
   // Only look at inbound messages (from the lead) after the booking was created
   const cutoff = afterDate ? new Date(afterDate) : new Date(0);
 
-  const inbound = messages.filter(m =>
-    m.direction === 'inbound' &&
-    new Date(m.dateAdded || m.createdAt || 0) >= cutoff &&
-    (m.body || m.text || '')
-  );
+  const msgDate = m => new Date(m.dateAdded || m.createdAt || m.dateUpdated || 0);
+
+  // All of the LEAD's messages (inbound), regardless of GHL's return order.
+  let inbound = (messages || []).filter(m => m.direction === 'inbound' && (m.body || m.text || ''));
+
+  // Respect the booking cutoff, but never let it wipe out everything — clock
+  // skew or a missing created_at shouldn't make a real reply vanish.
+  const afterCutoff = inbound.filter(m => msgDate(m) >= cutoff);
+  if (afterCutoff.length) inbound = afterCutoff;
 
   if (inbound.length === 0) return { status: 'no_response', note: null };
 
-  // Strip quoted history, then analyze the client's most recent replies only.
+  // Sort oldest → newest so "latest" is genuinely their most recent reply
+  // (GHL returns messages newest-first).
+  inbound.sort((a, b) => msgDate(a) - msgDate(b));
+
+  // Strip quoted email history from each so we only weigh the lead's own words.
   const cleaned = inbound
     .map(m => stripQuoted(m.body || m.text || ''))
     .filter(Boolean);
   if (cleaned.length === 0) return { status: 'no_response', note: null };
 
-  // Judge by the client's MOST RECENT reply only — that's their current intent.
-  // Blending several messages let quoted/older words override a clear reply.
+  const classify = (txt) => {
+    const t = txt.toLowerCase();
+    if (DECLINED_RE.test(t))  return 'declined';
+    if (CONFIRMED_RE.test(t)) return 'confirmed';
+    if (UNCERTAIN_RE.test(t)) return 'uncertain';
+    return null;
+  };
+
   const latest  = cleaned[cleaned.length - 1];
-  const text    = latest.toLowerCase();
   const snippet = latest.slice(0, 120);
 
-  if (DECLINED_RE.test(text))  return { status: 'declined',  note: snippet };
-  if (CONFIRMED_RE.test(text)) return { status: 'confirmed', note: snippet };
-  if (UNCERTAIN_RE.test(text)) return { status: 'uncertain', note: snippet };
+  // Their most recent reply is their current intent — if it's clear, use it.
+  const latestVerdict = classify(latest);
+  if (latestVerdict) return { status: latestVerdict, note: snippet };
 
-  // They replied but content is ambiguous — still counts as "no clear confirmation"
+  // Latest reply was ambiguous — fall back to the totality of everything they
+  // said, so a clear confirm/decline anywhere in their replies still counts.
+  const wholeVerdict = classify(cleaned.join('  '));
+  if (wholeVerdict) return { status: wholeVerdict, note: snippet };
+
   return { status: 'no_response', note: snippet };
 }
 
