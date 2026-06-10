@@ -148,6 +148,88 @@ function analyzeMessages(messages, afterDate) {
   return { status: 'no_response', note: snippet };
 }
 
+// ─── AI classification (primary) ───────────────────────────────────────────────
+
+/**
+ * Builds a compact, labeled transcript (oldest → newest). The lead's messages
+ * are kept fuller; the team's automated boilerplate is truncated to save tokens.
+ */
+function buildTranscript(messages) {
+  const msgDate = m => new Date(m.dateAdded || m.createdAt || m.dateUpdated || 0);
+  const sorted = [...(messages || [])]
+    .filter(m => (m.body || m.text || '').trim())
+    .sort((a, b) => msgDate(a) - msgDate(b))
+    .slice(-40);
+  return sorted
+    .map(m => {
+      const who  = m.direction === 'inbound' ? 'LEAD' : 'TEAM';
+      const body = stripQuoted(m.body || m.text || '');
+      const max  = who === 'LEAD' ? 500 : 140;
+      const text = body.slice(0, max).replace(/\s+/g, ' ').trim();
+      return text ? `${who}: ${text}` : '';
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
+/**
+ * Classifies the LEAD's appointment intent with a small, cheap model. Returns
+ * null on any problem (missing key, model error, bad output) so the caller falls
+ * back to keyword matching.
+ */
+async function classifyWithAI(transcript) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey || !transcript) return null;
+  const model = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001';
+
+  const prompt = `You are reviewing a text/email thread between a sales & scheduling TEAM and a LEAD who has an upcoming appointment booked.
+
+Decide whether THE LEAD has confirmed they will attend. Judge ONLY by what the LEAD says. Completely ignore the TEAM's automated messages, reminders, links, and boilerplate (phrases like "reply Confirmed", "reschedule", or "cancel" in TEAM messages do NOT count).
+
+Return ONLY a compact JSON object, nothing else:
+{"status":"confirmed|declined|uncertain|no_response","reason":"<=12 words"}
+
+Definitions:
+- confirmed: the lead affirms attendance or the booking — e.g. "yes", "confirmed", "I already booked some time", "see you then", "that works".
+- declined: the lead says they can't make it, wants to cancel, reschedule, or won't attend.
+- uncertain: tentative — "maybe", "I'll try", "not sure".
+- no_response: the lead never meaningfully replied about the appointment.
+
+THREAD (oldest to newest):
+${transcript}`;
+
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key':         apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type':      'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 100,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    if (!r.ok) {
+      console.error('[check-confirmation] AI HTTP', r.status, (await r.text().catch(() => '')).slice(0, 200));
+      return null;
+    }
+    const data = await r.json();
+    const text = (data?.content?.[0]?.text || '').trim();
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m) return null;
+    const parsed = JSON.parse(m[0]);
+    const valid = ['confirmed', 'declined', 'uncertain', 'no_response'];
+    if (!valid.includes(parsed.status)) return null;
+    return { status: parsed.status, note: parsed.reason || null };
+  } catch (err) {
+    console.error('[check-confirmation] AI error', err.message);
+    return null;
+  }
+}
+
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
@@ -187,6 +269,19 @@ export default async function handler(req, res) {
     }
   }
 
+  // Calendly/GHL meetings have no bookings row — cache their result by GHL
+  // contact id so we don't re-run the AI on every dashboard load.
+  if (!isUuid && ghl_contact_id && !force_refresh) {
+    const { data: cc } = await supabase
+      .from('confirmation_cache')
+      .select('status, note, checked_at')
+      .eq('contact_id', ghl_contact_id)
+      .maybeSingle();
+    if (cc?.status && cc.checked_at && (Date.now() - new Date(cc.checked_at).getTime()) < CACHE_TTL) {
+      return res.json({ status: cc.status, note: cc.note, cached: true });
+    }
+  }
+
   // No valid cache — need to query GHL
   if (!ghl_contact_id) {
     return res.json({ status: 'no_response', note: null, cached: false });
@@ -199,7 +294,11 @@ export default async function handler(req, res) {
     }
 
     const messages = await getConversationMessages(conversation.id, 40);
-    const result   = analyzeMessages(messages, booking_created_at);
+
+    // Primary: let a small model read the whole thread and judge the lead's
+    // intent. Falls back to keyword matching if no API key or on any error.
+    let result = await classifyWithAI(buildTranscript(messages));
+    if (!result) result = analyzeMessages(messages, booking_created_at);
 
     // Cache result on the booking row (only for real uuid-keyed bookings;
     // GHL synthetic ids aren't persisted and are re-checked each load).
@@ -209,6 +308,13 @@ export default async function handler(req, res) {
         sms_confirmation_at:   new Date().toISOString(),
         sms_confirmation_note: result.note,
       }).eq('id', bookingId);
+    } else if (ghl_contact_id) {
+      await supabase.from('confirmation_cache').upsert({
+        contact_id: ghl_contact_id,
+        status:     result.status,
+        note:       result.note,
+        checked_at: new Date().toISOString(),
+      });
     }
 
     return res.json({ ...result, cached: false });
