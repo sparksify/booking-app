@@ -206,12 +206,19 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
     const scrollToNow = () => {
       if (cancelled) return;
       const el = nowLineRef.current;
+      // Offset by the sticky header's height so the target row lands just
+      // below it instead of hiding behind it.
+      const headEl = sc.querySelector('thead');
+      const headH  = headEl ? headEl.offsetHeight : 0;
       if (el) {
         const r  = el.getBoundingClientRect();
         const sr = sc.getBoundingClientRect();
-        sc.scrollTop += (r.top - sr.top) - 8;
+        sc.scrollTop += (r.top - sr.top) - headH - 10;
       } else {
-        sc.scrollTop = sc.scrollHeight;
+        // No upcoming meeting (whole day already passed) → show the list from
+        // the top with the "all caught up" marker at the end, rather than
+        // jumping into the empty spacer below.
+        sc.scrollTop = 0;
       }
     };
     // Run a few times so the position survives the SMS-confirmation re-renders,
@@ -748,7 +755,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
                       // "caught up" marker instead of scrolling into blank space.
                       if (!nowInserted) {
                         rendered.push(
-                          <tr key="all-done" ref={nowLineRef} style={{ pointerEvents: 'none' }}>
+                          <tr key="all-done" style={{ pointerEvents: 'none' }}>
                             <td colSpan={10} style={{ padding: '18px 16px' }}>
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#16A34A', fontSize: 13, fontWeight: 600 }}>
                                 <span style={{ fontSize: 15 }}>✓</span>
@@ -2079,10 +2086,10 @@ const s = {
 
   // Table
   tableCard:  { background: '#fff', borderRadius: 10, border: '1px solid #E5E7EB', marginTop: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)' },
-  table:      { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-  th:         { textAlign: 'left', padding: '10px 14px', fontWeight: 600, color: '#9CA3AF', fontSize: 11, letterSpacing: '.4px', background: '#F9FAFB', textTransform: 'uppercase', position: 'sticky', top: 0, zIndex: 5, boxShadow: '0 1px 0 #E5E7EB' },
+  table:      { width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 13 },
+  th:         { textAlign: 'left', padding: '10px 14px', fontWeight: 600, color: '#9CA3AF', fontSize: 11, letterSpacing: '.4px', background: '#F9FAFB', textTransform: 'uppercase', position: 'sticky', top: 0, zIndex: 20, boxShadow: 'inset 0 -1px 0 #E5E7EB' },
   tr:         { borderBottom: '1px solid #F3F4F6', transition: 'background .1s' },
-  td:         { padding: '14px 14px', verticalAlign: 'middle' },
+  td:         { padding: '14px 14px', verticalAlign: 'middle', borderBottom: '1px solid #F3F4F6' },
   tableEmpty: { textAlign: 'center', padding: 56, color: '#9CA3AF', fontSize: 14 },
   iconBtn:    { width: 30, height: 30, borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', color: '#6B7280', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', transition: 'background .12s, border-color .12s' },
 };
