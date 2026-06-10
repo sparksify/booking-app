@@ -61,6 +61,21 @@ export default async function handler(req, res) {
     catch { busy = []; }
   }
 
+  // ALSO treat the target rep's own existing meetings (Calendly/GHL/native) as
+  // busy. Google free/busy alone misses appointments that aren't on their
+  // personal Google calendar — and this still works if their Google token is
+  // stale. This is what catches "John already has a 10:00".
+  try {
+    const targetMeetings = await getRepUpcomingMeetings(targetMember.email);
+    for (const tm of targetMeetings) {
+      if (!tm.slot_start) continue;
+      busy.push({
+        start: tm.slot_start,
+        end:   tm.slot_end || new Date(Date.parse(tm.slot_start) + 15 * 60_000).toISOString(),
+      });
+    }
+  } catch { /* non-fatal */ }
+
   const appointments = meetings.map(b => {
     const bs = Date.parse(b.slot_start);
     const be = b.slot_end ? Date.parse(b.slot_end) : bs + 15 * 60_000;
