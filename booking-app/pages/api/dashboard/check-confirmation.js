@@ -25,7 +25,9 @@ const CACHE_TTL   = 2 * 60 * 60 * 1000; // 2 hours in ms
 
 const CONFIRMED_RE = /\byes\b|confirm|i'?ll be there|see you|looking forward|will be there|sounds good|on my way|heading over|i'?m in|absolutely|perfect|great|👍|✅|🙏|for sure|definitely|count me in/i;
 
-const DECLINED_RE = /\bno\b|can'?t make it|cannot make|cancel|reschedule|won'?t be able|won'?t be there|something came up|unable to|can not make|not going to work|have to cancel|need to cancel|postpone|not going to be able/i;
+// NOTE: deliberately does NOT include a bare "no" — phrases like "no problem"
+// are positive. Decline must be an explicit can't-make-it / cancel / reschedule.
+const DECLINED_RE = /can'?t make|cannot make|can ?not make|\bcancel|reschedul|won'?t be (?:able|there)|will not be able|unable to (?:make|attend|come)|something came up|not going to (?:work|make)|have to (?:cancel|move)|need to (?:cancel|move|reschedule)|postpone/i;
 
 const UNCERTAIN_RE = /\bmaybe\b|might|not sure|let me check|i'?ll try|possibly|depends|i think so|hopefully|should be/i;
 
@@ -71,6 +73,24 @@ async function getConversationMessages(conversationId, limit = 30) {
 
 // ─── Analysis ─────────────────────────────────────────────────────────────────
 
+/**
+ * Strips quoted email history from a reply so we only analyze the client's own
+ * words. Email replies quote the entire outbound message back — including our
+ * boilerplate ("no problem… we'll get you rescheduled… reply Confirmed") — which
+ * otherwise trips the decline keywords on a genuine confirmation.
+ */
+function stripQuoted(text) {
+  if (!text) return '';
+  let t = String(text);
+  // Cut everything from the start of a quoted reply block.
+  t = t.split(/^\s*On .+wrote:\s*$/im)[0];
+  t = t.split(/_{5,}|-{2,}\s*Original Message/i)[0];
+  t = t.split(/^\s*From:\s.+$/im)[0];
+  // Drop any remaining quoted lines (start with ">").
+  t = t.split('\n').filter(line => !/^\s*>/.test(line)).join('\n');
+  return t.trim();
+}
+
 function analyzeMessages(messages, afterDate) {
   // Only look at inbound messages (from the lead) after the booking was created
   const cutoff = afterDate ? new Date(afterDate) : new Date(0);
@@ -83,13 +103,17 @@ function analyzeMessages(messages, afterDate) {
 
   if (inbound.length === 0) return { status: 'no_response', note: null };
 
-  // Analyze most recent inbound messages (last 5)
-  const recent = inbound.slice(-5);
-  const combinedText = recent.map(m => (m.body || m.text || '').toLowerCase()).join(' ');
-  const lastMsg = recent[recent.length - 1];
-  const snippet = (lastMsg?.body || lastMsg?.text || '').slice(0, 120);
+  // Strip quoted history, then analyze the client's most recent replies only.
+  const cleaned = inbound
+    .map(m => stripQuoted(m.body || m.text || ''))
+    .filter(Boolean);
+  if (cleaned.length === 0) return { status: 'no_response', note: null };
 
-  if (DECLINED_RE.test(combinedText)) return { status: 'declined', note: snippet };
+  const recent = cleaned.slice(-3);
+  const combinedText = recent.join(' ').toLowerCase();
+  const snippet = recent[recent.length - 1].slice(0, 120);
+
+  if (DECLINED_RE.test(combinedText))  return { status: 'declined',  note: snippet };
   if (CONFIRMED_RE.test(combinedText)) return { status: 'confirmed', note: snippet };
   if (UNCERTAIN_RE.test(combinedText)) return { status: 'uncertain', note: snippet };
 
