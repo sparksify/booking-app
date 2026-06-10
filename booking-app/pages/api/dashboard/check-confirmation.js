@@ -82,13 +82,21 @@ async function getConversationMessages(conversationId, limit = 30) {
 function stripQuoted(text) {
   if (!text) return '';
   let t = String(text);
-  // Cut everything from the start of a quoted reply block.
-  t = t.split(/^\s*On .+wrote:\s*$/im)[0];
+  // Remove HTML quoted blocks first — Gmail/Outlook wrap the original message
+  // in these, and a reply stored as HTML hides the boilerplate from line-based
+  // stripping.
+  t = t.replace(/<blockquote[\s\S]*?<\/blockquote>/gi, ' ');
+  t = t.replace(/<div[^>]*gmail_quote[\s\S]*$/i, ' ');
+  // Cut at the quoted-reply header wherever it appears (plain text OR flattened
+  // HTML). Not line-anchored, so "...Confirmed! On Mon, Jun 8 … wrote: …" works.
+  t = t.split(/\bOn\b[^\n]{0,300}?\bwrote:/i)[0];
   t = t.split(/_{5,}|-{2,}\s*Original Message/i)[0];
-  t = t.split(/^\s*From:\s.+$/im)[0];
+  t = t.split(/\bFrom:\s[^\n]+?\bSent:/is)[0];
   // Drop any remaining quoted lines (start with ">").
   t = t.split('\n').filter(line => !/^\s*>/.test(line)).join('\n');
-  return t.trim();
+  // Flatten any leftover HTML to plain text.
+  t = t.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&');
+  return t.replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, '\n').trim();
 }
 
 function analyzeMessages(messages, afterDate) {
@@ -109,13 +117,15 @@ function analyzeMessages(messages, afterDate) {
     .filter(Boolean);
   if (cleaned.length === 0) return { status: 'no_response', note: null };
 
-  const recent = cleaned.slice(-3);
-  const combinedText = recent.join(' ').toLowerCase();
-  const snippet = recent[recent.length - 1].slice(0, 120);
+  // Judge by the client's MOST RECENT reply only — that's their current intent.
+  // Blending several messages let quoted/older words override a clear reply.
+  const latest  = cleaned[cleaned.length - 1];
+  const text    = latest.toLowerCase();
+  const snippet = latest.slice(0, 120);
 
-  if (DECLINED_RE.test(combinedText))  return { status: 'declined',  note: snippet };
-  if (CONFIRMED_RE.test(combinedText)) return { status: 'confirmed', note: snippet };
-  if (UNCERTAIN_RE.test(combinedText)) return { status: 'uncertain', note: snippet };
+  if (DECLINED_RE.test(text))  return { status: 'declined',  note: snippet };
+  if (CONFIRMED_RE.test(text)) return { status: 'confirmed', note: snippet };
+  if (UNCERTAIN_RE.test(text)) return { status: 'uncertain', note: snippet };
 
   // They replied but content is ambiguous — still counts as "no clear confirmation"
   return { status: 'no_response', note: snippet };
