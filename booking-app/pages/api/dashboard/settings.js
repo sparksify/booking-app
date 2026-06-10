@@ -109,10 +109,24 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'DELETE') {
-    // Toggle a team member's active status
-    const { email, active } = req.body;
+    const { email, active, remove } = req.body;
     if (!email) return res.status(400).json({ error: 'email required' });
 
+    // Hard delete a team member (vs. just pausing). Guard against removing
+    // your own account so an admin can't lock themselves out.
+    if (remove) {
+      if ((email || '').toLowerCase() === (session.user?.email || '').toLowerCase()) {
+        return res.status(400).json({ error: "You can't delete your own account." });
+      }
+      const { error } = await supabase
+        .from('team_members')
+        .delete()
+        .ilike('email', email);
+      if (error) return res.status(500).json({ error: error.message });
+      return res.json({ ok: true, removed: true });
+    }
+
+    // Otherwise: toggle active (pause/resume)
     const { error } = await supabase
       .from('team_members')
       .update({ active: !!active })

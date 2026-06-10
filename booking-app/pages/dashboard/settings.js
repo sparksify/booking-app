@@ -295,6 +295,21 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
     );
   }
 
+  async function removeMember(email, name) {
+    if (!window.confirm(`Remove ${name || email} from the team?\n\nThis deletes their login access and calendar connection and can't be undone. Their past meetings stay in the system.`)) return;
+    const res = await fetch('/api/dashboard/settings', {
+      method:  'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, remove: true }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      alert(d.error || 'Could not remove member.');
+      return;
+    }
+    setMembers(prev => prev.filter(m => m.email !== email));
+  }
+
   async function updateInvestmentRanges(email, ranges) {
     await fetch('/api/dashboard/settings', {
       method:  'PATCH',
@@ -565,6 +580,8 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
                     onAvatarUpload={file => handleRepAvatarUpload(m, file)}
                     onAvatarRemove={() => removeRepAvatar(m)}
                     onToggle={toggleMember}
+                    onRemove={removeMember}
+                    isMe={(m.email || '').toLowerCase() === (session?.user?.email || '').toLowerCase()}
                     onUpdateRanges={updateInvestmentRanges}
                   />
                 ))}
@@ -1301,7 +1318,7 @@ const INV_RANGES = [
   { key: 'gt_500k',    label: 'Over $500k'   },
 ];
 
-function MemberCard({ member, avatarUrl, uploading, onAvatarUpload, onAvatarRemove, onToggle, onUpdateRanges }) {
+function MemberCard({ member, avatarUrl, uploading, onAvatarUpload, onAvatarRemove, onToggle, onRemove, isMe, onUpdateRanges }) {
   const [expanded, setExpanded] = useState(false);
   const [hoveringAvatar, setHoveringAvatar] = useState(false);
   const ranges = member.investment_ranges || [];
@@ -1358,6 +1375,15 @@ function MemberCard({ member, avatarUrl, uploading, onAvatarUpload, onAvatarRemo
           <button style={s.toggleBtn} onClick={() => setExpanded(e => !e)}>
             {expanded ? 'Done' : 'Routing'}
           </button>
+          {!isMe && onRemove && (
+            <button
+              style={{ ...s.toggleBtn, color: '#B91C1C', borderColor: '#FECACA' }}
+              title="Remove this person from the team"
+              onClick={() => onRemove(member.email, member.name)}
+            >
+              Delete
+            </button>
+          )}
         </div>
       </div>
       {expanded && (
