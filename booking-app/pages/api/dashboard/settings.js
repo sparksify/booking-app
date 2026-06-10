@@ -40,6 +40,7 @@ export default async function handler(req, res) {
       rep_avatars,
       bluebubbles_url, bluebubbles_password,
       platform_logo_url,
+      favicon_url,
       nav_order,
       notify_on_lead, notify_on_booking, notify_recipients,
     } = req.body;
@@ -73,6 +74,7 @@ export default async function handler(req, res) {
     if (bluebubbles_url         !== undefined) update.bluebubbles_url         = bluebubbles_url         || null;
     if (bluebubbles_password    !== undefined) update.bluebubbles_password    = bluebubbles_password    || null;
     if (platform_logo_url       !== undefined) update.platform_logo_url       = platform_logo_url       || null;
+    if (favicon_url             !== undefined) update.favicon_url             = favicon_url             || null;
     if (nav_order               !== undefined) update.nav_order               = Array.isArray(nav_order) ? nav_order : null;
     if (notify_on_lead          !== undefined) update.notify_on_lead          = !!notify_on_lead;
     if (notify_on_booking       !== undefined) update.notify_on_booking       = !!notify_on_booking;

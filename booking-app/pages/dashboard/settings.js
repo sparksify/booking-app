@@ -130,6 +130,8 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
   const [repAvatarUploading, setRepAvatarUploading] = useState({});
   const [platformLogo,     setPlatformLogo]     = useState(initialLogo);
   const [logoUploading,    setLogoUploading]    = useState(false);
+  const [favicon,          setFavicon]          = useState(initialSettings.favicon_url || null);
+  const [faviconUploading, setFaviconUploading] = useState(false);
   const [navOrder,         setNavOrder]         = useState(initialNavOrder);
 
   async function handleLogoUpload(e) {
@@ -163,6 +165,38 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
       body: JSON.stringify({ platform_logo_url: null }),
     });
     setPlatformLogo(null);
+  }
+
+  async function handleFaviconUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFaviconUploading(true);
+    try {
+      // Favicons are tiny squares — downscale to 64×64 so the stored data URL is small.
+      const dataUrl = await downscaleImage(file, 64, 64);
+      const res = await fetch('/api/dashboard/settings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ favicon_url: dataUrl }),
+      });
+      if (!res.ok) {
+        const msg = await res.text().catch(() => '');
+        alert(`Favicon didn't save (${res.status}). ${msg.slice(0, 200)}`);
+      } else {
+        setFavicon(dataUrl);
+      }
+    } catch (err) {
+      alert(`Could not process that image: ${err.message}`);
+    } finally {
+      setFaviconUploading(false);
+    }
+  }
+
+  async function removeFavicon() {
+    await fetch('/api/dashboard/settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ favicon_url: null }),
+    });
+    setFavicon(null);
   }
 
   async function handleAvatarUpload(e) {
@@ -571,6 +605,33 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
                   </label>
                   {platformLogo && (
                     <button type="button" onClick={removePlatformLogo} style={{ ...s.saveBtn, background: '#fff', color: '#B91C1C', border: '1px solid #FECACA' }}>
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </div>
+            </Section>
+          )}
+
+          {/* ── Favicon ─────────────────────────────────────────────────── */}
+          {perms.settings_branding && (
+            <Section
+              title="Favicon"
+              subtitle="The small icon shown in the browser tab. Upload a square image (a PNG works best). Browsers cache favicons hard, so you may need to hard-refresh or reopen the tab to see a change."
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+                <div style={{ width: 64, height: 64, border: '1px solid #E5E8EC', borderRadius: 10, background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  {favicon
+                    ? <img src={favicon} alt="Favicon" style={{ width: 32, height: 32, objectFit: 'contain' }} />
+                    : <span style={{ fontSize: 11, color: '#9CA3AF' }}>None</span>}
+                </div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <label style={{ ...s.saveBtn, cursor: faviconUploading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+                    {faviconUploading ? 'Uploading…' : (favicon ? 'Replace favicon' : 'Upload favicon')}
+                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFaviconUpload} disabled={faviconUploading} />
+                  </label>
+                  {favicon && (
+                    <button type="button" onClick={removeFavicon} style={{ ...s.saveBtn, background: '#fff', color: '#B91C1C', border: '1px solid #FECACA' }}>
                       Remove
                     </button>
                   )}
