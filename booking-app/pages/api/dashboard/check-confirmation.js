@@ -23,7 +23,7 @@ const CACHE_TTL   = 2 * 60 * 60 * 1000; // 2 hours in ms
 
 // ─── Keyword patterns ─────────────────────────────────────────────────────────
 
-const CONFIRMED_RE = /\byes\b|confirm|i'?ll be there|see you|looking forward|will be there|sounds good|on my way|heading over|i'?m in|absolutely|perfect|great|👍|✅|🙏|for sure|definitely|count me in/i;
+const CONFIRMED_RE = /\byes\b|confirm|i'?ll be there|see you|looking forward|will be there|sounds good|on my way|heading over|i'?m in|absolutely|perfect|great|👍|✅|🙏|for sure|definitely|count me in|already (?:booked|scheduled|set)|already have (?:a |some )?time|have (?:a |some )?time (?:booked|scheduled|set)|booked (?:a |some )?time|we'?re (?:booked|scheduled|set|good)|got (?:a |some )?time (?:booked|scheduled|set)|talk(?: to you)? then|that works|works for me/i;
 
 // NOTE: deliberately does NOT include a bare "no" — phrases like "no problem"
 // are positive. Decline must be an explicit can't-make-it / cancel / reschedule.
