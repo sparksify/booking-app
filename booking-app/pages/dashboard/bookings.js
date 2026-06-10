@@ -765,15 +765,20 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
                           </tr>
                         );
                       }
+                      // Tail spacer INSIDE the table so the header stays pinned
+                      // over it — lets the last meeting scroll up without the
+                      // sticky header ever scrolling out of view.
+                      rendered.push(
+                        <tr key="tail-spacer" aria-hidden="true" style={{ pointerEvents: 'none' }}>
+                          <td colSpan={10} style={{ height: '55vh', border: 'none', padding: 0 }} />
+                        </tr>
+                      );
                       return rendered;
                     })()}
                   </tbody>
                 </table>
               )}
             </div>
-            {/* Spacer so the current/next meeting can scroll to the top even when
-                it's the last row of the day. */}
-            <div style={{ height: '75vh' }} aria-hidden="true" />
           </div>
         </div>
 
