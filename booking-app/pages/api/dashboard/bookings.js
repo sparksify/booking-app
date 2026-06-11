@@ -19,6 +19,14 @@ const DEFAULT_GHL_CALENDAR_ID_2 = 'h35V7plFqYf6DyY4zsdV';
 // Timezone used for date boundary calculations — must match settings.timezone
 export const BOOKING_TZ = process.env.BOOKING_TIMEZONE || 'America/Chicago';
 
+// Local calendar day (YYYY-MM-DD) for a timestamp — used as a tolerant fallback
+// when matching manual overrides/transfers to a meeting whose exact slot time
+// drifts slightly between the live Calendly/GHL feeds.
+function localDayKey(iso) {
+  try { return new Date(iso).toLocaleDateString('en-CA', { timeZone: BOOKING_TZ }); }
+  catch { return String(iso).slice(0, 10); }
+}
+
 /**
  * Returns { from, to } as UTC Date objects that bound the full day
  * of `refDate` in the target timezone.
@@ -186,14 +194,17 @@ export default async function handler(req, res) {
   // bucket. These let a rep's actions stick regardless of booking source —
   // Calendly and GHL rows have no row in the bookings table to update.
   const overrideByKey = {};
+  const overrideByDay = {};
   {
     const { data: overrides } = await supabase
       .from('meeting_status_overrides')
       .select('email, slot_start, status, cq_sent_at, cq_received_at');
     for (const o of overrides || []) {
       if (!o.email || !o.slot_start) continue;
-      const k = `${o.email.toLowerCase()}:${Math.round(new Date(o.slot_start).getTime() / (30 * 60_000))}`;
-      overrideByKey[k] = o;
+      const em = o.email.toLowerCase();
+      overrideByKey[`${em}:${Math.round(new Date(o.slot_start).getTime() / (30 * 60_000))}`] = o;
+      const dk = `${em}:${localDayKey(o.slot_start)}`;
+      (overrideByDay[dk] = overrideByDay[dk] || []).push(o);
     }
   }
 
@@ -201,14 +212,17 @@ export default async function handler(req, res) {
   // bookings row to update, so the reassignment lives here). Keyed by client
   // email + 30-min slot bucket, same scheme as overrides.
   const transferByKey = {};
+  const transferByDay = {};
   {
     const { data: transfers } = await supabase
       .from('meeting_transfers')
       .select('client_email, slot_start, to_email');
     for (const t of transfers || []) {
       if (!t.client_email || !t.slot_start) continue;
-      const k = `${t.client_email.toLowerCase()}:${Math.round(new Date(t.slot_start).getTime() / (30 * 60_000))}`;
-      transferByKey[k] = t;
+      const em = t.client_email.toLowerCase();
+      transferByKey[`${em}:${Math.round(new Date(t.slot_start).getTime() / (30 * 60_000))}`] = t;
+      const dk = `${em}:${localDayKey(t.slot_start)}`;
+      (transferByDay[dk] = transferByDay[dk] || []).push(t);
     }
   }
 
@@ -229,10 +243,17 @@ export default async function handler(req, res) {
       const lead = leadsByEmail[emailLow] || {};
       // GHL contact resolved by email (id + liquid capital) for rows missing a contact id
       const ghlC = ghlContactByEmail[emailLow] || {};
-      // Manual override (status + CQ timestamps) for this meeting, if any
-      const ovr = overrideByKey[key] || {};
-      // Transfer (reassignment to another rep) for this meeting, if any
-      const tr  = transferByKey[key] || {};
+      // Manual override (status + CQ timestamps) for this meeting. Match by the
+      // exact slot first; if that misses (the live feed nudged the time), fall
+      // back to the single override for this person on this day so marks stick.
+      const dayK = `${emailLow}:${localDayKey(b.slot_start)}`;
+      let ovr = overrideByKey[key];
+      if (!ovr) { const d = overrideByDay[dayK]; if (d && d.length === 1) ovr = d[0]; }
+      ovr = ovr || {};
+      // Transfer (reassignment to another rep), same exact-then-day matching.
+      let tr = transferByKey[key];
+      if (!tr) { const d = transferByDay[dayK]; if (d && d.length === 1) tr = d[0]; }
+      tr = tr || {};
       deduped.push({
         ...b,
         // A transfer reassigns the meeting to the target rep so it moves to
