@@ -163,11 +163,23 @@ export default function LeadsDashboard({ initialLeads, baseUrl, perms = {}, plat
   const [expandedId,   setExpandedId]  = useState(null);
   const [updating,     setUpdating]    = useState(null);
   const [copied,       setCopied]      = useState(null);
+  const [brandFilter,  setBrandFilter] = useState('all');
+  const [selected,     setSelected]    = useState(() => new Set());
+  const [tagInput,     setTagInput]    = useState('');
+  const [tagging,      setTagging]     = useState(false);
+  const [tagResult,    setTagResult]   = useState(null);
+
+  // Distinct brands present in the leads, for the brand filter dropdown.
+  const brandOptions = useMemo(
+    () => [...new Set(leads.map(l => l.brand).filter(Boolean))].sort(),
+    [leads]
+  );
 
   const filtered = useMemo(() => {
     let l = leads;
     if (statusFilter !== 'all') l = l.filter(x => x.status === statusFilter);
     if (invFilter    !== 'all') l = l.filter(x => x.investment_level === invFilter);
+    if (brandFilter  !== 'all') l = l.filter(x => x.brand === brandFilter);
     if (search) {
       const q = search.toLowerCase();
       l = l.filter(x =>
@@ -175,7 +187,40 @@ export default function LeadsDashboard({ initialLeads, baseUrl, perms = {}, plat
       );
     }
     return l;
-  }, [leads, statusFilter, invFilter, search]);
+  }, [leads, statusFilter, invFilter, brandFilter, search]);
+
+  function toggleSelect(id) {
+    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+  const allFilteredSelected = filtered.length > 0 && filtered.every(l => selected.has(l.id));
+  function toggleSelectAll() {
+    setSelected(prev => {
+      if (allFilteredSelected) { const n = new Set(prev); filtered.forEach(l => n.delete(l.id)); return n; }
+      const n = new Set(prev); filtered.forEach(l => n.add(l.id)); return n;
+    });
+  }
+  function clearSelection() { setSelected(new Set()); setTagResult(null); }
+
+  async function applyBulkTag() {
+    const tag = tagInput.trim();
+    if (!tag || selected.size === 0) return;
+    const emails = leads.filter(l => selected.has(l.id) && l.email).map(l => l.email);
+    if (!emails.length) { setTagResult({ error: 'None of the selected leads have an email.' }); return; }
+    setTagging(true); setTagResult(null);
+    try {
+      const res = await fetch('/api/dashboard/bulk-tag', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emails, tags: [tag] }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setTagResult({ error: d.error || 'Tagging failed' }); }
+      else { setTagResult({ tagged: d.tagged, total: d.total, failed: d.failed?.length || 0 }); setTagInput(''); }
+    } catch (e) {
+      setTagResult({ error: e.message });
+    } finally {
+      setTagging(false);
+    }
+  }
 
   const counts = useMemo(() => {
     const c = { all: leads.length };
@@ -282,6 +327,12 @@ export default function LeadsDashboard({ initialLeads, baseUrl, perms = {}, plat
                     </button>
                   ))}
                 </div>
+                {brandOptions.length > 0 && (
+                  <select style={s.filterSelect} value={brandFilter} onChange={e => setBrandFilter(e.target.value)}>
+                    <option value="all">All brands</option>
+                    {brandOptions.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                )}
                 <select style={s.filterSelect} value={invFilter} onChange={e => setInv(e.target.value)}>
                   <option value="all">All investment levels</option>
                   {Object.entries(INV_LABELS).map(([k, v]) => (
@@ -314,6 +365,41 @@ export default function LeadsDashboard({ initialLeads, baseUrl, perms = {}, plat
               <span style={s.resultCount}>{filtered.length.toLocaleString()} contact{filtered.length !== 1 ? 's' : ''}</span>
             </div>
 
+            {/* ── Bulk select + tag bar ── */}
+            {filtered.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, color: '#475569', cursor: 'pointer', fontWeight: 600 }}>
+                  <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAll} style={{ width: 16, height: 16, accentColor: '#2563EB' }} />
+                  Select all{filtered.length !== leads.length ? ` (${filtered.length} shown)` : ''}
+                </label>
+                {selected.size > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '8px 12px', background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 10 }}>
+                    <span style={{ fontWeight: 700, color: '#3730A3', fontSize: 13, whiteSpace: 'nowrap' }}>{selected.size} selected</span>
+                    <input
+                      value={tagInput}
+                      onChange={e => setTagInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') applyBulkTag(); }}
+                      placeholder="Tag to add in GHL…"
+                      style={{ border: '1px solid #C7D2FE', borderRadius: 7, padding: '6px 10px', fontSize: 13, fontFamily: 'inherit', minWidth: 200, outline: 'none' }}
+                    />
+                    <button
+                      onClick={applyBulkTag}
+                      disabled={tagging || !tagInput.trim()}
+                      style={{ padding: '7px 14px', fontSize: 13, fontWeight: 600, borderRadius: 7, border: 'none', background: (tagging || !tagInput.trim()) ? '#A5B4FC' : '#2563EB', color: '#fff', cursor: (tagging || !tagInput.trim()) ? 'default' : 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+                    >
+                      {tagging ? 'Tagging…' : 'Add tag in GHL'}
+                    </button>
+                    <button onClick={clearSelection} style={{ background: 'none', border: 'none', color: '#6B7280', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
+                    {tagResult && (
+                      <span style={{ fontSize: 13, fontWeight: 600, color: tagResult.error ? '#B91C1C' : '#15803D' }}>
+                        {tagResult.error ? tagResult.error : `✓ Tagged ${tagResult.tagged}/${tagResult.total}${tagResult.failed ? ` · ${tagResult.failed} not found in GHL` : ''}`}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* ── Contact list ── */}
             {filtered.length === 0 ? (
               <div style={s.empty}>
@@ -327,6 +413,8 @@ export default function LeadsDashboard({ initialLeads, baseUrl, perms = {}, plat
                   <ContactRow
                     key={lead.id}
                     lead={lead}
+                    selected={selected.has(lead.id)}
+                    onSelect={() => toggleSelect(lead.id)}
                     expanded={expandedId === lead.id}
                     onToggle={() => setExpandedId(expandedId === lead.id ? null : lead.id)}
                     onStatusChange={updateStatus}
@@ -346,7 +434,7 @@ export default function LeadsDashboard({ initialLeads, baseUrl, perms = {}, plat
 
 // ─── Contact Row ─────────────────────────────────────────────────────────────
 
-function ContactRow({ lead, expanded, onToggle, onStatusChange, updating, onCopyLink, linkCopied }) {
+function ContactRow({ lead, selected, onSelect, expanded, onToggle, onStatusChange, updating, onCopyLink, linkCopied }) {
   const status  = STATUSES.find(s => s.key === lead.status) || STATUSES[0];
   const inv     = lead.investment_level ? INV_LABELS[lead.investment_level] : null;
   const booking = lead.bookings?.[0] || null;
@@ -363,6 +451,17 @@ function ContactRow({ lead, expanded, onToggle, onStatusChange, updating, onCopy
 
       {/* Main row */}
       <div style={s.rowMain} onClick={onToggle}>
+
+        {/* Bulk-select checkbox */}
+        {onSelect && (
+          <input
+            type="checkbox"
+            checked={!!selected}
+            onClick={e => e.stopPropagation()}
+            onChange={onSelect}
+            style={{ width: 16, height: 16, marginRight: 12, accentColor: '#2563EB', flexShrink: 0, cursor: 'pointer' }}
+          />
+        )}
 
         {/* Avatar */}
         <div style={{ ...s.avatar, background: avCol.bg, color: avCol.color }}>{initials}</div>
