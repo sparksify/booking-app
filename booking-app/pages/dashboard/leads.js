@@ -57,7 +57,7 @@ export async function getServerSideProps(context) {
   const supabase = getSupabaseAdmin();
 
   // Fetch both tables in parallel
-  const [{ data: leadsRaw }, { data: bookingsRaw }] = await Promise.all([
+  const [{ data: leadsRaw }, { data: bookingsRaw }, { data: brandsRaw }] = await Promise.all([
     supabase
       .from('leads')
       .select(`
@@ -74,9 +74,20 @@ export async function getServerSideProps(context) {
       .select('id, first_name, last_name, email, phone, slot_start, assigned_to_email, meet_link, status, investment_level, created_at, booking_source')
       .order('created_at', { ascending: false })
       .limit(500),
+    supabase.from('brands').select('slug, name, fb_form_ids'),
   ]);
 
-  const leads    = leadsRaw   || [];
+  // fb_form_id → brand name. The FB form a lead filled out is the reliable
+  // brand signal we have; map each lead's form id to its brand.
+  const brandByForm = {};
+  for (const br of brandsRaw || []) {
+    for (const fid of (br.fb_form_ids || [])) brandByForm[String(fid)] = br.name || br.slug;
+  }
+
+  const leads    = (leadsRaw || []).map(l => ({
+    ...l,
+    brand: l.fb_form_id ? (brandByForm[String(l.fb_form_id)] || null) : null,
+  }));
   const bookings = bookingsRaw || [];
 
   // Emails already covered by a lead record
@@ -96,6 +107,7 @@ export async function getServerSideProps(context) {
       raw_fields:       {},
       status:           'booked',
       fb_form_id:       null,
+      brand:            null,
       ghl_contact_id:   null,
       source:           b.booking_source || 'direct',
       created_at:       b.created_at,
@@ -373,6 +385,7 @@ function ContactRow({ lead, expanded, onToggle, onStatusChange, updating, onCopy
 
         {/* Badges */}
         <div style={s.rowRight}>
+          {lead.brand && <span style={{ ...s.badge, color: '#6D28D9', background: '#F5F3FF', fontWeight: 700 }}>{lead.brand}</span>}
           <span style={{ ...s.srcBadge, color: source.color, background: source.bg }}>{source.label}</span>
           {inv && <span style={{ ...s.badge, color: inv.color, background: inv.bg }}>{inv.label}</span>}
           <span style={{ ...s.badge, color: status.color, background: status.bg }}>{status.label}</span>
