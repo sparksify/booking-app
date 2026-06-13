@@ -58,6 +58,12 @@ const STATUS_MAP = {
   'not-interested': { tag: 'not-interested', leadStatus: 'not-interested', stageId: null,              apptStatus: null     },
   // Not a good fit = rep disqualified the lead.
   'not-a-fit':      { tag: 'not-a-good-fit', leadStatus: 'disqualified',   stageId: null,              apptStatus: null     },
+  // Rescheduled = this meeting was moved. Record-only: tag + table status, but
+  // don't change the lead's status (they're still an active opportunity).
+  rescheduled:      { tag: 'rescheduled',   leadStatus: null,             stageId: null,              apptStatus: null     },
+  // Reschedule needed = the rep needs to rebook them. Sets the LEAD status so
+  // they surface in the Leads "Needs reschedule" bucket.
+  'reschedule-needed': { tag: 'reschedule-needed', leadStatus: 'reschedule-needed', stageId: null,    apptStatus: null     },
 };
 
 export default async function handler(req, res) {
@@ -129,7 +135,7 @@ export default async function handler(req, res) {
     .limit(1);
 
   const lead = leads?.[0] ?? null;
-  if (lead) {
+  if (lead && leadStatus) {
     const { error: leadErr } = await supabase
       .from('leads')
       .update({ status: leadStatus, updated_at: new Date().toISOString() })

@@ -13,12 +13,13 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUSES = [
-  { key: 'new',       label: 'New',       color: '#6366F1', bg: '#EEF2FF' },
-  { key: 'booked',    label: 'Booked',    color: '#0EA5E9', bg: '#E0F2FE' },
-  { key: 'showed',    label: 'Showed',    color: '#16A34A', bg: '#DCFCE7' },
-  { key: 'no_show',   label: 'No Show',   color: '#F59E0B', bg: '#FEF3C7' },
-  { key: 'qualified', label: 'Qualified', color: '#7C3AED', bg: '#EDE9FE' },
-  { key: 'lost',      label: 'Lost',      color: '#DC2626', bg: '#FEE2E2' },
+  { key: 'new',                label: 'New',              color: '#6366F1', bg: '#EEF2FF' },
+  { key: 'booked',             label: 'Booked',           color: '#0EA5E9', bg: '#E0F2FE' },
+  { key: 'showed',             label: 'Showed',           color: '#16A34A', bg: '#DCFCE7' },
+  { key: 'no_show',            label: 'No Show',          color: '#F59E0B', bg: '#FEF3C7' },
+  { key: 'reschedule-needed',  label: 'Needs Reschedule', color: '#B45309', bg: '#FEF3C7' },
+  { key: 'qualified',          label: 'Qualified',        color: '#7C3AED', bg: '#EDE9FE' },
+  { key: 'lost',               label: 'Lost',             color: '#DC2626', bg: '#FEE2E2' },
 ];
 
 const INV_LABELS = {
@@ -33,6 +34,7 @@ const AVATAR_COLORS = {
   booked:    { bg: '#E0F2FE', color: '#0EA5E9' },
   showed:    { bg: '#DCFCE7', color: '#16A34A' },
   no_show:   { bg: '#FEF3C7', color: '#F59E0B' },
+  'reschedule-needed': { bg: '#FEF3C7', color: '#B45309' },
   qualified: { bg: '#EDE9FE', color: '#7C3AED' },
   lost:      { bg: '#FEE2E2', color: '#DC2626' },
 };
@@ -87,6 +89,7 @@ export async function getServerSideProps(context) {
   const leads    = (leadsRaw || []).map(l => ({
     ...l,
     brand: l.fb_form_id ? (brandByForm[String(l.fb_form_id)] || null) : null,
+    rep:   l.bookings?.[0]?.assigned_to_email || null,
   }));
   const bookings = bookingsRaw || [];
 
@@ -105,9 +108,10 @@ export async function getServerSideProps(context) {
       phone:            b.phone      || '',
       investment_level: b.investment_level || null,
       raw_fields:       {},
-      status:           'booked',
+      status:           b.status === 'reschedule-needed' ? 'reschedule-needed' : 'booked',
       fb_form_id:       null,
       brand:            null,
+      rep:              b.assigned_to_email || null,
       ghl_contact_id:   null,
       source:           b.booking_source || 'direct',
       created_at:       b.created_at,
@@ -164,22 +168,29 @@ export default function LeadsDashboard({ initialLeads, baseUrl, perms = {}, plat
   const [updating,     setUpdating]    = useState(null);
   const [copied,       setCopied]      = useState(null);
   const [brandFilter,  setBrandFilter] = useState('all');
+  const [repFilter,    setRepFilter]   = useState('all');
   const [selected,     setSelected]    = useState(() => new Set());
   const [tagInput,     setTagInput]    = useState('');
   const [tagging,      setTagging]     = useState(false);
   const [tagResult,    setTagResult]   = useState(null);
 
-  // Distinct brands present in the leads, for the brand filter dropdown.
+  // Distinct brands / reps present in the leads, for the filter dropdowns.
   const brandOptions = useMemo(
     () => [...new Set(leads.map(l => l.brand).filter(Boolean))].sort(),
     [leads]
   );
+  const repOptions = useMemo(
+    () => [...new Set(leads.map(l => l.rep).filter(Boolean))].sort(),
+    [leads]
+  );
+  const repLabel = (r) => (r && r.includes('@') ? r.split('@')[0] : r);
 
   const filtered = useMemo(() => {
     let l = leads;
     if (statusFilter !== 'all') l = l.filter(x => x.status === statusFilter);
     if (invFilter    !== 'all') l = l.filter(x => x.investment_level === invFilter);
     if (brandFilter  !== 'all') l = l.filter(x => x.brand === brandFilter);
+    if (repFilter    !== 'all') l = l.filter(x => x.rep === repFilter);
     if (search) {
       const q = search.toLowerCase();
       l = l.filter(x =>
@@ -187,7 +198,7 @@ export default function LeadsDashboard({ initialLeads, baseUrl, perms = {}, plat
       );
     }
     return l;
-  }, [leads, statusFilter, invFilter, brandFilter, search]);
+  }, [leads, statusFilter, invFilter, brandFilter, repFilter, search]);
 
   function toggleSelect(id) {
     setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -331,6 +342,12 @@ export default function LeadsDashboard({ initialLeads, baseUrl, perms = {}, plat
                   <select style={s.filterSelect} value={brandFilter} onChange={e => setBrandFilter(e.target.value)}>
                     <option value="all">All brands</option>
                     {brandOptions.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                )}
+                {repOptions.length > 0 && (
+                  <select style={s.filterSelect} value={repFilter} onChange={e => setRepFilter(e.target.value)}>
+                    <option value="all">All reps</option>
+                    {repOptions.map(r => <option key={r} value={r}>{repLabel(r)}</option>)}
                   </select>
                 )}
                 <select style={s.filterSelect} value={invFilter} onChange={e => setInv(e.target.value)}>
