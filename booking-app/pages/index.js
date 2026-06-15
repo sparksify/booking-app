@@ -303,11 +303,16 @@ export default function BookingPage() {
     const brd = brandRef.current ? `&brand=${encodeURIComponent(brandRef.current)}` : '';
 
     // 1) Soonest day first → the recommended slot appears almost immediately.
+    //    Uses the range endpoint (parallel free/busy + per-rep timeout) so a
+    //    stale calendar can't stall it.
     const firstDay = days[0]?.dateStr;
     if (firstDay) {
-      fetch(`/api/availability?date=${firstDay}${inv}${brd}`)
+      fetch(`/api/availability-range?dates=${firstDay}${inv}${brd}`)
         .then(r => r.json())
-        .then(data => setSlotMap(prev => (prev[firstDay]?.loaded ? prev : { ...prev, [firstDay]: { slots: data.slots || [], loading: false, loaded: true } })))
+        .then(data => {
+          const slots = (data.days || {})[firstDay] || [];
+          setSlotMap(prev => (prev[firstDay]?.loaded ? prev : { ...prev, [firstDay]: { slots, loading: false, loaded: true } }));
+        })
         .catch(() => {});
     }
 
@@ -437,43 +442,17 @@ export default function BookingPage() {
     setPhase('booked');
   }
 
-  // Book the recommended slot directly (no footer step)
-  async function reserveRecommended() {
+  // Select the recommended slot → this slides up the confirm bar (same as
+  // picking any other time). Booking happens only when they hit confirm, so a
+  // mis-tap on the recommended time never books the wrong slot.
+  function reserveRecommended() {
     if (!recommended || booking) return;
     const day = days.find(d => d.dateStr === recommended.dateStr);
     if (!day) return;
     setSelDate(day);
     setSelSlot({ h: recommended.h, m: recommended.m, label: recommended.label });
-    setBooking(true);
     track('recommended_accepted', leadId, { dateStr: recommended.dateStr, h: recommended.h, m: recommended.m });
     if (answers.email) trackLead(answers.email, 'recommended_slot_accepted', { slot: `${recommended.dateStr}T${pad(recommended.h)}:${pad(recommended.m)}` }, leadToken);
-    try {
-      const res = await fetch('/api/book', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          firstName:        answers.firstName,
-          lastName:         answers.lastName,
-          email:            answers.email,
-          phone:            answers.phone,
-          date:             recommended.dateStr,
-          h:                recommended.h,
-          m:                recommended.m,
-          label:            recommended.label,
-          investment_level: investmentLevel || undefined,
-          lead_id:          leadId || undefined,
-          source:           bookingSource || 'direct',
-          brand:            brandRef.current || undefined,
-        }),
-      });
-      const data = res.ok ? await res.json() : {};
-      trackWithBooking('booking_completed', leadId, data.bookingId || null, {
-        dateStr: recommended.dateStr, h: recommended.h, m: recommended.m, source: 'recommended',
-      });
-      pixelTrack('Schedule', { content_name: 'Appointment Booked', content_category: 'Franchise' });
-    } catch (_) {}
-    setBooking(false);
-    setPhase('booked');
   }
 
   if (phase === 'form')
@@ -588,10 +567,11 @@ function PickingPhase({
   const [recExpanded, setRecExpanded] = useState(true);
   const slotsLoaded = Object.values(slotMap).some(v => v.loaded);
 
-  // The footer only shows when an alternative (or calendar slot) is chosen,
-  // NOT when the recommended card is the selection (it books directly).
-  const altOrCalSelected = selSlot && selDate && !(
-    recommended &&
+  // The confirm bar slides up whenever ANY time is selected — recommended,
+  // alternative, or full-calendar slot. Nothing books until they confirm there.
+  const slotSelected = !!(selSlot && selDate);
+  const recSelected = !!(
+    recommended && selSlot && selDate &&
     selDate.dateStr === recommended.dateStr &&
     selSlot.h === recommended.h &&
     selSlot.m === recommended.m
@@ -650,7 +630,7 @@ function PickingPhase({
                 <div className="gd-rec-time">{recommended.dayLabel} at {recommended.label}</div>
                 <div className="gd-rec-sub">{hoursLabel(recommended.hoursAway)} · {CFG.tz}</div>
                 <button className="gd-rec-btn" onClick={onReserveRecommended} disabled={booking}>
-                  {booking ? <><span className="bspin" /> Confirming…</> : 'Reserve This Time'}
+                  {recSelected ? '✓ Selected — confirm below' : 'Select This Time'}
                 </button>
               </div>
             ) : (
@@ -747,8 +727,8 @@ function PickingPhase({
           )}
         </div>
 
-        {/* ── Bottom bar — appears when an alternative or calendar slot is selected ── */}
-        {altOrCalSelected && (
+        {/* ── Bottom bar — appears when any time is selected (recommended, alt, or calendar) ── */}
+        {slotSelected && (
           <div className="pk-cbar">
             <div className="pk-cbar-info">
               <span className="pk-cbar-date">{selDate.dow}, {selDate.mon} {selDate.day}</span>
