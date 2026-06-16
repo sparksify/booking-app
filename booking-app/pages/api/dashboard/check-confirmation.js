@@ -87,6 +87,10 @@ function stripQuoted(text) {
   // stripping.
   t = t.replace(/<blockquote[\s\S]*?<\/blockquote>/gi, ' ');
   t = t.replace(/<div[^>]*gmail_quote[\s\S]*$/i, ' ');
+  // Cut at the team's reminder/confirmation boilerplate that gets quoted back
+  // inside a reply (these phrases never come from the lead, and they carry the
+  // "Cancel"/"Reschedule" links that were causing false declines).
+  t = t.split(/\b(?:Just a quick reminder|you'?re scheduled to speak|you'?re all set|We'?ll (?:be )?call(?:ing)? you|Add to (?:Google |iCal )?(?:Calendar|Outlook)|reply\s+["']?Confirmed|If anything (?:changes|comes up))/i)[0];
   // Cut at the quoted-reply header wherever it appears (plain text OR flattened
   // HTML). Not line-anchored, so "...Confirmed! On Mon, Jun 8 … wrote: …" works.
   t = t.split(/\bOn\b[^\n]{0,300}?\bwrote:/i)[0];
@@ -185,6 +189,8 @@ async function classifyWithAI(transcript) {
   const prompt = `You are reviewing a text/email thread between a sales & scheduling TEAM and a LEAD who has an upcoming appointment booked.
 
 Decide whether THE LEAD has confirmed they will attend. Judge ONLY by what the LEAD says. Completely ignore the TEAM's automated messages, reminders, links, and boilerplate (phrases like "reply Confirmed", "reschedule", or "cancel" in TEAM messages do NOT count).
+
+CRITICAL: A LEAD message (especially an email) often quotes the team's previous message BELOW the lead's actual reply — including reminder text and "Cancel" / "Reschedule" links. That quoted text is NOT the lead's words. NEVER treat quoted reminder text or those links as the lead declining or rescheduling. Only the lead's own newly-typed words count. If the lead's own words are an affirmation like "Confirmed" — even if quoted reminder/Cancel/Reschedule text appears after it — that is CONFIRMED.
 
 Return ONLY a compact JSON object, nothing else:
 {"status":"confirmed|declined|uncertain|no_response","reason":"<=12 words"}

@@ -130,6 +130,8 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
   const imBottomRef = useRef(null);
   const [convMessages, setConvMessages] = useState([]);
   const [convLoading,  setConvLoading]  = useState(false);
+  const [convText,     setConvText]     = useState('');
+  const [convSending,  setConvSending]  = useState(false);
   const convBottomRef = useRef(null);
   const [ghlContact,        setGhlContact]        = useState(null);
   const [ghlContactLoading, setGhlContactLoading] = useState(false);
@@ -213,7 +215,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
       setPanelTab('info'); setTimeline([]); setShowFollowUp(false); setFuSaved(false);
       setNewTagInput(''); setShowTagInput(false); setGhlContact(null); setGhlContactLoading(false);
       setImMessages([]); setImText(''); setImSending(false);
-      setConvMessages([]); setConvLoading(false);
+      setConvMessages([]); setConvLoading(false); setConvText(''); setConvSending(false);
     }
   }, [open]);
 
@@ -230,6 +232,30 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
   function openConversation() {
     setPanelTab('conversation');
     if (convMessages.length === 0 && !convLoading) loadConversation();
+  }
+  async function sendConversation() {
+    const cid   = booking?.ghl_contact_id || ghlContact?.id || '';
+    const phone = booking?.phone || lead?.phone || ghlContact?.phone || '';
+    const msg   = convText.trim();
+    if (!msg || convSending) return;
+    if (!cid) { alert('No HighLevel contact connected for this lead.'); return; }
+    setConvSending(true);
+    setConvText('');
+    setConvMessages(prev => [...prev, { id: `tmp_${Date.now()}`, direction: 'outbound', body: msg, type: 'SMS', date: new Date().toISOString() }]);
+    setTimeout(() => convBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 30);
+    try {
+      const r = await fetch('/api/dashboard/send-sms', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, message: msg, contactId: cid }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!d.ok) alert(d.error || 'Could not send the text — check the HighLevel connection.');
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setConvSending(false);
+      setTimeout(loadConversation, 1200);
+    }
   }
 
   function openImessage() {
@@ -449,7 +475,9 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
         {/* Body */}
         <div style={p.scrollBody}>
           {panelTab === 'conversation' ? (
-            <ConversationView messages={convMessages} loading={convLoading} onRefresh={loadConversation} bottomRef={convBottomRef} />
+            <ConversationView messages={convMessages} loading={convLoading} onRefresh={loadConversation} bottomRef={convBottomRef}
+              text={convText} onTextChange={setConvText} sending={convSending} onSend={sendConversation}
+              canSend={!!(booking?.ghl_contact_id || ghlContact?.id)} />
           ) : panelTab === 'imessage' ? (
             <ImessagePanel
               messages={imMessages}
@@ -774,20 +802,21 @@ const EVENT_META = {
 const SOURCE_LABELS = { direct: 'Direct', facebook_lead: 'Facebook Lead', closebot: 'CloseBot', sms: 'SMS', email: 'Email', retargeting: 'Retargeting', calendly: 'Calendly', gohighlevel: 'GoHighLevel' };
 
 // ─── HighLevel Conversation View ───────────────────────────────────────────────
-function ConversationView({ messages, loading, onRefresh, bottomRef }) {
+function ConversationView({ messages, loading, onRefresh, bottomRef, text, onTextChange, sending, onSend, canSend }) {
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 320 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px 10px' }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>HighLevel Conversation</div>
         <button onClick={onRefresh} style={{ fontSize: 12, fontWeight: 600, color: '#2563EB', background: '#EFF6FF', border: '1px solid #BFD3FF', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>↻ Refresh</button>
       </div>
-      {loading ? (
-        <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, padding: '24px 0' }}>Loading conversation…</div>
-      ) : messages.length === 0 ? (
-        <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, padding: '24px 0' }}>No HighLevel conversation found for this contact.</div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {messages.map((m, i) => {
+
+      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, paddingRight: 2 }}>
+        {loading ? (
+          <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, padding: '24px 0' }}>Loading conversation…</div>
+        ) : messages.length === 0 ? (
+          <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, padding: '24px 0' }}>No messages yet. Send the first one below.</div>
+        ) : (
+          messages.map((m, i) => {
             const out = m.direction === 'outbound';
             return (
               <div key={m.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: out ? 'flex-end' : 'flex-start' }}>
@@ -805,10 +834,25 @@ function ConversationView({ messages, loading, onRefresh, bottomRef }) {
                 </div>
               </div>
             );
-          })}
-          <div ref={bottomRef} />
-        </div>
-      )}
+          })
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', paddingTop: 10, marginTop: 10, borderTop: '1px solid #E5E8EC' }}>
+        <textarea
+          value={text}
+          onChange={e => onTextChange(e.target.value)}
+          placeholder={canSend ? 'Text message…' : 'No HighLevel contact connected'}
+          disabled={!canSend || sending}
+          rows={1}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); } }}
+          style={{ flex: 1, resize: 'none', maxHeight: 110, padding: '9px 12px', fontSize: 13, border: '1px solid #D7DCE3', borderRadius: 10, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: canSend ? '#fff' : '#F3F4F6' }}
+        />
+        <button onClick={onSend} disabled={!canSend || sending || !text.trim()} style={{ padding: '9px 16px', fontSize: 13, fontWeight: 700, color: '#fff', background: '#2563EB', border: 'none', borderRadius: 10, cursor: (!canSend || sending || !text.trim()) ? 'default' : 'pointer', opacity: (!canSend || sending || !text.trim()) ? 0.5 : 1, fontFamily: 'inherit', flexShrink: 0 }}>
+          {sending ? '…' : 'Send'}
+        </button>
+      </div>
     </div>
   );
 }
