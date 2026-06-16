@@ -64,6 +64,9 @@ const STATUS_MAP = {
   // Reschedule needed = the rep needs to rebook them. Sets the LEAD status so
   // they surface in the Leads "Needs reschedule" bucket.
   'reschedule-needed': { tag: 'reschedule-needed', leadStatus: 'reschedule-needed', stageId: null,    apptStatus: null     },
+  // Undo / revert back to an open scheduled appointment (clears the disposition,
+  // re-confirms the GHL appointment so it's no longer a no-show/showed).
+  scheduled:        { tag: null,           leadStatus: null,             stageId: null,              apptStatus: 'confirmed' },
 };
 
 export default async function handler(req, res) {
@@ -152,8 +155,8 @@ export default async function handler(req, res) {
       ghlContactId = contact?.id ?? null;
     }
 
-    if (ghlContactId) {
-      // Add tag
+    if (ghlContactId && tag) {
+      // Add tag (revert/scheduled has no tag)
       await addGHLTags(ghlContactId, [tag]).catch(e =>
         errors.push(`GHL tag: ${e.message}`)
       );

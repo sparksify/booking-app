@@ -1186,6 +1186,7 @@ function PIc({ name, size = 16 }) {
     case 'check':     return <svg {...a}><polyline points="20 6 9 17 4 12"/></svg>;
     case 'ban':       return <svg {...a}><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>;
     case 'userx':     return <svg {...a}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg>;
+    case 'undo':      return <svg {...a}><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>;
     default: return null;
   }
 }
@@ -1726,6 +1727,13 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                   <div style={{ marginTop: 11, display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: '#6B7280' }}>
                     <span style={{ width: 7, height: 7, borderRadius: '50%', background: (STATUS_META[booking.status] || {}).dot || '#9CA3AF', flexShrink: 0 }} />
                     <span>Marked <strong style={{ color: '#374151', fontWeight: 600 }}>{(STATUS_META[booking.status] || {}).label || booking.status}</strong>{booking.status_updated_at ? ` · ${new Date(booking.status_updated_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}</span>
+                    <button
+                      onClick={() => onStatusChange('scheduled')}
+                      title="Clear this disposition and reopen the appointment"
+                      style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#2563EB', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
+                    >
+                      <PIc name="undo" size={13} /> Undo
+                    </button>
                   </div>
                 )}
 
