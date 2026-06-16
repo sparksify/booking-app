@@ -42,7 +42,7 @@ function useMeetings(range = "2weeks") {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/mobile/meetings?range=${range}`);
+      const res = await fetch(`/api/mobile/meetings?range=${range}`, { credentials: "include" });
       if (!res.ok) throw new Error(`${res.status}`);
       const json = await res.json();
       setData(json.meetings || []);
@@ -69,7 +69,7 @@ function useContacts(query) {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/mobile/contacts?q=${encodeURIComponent(query)}&limit=30`);
+        const res = await fetch(`/api/mobile/contacts?q=${encodeURIComponent(query)}&limit=30`, { credentials: "include" });
         if (!res.ok) throw new Error(`${res.status}`);
         const json = await res.json();
         setData(json.contacts || []);
@@ -89,6 +89,7 @@ async function fireAction(contactId, action, payload = {}) {
   const res = await fetch("/api/mobile/actions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ contactId, action, payload }),
   });
   const json = await res.json();
@@ -282,7 +283,7 @@ function ContactDetail({ contact, onBack }) {
   const [loadingDetail, setLoadingDetail] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/mobile/contacts/${contact.id}`)
+    fetch(`/api/mobile/contacts/${contact.id}`, { credentials: "include" })
       .then(r => r.json())
       .then(d => setDetail(d.contact))
       .catch(() => setDetail(contact))
@@ -416,10 +417,30 @@ function ContactDetail({ contact, onBack }) {
 
 function HomeScreen({ onNavigate }) {
   const { meetings, loading, error, refresh } = useMeetings("2weeks");
+  const [selectedMeeting, setSelectedMeeting] = useState(null);
   const now = Date.now();
   const todayStr = new Date().toDateString();
   const todayMeetings = meetings.filter(m => new Date(m.startTime).toDateString() === todayStr);
   const nextUp = meetings.find(m => m.isNextUp);
+
+  if (selectedMeeting) {
+    // Build a contact-like object from meeting data to pass to ContactDetail
+    const contactFromMeeting = {
+      id: selectedMeeting.ghlContactId,
+      name: selectedMeeting.name,
+      email: selectedMeeting.email,
+      phone: selectedMeeting.phone || "",
+      initials: selectedMeeting.initials || selectedMeeting.name?.split(" ").map(n => n[0]).join("").slice(0,2),
+      avatarColor: selectedMeeting.avatarColor,
+      source: selectedMeeting.source,
+      brand: selectedMeeting.brand,
+      liquid: selectedMeeting.liquid,
+      score: selectedMeeting.score,
+      stage: selectedMeeting.status,
+      tags: [selectedMeeting.status],
+    };
+    return <ContactDetail contact={contactFromMeeting} onBack={() => setSelectedMeeting(null)} />;
+  }
   const stats = {
     booked: meetings.length,
     showed: meetings.filter(m => m.status === "Showed").length,
@@ -467,7 +488,7 @@ function HomeScreen({ onNavigate }) {
             <button onClick={() => onNavigate("meetings")} style={{ background: "none", border: "none", color: T.blue, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>See all</button>
           </div>
           {todayMeetings.slice(0, 3).map((m, i) => (
-            <MeetingRow key={m.id} meeting={m} isNowDivider={i > 0 && new Date(m.startTime) > new Date() && new Date(todayMeetings[i-1].startTime) < new Date()} onClick={() => {}} />
+            <MeetingRow key={m.id} meeting={m} isNowDivider={i > 0 && new Date(m.startTime) > new Date() && new Date(todayMeetings[i-1].startTime) < new Date()} onClick={() => setSelectedMeeting(m)} />
           ))}
         </>
       )}
@@ -482,8 +503,27 @@ function HomeScreen({ onNavigate }) {
 function MeetingsScreen() {
   const [range, setRange] = useState("2weeks");
   const { meetings, loading, error, refresh } = useMeetings(range);
+  const [selectedMeeting, setSelectedMeeting] = useState(null);
   const filters = [{ id: "today", label: "Today" }, { id: "tomorrow", label: "Tomorrow" }, { id: "2weeks", label: "Next 2 Weeks" }];
   const now = Date.now();
+
+  if (selectedMeeting) {
+    const contactFromMeeting = {
+      id: selectedMeeting.ghlContactId,
+      name: selectedMeeting.name,
+      email: selectedMeeting.email,
+      phone: selectedMeeting.phone || "",
+      initials: selectedMeeting.initials || selectedMeeting.name?.split(" ").map(n => n[0]).join("").slice(0,2),
+      avatarColor: selectedMeeting.avatarColor,
+      source: selectedMeeting.source,
+      brand: selectedMeeting.brand,
+      liquid: selectedMeeting.liquid,
+      score: selectedMeeting.score,
+      stage: selectedMeeting.status,
+      tags: [selectedMeeting.status],
+    };
+    return <ContactDetail contact={contactFromMeeting} onBack={() => setSelectedMeeting(null)} />;
+  }
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -509,7 +549,7 @@ function MeetingsScreen() {
         {meetings.map((m, i) => {
           const prev = meetings[i - 1];
           const isNow = i > 0 && new Date(m.startTime) >= new Date() && prev && new Date(prev.startTime) < new Date();
-          return <MeetingRow key={m.id} meeting={m} isNowDivider={isNow} onClick={() => {}} />;
+          return <MeetingRow key={m.id} meeting={m} isNowDivider={isNow} onClick={() => setSelectedMeeting(m)} />;
         })}
       </div>
     </div>
