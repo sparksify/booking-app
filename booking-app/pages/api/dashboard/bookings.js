@@ -198,7 +198,7 @@ export default async function handler(req, res) {
   {
     const { data: overrides } = await supabase
       .from('meeting_status_overrides')
-      .select('email, slot_start, status, cq_sent_at, cq_received_at');
+      .select('email, slot_start, status, cq_sent_at, cq_received_at, updated_at');
     for (const o of overrides || []) {
       if (!o.email || !o.slot_start) continue;
       const em = o.email.toLowerCase();
@@ -264,6 +264,7 @@ export default async function handler(req, res) {
         // Manual override wins over the source's status (e.g. Calendly always
         // reports 'scheduled'; a rep marking no-show must take precedence).
         status:           ovr.status         || b.status,
+        status_updated_at: ovr.status ? (ovr.updated_at || null) : (b.status_updated_at || null),
         cq_sent_at:       ovr.cq_sent_at     || b.cq_sent_at     || cq.cq_sent_at     || null,
         cq_received_at:   ovr.cq_received_at  || b.cq_received_at || cq.cq_received_at || null,
         ghl_contact_id:   b.ghl_contact_id   || ghlC.id             || null,

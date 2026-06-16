@@ -374,12 +374,13 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
       return;
     }
     setUpdating(u => ({ ...u, [booking.id]: true }));
+    const now = new Date().toISOString();
     await fetch('/api/dashboard/update-booking-status', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ bookingId: booking.id, email: booking.email, status, assigned_user_id: booking.assigned_user_id || null, slot_start: booking.slot_start }),
     }).catch(console.error);
-    setBookings(bs => bs.map(b => b.id === booking.id ? { ...b, status } : b));
-    if (panelBooking?.id === booking.id) setPanelBooking(b => ({ ...b, status }));
+    setBookings(bs => bs.map(b => b.id === booking.id ? { ...b, status, status_updated_at: now } : b));
+    if (panelBooking?.id === booking.id) setPanelBooking(b => ({ ...b, status, status_updated_at: now }));
     setUpdating(u => ({ ...u, [booking.id]: false }));
   }
 
@@ -1690,59 +1691,64 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
               {/* Quick Actions */}
               <div style={p.card}>
                 <div style={p.sectionTitle}>Quick Actions</div>
-                {booking.status === 'scheduled' && (
-                  <div style={p.qaGrid}>
-                    {/* Row 1 — outcome */}
-                    <button style={{ ...p.qaBtn, background: '#16A34A', color: '#fff', border: 'none' }} onClick={() => onStatusChange('showed')}>
-                      <PIc name="check" size={16} /> Showed
-                    </button>
-                    <button style={{ ...p.qaBtn, background: '#FEF2F2', color: '#DC2626', border: '1px solid #FCA5A5' }} onClick={() => onStatusChange('no-show')}>
-                      <PIc name="ban" size={16} /> No-Show
-                    </button>
-                    {/* Row 2 — reschedule */}
-                    <button style={{ ...p.qaBtn, background: '#FFFBEB', color: '#B45309', border: '1px solid #FDE68A' }} onClick={() => onStatusChange('reschedule-needed')}>
-                      <PIc name="calendar" size={16} /> Reschedule Needed
-                    </button>
-                    <button style={{ ...p.qaBtn, background: '#fff', color: '#475569', border: '1px solid #E2E8F0' }} onClick={() => onStatusChange('rescheduled')}>
-                      <PIc name="check" size={16} /> Rescheduled
-                    </button>
-                    {/* Row 3 — follow-up / disqualify */}
-                    <button style={{ ...p.qaBtn, background: '#fff', color: cqSent ? '#16A34A' : '#2563EB', border: `1px solid ${cqSent ? '#BBF7D0' : '#C7D9FF'}`, cursor: cqSent ? 'default' : 'pointer' }} onClick={sendCQ} disabled={cqSent}>
-                      {cqSent ? <><PIc name="check" size={16} /> CQ Sent</> : <><PIc name="send" size={16} /> Send CQ</>}
-                    </button>
-                    <button style={{ ...p.qaBtn, background: '#FFF7ED', color: '#C2410C', border: '1px solid #FED7AA' }} onClick={() => onStatusChange('not-a-fit')}>
-                      <PIc name="userx" size={16} /> Not a Good Fit
-                    </button>
+                {/* Disposition grid — always available. The active one is
+                    highlighted; click any to re-mark (e.g. flip a No-Show back
+                    to Showed). Nothing collapses or disappears. */}
+                <div style={p.qaGrid}>
+                  {[
+                    { key: 'showed',            label: 'Showed',            icon: 'check',    aBg: '#16A34A', iBg: '#fff',    iFg: '#16A34A', iBd: '#BBF7D0' },
+                    { key: 'no-show',           label: 'No-Show',           icon: 'ban',      aBg: '#DC2626', iBg: '#FEF2F2', iFg: '#DC2626', iBd: '#FCA5A5' },
+                    { key: 'reschedule-needed', label: 'Reschedule Needed', icon: 'calendar', aBg: '#B45309', iBg: '#FFFBEB', iFg: '#B45309', iBd: '#FDE68A' },
+                    { key: 'rescheduled',       label: 'Rescheduled',       icon: 'check',    aBg: '#475569', iBg: '#fff',    iFg: '#475569', iBd: '#E2E8F0' },
+                  ].map(d => {
+                    const on = booking.status === d.key;
+                    return (
+                      <button key={d.key}
+                        style={{ ...p.qaBtn, background: on ? d.aBg : d.iBg, color: on ? '#fff' : d.iFg, border: on ? 'none' : `1px solid ${d.iBd}`, fontWeight: on ? 700 : 600 }}
+                        onClick={() => onStatusChange(d.key)}>
+                        <PIc name={on ? 'check' : d.icon} size={16} /> {d.label}
+                      </button>
+                    );
+                  })}
+                  {/* Send CQ — an action, not a status */}
+                  <button style={{ ...p.qaBtn, background: '#fff', color: cqSent ? '#16A34A' : '#2563EB', border: `1px solid ${cqSent ? '#BBF7D0' : '#C7D9FF'}`, cursor: cqSent ? 'default' : 'pointer' }} onClick={sendCQ} disabled={cqSent}>
+                    {cqSent ? <><PIc name="check" size={16} /> CQ Sent</> : <><PIc name="send" size={16} /> Send CQ</>}
+                  </button>
+                  {/* Not a Good Fit */}
+                  {(() => {
+                    const on = booking.status === 'not-a-fit';
+                    return (
+                      <button style={{ ...p.qaBtn, background: on ? '#C2410C' : '#FFF7ED', color: on ? '#fff' : '#C2410C', border: on ? 'none' : '1px solid #FED7AA', fontWeight: on ? 700 : 600 }} onClick={() => onStatusChange('not-a-fit')}>
+                        <PIc name={on ? 'check' : 'userx'} size={16} /> Not a Good Fit
+                      </button>
+                    );
+                  })()}
+                </div>
+
+                {/* What was done + when — stays on the record, never blocks re-marking */}
+                {booking.status && booking.status !== 'scheduled' && (
+                  <div style={{ marginTop: 11, display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: '#6B7280' }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: (STATUS_META[booking.status] || {}).dot || '#9CA3AF', flexShrink: 0 }} />
+                    <span>Marked <strong style={{ color: '#374151', fontWeight: 600 }}>{(STATUS_META[booking.status] || {}).label || booking.status}</strong>{booking.status_updated_at ? ` · ${new Date(booking.status_updated_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}</span>
                   </div>
                 )}
+
+                {/* Post-show follow-ups — additive, shown once they showed */}
                 {booking.status === 'showed' && (
-                  <div style={p.qaGrid}>
+                  <div style={{ ...p.qaGrid, marginTop: 11, paddingTop: 11, borderTop: '1px solid #F1F3F5' }}>
                     {cqReceived ? (
                       <div style={{ ...p.qaBtn, ...p.qaSpan, background: '#DCFCE7', color: '#15803D', border: '1px solid #BBF7D0', cursor: 'default' }}><PIc name="check" size={16} /> CQ Received</div>
-                    ) : (
-                      <button style={{ ...p.qaBtn, ...p.qaSpan, background: cqSent ? '#16A34A' : '#2563EB', color: '#fff', border: 'none', cursor: cqSent ? 'default' : 'pointer', opacity: cqSent ? 0.95 : 1 }} onClick={sendCQ} disabled={cqSent}>
-                        {cqSent ? <><PIc name="check" size={16} /> CQ Sent</> : <><PIc name="send" size={16} /> Send CQ</>}
-                      </button>
-                    )}
-                    {cqSent && !cqReceived && (
+                    ) : cqSent ? (
                       <button style={{ ...p.qaBtn, ...p.qaSpan, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={markCQReceived} disabled={cqRecvSaving}>
                         {cqRecvSaving ? 'Saving…' : 'Mark CQ Received'}
                       </button>
-                    )}
+                    ) : null}
                     <button style={{ ...p.qaBtn, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={() => setShowFollowUp(true)}>
                       <PIc name="calendar" size={16} /> Follow-up
                     </button>
                     <button style={{ ...p.qaBtn, background: '#fff', color: '#DC2626', border: '1px solid #FECACA' }} onClick={() => onStatusChange('not-interested')}>
                       <PIc name="ban" size={16} /> Not Interested
                     </button>
-                    <button style={{ ...p.qaBtn, ...p.qaSpan, background: '#fff', color: '#EA580C', border: '1px solid #FED7AA' }} onClick={() => onStatusChange('not-a-fit')}>
-                      <PIc name="userx" size={16} /> Not a Good Fit
-                    </button>
-                  </div>
-                )}
-                {(booking.status === 'no-show' || booking.status === 'closed' || booking.status === 'not-interested' || booking.status === 'not-a-fit') && (
-                  <div style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '8px 0' }}>
-                    {booking.status === 'closed' ? 'Deal closed' : booking.status === 'not-interested' ? 'Marked not interested' : booking.status === 'not-a-fit' ? 'Marked not a good fit' : 'No further actions'}
                   </div>
                 )}
               </div>
