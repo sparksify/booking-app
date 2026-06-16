@@ -272,7 +272,7 @@ export default function CQRecovery({ perms = {}, platformLogo = null, navOrder =
               );
             })}
           </nav>
-          <div style={s.sideBottom}><div style={s.sideHelpRow}><span style={{ color: '#9CA3AF', display: 'flex' }}><SideIcon name="help" /></span><span style={{ fontSize: 13, color: '#6B7280' }}>Help</span></div><SidebarUser /></div>
+          <div style={s.sideBottom}><SidebarUser /></div>
         </aside>
 
         {/* Main */}

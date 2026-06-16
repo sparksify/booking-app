@@ -287,10 +287,6 @@ export default function LeadsDashboard({ initialLeads, baseUrl, perms = {}, plat
             })}
           </nav>
           <div style={s.sideBottom}>
-            <div style={s.sideHelpRow}>
-              <span style={{ color: '#9CA3AF', display: 'flex' }}><SideIcon name="help" /></span>
-              <span style={{ fontSize: 13, color: '#6B7280' }}>Help</span>
-            </div>
             <SidebarUser />
           </div>
         </aside>
