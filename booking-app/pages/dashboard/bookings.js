@@ -1732,9 +1732,9 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: '.04em', marginBottom: 8 }}>CQ</div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     {cqSent ? (
-                      <div style={{ ...p.qaBtn, flex: 1, background: '#F0FDF4', color: '#15803D', border: '1px solid #BBF7D0', cursor: 'default' }}><PIc name="check" size={15} /> CQ Sent</div>
+                      <div style={{ ...p.qaBtn, flex: 1, background: '#16A34A', color: '#fff', border: 'none', cursor: 'default' }}><PIc name="check" size={15} /> CQ Sent</div>
                     ) : (
-                      <button style={{ ...p.qaBtn, flex: 1, background: '#16A34A', color: '#fff', border: 'none' }} onClick={sendCQ}><PIc name="send" size={15} /> Send CQ</button>
+                      <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#16A34A', border: '1px solid #BBF7D0' }} onClick={sendCQ}><PIc name="send" size={15} /> Send CQ</button>
                     )}
                     {cqReceived ? (
                       <div style={{ ...p.qaBtn, flex: 1, background: '#DCFCE7', color: '#15803D', border: '1px solid #BBF7D0', cursor: 'default' }}><PIc name="check" size={15} /> CQ Received</div>
