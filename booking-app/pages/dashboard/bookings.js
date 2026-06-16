@@ -1734,7 +1734,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                     {cqSent ? (
                       <div style={{ ...p.qaBtn, flex: 1, background: '#F0FDF4', color: '#15803D', border: '1px solid #BBF7D0', cursor: 'default' }}><PIc name="check" size={15} /> CQ Sent</div>
                     ) : (
-                      <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#2563EB', border: '1px solid #C7D9FF' }} onClick={sendCQ}><PIc name="send" size={15} /> Send CQ</button>
+                      <button style={{ ...p.qaBtn, flex: 1, background: '#16A34A', color: '#fff', border: 'none' }} onClick={sendCQ}><PIc name="send" size={15} /> Send CQ</button>
                     )}
                     {cqReceived ? (
                       <div style={{ ...p.qaBtn, flex: 1, background: '#DCFCE7', color: '#15803D', border: '1px solid #BBF7D0', cursor: 'default' }}><PIc name="check" size={15} /> CQ Received</div>
