@@ -275,20 +275,36 @@ function MeetingRow({ meeting, isNowDivider, onClick }) {
 // ─── CONTACT DETAIL ───────────────────────────────────────────────────────────
 
 function ContactDetail({ contact, onBack }) {
+  const [tab, setTab] = useState("info");
   const [note, setNote] = useState("");
-  const [showNote, setShowNote] = useState(false);
   const [firing, setFiring] = useState(null);
   const [done, setDone] = useState({});
+  const [lastAction, setLastAction] = useState(null);
   const [detail, setDetail] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(true);
+  const [conversation, setConversation] = useState([]);
+  const [loadingConvo, setLoadingConvo] = useState(false);
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
+    if (!contact.id) { setLoadingDetail(false); return; }
     fetch(`/api/mobile/contacts/${contact.id}`, { credentials: "include" })
       .then(r => r.json())
       .then(d => setDetail(d.contact))
       .catch(() => setDetail(contact))
       .finally(() => setLoadingDetail(false));
   }, [contact.id]);
+
+  useEffect(() => {
+    if (tab !== "conversation" || !contact.id) return;
+    setLoadingConvo(true);
+    fetch(`/api/mobile/conversation?contactId=${contact.id}`, { credentials: "include" })
+      .then(r => r.json())
+      .then(d => setConversation(d.messages || []))
+      .catch(() => setConversation([]))
+      .finally(() => setLoadingConvo(false));
+  }, [tab, contact.id]);
 
   const c = detail || contact;
 
@@ -298,6 +314,7 @@ function ContactDetail({ contact, onBack }) {
     try {
       await fireAction(c.id, action, payload);
       setDone(prev => ({ ...prev, [action]: true }));
+      setLastAction({ label: action.replace(/_/g, " "), time: new Date().toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) });
       setTimeout(() => setDone(prev => ({ ...prev, [action]: false })), 3000);
     } catch (e) {
       alert(e.message);
@@ -306,109 +323,272 @@ function ContactDetail({ contact, onBack }) {
     }
   };
 
-  const saveNote = () => {
+  const saveNote = async () => {
     if (!note.trim()) return;
-    fire("note", { body: note }).then(() => { setNote(""); setShowNote(false); });
+    await fire("note", { body: note });
+    setNote("");
   };
 
-  const ACTIONS = [
-    { id: "booking_link", label: "Send Booking Link", icon: "📅", color: T.blue },
-    { id: "workflow", label: "Trigger Workflow", icon: "⚡", color: "#7c3aed" },
-    { id: "short_link", label: "Copy Short Link", icon: "🔗", color: "#0891b2", onClick: async () => {
-      const res = await fireAction(c.id, "short_link", { brand: c.brand });
-      if (res.result?.shortUrl) {
-        await navigator.clipboard.writeText(res.result.shortUrl).catch(() => {});
-        alert(`Copied: ${res.result.shortUrl}`);
-      }
-    }},
-    { id: "stage", label: "Update Stage", icon: "🔄", color: "#ea580c" },
+  const sendMessage = async () => {
+    if (!message.trim() || !c.id) return;
+    setSending(true);
+    try {
+      await fetch("/api/mobile/actions", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactId: c.id, action: "sms", payload: { body: message } }),
+      });
+      setConversation(prev => [...prev, { id: Date.now(), type: "SMS", direction: "outbound", body: message, dateAdded: new Date().toISOString() }]);
+      setMessage("");
+    } catch (e) { alert(e.message); }
+    finally { setSending(false); }
+  };
+
+  // Score label
+  const scoreLabel = (s) => s >= 70 ? "Hot" : s >= 40 ? "Warm" : s >= 20 ? "Cool" : "Cold";
+  const scoreLabelColor = (s) => s >= 70 ? "#dc2626" : s >= 40 ? "#ea580c" : s >= 20 ? "#2563eb" : "#64748b";
+
+  // Quick action buttons matching desktop exactly
+  const QUICK_ACTIONS = [
+    { id: "showed",    label: "Showed",            icon: "✓", color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0" },
+    { id: "no_show",   label: "No-Show",           icon: "✓", color: "#ffffff", bg: "#dc2626", border: "#dc2626", solid: true },
+    { id: "reschedule_needed", label: "Reschedule Needed", icon: "📅", color: "#ea580c", bg: "#fff7ed", border: "#fed7aa" },
+    { id: "rescheduled",       label: "Rescheduled",       icon: "✓", color: "#64748b", bg: "#ffffff", border: "#e2e8f0" },
+    { id: "send_cq",           label: "Send CQ",           icon: "➤", color: "#2563eb", bg: "#ffffff", border: "#e2e8f0" },
+    { id: "not_a_fit",         label: "Not a Good Fit",    icon: "✗", color: "#ea580c", bg: "#fff7ed", border: "#fed7aa" },
   ];
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", background: T.bgPage }}>
-      <div style={{ background: T.bgCard, borderBottom: `1px solid ${T.border}`, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, zIndex: 10, paddingTop: "calc(14px + env(safe-area-inset-top))" }}>
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: T.bgPage }}>
+
+      {/* Sticky header */}
+      <div style={{ background: T.bgCard, borderBottom: `1px solid ${T.border}`, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0, paddingTop: "calc(14px + env(safe-area-inset-top))" }}>
         <button onClick={onBack} style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 8, padding: "7px 10px", cursor: "pointer", display: "flex", color: T.textSecondary }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
         <span style={{ fontWeight: 800, fontSize: 17, color: T.textPrimary }}>Contact Details</span>
       </div>
 
-      {loadingDetail ? <Spinner /> : (
-        <>
-          <div style={{ background: T.bgCard, padding: "24px 20px 20px", textAlign: "center", borderBottom: `1px solid ${T.border}` }}>
-            <Avatar initials={c.initials} color={c.avatarColor || T.blue} size={64} />
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontWeight: 800, fontSize: 20, color: T.textPrimary }}>{c.name}</div>
-              <div style={{ fontSize: 13, color: T.textMuted, marginTop: 3 }}>{c.email}</div>
-            </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 12, flexWrap: "wrap" }}>
-              {c.source && <SourceChip source={c.source} />}
-              {c.tags?.[0] && <StatusPill status={c.tags[0]} />}
-              {c.score != null && <ScoreBadge score={c.score} />}
-            </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              <a href={`tel:${c.phone}`} style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.bgCard, color: "#16a34a", fontWeight: 700, fontSize: 13, textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.5 19.79 19.79 0 0 1 1.62 4.9 2 2 0 0 1 3.59 2.72h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.5a16 16 0 0 0 5.59 5.59l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 18v.97"/></svg>
-                Call
-              </a>
-              <a href={`mailto:${c.email}`} style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.bgCard, color: T.blue, fontWeight: 700, fontSize: 13, textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                Email
-              </a>
-            </div>
-          </div>
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        {loadingDetail ? <Spinner /> : (<>
 
-          <div style={{ padding: "16px 16px 0" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Details</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-              {[
-                { label: "Brand", value: c.brand || "—" },
-                { label: "Stage", value: c.stage || "—" },
-                { label: "Liquid Capital", value: c.liquid || "—" },
-                { label: "Meetings", value: c.totalMeetings != null ? `${c.totalMeetings} total` : "—" },
-              ].map(({ label, value }) => (
-                <div key={label} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 12, padding: "12px 14px" }}>
-                  <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 600 }}>{label}</div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: T.textPrimary }}>{value}</div>
+          {/* Profile header */}
+          <div style={{ background: T.bgCard, padding: "20px 20px 16px", borderBottom: `1px solid ${T.border}` }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 12 }}>
+              <Avatar initials={c.initials} color={c.avatarColor || T.blue} size={56} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: 20, color: T.textPrimary, marginBottom: 2 }}>{c.name}</div>
+                <div style={{ fontSize: 13, color: T.textMuted, display: "flex", alignItems: "center", gap: 5, marginBottom: 2 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                  {c.email}
                 </div>
-              ))}
+                {c.phone && (
+                  <div style={{ fontSize: 13, color: T.textMuted, display: "flex", alignItems: "center", gap: 5 }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.5 19.79 19.79 0 0 1 1.62 4.9 2 2 0 0 1 3.59 2.72h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.5a16 16 0 0 0 5.59 5.59l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 18v.97"/></svg>
+                    {c.phone}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {c.nextMeeting && (
-              <div style={{ background: T.blueSoft, border: `1px solid ${T.blueLight}`, borderRadius: 12, padding: "12px 14px", marginBottom: 16 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: T.blue, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Next Meeting</div>
-                <div style={{ fontWeight: 700, fontSize: 14, color: T.textPrimary }}>{new Date(c.nextMeeting.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
-                <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 2 }}>{c.nextMeeting.title}</div>
-              </div>
-            )}
+            {/* Source + status chips */}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+              {c.source && <SourceChip source={c.source} />}
+              {c.brand && <span style={{ fontSize: 12, fontWeight: 500, padding: "3px 10px", borderRadius: 20, background: T.bgInput, color: T.textSecondary, border: `1px solid ${T.border}` }}>{c.brand}</span>}
+              {c.tags?.[0] && <StatusPill status={c.tags[0]} />}
+            </div>
+
+            {/* 4 action buttons */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+              {[
+                { label: "Call", href: `tel:${c.phone}`, icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.5 19.79 19.79 0 0 1 1.62 4.9 2 2 0 0 1 3.59 2.72h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.5a16 16 0 0 0 5.59 5.59l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 18v.97"/></svg> },
+                { label: "Email", href: `mailto:${c.email}`, icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> },
+                { label: "iMessage", href: `sms:${c.phone}`, icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
+                { label: "Open", href: `https://app.gohighlevel.com/contacts/${c.id}`, icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> },
+              ].map(btn => (
+                <a key={btn.label} href={btn.href} target={btn.label === "Open" ? "_blank" : undefined} rel="noreferrer" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: "10px 6px", borderRadius: 10, border: `1px solid ${T.border}`, background: T.bgCard, color: T.textPrimary, textDecoration: "none", fontSize: 11, fontWeight: 600 }}>
+                  {btn.icon}
+                  {btn.label}
+                </a>
+              ))}
+            </div>
           </div>
 
-          <div style={{ padding: "0 16px 8px" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Quick Actions</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-              {ACTIONS.map(a => (
-                <button key={a.id} onClick={() => a.onClick ? a.onClick() : fire(a.id)} disabled={firing === a.id} style={{ background: done[a.id] ? a.color + "15" : T.bgCard, border: `1.5px solid ${done[a.id] ? a.color : T.border}`, borderRadius: 12, padding: "13px 10px", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6, cursor: firing === a.id ? "wait" : "pointer", opacity: firing === a.id ? 0.6 : 1 }}>
-                  <span style={{ fontSize: 18 }}>{a.icon}</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: done[a.id] ? a.color : T.textPrimary, textAlign: "left", lineHeight: 1.3 }}>
-                    {firing === a.id ? "Sending..." : done[a.id] ? "Done ✓" : a.label}
-                  </span>
+          {/* Tabs */}
+          <div style={{ background: T.bgCard, borderBottom: `1px solid ${T.border}`, display: "flex", flexShrink: 0 }}>
+            {["Info", "Conversation", "Timeline"].map(t => (
+              <button key={t} onClick={() => setTab(t.toLowerCase())} style={{ flex: 1, padding: "13px 0", background: "none", border: "none", cursor: "pointer", fontSize: 14, fontWeight: tab === t.toLowerCase() ? 700 : 500, color: tab === t.toLowerCase() ? T.blue : T.textMuted, borderBottom: tab === t.toLowerCase() ? `2px solid ${T.blue}` : "2px solid transparent", marginBottom: -1 }}>
+                {t}
+              </button>
+            ))}
+          </div>
+
+          {/* ── INFO TAB ── */}
+          {tab === "info" && (
+            <div style={{ padding: "16px" }}>
+
+              {/* Lead Score Card */}
+              {c.score != null && (
+                <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: "16px", marginBottom: 14 }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 12 }}>
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontWeight: 900, fontSize: 40, color: T.textPrimary, lineHeight: 1 }}>{c.score}</div>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: T.bgInput, color: scoreLabelColor(c.score), border: `1px solid ${T.border}`, display: "inline-block", marginTop: 4 }}>
+                        {scoreLabel(c.score)}
+                      </span>
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: 16, color: T.textPrimary, marginBottom: 8 }}>Lead Score</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                        {c.liquid && <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 20, background: T.bgInput, color: T.textSecondary, border: `1px solid ${T.border}`, display: "inline-block" }}>+ Liquid capital {c.liquid}</span>}
+                        {c.tags?.includes("no-show") && <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 20, background: "#fff1f2", color: "#e11d48", border: "1px solid #fecdd3", display: "inline-block" }}>− No-showed the appointment</span>}
+                        {c.tags?.includes("emailopened") && <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 20, background: T.bgInput, color: T.textSecondary, border: `1px solid ${T.border}`, display: "inline-block" }}>+ Opened the CQ email</span>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Contact / Booking Details */}
+              <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: "16px", marginBottom: 14 }}>
+                <div style={{ fontWeight: 800, fontSize: 15, color: T.textPrimary, marginBottom: 14 }}>Contact / Booking Details</div>
+                {[
+                  { label: "Phone", value: c.phone, href: `tel:${c.phone}`, icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.5 19.79 19.79 0 0 1 1.62 4.9 2 2 0 0 1 3.59 2.72h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.5a16 16 0 0 0 5.59 5.59l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 18v.97"/></svg> },
+                  { label: "Email", value: c.email, href: `mailto:${c.email}`, icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> },
+                  { label: "Scheduled", value: c.nextMeeting ? new Date(c.nextMeeting.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : c.lastMeeting ? new Date(c.lastMeeting.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null, icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
+                  { label: "Consultant", value: c.assignedTo || "Steve Sparks", icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
+                  { label: "Liquid Cap.", value: c.liquid, icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> },
+                  { label: "Owned Biz", value: c.ownedBusiness, icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg> },
+                  { label: "Territory", value: c.territory, icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> },
+                ].filter(row => row.value).map(row => (
+                  <div key={row.label} style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 11, paddingBottom: 11, borderTop: `1px solid ${T.border}` }}>
+                    <span style={{ flexShrink: 0 }}>{row.icon}</span>
+                    <span style={{ width: 90, fontSize: 13, color: T.textMuted, flexShrink: 0 }}>{row.label}</span>
+                    {row.href
+                      ? <a href={row.href} style={{ fontSize: 13, fontWeight: 600, color: T.blue, textDecoration: "none", flex: 1 }}>{row.value}</a>
+                      : <span style={{ fontSize: 13, fontWeight: 600, color: T.textPrimary, flex: 1 }}>{row.value}</span>
+                    }
+                  </div>
+                ))}
+              </div>
+
+              {/* GHL Tags */}
+              {c.tags?.length > 0 && (
+                <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: "16px", marginBottom: 14 }}>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: T.textPrimary, marginBottom: 12 }}>GHL Tags</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {c.tags.map(tag => (
+                      <span key={tag} style={{ fontSize: 12, fontWeight: 500, padding: "5px 12px", borderRadius: 20, background: T.bgInput, color: T.textSecondary, border: `1px solid ${T.border}` }}>{tag}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: "16px", marginBottom: 14 }}>
+                <div style={{ fontWeight: 800, fontSize: 15, color: T.textPrimary, marginBottom: 12 }}>Notes</div>
+                <textarea
+                  value={note}
+                  onChange={e => setNote(e.target.value)}
+                  placeholder="Add notes about this client..."
+                  style={{ width: "100%", boxSizing: "border-box", minHeight: 100, background: "#fffef0", border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 12px", fontSize: 14, color: T.textPrimary, outline: "none", fontFamily: "Inter, system-ui, sans-serif", resize: "none" }}
+                />
+                <button onClick={saveNote} disabled={firing === "note" || !note.trim()} style={{ marginTop: 10, background: T.blue, color: "white", border: "none", borderRadius: 8, padding: "11px 20px", fontWeight: 700, fontSize: 14, cursor: "pointer", opacity: firing === "note" ? 0.6 : 1 }}>
+                  {firing === "note" ? "Saving..." : "Save Notes"}
                 </button>
-              ))}
-            </div>
-
-            <button onClick={() => setShowNote(!showNote)} style={{ width: "100%", background: T.bgCard, border: `1.5px solid ${T.border}`, borderRadius: showNote ? "12px 12px 0 0" : 12, padding: "13px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", marginBottom: 0 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, display: "flex", alignItems: "center", gap: 8 }}>📝 Add Note</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><polyline points={showNote ? "18 15 12 9 6 15" : "6 9 12 15 18 9"}/></svg>
-            </button>
-            {showNote && (
-              <div style={{ background: T.bgCard, border: `1.5px solid ${T.border}`, borderTop: "none", borderRadius: "0 0 12px 12px", padding: "12px 14px", marginBottom: 24 }}>
-                <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Type a note..." style={{ width: "100%", boxSizing: "border-box", minHeight: 80, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 12px", fontSize: 14, color: T.textPrimary, outline: "none", fontFamily: "Inter, system-ui, sans-serif", resize: "none" }} />
-                <button onClick={saveNote} style={{ marginTop: 8, width: "100%", background: T.blue, color: "white", border: "none", borderRadius: 8, padding: "10px", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Save Note to Kanso</button>
               </div>
-            )}
-          </div>
-        </>
-      )}
+
+              {/* Quick Actions */}
+              <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: "16px", marginBottom: 24 }}>
+                <div style={{ fontWeight: 800, fontSize: 15, color: T.textPrimary, marginBottom: 14 }}>Quick Actions</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {QUICK_ACTIONS.map(a => (
+                    <button key={a.id} onClick={() => fire(a.id)} disabled={firing === a.id} style={{
+                      padding: "13px 10px", borderRadius: 10,
+                      background: done[a.id] ? a.bg : a.solid ? a.bg : T.bgCard,
+                      border: `1.5px solid ${a.border}`,
+                      color: a.solid ? a.color : done[a.id] ? a.color : a.color,
+                      fontWeight: 700, fontSize: 14, cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      opacity: firing === a.id ? 0.6 : 1,
+                      transition: "all 0.15s",
+                    }}>
+                      <span style={{ fontSize: 14 }}>{a.icon}</span>
+                      {firing === a.id ? "..." : done[a.id] ? "Done ✓" : a.label}
+                    </button>
+                  ))}
+                </div>
+                {lastAction && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 12, fontSize: 12, color: T.textMuted }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#e11d48", flexShrink: 0 }} />
+                    Marked <strong style={{ color: T.textSecondary, marginLeft: 3, marginRight: 3 }}>{lastAction.label}</strong> · {lastAction.time}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── CONVERSATION TAB ── */}
+          {tab === "conversation" && (
+            <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+              <div style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${T.border}`, background: T.bgCard }}>
+                <span style={{ fontWeight: 800, fontSize: 15, color: T.textPrimary }}>HighLevel Conversation</span>
+                <button onClick={() => {
+                  setLoadingConvo(true);
+                  fetch(`/api/mobile/conversation?contactId=${contact.id}`, { credentials: "include" })
+                    .then(r => r.json()).then(d => setConversation(d.messages || [])).finally(() => setLoadingConvo(false));
+                }} style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600, color: T.blue, display: "flex", alignItems: "center", gap: 5 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                  Refresh
+                </button>
+              </div>
+              <div style={{ flex: 1, overflowY: "auto", padding: "16px", background: "#f8fafc", display: "flex", flexDirection: "column", gap: 12 }}>
+                {loadingConvo && <Spinner />}
+                {!loadingConvo && conversation.length === 0 && (
+                  <EmptyState icon="💬" title="No messages yet" subtitle="Send the first message below." />
+                )}
+                {conversation.map(msg => (
+                  <div key={msg.id} style={{ display: "flex", flexDirection: "column", alignItems: msg.direction === "outbound" ? "flex-end" : "flex-start" }}>
+                    <div style={{
+                      maxWidth: "82%", padding: "12px 14px", borderRadius: 14,
+                      background: msg.direction === "outbound" ? T.blue : T.bgCard,
+                      color: msg.direction === "outbound" ? "white" : T.textPrimary,
+                      border: msg.direction === "inbound" ? `1px solid ${T.border}` : "none",
+                      fontSize: 14, lineHeight: 1.5,
+                    }}>
+                      {msg.body}
+                    </div>
+                    <div style={{ fontSize: 11, color: T.textMuted, marginTop: 4, paddingLeft: 4, paddingRight: 4 }}>
+                      {msg.type} · {new Date(msg.dateAdded).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Message input */}
+              <div style={{ padding: "12px 16px", background: T.bgCard, borderTop: `1px solid ${T.border}`, display: "flex", gap: 10, alignItems: "center", paddingBottom: "calc(12px + env(safe-area-inset-bottom))" }}>
+                <input
+                  value={message}
+                  onChange={e => setMessage(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMessage()}
+                  placeholder="Text message..."
+                  style={{ flex: 1, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 22, padding: "10px 16px", fontSize: 14, color: T.textPrimary, outline: "none", fontFamily: "Inter, system-ui, sans-serif" }}
+                />
+                <button onClick={sendMessage} disabled={sending || !message.trim()} style={{ background: T.blue, border: "none", borderRadius: 22, padding: "10px 18px", color: "white", fontWeight: 700, fontSize: 14, cursor: "pointer", opacity: sending || !message.trim() ? 0.5 : 1 }}>
+                  Send
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── TIMELINE TAB ── */}
+          {tab === "timeline" && (
+            <div style={{ padding: 16 }}>
+              <EmptyState icon="🕐" title="Timeline coming soon" subtitle="Activity history will appear here." />
+            </div>
+          )}
+
+        </>)}
+      </div>
     </div>
   );
 }
