@@ -1697,6 +1697,8 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                     { key: 'no-show',           label: 'No-Show',           icon: 'ban',      aBg: '#DC2626', iBg: '#FEF2F2', iFg: '#DC2626', iBd: '#FCA5A5' },
                     { key: 'reschedule-needed', label: 'Reschedule Needed', icon: 'calendar', aBg: '#B45309', iBg: '#FFFBEB', iFg: '#B45309', iBd: '#FDE68A' },
                     { key: 'rescheduled',       label: 'Rescheduled',       icon: 'check',    aBg: '#475569', iBg: '#fff',    iFg: '#475569', iBd: '#E2E8F0' },
+                    { key: 'not-a-fit',         label: 'Not a Good Fit',    icon: 'userx',    aBg: '#C2410C', iBg: '#FFF7ED', iFg: '#C2410C', iBd: '#FED7AA' },
+                    { key: 'not-interested',    label: 'Not Interested',    icon: 'ban',      aBg: '#475569', iBg: '#fff',    iFg: '#64748B', iBd: '#E2E8F0' },
                   ].map(d => {
                     const on = booking.status === d.key;
                     return (
@@ -1707,19 +1709,6 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                       </button>
                     );
                   })}
-                  {/* Send CQ — an action, not a status */}
-                  <button style={{ ...p.qaBtn, background: '#fff', color: cqSent ? '#16A34A' : '#2563EB', border: `1px solid ${cqSent ? '#BBF7D0' : '#C7D9FF'}`, cursor: cqSent ? 'default' : 'pointer' }} onClick={sendCQ} disabled={cqSent}>
-                    {cqSent ? <><PIc name="check" size={16} /> CQ Sent</> : <><PIc name="send" size={16} /> Send CQ</>}
-                  </button>
-                  {/* Not a Good Fit */}
-                  {(() => {
-                    const on = booking.status === 'not-a-fit';
-                    return (
-                      <button style={{ ...p.qaBtn, background: on ? '#C2410C' : '#FFF7ED', color: on ? '#fff' : '#C2410C', border: on ? 'none' : '1px solid #FED7AA', fontWeight: on ? 700 : 600 }} onClick={() => onStatusChange('not-a-fit')}>
-                        <PIc name={on ? 'check' : 'userx'} size={16} /> Not a Good Fit
-                      </button>
-                    );
-                  })()}
                 </div>
 
                 {/* What was done + when — stays on the record, never blocks re-marking */}
@@ -1737,24 +1726,30 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                   </div>
                 )}
 
-                {/* Post-show follow-ups — additive, shown once they showed */}
-                {booking.status === 'showed' && (
-                  <div style={{ ...p.qaGrid, marginTop: 11, paddingTop: 11, borderTop: '1px solid #F1F3F5' }}>
+                {/* CQ — its own control. "Mark Received" works even if Send CQ was
+                    never clicked (it may have gone out by text or another tool). */}
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #F1F3F5' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: '.04em', marginBottom: 8 }}>CQ</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {cqSent ? (
+                      <div style={{ ...p.qaBtn, flex: 1, background: '#F0FDF4', color: '#15803D', border: '1px solid #BBF7D0', cursor: 'default' }}><PIc name="check" size={15} /> CQ Sent</div>
+                    ) : (
+                      <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#2563EB', border: '1px solid #C7D9FF' }} onClick={sendCQ}><PIc name="send" size={15} /> Send CQ</button>
+                    )}
                     {cqReceived ? (
-                      <div style={{ ...p.qaBtn, ...p.qaSpan, background: '#DCFCE7', color: '#15803D', border: '1px solid #BBF7D0', cursor: 'default' }}><PIc name="check" size={16} /> CQ Received</div>
-                    ) : cqSent ? (
-                      <button style={{ ...p.qaBtn, ...p.qaSpan, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={markCQReceived} disabled={cqRecvSaving}>
-                        {cqRecvSaving ? 'Saving…' : 'Mark CQ Received'}
+                      <div style={{ ...p.qaBtn, flex: 1, background: '#DCFCE7', color: '#15803D', border: '1px solid #BBF7D0', cursor: 'default' }}><PIc name="check" size={15} /> CQ Received</div>
+                    ) : (
+                      <button style={{ ...p.qaBtn, flex: 1, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={markCQReceived} disabled={cqRecvSaving}>
+                        {cqRecvSaving ? 'Saving…' : 'Mark Received'}
                       </button>
-                    ) : null}
-                    <button style={{ ...p.qaBtn, background: '#fff', color: '#374151', border: '1px solid #E5E7EB' }} onClick={() => setShowFollowUp(true)}>
-                      <PIc name="calendar" size={16} /> Follow-up
-                    </button>
-                    <button style={{ ...p.qaBtn, background: '#fff', color: '#DC2626', border: '1px solid #FECACA' }} onClick={() => onStatusChange('not-interested')}>
-                      <PIc name="ban" size={16} /> Not Interested
-                    </button>
+                    )}
                   </div>
-                )}
+                </div>
+
+                {/* Follow-up — quiet link, not another big button */}
+                <button onClick={() => setShowFollowUp(true)} style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', color: '#2563EB', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                  <PIc name="calendar" size={14} /> Schedule follow-up
+                </button>
               </div>
             </>
           )}
