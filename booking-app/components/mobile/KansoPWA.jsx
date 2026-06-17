@@ -33,12 +33,19 @@ function scoreStyle(s) {
 // ─── KANSO LOGO ───────────────────────────────────────────────────────────────
 
 function KansoLogo({ height = 26 }) {
+  // Proper K mark: vertical bar left, upper arm angles up-right, lower arm angles down-right
+  // Cyan accent fills the top-left corner triangle cut from the vertical bar
   return (
     <svg height={height} viewBox="0 0 200 56" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Kanso" style={{ display: "block" }}>
-      <polygon points="0,0 11,0 11,56 0,56" fill="#1a1a1a" />
+      {/* Left vertical bar */}
+      <polygon points="0,17 0,56 11,56 11,0 0,0" fill="#1a1a1a" />
+      {/* Cyan accent — top-left triangle cut */}
       <polygon points="0,0 13,0 0,17" fill="#00CFFF" />
-      <polygon points="11,0 26,0 41,26 27,26" fill="#1a1a1a" />
-      <polygon points="27,30 41,30 26,56 11,56" fill="#1a1a1a" />
+      {/* Upper arm: from mid-left, angles to top-right */}
+      <polygon points="11,28 11,14 41,0 41,11" fill="#1a1a1a" />
+      {/* Lower arm: from mid-left, angles to bottom-right */}
+      <polygon points="11,28 11,42 41,56 41,45" fill="#1a1a1a" />
+      {/* "kanso" wordmark */}
       <text x="52" y="44" fontFamily="'Inter','Helvetica Neue',Arial,sans-serif" fontWeight="800" fontSize="40" fill="#1a1a1a" letterSpacing="-1">kanso</text>
     </svg>
   );
@@ -372,9 +379,14 @@ function ContactDetail({ contact, onBack }) {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    if (!contact.id) { setLoadingDetail(false); return; }
+    // If no GHL contact ID (e.g. Calendly-only meeting), just use what we have
+    if (!contact.id || contact.id === "null" || contact.id === "undefined") {
+      setDetail(contact);
+      setLoadingDetail(false);
+      return;
+    }
     fetch(`/api/mobile/contacts/${contact.id}`, { credentials: "include" })
-      .then(r => r.json()).then(d => setDetail(d.contact))
+      .then(r => r.json()).then(d => setDetail(d.contact || contact))
       .catch(() => setDetail(contact)).finally(() => setLoadingDetail(false));
   }, [contact.id]);
 
