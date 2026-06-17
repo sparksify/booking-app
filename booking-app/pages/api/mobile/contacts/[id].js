@@ -1,108 +1,182 @@
 /**
- * GET /api/mobile/contacts/[id]
- * Returns full contact detail from GHL + last meeting merged in
+ * pages/api/mobile/contacts/[id].js
+ * Full contact detail — pulls ALL GHL fields and maps them for the PWA
  */
 
-import { getServerSession } from "next-auth";
-import { authOptions } from "../../auth/[...nextauth]";
-
 const GHL_BASE = "https://services.leadconnectorhq.com";
-const GHL_HEADERS = {
-  Authorization: `Bearer ${process.env.GHL_API_KEY}`,
-  Version: "2021-04-15",
-  "Content-Type": "application/json",
-};
+const LOC = process.env.GHL_LOCATION_ID;
+const KEY = process.env.GHL_API_KEY;
+
+// Avatar color pool
+const COLORS = ["#2563eb","#7c3aed","#059669","#dc2626","#ea580c","#0891b2","#65a30d","#d97706"];
+function avatarColor(str = "") {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) & 0xffffffff;
+  return COLORS[Math.abs(h) % COLORS.length];
+}
+
+// Format dollar amounts
+function formatMoney(val) {
+  if (!val) return null;
+  const n = parseFloat(String(val).replace(/[^0-9.]/g, ""));
+  if (isNaN(n)) return String(val);
+  if (n >= 1000000) return `$${(n/1000000).toFixed(1)}M`;
+  if (n >= 1000) return `$${Math.round(n/1000)}k`;
+  return `$${n}`;
+}
+
+// Pull value from GHL customFields array by field key/name fragments
+function getField(customFields = [], ...keys) {
+  for (const key of keys) {
+    const f = customFields.find(f =>
+      f.id?.toLowerCase().includes(key.toLowerCase()) ||
+      f.key?.toLowerCase().includes(key.toLowerCase()) ||
+      f.name?.toLowerCase().includes(key.toLowerCase()) ||
+      f.fieldKey?.toLowerCase().includes(key.toLowerCase())
+    );
+    if (f && f.value) return f.value;
+  }
+  return null;
+}
+
+async function ghlGet(path) {
+  const res = await fetch(`${GHL_BASE}${path}`, {
+    headers: {
+      Authorization: `Bearer ${KEY}`,
+      Version: "2021-07-28",
+      "Content-Type": "application/json",
+    },
+  });
+  if (!res.ok) throw new Error(`GHL ${res.status}: ${path}`);
+  return res.json();
+}
 
 export default async function handler(req, res) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
+  if (req.method !== "GET") return res.status(405).end();
 
   const { id } = req.query;
   if (!id) return res.status(400).json({ error: "Missing contact id" });
 
   try {
-    // Fetch contact + their appointments in parallel
-    const [contactRes, apptRes] = await Promise.all([
-      fetch(`${GHL_BASE}/contacts/${id}`, { headers: GHL_HEADERS }),
-      fetch(
-        `${GHL_BASE}/contacts/${id}/appointments?locationId=${process.env.GHL_LOCATION_ID}`,
-        { headers: GHL_HEADERS }
-      ),
-    ]);
+    // ── 1. Fetch contact ──
+    const contactData = await ghlGet(`/contacts/${id}`);
+    const c = contactData.contact || contactData;
 
-    if (!contactRes.ok) {
-      return res.status(contactRes.status).json({ error: "Contact not found" });
+    // ── 2. Fetch appointments (last + next meeting) ──
+    let lastMeeting = null;
+    let nextMeeting = null;
+    try {
+      const apptRes = await ghlGet(
+        `/contacts/${id}/appointments?locationId=${LOC}`
+      );
+      const appts = (apptRes.appointments || apptRes.events || [])
+        .filter(a => a.startTime)
+        .sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+      const now = new Date();
+      const past = appts.filter(a => new Date(a.startTime) < now);
+      const future = appts.filter(a => new Date(a.startTime) >= now);
+      lastMeeting = past.length ? past[past.length - 1] : null;
+      nextMeeting = future.length ? future[0] : null;
+    } catch (_) { /* appointments optional */ }
+
+    // ── 3. Map all custom fields ──
+    const cf = c.customFields || c.customField || [];
+
+    const liquid = formatMoney(
+      getField(cf, "liquid", "liquid_capital", "liquidcapital", "cash", "investable") ||
+      c.liquid_capital || c.liquidCapital
+    );
+    const franchise = getField(cf, "franchise_name", "franchise", "brand", "franchiseName") ||
+      c.franchise_name;
+    const franchiseInvestment = formatMoney(
+      getField(cf, "franchise_investment", "investment", "franchiseInvestment")
+    );
+    const franchiseSummary = getField(cf, "franchise_summary", "summary", "franchiseSummary");
+    const franchiseHook = getField(cf, "franchise_hook", "hook", "franchiseHook");
+    const territory = getField(cf, "territory", "zip", "location", "state", "city");
+    const ownedBusiness = getField(cf, "owned_business", "ownedbusiness", "current_business", "business_owner", "owns_business", "employer");
+    const score = parseInt(
+      getField(cf, "score", "lead_score", "leadscore") ||
+      c.score || c.leadScore || "0", 10
+    ) || null;
+    const netWorth = formatMoney(getField(cf, "net_worth", "networth", "net worth"));
+    const timeframe = getField(cf, "timeframe", "time_frame", "timeline");
+    const notes = getField(cf, "notes", "internal_notes") || c.notes;
+    const source = getField(cf, "source", "lead_source") || c.source || c.attributionSource?.medium;
+
+    // ── 4. Determine source label ──
+    let sourceLabel = "GoHighLevel";
+    const src = (source || "").toLowerCase();
+    if (src.includes("calendly")) sourceLabel = "Calendly";
+    else if (src.includes("facebook") || src.includes("fb") || src.includes("meta")) sourceLabel = "Facebook";
+    else if (src.includes("google")) sourceLabel = "Google";
+
+    // ── 5. Assigned consultant ──
+    let assignedTo = "Steve Sparks";
+    if (c.assignedTo === process.env.GHL_USER_ID_JOHN || c.assignedTo === "kzKxqpO9YJXGCbBj9k02") {
+      assignedTo = "John Doty";
     }
 
-    const { contact } = await contactRes.json();
-    const apptData = apptRes.ok ? await apptRes.json() : { events: [] };
+    // ── 6. Build initials + avatar ──
+    const fullName = `${c.firstName || ""} ${c.lastName || ""}`.trim() || c.name || "Unknown";
+    const initials = fullName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 
-    // Normalize custom fields
-    const custom = (contact.customFields || []).reduce((acc, f) => {
-      acc[f.id] = f.value;
-      return acc;
-    }, {});
-
-    const parts = [contact.firstName, contact.lastName].filter(Boolean);
-    const initials = parts.map(p => p[0]).join("").toUpperCase().slice(0, 2) || "??";
-    const colors = ["#2563eb","#7c3aed","#16a34a","#ea580c","#0891b2","#e11d48","#854d0e"];
-    const avatarColor = colors[(contact.firstName?.charCodeAt(0) || 65) % colors.length];
-
-    // Sort appointments, find last + next
-    const appointments = (apptData.events || []).sort(
-      (a, b) => new Date(a.startTime) - new Date(b.startTime)
-    );
-    const now = new Date();
-    const pastAppts = appointments.filter(a => new Date(a.startTime) < now);
-    const futureAppts = appointments.filter(a => new Date(a.startTime) >= now);
-
-    const lastMeeting = pastAppts[pastAppts.length - 1] || null;
-    const nextMeeting = futureAppts[0] || null;
-
+    // ── 7. Return unified contact object ──
     return res.status(200).json({
       contact: {
-        id: contact.id,
-        name: `${contact.firstName || ""} ${contact.lastName || ""}`.trim(),
-        firstName: contact.firstName || "",
-        lastName: contact.lastName || "",
-        email: contact.email || "",
-        phone: contact.phone || "",
+        id: c.id,
+        name: fullName,
+        firstName: c.firstName,
+        lastName: c.lastName,
+        email: c.email,
+        phone: c.phone,
         initials,
-        avatarColor,
-        stage: contact.contactStage?.name || null,
-        tags: contact.tags || [],
-        source: contact.source || null,
-        assignedTo: contact.assignedTo || null,
-        dnd: contact.dnd || false,
-        createdAt: contact.dateAdded,
+        avatarColor: avatarColor(c.id || fullName),
 
-        // Custom fields
-        brand: custom[process.env.GHL_FIELD_FRANCHISE_NAME] || null,
-        liquid: custom[process.env.GHL_FIELD_LIQUID_CAPITAL] || null,
-        score: custom[process.env.GHL_FIELD_SCORE] ? Number(custom[process.env.GHL_FIELD_SCORE]) : null,
-        franchiseSummary: custom[process.env.GHL_FIELD_FRANCHISE_SUMMARY] || null,
-        franchiseHook: custom[process.env.GHL_FIELD_FRANCHISE_HOOK] || null,
+        // Lead intel
+        score: isNaN(score) ? null : score,
+        liquid,
+        netWorth,
+        timeframe,
+        territory,
+        ownedBusiness,
+        franchise,
+        franchiseInvestment,
+        franchiseSummary,
+        franchiseHook,
+
+        // Source / assignment
+        source: sourceLabel,
+        assignedTo,
+        brand: franchise,
+
+        // Tags — GHL returns these as array
+        tags: Array.isArray(c.tags) ? c.tags : [],
+
+        // Stage / pipeline
+        stage: c.opportunityStage || c.stage || null,
 
         // Meetings
         lastMeeting: lastMeeting ? {
-          id: lastMeeting.id,
-          title: lastMeeting.title,
           startTime: lastMeeting.startTime,
+          title: lastMeeting.title || lastMeeting.calendarTitle,
           status: lastMeeting.appointmentStatus,
-          calendarName: lastMeeting.calendarName,
         } : null,
         nextMeeting: nextMeeting ? {
-          id: nextMeeting.id,
-          title: nextMeeting.title,
           startTime: nextMeeting.startTime,
+          title: nextMeeting.title || nextMeeting.calendarTitle,
           status: nextMeeting.appointmentStatus,
-          calendarName: nextMeeting.calendarName,
         } : null,
-        totalMeetings: appointments.length,
+
+        // Notes
+        notes,
+
+        // Raw custom fields for debugging
+        _customFields: cf,
       },
     });
   } catch (err) {
-    console.error("[contacts/[id]] error:", err.message);
-    return res.status(500).json({ error: "Internal server error" });
+    console.error("[mobile/contacts/[id]]", err.message);
+    return res.status(500).json({ error: err.message });
   }
 }

@@ -150,7 +150,7 @@ function EmptyState({ icon, title, subtitle }) {
 
 // ─── NEXT UP CARD ─────────────────────────────────────────────────────────────
 
-function NextUpCard({ meeting }) {
+function NextUpCard({ meeting, onOpenContact }) {
   const [marking, setMarking] = useState(false);
   const [marked, setMarked] = useState(false);
   const time = new Date(meeting.startTime);
@@ -196,7 +196,7 @@ function NextUpCard({ meeting }) {
         </div>
       </div>
       <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-        <a href={meeting.joinUrl || "#"} style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1.5px solid ${T.blue}`, background: "white", color: T.blue, fontWeight: 700, fontSize: 13, textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>Open Details</a>
+        <button onClick={() => onOpenContact && onOpenContact(meeting)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1.5px solid ${T.blue}`, background: "white", color: T.blue, fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>Open Details</button>
         <button onClick={handleMarkShowed} disabled={marking || marked} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: marked ? "#16a34a" : T.blue, color: "white", fontWeight: 700, fontSize: 13, cursor: marking ? "wait" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, opacity: marking ? 0.7 : 1 }}>
           {marked ? "✓ Marked" : marking ? "Saving..." : "✓ Mark Showed"}
         </button>
@@ -505,13 +505,19 @@ function ContactDetail({ contact, onBack }) {
               <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: "16px", marginBottom: 14 }}>
                 <div style={{ fontWeight: 800, fontSize: 15, color: T.textPrimary, marginBottom: 14 }}>Contact / Booking Details</div>
                 {[
-                  { label: "Phone",      value: c.phone,       href: `tel:${c.phone}`,       icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.5 19.79 19.79 0 0 1 1.62 4.9 2 2 0 0 1 3.59 2.72h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.5a16 16 0 0 0 5.59 5.59l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 18v.97"/></svg> },
-                  { label: "Email",      value: c.email,       href: `mailto:${c.email}`,    icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> },
-                  { label: "Scheduled",  value: c.nextMeeting ? new Date(c.nextMeeting.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : c.lastMeeting ? new Date(c.lastMeeting.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null, icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
-                  { label: "Consultant", value: c.assignedTo || "Steve Sparks", icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
-                  { label: "Liquid Cap.",value: c.liquid, icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> },
-                  { label: "Owned Biz",  value: c.ownedBusiness, icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg> },
-                  { label: "Territory",  value: c.territory, icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> },
+                  { label: "Phone",       value: c.phone,        href: `tel:${c.phone}`,      icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.5 19.79 19.79 0 0 1 1.62 4.9 2 2 0 0 1 3.59 2.72h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.5a16 16 0 0 0 5.59 5.59l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 18v.97"/></svg> },
+                  { label: "Email",       value: c.email,        href: `mailto:${c.email}`,   icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> },
+                  { label: "Next Appt",   value: c.nextMeeting   ? new Date(c.nextMeeting.startTime).toLocaleDateString("en-US",  { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null, icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
+                  { label: "Last Appt",   value: c.lastMeeting   ? new Date(c.lastMeeting.startTime).toLocaleDateString("en-US",  { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null, icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
+                  { label: "Consultant",  value: c.assignedTo || "Steve Sparks",               icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
+                  { label: "Liquid Cap.", value: c.liquid,                                      icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> },
+                  { label: "Net Worth",   value: c.netWorth,                                    icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> },
+                  { label: "Timeframe",   value: c.timeframe,                                   icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
+                  { label: "Owned Biz",   value: c.ownedBusiness,                               icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg> },
+                  { label: "Territory",   value: c.territory,                                   icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> },
+                  { label: "Franchise",   value: c.franchise,                                   icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
+                  { label: "Investment",  value: c.franchiseInvestment,                         icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> },
+                  { label: "Stage",       value: c.stage,                                       icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
                 ].filter(row => row.value).map(row => (
                   <div key={row.label} style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 11, paddingBottom: 11, borderTop: `1px solid ${T.border}` }}>
                     <span style={{ flexShrink: 0 }}>{row.icon}</span>
@@ -530,6 +536,25 @@ function ContactDetail({ contact, onBack }) {
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {c.tags.map(tag => <span key={tag} style={{ fontSize: 12, fontWeight: 500, padding: "5px 12px", borderRadius: 20, background: T.bgInput, color: T.textSecondary, border: `1px solid ${T.border}` }}>{tag}</span>)}
                   </div>
+                </div>
+              )}
+
+              {/* Franchise summary / hook */}
+              {(c.franchiseSummary || c.franchiseHook) && (
+                <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: "16px", marginBottom: 14 }}>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: T.textPrimary, marginBottom: 12 }}>Franchise Intel</div>
+                  {c.franchiseSummary && (
+                    <div style={{ marginBottom: c.franchiseHook ? 10 : 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Summary</div>
+                      <div style={{ fontSize: 13, color: T.textPrimary, lineHeight: 1.5 }}>{c.franchiseSummary}</div>
+                    </div>
+                  )}
+                  {c.franchiseHook && (
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Hook</div>
+                      <div style={{ fontSize: 13, color: T.textPrimary, lineHeight: 1.5 }}>{c.franchiseHook}</div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -630,7 +655,7 @@ function HomeScreen({ onNavigate }) {
       </div>
       {loading && <Spinner />}
       {error && <div style={{ background: "#fff1f2", border: "1px solid #fecdd3", borderRadius: 12, padding: 16, color: "#e11d48", fontSize: 13, marginBottom: 16 }}>Could not load meetings — {error}</div>}
-      {nextUp && <div style={{ marginBottom: 24 }}><NextUpCard meeting={nextUp} /></div>}
+      {nextUp && <div style={{ marginBottom: 24 }}><NextUpCard meeting={nextUp} onOpenContact={(m) => setSelectedMeeting(m)} /></div>}
       {todayMeetings.length > 0 && (
         <>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
