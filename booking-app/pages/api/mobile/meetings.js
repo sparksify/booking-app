@@ -1,171 +1,17 @@
 /**
  * GET /api/mobile/meetings
- * Merges Calendly + GCal + GHL meetings.
- * Falls back gracefully if tokens are missing.
+ * Uses the same auth pattern as /api/dashboard/bookings — no session tokens needed.
  */
 
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]";
 
-// ─── NORMALIZERS ─────────────────────────────────────────────────────────────
-
-function normalizeCalendly(event) {
-  const invitee = event.event_memberships?.[0] || {};
-  const name = invitee.user_name || event.name || "Unknown";
-  return {
-    id: `calendly_${event.uri?.split("/").pop()}`,
-    source: "Calendly",
-    name,
-    email: invitee.user_email || "",
-    phone: "",
-    type: event.name || "",
-    startTime: event.start_time,
-    endTime: event.end_time,
-    status: event.status === "active" ? "Scheduled" : "Cancelled",
-    rep: event.event_memberships?.find(m => m.user)?.user || "ssparks",
-    ghlContactId: null,
-    liquid: null, score: null, brand: null,
-    confirmed: "No Response",
-    joinUrl: event.location?.join_url || null,
-  };
-}
-
-function normalizeGCal(event) {
-  const attendees = event.attendees || [];
-  const client = attendees.find(a => !a.organizer && !a.self) || {};
-  return {
-    id: `gcal_${event.id}`,
-    source: "Google Calendar",
-    name: client.displayName || client.email?.split("@")[0] || event.summary || "Unknown",
-    email: client.email || "",
-    phone: "",
-    type: event.summary || "",
-    startTime: event.start?.dateTime || event.start?.date,
-    endTime: event.end?.dateTime || event.end?.date,
-    status: "Scheduled",
-    rep: "ssparks",
-    ghlContactId: null,
-    liquid: null, score: null, brand: null,
-    confirmed: "No Response",
-    joinUrl: event.hangoutLink || null,
-  };
-}
-
-function normalizeGHL(appointment) {
-  const cf = appointment.contact?.customField || appointment.contact?.customFields || [];
-  const getField = (id) => cf.find(f => f.id === id || f.key === id || f.fieldKey === id)?.value || null;
-  return {
-    id: `ghl_${appointment.id}`,
-    source: "GoHighLevel",
-    name: `${appointment.contact?.firstName || ""} ${appointment.contact?.lastName || ""}`.trim() || appointment.title || "Unknown",
-    email: appointment.contact?.email || "",
-    phone: appointment.contact?.phone || "",
-    type: appointment.title || appointment.calendarName || "",
-    startTime: appointment.startTime,
-    endTime: appointment.endTime,
-    status: appointment.appointmentStatus === "confirmed" ? "Confirmed"
-           : appointment.appointmentStatus === "showed"    ? "Showed"
-           : appointment.appointmentStatus === "noshow"    ? "No Show"
-           : "Scheduled",
-    rep: appointment.assignedUserId === process.env.GHL_USER_ID_STEVE ? "ssparks" : "jdoty",
-    ghlContactId: appointment.contactId || null,
-    liquid: getField("liquid_capital") || getField(process.env.GHL_FIELD_LIQUID_CAPITAL),
-    score: parseInt(getField("score") || getField(process.env.GHL_FIELD_SCORE) || "0", 10) || null,
-    brand: getField("franchise_name") || getField(process.env.GHL_FIELD_FRANCHISE_NAME),
-    confirmed: appointment.appointmentStatus === "confirmed" ? "Confirmed" : "No Response",
-    joinUrl: null,
-    avatarColor: null,
-    initials: null,
-  };
-}
-
-// ─── FETCHERS ─────────────────────────────────────────────────────────────────
-
-async function fetchCalendlyMeetings(token, startTime, endTime) {
-  if (!token) { console.log("[meetings/calendly] no token — skipping"); return []; }
-  try {
-    const meRes = await fetch("https://api.calendly.com/users/me", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!meRes.ok) { console.log("[meetings/calendly] /users/me failed:", meRes.status); return []; }
-    const me = await meRes.json();
-    const userUri = me.resource?.uri;
-    if (!userUri) return [];
-
-    const params = new URLSearchParams({
-      user: userUri,
-      min_start_time: startTime,
-      max_start_time: endTime,
-      count: "100",
-      status: "active",
-    });
-    const res = await fetch(`https://api.calendly.com/scheduled_events?${params}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) { console.log("[meetings/calendly] events failed:", res.status); return []; }
-    const data = await res.json();
-    console.log(`[meetings/calendly] fetched ${data.collection?.length || 0} events`);
-    return (data.collection || []).map(normalizeCalendly);
-  } catch (err) {
-    console.error("[meetings/calendly]", err.message);
-    return [];
-  }
-}
-
-async function fetchGCalMeetings(accessToken, startTime, endTime) {
-  if (!accessToken) { console.log("[meetings/gcal] no token — skipping"); return []; }
-  try {
-    const params = new URLSearchParams({
-      timeMin: startTime,
-      timeMax: endTime,
-      singleEvents: "true",
-      orderBy: "startTime",
-      maxResults: "100",
-    });
-    const res = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
-    if (!res.ok) { console.log("[meetings/gcal] failed:", res.status); return []; }
-    const data = await res.json();
-    const events = (data.items || []).filter(e => e.status !== "cancelled" && e.summary);
-    console.log(`[meetings/gcal] fetched ${events.length} events`);
-    return events.map(normalizeGCal);
-  } catch (err) {
-    console.error("[meetings/gcal]", err.message);
-    return [];
-  }
-}
-
-async function fetchGHLMeetings(startTime, endTime) {
-  if (!process.env.GHL_API_KEY) { console.log("[meetings/ghl] no API key"); return []; }
-  try {
-    const params = new URLSearchParams({
-      locationId: process.env.GHL_LOCATION_ID,
-      startTime: new Date(startTime).getTime(),
-      endTime: new Date(endTime).getTime(),
-    });
-    const res = await fetch(
-      `https://services.leadconnectorhq.com/calendars/events?${params}`,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.GHL_API_KEY}`,
-          Version: "2021-04-15",
-        },
-      }
-    );
-    if (!res.ok) { console.log("[meetings/ghl] failed:", res.status, await res.text()); return []; }
-    const data = await res.json();
-    const events = data.events || data.appointments || [];
-    console.log(`[meetings/ghl] fetched ${events.length} events`);
-    return events.map(normalizeGHL);
-  } catch (err) {
-    console.error("[meetings/ghl]", err.message);
-    return [];
-  }
-}
-
-// ─── AVATAR COLORS ────────────────────────────────────────────────────────────
+const GHL_API     = "https://services.leadconnectorhq.com";
+const CAL_API     = "https://api.calendly.com";
+const CAL_USER    = process.env.CALENDLY_USER_URI || "https://api.calendly.com/users/c59a21b9-aa46-45a7-8e8a-3e2faa614742";
+const CAL_TOKEN   = process.env.CALENDLY_API_KEY  || process.env.CALENDLY_TOKEN;
+const GHL_CAL_1   = process.env.GHL_CALENDAR_ID   || "Zd3fg5KnNbH5FEIHhq8R";
+const GHL_CAL_2   = process.env.GHL_CALENDAR_ID_2 || "h35V7plFqYf6DyY4zsdV";
 
 const COLORS = ["#2563eb","#7c3aed","#059669","#dc2626","#ea580c","#0891b2","#65a30d","#d97706"];
 function avatarColor(str = "") {
@@ -174,17 +20,155 @@ function avatarColor(str = "") {
   return COLORS[Math.abs(h) % COLORS.length];
 }
 
+// ─── CALENDLY ─────────────────────────────────────────────────────────────────
+
+async function fetchCalendly(startTime, endTime) {
+  if (!CAL_TOKEN) { console.log("[mobile/meetings] no CALENDLY_API_KEY"); return []; }
+  try {
+    const params = new URLSearchParams({
+      user: CAL_USER,
+      min_start_time: startTime,
+      max_start_time: endTime,
+      count: "100",
+      status: "active",
+    });
+    const res = await fetch(`${CAL_API}/scheduled_events?${params}`, {
+      headers: { Authorization: `Bearer ${CAL_TOKEN}` },
+    });
+    if (!res.ok) { console.log("[mobile/meetings/calendly] failed:", res.status); return []; }
+    const data = await res.json();
+    const events = data.collection || [];
+    console.log(`[mobile/meetings/calendly] ${events.length} events`);
+
+    // Fetch invitees for each event to get contact info
+    const enriched = await Promise.all(events.map(async (ev) => {
+      try {
+        const uuid = ev.uri?.split("/").pop();
+        const ir = await fetch(`${CAL_API}/scheduled_events/${uuid}/invitees?count=1`, {
+          headers: { Authorization: `Bearer ${CAL_TOKEN}` },
+        });
+        const id = await ir.json();
+        const inv = id.collection?.[0] || {};
+        return {
+          id: `calendly_${uuid}`,
+          source: "Calendly",
+          name: inv.name || ev.name || "Unknown",
+          email: inv.email || "",
+          phone: "",
+          type: ev.name || "",
+          startTime: ev.start_time,
+          endTime: ev.end_time,
+          status: "Scheduled",
+          ghlContactId: null,
+          liquid: null, score: null, brand: null,
+          joinUrl: ev.location?.join_url || null,
+        };
+      } catch {
+        return null;
+      }
+    }));
+    return enriched.filter(Boolean);
+  } catch (err) {
+    console.error("[mobile/meetings/calendly]", err.message);
+    return [];
+  }
+}
+
+// ─── GHL ──────────────────────────────────────────────────────────────────────
+
+async function fetchGHL(startTime, endTime) {
+  const apiKey = process.env.GHL_API_KEY;
+  const locationId = process.env.GHL_LOCATION_ID;
+  if (!apiKey) { console.log("[mobile/meetings/ghl] no GHL_API_KEY"); return []; }
+
+  const headers = {
+    Authorization: `Bearer ${apiKey}`,
+    Version: "2021-07-28",
+    "Content-Type": "application/json",
+  };
+
+  const startMs = new Date(startTime).getTime();
+  const endMs   = new Date(endTime).getTime();
+
+  const results = await Promise.all([GHL_CAL_1, GHL_CAL_2].map(async (calId) => {
+    try {
+      const params = new URLSearchParams({
+        locationId,
+        calendarId: calId,
+        startTime: startMs,
+        endTime: endMs,
+      });
+      const res = await fetch(`${GHL_API}/calendars/events?${params}`, { headers });
+      if (!res.ok) { console.log(`[mobile/meetings/ghl] cal ${calId} failed:`, res.status); return []; }
+      const data = await res.json();
+      const events = data.events || data.appointments || [];
+      console.log(`[mobile/meetings/ghl] cal ${calId}: ${events.length} events`);
+      return events;
+    } catch (err) {
+      console.error(`[mobile/meetings/ghl] cal ${calId}:`, err.message);
+      return [];
+    }
+  }));
+
+  const allEvents = results.flat();
+
+  // Enrich with contact details
+  const enriched = await Promise.all(allEvents.map(async (ev) => {
+    let contact = ev.contact || {};
+    if (ev.contactId && !contact.email) {
+      try {
+        const cr = await fetch(`${GHL_API}/contacts/${ev.contactId}`, { headers });
+        if (cr.ok) {
+          const cd = await cr.json();
+          contact = cd.contact || cd;
+        }
+      } catch { /* use what we have */ }
+    }
+
+    const cf = contact.customFields || contact.customField || [];
+    const getField = (...keys) => {
+      for (const key of keys) {
+        const f = cf.find(f => f.id === key || f.key === key || f.fieldKey === key ||
+          f.id?.includes(key) || f.key?.includes(key));
+        if (f?.value) return f.value;
+      }
+      return null;
+    };
+
+    const name = `${contact.firstName || ""} ${contact.lastName || ""}`.trim() || ev.title || "Unknown";
+    return {
+      id: `ghl_${ev.id}`,
+      source: "GoHighLevel",
+      name,
+      email: contact.email || "",
+      phone: contact.phone || "",
+      type: ev.title || ev.calendarTitle || "",
+      startTime: ev.startTime,
+      endTime: ev.endTime,
+      status: ev.appointmentStatus === "confirmed" ? "Confirmed"
+            : ev.appointmentStatus === "showed"    ? "Showed"
+            : ev.appointmentStatus === "noshow"    ? "No Show"
+            : "Scheduled",
+      ghlContactId: ev.contactId || null,
+      liquid: getField("liquid_capital", process.env.GHL_FIELD_LIQUID_CAPITAL),
+      score:  parseInt(getField("score", process.env.GHL_FIELD_SCORE) || "0", 10) || null,
+      brand:  getField("franchise_name", process.env.GHL_FIELD_FRANCHISE_NAME),
+      joinUrl: null,
+    };
+  }));
+
+  return enriched;
+}
+
 // ─── DEDUP ────────────────────────────────────────────────────────────────────
 
 function dedup(meetings) {
   const seen = new Map();
   return meetings.filter(m => {
-    const key = `${m.email?.toLowerCase()}_${new Date(m.startTime).toISOString().slice(0,16)}`;
+    const key = `${(m.email || "").toLowerCase()}_${new Date(m.startTime).toISOString().slice(0,16)}`;
     if (seen.has(key)) {
-      const existing = seen.get(key);
-      if (m.ghlContactId && !existing.ghlContactId) {
-        seen.set(key, { ...existing, ...m, source: existing.source });
-      }
+      const ex = seen.get(key);
+      if (m.ghlContactId && !ex.ghlContactId) seen.set(key, { ...ex, ...m, source: ex.source });
       return false;
     }
     seen.set(key, m);
@@ -200,60 +184,33 @@ export default async function handler(req, res) {
   const session = await getServerSession(req, res, authOptions);
   if (!session) return res.status(401).json({ error: "Unauthorized" });
 
-  console.log("[meetings] session keys:", Object.keys(session));
-  console.log("[meetings] has calendlyToken:", !!session.calendlyToken);
-  console.log("[meetings] has accessToken:", !!session.accessToken);
-
-  const { range = "2weeks", rep = "all" } = req.query;
+  const { range = "2weeks" } = req.query;
 
   const now = new Date();
-  // Include past 30 days so we get historical meetings too
-  const pastDate = new Date(now);
-  pastDate.setDate(pastDate.getDate() - 30);
-  const startTime = pastDate.toISOString();
+  const past = new Date(now); past.setDate(past.getDate() - 1);
+  const future = new Date(now);
+  const days = { today: 1, tomorrow: 2, "2weeks": 14 }[range] || 14;
+  future.setDate(future.getDate() + days);
 
-  const endMap = { today: 1, tomorrow: 2, "2weeks": 14, "30days": 30 };
-  const days = endMap[range] || 14;
-  const end = new Date(now);
-  end.setDate(end.getDate() + days);
-  const endTime = end.toISOString();
-
-  const [calendly, gcal, ghl] = await Promise.allSettled([
-    fetchCalendlyMeetings(session.calendlyToken, startTime, endTime),
-    fetchGCalMeetings(session.accessToken, startTime, endTime),
-    fetchGHLMeetings(startTime, endTime),
+  const [calendly, ghl] = await Promise.allSettled([
+    fetchCalendly(past.toISOString(), future.toISOString()),
+    fetchGHL(past.toISOString(), future.toISOString()),
   ]);
 
-  const all = [
-    ...(calendly.status === "fulfilled" ? calendly.value : []),
-    ...(gcal.status === "fulfilled" ? gcal.value : []),
-    ...(ghl.status === "fulfilled" ? ghl.value : []),
-  ];
+  const calMeetings = calendly.status === "fulfilled" ? calendly.value : [];
+  const ghlMeetings = ghl.status       === "fulfilled" ? ghl.value       : [];
 
-  console.log(`[meetings] raw counts — calendly:${calendly.status === "fulfilled" ? calendly.value.length : "err"} gcal:${gcal.status === "fulfilled" ? gcal.value.length : "err"} ghl:${ghl.status === "fulfilled" ? ghl.value.length : "err"}`);
+  console.log(`[mobile/meetings] raw: calendly=${calMeetings.length} ghl=${ghlMeetings.length}`);
 
-  let meetings = dedup(all);
+  let meetings = dedup([...calMeetings, ...ghlMeetings]);
 
-  if (rep !== "all") {
-    meetings = meetings.filter(m => m.rep === rep);
-  }
-
-  // Only return meetings within the requested range (from now for future, or last 30 days for past)
-  const rangeStart = new Date(now);
-  rangeStart.setDate(rangeStart.getDate() - 1); // include yesterday
-  meetings = meetings.filter(m => {
-    const t = new Date(m.startTime);
-    return t >= rangeStart && t <= end;
-  });
-
-  meetings.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
-
-  // Add avatar data
   meetings = meetings.map(m => ({
     ...m,
-    initials: m.initials || m.name?.split(" ").map(n => n[0]).join("").slice(0,2).toUpperCase() || "??",
-    avatarColor: m.avatarColor || avatarColor(m.email || m.name || m.id),
+    initials: m.name?.split(" ").map(n => n[0]).join("").slice(0,2).toUpperCase() || "??",
+    avatarColor: avatarColor(m.email || m.name || m.id),
   }));
+
+  meetings.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
 
   const nowMs = Date.now();
   const nextUp = meetings.find(m => new Date(m.startTime) > nowMs);
@@ -261,11 +218,11 @@ export default async function handler(req, res) {
 
   meetings.forEach(m => {
     const s = new Date(m.startTime).getTime();
-    const e = new Date(m.endTime || m.startTime).getTime() + 3600000; // default 1hr
+    const e = new Date(m.endTime || m.startTime).getTime() + 3_600_000;
     if (nowMs >= s && nowMs <= e) m.isLive = true;
   });
 
-  console.log(`[meetings] returning ${meetings.length} meetings`);
+  console.log(`[mobile/meetings] returning ${meetings.length} total`);
 
   res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
   return res.status(200).json({ meetings, count: meetings.length, generatedAt: new Date().toISOString() });
