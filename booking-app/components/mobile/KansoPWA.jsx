@@ -208,7 +208,8 @@ function NextUpCard({ meeting, onOpenContact }) {
 // ─── MEETING ROW ──────────────────────────────────────────────────────────────
 
 function MeetingRow({ meeting, isNowDivider, onClick }) {
-  const time = new Date(meeting.startTime);
+  const startTime = meeting.startTime || meeting.start_time || meeting.start;
+  const time = new Date(startTime);
   const timeStr = time.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
   const dateStr = time.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   const initials = meeting.initials || meeting.name?.split(" ").map(n => n[0]).join("").slice(0, 2) || "??";
@@ -258,12 +259,12 @@ function QuickActions({ contactId, fire, firing, done, lastAction }) {
 
   // Main disposition grid — 6 buttons, 2 cols
   const DISPOSITION = [
-    { id: "showed",            label: "Showed",           icon: "✓",  color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0" },
-    { id: "no_show",           label: "No-Show",          icon: "✓",  color: "#ffffff", bg: "#dc2626", border: "#dc2626", solid: true },
-    { id: "reschedule_needed", label: "Reschedule Needed",icon: "📅", color: "#ea580c", bg: "#fff7ed", border: "#fed7aa" },
-    { id: "rescheduled",       label: "Rescheduled",      icon: "✓",  color: "#64748b", bg: "#ffffff", border: "#e2e8f0" },
-    { id: "not_a_fit",         label: "Not a Good Fit",   icon: "👤", color: "#ea580c", bg: "#fff7ed", border: "#fed7aa" },
-    { id: "not_interested",    label: "Not Interested",   icon: "🚫", color: "#64748b", bg: "#ffffff", border: "#e2e8f0" },
+    { id: "showed",            label: "Showed",           icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>, color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0" },
+    { id: "no_show",           label: "No-Show",          icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>, color: "#ffffff", bg: "#dc2626", border: "#dc2626", solid: true },
+    { id: "reschedule_needed", label: "Reschedule Needed",icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>, color: "#ea580c", bg: "#fff7ed", border: "#fed7aa" },
+    { id: "rescheduled",       label: "Rescheduled",      icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>, color: "#64748b", bg: "#ffffff", border: "#e2e8f0" },
+    { id: "not_a_fit",         label: "Not a Good Fit",   icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>, color: "#ea580c", bg: "#fff7ed", border: "#fed7aa" },
+    { id: "not_interested",    label: "Not Interested",   icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>, color: "#64748b", bg: "#ffffff", border: "#e2e8f0" },
   ];
 
   return (
@@ -283,7 +284,7 @@ function QuickActions({ contactId, fire, firing, done, lastAction }) {
             opacity: firing === a.id ? 0.6 : 1,
             transition: "all 0.15s",
           }}>
-            <span>{a.icon}</span>
+            {a.icon}
             {firing === a.id ? "..." : done[a.id] ? "Done ✓" : a.label}
           </button>
         ))}
@@ -620,8 +621,9 @@ function HomeScreen({ onNavigate }) {
   const { meetings, loading, error } = useMeetings("2weeks");
   const [selectedMeeting, setSelectedMeeting] = useState(null);
   const todayStr = new Date().toDateString();
-  const todayMeetings = meetings.filter(m => new Date(m.startTime).toDateString() === todayStr);
-  const nextUp = meetings.find(m => m.isNextUp);
+  const getStart = (m) => m.startTime || m.start_time || m.start;
+  const todayMeetings = meetings.filter(m => new Date(getStart(m)).toDateString() === todayStr);
+  const nextUp = meetings.find(m => m.isNextUp) || meetings.find(m => new Date(getStart(m)) >= new Date());
 
   if (selectedMeeting) {
     const contactFromMeeting = { id: selectedMeeting.ghlContactId, name: selectedMeeting.name, email: selectedMeeting.email, phone: selectedMeeting.phone || "", initials: selectedMeeting.initials || selectedMeeting.name?.split(" ").map(n => n[0]).join("").slice(0,2), avatarColor: selectedMeeting.avatarColor, source: selectedMeeting.source, brand: selectedMeeting.brand, liquid: selectedMeeting.liquid, score: selectedMeeting.score, stage: selectedMeeting.status, tags: [selectedMeeting.status] };
