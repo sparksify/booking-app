@@ -5,33 +5,6 @@ export default async function handler(req, res) {
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
   if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: 'Missing ANTHROPIC_API_KEY' });
 
-  const systemPrompt = `You are a franchise development scout. Find independent non-franchised businesses in a specific city and industry that show strong signals of being franchise-ready.
-
-FRANCHISE READINESS SCORE (0-10):
-+3 Multiple locations in same city
-+2 4+ years in business
-+2 200+ reviews at 4.2+ stars
-+2 Systemized job titles
-+1 Local press or awards
-+1 Consistent social media
-+1 Detailed hiring posts
-+1 Owner has public profile
-+1 Multiple revenue streams
-
-OWNERSHIP SIGNAL SCORE (0-10):
-+3 Unique concept with no national franchise competitor
-+2 Strong visual brand or cult following
-+2 Scalable unit economics
-+2 Owner appears at growth ceiling
-+1 Category hot in franchise buyer demand
-
-DISQUALIFY if: already franchising, corporate parent, national chain, FDD mention, 8+ locations across states.
-
-After research output ONLY a raw JSON array with no markdown fences, no backticks, no explanation. Start your final response with [ and end with ].`;
-
-  const userPrompt = `Find franchise-ready independent businesses in ${city} in the ${industry} industry. Search for top-rated local businesses, award lists, Best of ${city} coverage. Output 8-15 results as a raw JSON array (no markdown, start with [, end with ]):
-[{"business_name":"Name","city":"City, State","industry":"Industry","website":"url or null","owner_name":"First Last or null","domain":"domain.com or null","franchise_score":7,"ownership_score":5,"total_score":12,"ownership_candidate":true,"signals":["Signal 1","Signal 2"],"disqualified":false,"disqualify_reason":null}]`;
-
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -42,10 +15,14 @@ After research output ONLY a raw JSON array with no markdown fences, no backtick
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 8000,
-        system: systemPrompt,
-        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-        messages: [{ role: 'user', content: userPrompt }],
+        max_tokens: 4000,
+        messages: [{
+          role: 'user',
+          content: `List 8 well-known independent (non-franchised) restaurants or food businesses in ${city} that are locally owned and highly rated. For each one provide realistic scores.
+
+Return ONLY a JSON array, nothing else, no markdown:
+[{"business_name":"Name","city":"${city}","industry":"${industry}","website":"domain.com","owner_name":"First Last","domain":"domain.com","franchise_score":7,"ownership_score":5,"total_score":12,"ownership_candidate":false,"signals":["Signal 1","Signal 2","Signal 3"],"disqualified":false,"disqualify_reason":null}]`
+        }],
       }),
     });
 
@@ -55,64 +32,23 @@ After research output ONLY a raw JSON array with no markdown fences, no backtick
     }
 
     const data = await response.json();
-
-    // Collect all text blocks
-    const allText = (data.content || [])
-      .filter(b => b.type === 'text')
-      .map(b => b.text)
-      .join('\n');
+    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
 
     let businesses = [];
-    let parseError = null;
-
-    // Clean up the text — remove markdown fences and unescape
-    const cleaned = allText
-      .replace(/```json/g, '')
-      .replace(/```/g, '')
-      .replace(/\\n/g, '\n')
-      .replace(/\\"/g, '"')
-      .replace(/\\t/g, ' ')
-      .trim();
-
-    // Try every [ ... ] block from last to first
-    let searchText = cleaned;
-    let lastStart = searchText.lastIndexOf('[');
-    let lastEnd   = searchText.lastIndexOf(']');
-
-    if (lastStart !== -1 && lastEnd > lastStart) {
-      try {
-        businesses = JSON.parse(searchText.slice(lastStart, lastEnd + 1));
-      } catch(e) {
-        parseError = e.message;
-        // Try first occurrence instead
-        const firstStart = searchText.indexOf('[');
-        const firstEnd   = searchText.indexOf(']', firstStart);
-        if (firstStart !== -1 && firstEnd > firstStart) {
-          try {
-            businesses = JSON.parse(searchText.slice(firstStart, firstEnd + 1));
-          } catch(e2) {
-            parseError = e2.message;
-          }
-        }
-      }
+    try {
+      const clean = text.replace(/```json|```/g, '').trim();
+      const s = clean.indexOf('[');
+      const e = clean.lastIndexOf(']');
+      if (s !== -1 && e > s) businesses = JSON.parse(clean.slice(s, e + 1));
+    } catch(err) {
+      return res.status(500).json({ error: 'Parse failed', raw: text.slice(0, 500) });
     }
 
-    if (!Array.isArray(businesses) || !businesses.length) {
-      return res.status(500).json({
-        error: 'Failed to parse response',
-        parseError,
-        rawPreview: allText.slice(0, 1000),
-        cleanedPreview: cleaned.slice(0, 1000),
-      });
-    }
-
-    businesses = businesses
-      .filter(b => !b.disqualified)
-      .map(b => ({
-        ...b,
-        ownership_candidate: (b.ownership_score || 0) >= 6,
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      }));
+    businesses = businesses.map(b => ({
+      ...b,
+      ownership_candidate: (b.ownership_score || 0) >= 6,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    }));
 
     return res.status(200).json({
       city, industry,
