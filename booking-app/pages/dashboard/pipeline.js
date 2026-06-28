@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import Head from 'next/head';
 import Link from 'next/link';
@@ -28,6 +28,22 @@ const INDUSTRIES = [
   'Cleaning Services','Real Estate Services','Marketing & Media',
 ];
 
+const FRANCHISE_SCORE_BREAKDOWN = [
+  { points: 3, label: 'Multiple locations in same city' },
+  { points: 2, label: '4+ years in business' },
+  { points: 2, label: '200+ reviews at 4.2+ stars' },
+  { points: 2, label: 'Systemized team roles' },
+  { points: 1, label: 'Local press or awards' },
+];
+
+const OWNERSHIP_SCORE_BREAKDOWN = [
+  { points: 3, label: 'Unique concept — no national competitor' },
+  { points: 2, label: 'Strong brand or cult following' },
+  { points: 2, label: 'Scalable low build-out model' },
+  { points: 2, label: 'Owner at growth ceiling' },
+  { points: 1, label: 'Hot franchise category' },
+];
+
 function SideIcon({ name }) {
   const p = { width:17, height:17, fill:'none', stroke:'currentColor', strokeWidth:1.75, strokeLinecap:'round', strokeLinejoin:'round', viewBox:'0 0 24 24', style:{display:'block'} };
   if (name==='dashboard') return <svg {...p}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>;
@@ -41,260 +57,247 @@ function SideIcon({ name }) {
   return null;
 }
 
-function ScoreBadge({ score, label }) {
-  const pct = score / 10;
-  const color = pct>=0.7 ? '#15803D' : pct>=0.5 ? '#B45309' : '#DC2626';
+function ScoreRing({ score, color, label }) {
+  const r = 18, cx = 22, cy = 22;
+  const circ = 2 * Math.PI * r;
+  const dash = Math.min(score / 10, 1) * circ;
   return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
-      <div style={{fontSize:18,fontWeight:800,color,lineHeight:1}}>{score}</div>
-      <div style={{fontSize:9,fontWeight:600,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.05em'}}>{label}</div>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+      <svg width={44} height={44} viewBox="0 0 44 44">
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#F1F5F9" strokeWidth={4} />
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={4}
+          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+          transform={`rotate(-90 ${cx} ${cy})`} />
+        <text x={cx} y={cy+5} textAnchor="middle" fontSize={12} fontWeight={800} fill={color}>{score}</text>
+      </svg>
+      <div style={{ fontSize: 9, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
     </div>
   );
 }
 
-export default function PipelinePage({ perms={}, platformLogo=null, navOrder=null }) {
-  const { data: session } = useSession();
-  const [city, setCity]         = useState('Dallas, TX');
+function ScoreTooltip({ franchise_score, ownership_score, signals }) {
+  return (
+    <div style={{ background: '#1E293B', borderRadius: 8, padding: '14px 16px', width: 260, boxShadow: '0 8px 24px rgba(0,0,0,.3)', zIndex: 200 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Score Breakdown</div>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#60A5FA', marginBottom: 4 }}>Franchise Readiness: {franchise_score}/10</div>
+        {FRANCHISE_SCORE_BREAKDOWN.map((item, i) => (
+          <div key={i} style={{ fontSize: 11, color: '#CBD5E1', display: 'flex', gap: 6, marginBottom: 2 }}>
+            <span style={{ color: '#4ADE80', fontWeight: 700, flexShrink: 0 }}>+{item.points}</span>
+            <span>{item.label}</span>
+          </div>
+        ))}
+      </div>
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#F59E0B', marginBottom: 4 }}>Ownership Signal: {ownership_score}/10</div>
+        {OWNERSHIP_SCORE_BREAKDOWN.map((item, i) => (
+          <div key={i} style={{ fontSize: 11, color: '#CBD5E1', display: 'flex', gap: 6, marginBottom: 2 }}>
+            <span style={{ color: '#4ADE80', fontWeight: 700, flexShrink: 0 }}>+{item.points}</span>
+            <span>{item.label}</span>
+          </div>
+        ))}
+      </div>
+      {signals?.length > 0 && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #334155' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', marginBottom: 4 }}>Signals Found</div>
+          {signals.map((s, i) => <div key={i} style={{ fontSize: 11, color: '#E2E8F0', marginBottom: 2 }}>· {s}</div>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BusinessCard({ biz, index }) {
+  const [expanded, setExpanded] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const fc = biz.franchise_score >= 7 ? '#15803D' : biz.franchise_score >= 5 ? '#B45309' : '#DC2626';
+  const oc = biz.ownership_score >= 7 ? '#15803D' : biz.ownership_score >= 5 ? '#B45309' : '#DC2626';
+  const signalSummary = (biz.signals || []).slice(0, 2).join(' · ');
+  return (
+    <div style={{ background: '#fff', border: `1px solid ${biz.ownership_candidate ? '#FCD34D' : '#E2E8F0'}`, borderLeft: `4px solid ${biz.ownership_candidate ? '#F59E0B' : '#0057FF'}`, borderRadius: 10, padding: '14px 16px', boxShadow: '0 1px 3px rgba(15,23,42,.04)' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#64748B', flexShrink: 0, marginTop: 2 }}>{index + 1}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 2 }}>
+            {biz.ownership_candidate && <span style={{ fontSize: 9, fontWeight: 700, color: '#B45309', background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: 4, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🏆 Ownership</span>}
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>{biz.business_name}</span>
+          </div>
+          {biz.owner_name && <div style={{ fontSize: 12, color: '#64748B', marginBottom: 3 }}>{biz.owner_name}</div>}
+          {signalSummary && <div style={{ fontSize: 11, color: '#94A3B8', lineHeight: 1.4 }}>{signalSummary}</div>}
+        </div>
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 10, cursor: 'pointer' }} onMouseEnter={() => setShowTooltip(true)} onMouseLeave={() => setShowTooltip(false)} onClick={() => setShowTooltip(!showTooltip)}>
+            <ScoreRing score={biz.franchise_score} color={fc} label="Franchise" />
+            <ScoreRing score={biz.ownership_score} color={oc} label="Ownership" />
+          </div>
+          {showTooltip && <div style={{ position: 'absolute', right: 0, top: 60, zIndex: 100 }}><ScoreTooltip franchise_score={biz.franchise_score} ownership_score={biz.ownership_score} signals={biz.signals} /></div>}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0, alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontSize: 10, color: '#94A3B8' }}>Email</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: biz.enriched ? '#15803D' : '#D1D5DB' }}>{biz.enriched ? '✓' : '—'}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontSize: 10, color: '#94A3B8' }}>Loaded</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: biz.loaded ? '#15803D' : '#D1D5DB' }}>{biz.loaded ? '✓' : '—'}</span>
+          </div>
+        </div>
+      </div>
+      <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {biz.email ? <span style={{ fontSize: 11, color: '#15803D', fontWeight: 600 }}>{biz.email}</span> : <span style={{ fontSize: 11, color: '#D1D5DB' }}>No email found</span>}
+        <button style={{ fontSize: 11, color: '#64748B', background: '#F8FAFC', border: 'none', cursor: 'pointer', padding: '2px 8px', borderRadius: 4 }} onClick={() => setExpanded(!expanded)}>{expanded ? '▲ Less' : '▼ Details'}</button>
+      </div>
+      {expanded && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #F1F5F9' }}>
+          {biz.signals?.length > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5 }}>All Signals</div>
+              {biz.signals.map((sig, i) => <div key={i} style={{ fontSize: 12, color: '#374151', display: 'flex', gap: 6, marginBottom: 3 }}><span style={{ color: '#10B981', flexShrink: 0 }}>·</span>{sig}</div>)}
+            </div>
+          )}
+          {biz.website && <a href={biz.website.startsWith('http') ? biz.website : `https://${biz.website}`} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#0057FF' }}>{biz.website}</a>}
+          {biz.emails_preview?.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5 }}>Email Sequence</div>
+              {biz.emails_preview.map((e, i) => <div key={i} style={{ fontSize: 11, color: '#374151', marginBottom: 3 }}><span style={{ color: '#94A3B8', marginRight: 6 }}>Day {e.day}:</span>{e.subject}</div>)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HistoryRow({ run }) {
+  const date = new Date(run.run_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '10px 16px', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}>
+      <div style={{ width: 120, color: '#94A3B8', fontSize: 11, flexShrink: 0 }}>{date}</div>
+      <div style={{ flex: 1, fontWeight: 600, color: '#111827' }}>{run.city}</div>
+      <div style={{ width: 140, color: '#64748B' }}>{run.industry}</div>
+      <div style={{ width: 60, textAlign: 'center' }}><span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{run.found}</span><span style={{ fontSize: 10, color: '#94A3B8', marginLeft: 2 }}>found</span></div>
+      <div style={{ width: 70, textAlign: 'center' }}><span style={{ fontSize: 13, fontWeight: 700, color: run.enrichment_rate >= 50 ? '#15803D' : '#B45309' }}>{run.enrichment_rate}%</span><span style={{ fontSize: 10, color: '#94A3B8', marginLeft: 2 }}>enriched</span></div>
+      <div style={{ width: 70, textAlign: 'center' }}><span style={{ fontSize: 13, fontWeight: 700, color: '#0057FF' }}>{run.loaded}</span><span style={{ fontSize: 10, color: '#94A3B8', marginLeft: 2 }}>loaded</span></div>
+      <div style={{ width: 80, textAlign: 'center' }}><span style={{ fontSize: 11, fontWeight: 700, color: '#B45309', background: '#FEF3C7', padding: '2px 8px', borderRadius: 4 }}>🏆 {run.ownership_candidates}</span></div>
+    </div>
+  );
+}
+
+export default function PipelinePage({ perms = {}, platformLogo = null, navOrder = null }) {
+  const [city, setCity] = useState('Dallas, TX');
   const [industry, setIndustry] = useState('Food & Beverage');
-  const [running, setRunning]   = useState(false);
-  const [statusMsg, setStatusMsg] = useState('');
-  const [error, setError]       = useState(null);
-  const [scoutResults, setScoutResults]   = useState(null);
-  const [enrichResults, setEnrichResults] = useState(null);
-  const [outreachResults, setOutreachResults] = useState(null);
-  const [selectedIds, setSelectedIds] = useState(new Set());
-  const [expandedId, setExpandedId]   = useState(null);
-  const [currentStep, setCurrentStep] = useState(0);
+  const [running, setRunning] = useState(false);
+  const [stage, setStage] = useState('');
+  const [error, setError] = useState(null);
+  const [results, setResults] = useState(null);
+  const [history, setHistory] = useState([]);
 
-  async function runScout() {
-    setRunning(true); setError(null); setCurrentStep(1);
-    setScoutResults(null); setEnrichResults(null); setOutreachResults(null); setSelectedIds(new Set());
-    setStatusMsg(`Scouting ${city} — ${industry}…`);
+  useEffect(() => {
+    try { const s = localStorage.getItem('pipeline_history'); if (s) setHistory(JSON.parse(s)); } catch(e) {}
+  }, []);
+
+  async function runPipeline() {
+    setRunning(true); setError(null); setResults(null);
+    setStage('Scouting franchise-ready businesses...');
     try {
-      const res = await fetch('/api/pipeline/scout', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({city,industry}) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Scout failed');
-      setScoutResults(data);
-      setSelectedIds(new Set(data.businesses.map(b => b.id)));
-      setCurrentStep(0);
-    } catch(err) { setError(err.message); setCurrentStep(0); }
-    setRunning(false); setStatusMsg('');
-  }
+      const scoutRes = await fetch('/api/pipeline/scout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ city, industry }) });
+      const scoutData = await scoutRes.json();
+      if (!scoutRes.ok) throw new Error(scoutData.error || 'Scout failed');
+      const businesses = scoutData.businesses || [];
+      setStage(`Found ${businesses.length} businesses. Enriching owner emails...`);
 
-  async function runEnrich() {
-    const toEnrich = (scoutResults?.businesses||[]).filter(b => selectedIds.has(b.id));
-    if (!toEnrich.length) return;
-    setRunning(true); setError(null); setCurrentStep(2);
-    setStatusMsg(`Enriching ${toEnrich.length} businesses…`);
-    try {
-      const res = await fetch('/api/pipeline/enrich', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({businesses:toEnrich}) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Enrichment failed');
-      setEnrichResults(data);
-      setCurrentStep(0);
-    } catch(err) { setError(err.message); setCurrentStep(0); }
-    setRunning(false); setStatusMsg('');
-  }
+      const enrichRes = await fetch('/api/pipeline/enrich', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ businesses }) });
+      const enrichData = await enrichRes.json();
+      if (!enrichRes.ok) throw new Error(enrichData.error || 'Enrichment failed');
+      const enriched = enrichData.results || [];
+      const enrichedCount = enriched.filter(b => b.enriched).length;
+      setStage(`Found ${enrichedCount} emails. Writing sequences and loading to Smartlead...`);
 
-  async function runOutreach() {
-    const enriched = (enrichResults?.results||[]).filter(b => b.enriched);
-    if (!enriched.length) return;
-    setRunning(true); setError(null); setCurrentStep(3);
-    setStatusMsg(`Writing sequences and loading ${enriched.length} contacts to Smartlead…`);
-    try {
-      const res = await fetch('/api/pipeline/outreach', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({businesses:enriched}) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Outreach failed');
-      setOutreachResults(data);
-      setCurrentStep(0);
-    } catch(err) { setError(err.message); setCurrentStep(0); }
-    setRunning(false); setStatusMsg('');
-  }
+      const outreachRes = await fetch('/api/pipeline/outreach', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ businesses: enriched }) });
+      const outreachData = await outreachRes.json();
+      if (!outreachRes.ok) throw new Error(outreachData.error || 'Outreach failed');
 
-  function reset() {
-    setScoutResults(null); setEnrichResults(null); setOutreachResults(null);
-    setSelectedIds(new Set()); setCurrentStep(0); setError(null);
-  }
+      const outreachMap = {};
+      (outreachData.results || []).forEach(r => { outreachMap[r.business_name] = r; });
+      const unified = enriched.map(biz => ({ ...biz, loaded: outreachMap[biz.business_name]?.status === 'loaded', emails_preview: outreachMap[biz.business_name]?.emails_preview || [] }));
 
-  const businesses = scoutResults?.businesses || [];
-  const enriched   = (enrichResults?.results||[]).filter(b => b.enriched);
+      const batchStats = { city, industry, run_at: new Date().toISOString(), found: businesses.length, enriched_count: enrichedCount, enrichment_rate: businesses.length > 0 ? Math.round((enrichedCount / businesses.length) * 100) : 0, loaded: outreachData.loaded || 0, ownership_candidates: businesses.filter(b => b.ownership_candidate).length };
+      setResults({ businesses: unified, stats: batchStats });
+
+      const newHistory = [batchStats, ...history].slice(0, 20);
+      setHistory(newHistory);
+      try { localStorage.setItem('pipeline_history', JSON.stringify(newHistory)); } catch(e) {}
+      setStage('');
+    } catch (err) { setError(err.message); setStage(''); }
+    setRunning(false);
+  }
 
   return (
     <>
       <Head><title>Scout Pipeline — KANSO</title></Head>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}*{box-sizing:border-box}button:not(:disabled):hover{opacity:.85}select,button{font-family:inherit}`}</style>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}*{box-sizing:border-box}button:not(:disabled):hover{opacity:.85}select,button{font-family:inherit}`}</style>
       <div style={s.page}>
         <aside style={s.sidebar}>
           <div style={s.sideLogoWrap}><div style={s.sideLogoRow}><BrandLogo logo={platformLogo}/></div></div>
           <nav style={s.sideNav}>
-            {visibleNav(perms,navOrder).map(({href,label,icon})=>{
-              const active=href==='/dashboard/pipeline';
-              return <Link key={label} href={href} style={{...s.sideNavItem,...(active?s.sideNavItemActive:{})}}><span style={{color:active?'#0057FF':'#9CA3AF',display:'flex',alignItems:'center'}}><SideIcon name={icon}/></span><span>{label}</span></Link>;
+            {visibleNav(perms, navOrder).map(({ href, label, icon }) => {
+              const active = href === '/dashboard/pipeline';
+              return <Link key={label} href={href} style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}><span style={{ color: active ? '#0057FF' : '#9CA3AF', display: 'flex', alignItems: 'center' }}><SideIcon name={icon}/></span><span>{label}</span></Link>;
             })}
           </nav>
           <div style={s.sideBottom}><SidebarUser/></div>
         </aside>
-
         <div style={s.main}>
           <div style={s.topBar}>
             <div>
               <div style={s.topTitle}>Scout Pipeline</div>
-              <div style={s.topSub}>Find franchise-ready businesses → enrich owners → load to Smartlead</div>
+              <div style={s.topSub}>Find franchise-ready businesses → enrich → load to Smartlead automatically</div>
             </div>
-            {outreachResults && <div style={{fontSize:13,fontWeight:700,color:'#15803D',background:'#DCFCE7',border:'1px solid #86EFAC',borderRadius:6,padding:'6px 14px'}}>✓ {outreachResults.loaded} contacts loaded to Smartlead</div>}
           </div>
-
           <div style={s.body}>
-            {/* Control Panel */}
-            <div style={s.card}>
-              <div style={{display:'flex',gap:12,alignItems:'flex-end',flexWrap:'wrap'}}>
-                <div style={s.fieldGroup}>
-                  <label style={s.fieldLabel}>City</label>
-                  <select value={city} onChange={e=>setCity(e.target.value)} style={s.select} disabled={running}>
-                    {CITIES.map(c=><option key={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div style={s.fieldGroup}>
-                  <label style={s.fieldLabel}>Industry</label>
-                  <select value={industry} onChange={e=>setIndustry(e.target.value)} style={s.select} disabled={running}>
-                    {INDUSTRIES.map(i=><option key={i}>{i}</option>)}
-                  </select>
-                </div>
-                <button style={{...s.btn,...s.btnBlue,opacity:running?.5:1}} onClick={runScout} disabled={running}>
-                  {currentStep===1?'⟳ Scouting…':'🔍 Run Scout'}
+            <div style={s.controlCard}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                <div style={s.fieldGroup}><label style={s.fieldLabel}>City</label><select value={city} onChange={e => setCity(e.target.value)} style={s.select} disabled={running}>{CITIES.map(c => <option key={c}>{c}</option>)}</select></div>
+                <div style={s.fieldGroup}><label style={s.fieldLabel}>Industry</label><select value={industry} onChange={e => setIndustry(e.target.value)} style={s.select} disabled={running}>{INDUSTRIES.map(i => <option key={i}>{i}</option>)}</select></div>
+                <button style={{ ...s.btn, ...s.btnBlue, opacity: running ? .6 : 1, minWidth: 140 }} onClick={runPipeline} disabled={running}>
+                  {running ? <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,.4)', borderTopColor: '#fff', animation: 'spin .8s linear infinite', display: 'inline-block' }}/>Running...</span> : '🔍 Run Pipeline'}
                 </button>
               </div>
-
-              <div style={{display:'flex',alignItems:'center',gap:8,marginTop:16,flexWrap:'wrap'}}>
-                {[{n:1,label:'Scout'},{n:2,label:'Enrich'},{n:3,label:'Load to Smartlead'}].map(({n,label},i)=>{
-                  const done = (n===1&&!!scoutResults)||(n===2&&!!enrichResults)||(n===3&&!!outreachResults);
-                  const active = currentStep===n;
-                  return <span key={n} style={{display:'flex',alignItems:'center',gap:6}}>
-                    <span style={{width:22,height:22,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,background:done?'#15803D':active?'#0057FF':'#E5E7EB',color:(done||active)?'#fff':'#9CA3AF',animation:active?'pulse 1.2s ease infinite':'none'}}>{done?'✓':n}</span>
-                    <span style={{fontSize:12,fontWeight:done?700:500,color:done?'#15803D':active?'#0057FF':'#9CA3AF'}}>{label}</span>
-                    {i<2&&<span style={{color:'#D1D5DB',margin:'0 4px'}}>→</span>}
-                  </span>;
-                })}
-              </div>
-
-              {statusMsg&&<div style={{display:'flex',alignItems:'center',gap:8,marginTop:10}}>
-                <div style={{width:14,height:14,borderRadius:'50%',border:'2px solid #0057FF',borderTopColor:'transparent',animation:'spin .8s linear infinite'}}/>
-                <span style={{fontSize:12,color:'#0057FF',fontWeight:600}}>{statusMsg}</span>
-              </div>}
-              {error&&<div style={{marginTop:10,padding:'8px 12px',background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:6,fontSize:12,color:'#B91C1C'}}>{error}</div>}
+              {stage && <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 8, height: 8, borderRadius: '50%', background: '#0057FF', animation: 'pulse 1s ease infinite' }}/><span style={{ fontSize: 13, color: '#0057FF', fontWeight: 500 }}>{stage}</span></div>}
+              {error && <div style={{ marginTop: 10, padding: '8px 12px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 6, fontSize: 12, color: '#B91C1C' }}>{error}</div>}
             </div>
 
-            {/* Scout Results */}
-            {businesses.length>0&&(
-              <div style={s.section}>
-                <div style={s.sectionHeader}>
-                  <div>
-                    <div style={s.sectionTitle}>Scout Results — {scoutResults.city}</div>
-                    <div style={s.sectionSub}>{businesses.length} found · {scoutResults.ownership_candidates} ownership candidates · {selectedIds.size} selected</div>
-                  </div>
-                  <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-                    <button style={s.btnSm} onClick={()=>setSelectedIds(new Set(businesses.map(b=>b.id)))}>Select All</button>
-                    <button style={s.btnSm} onClick={()=>setSelectedIds(new Set())}>Clear</button>
-                    <button style={{...s.btn,...s.btnBlue,opacity:(running||selectedIds.size===0)?.5:1}} onClick={runEnrich} disabled={running||selectedIds.size===0}>
-                      {currentStep===2?'⟳ Enriching…':`Enrich ${selectedIds.size} →`}
-                    </button>
-                  </div>
-                </div>
-                <div style={s.cardGrid}>
-                  {businesses.map(biz=>{
-                    const selected=selectedIds.has(biz.id);
-                    const expanded=expandedId===biz.id;
-                    return <div key={biz.id} style={{...s.bizCard,borderColor:biz.ownership_candidate?'#FCD34D':selected?'#BFDBFE':'#E5E7EB',background:biz.ownership_candidate?'#FFFBEB':selected?'#EFF6FF':'#fff',outline:biz.ownership_candidate?'2px solid #FCD34D':selected?'2px solid #BFDBFE':'none'}}>
-                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-                        <div style={{flex:1}}>
-                          {biz.ownership_candidate&&<span style={{fontSize:9,fontWeight:700,color:'#B45309',background:'#FEF3C7',border:'1px solid #FCD34D',borderRadius:4,padding:'2px 6px',textTransform:'uppercase',letterSpacing:'0.05em',display:'inline-block',marginBottom:4}}>🏆 Ownership Candidate</span>}
-                          <div style={{fontSize:15,fontWeight:700,color:'#111827',marginBottom:2}}>{biz.business_name}</div>
-                          <div style={{fontSize:12,color:'#6B7280'}}>{biz.city} · {biz.industry}</div>
-                          {biz.owner_name&&<div style={{fontSize:11,color:'#9CA3AF',marginTop:2}}>{biz.owner_name}</div>}
-                        </div>
-                        <div style={{display:'flex',gap:12,flexShrink:0,marginLeft:12}}>
-                          <ScoreBadge score={biz.franchise_score} label="Franchise"/>
-                          <ScoreBadge score={biz.ownership_score} label="Ownership"/>
-                        </div>
-                      </div>
-                      {expanded&&biz.signals?.length>0&&(
-                        <div style={{marginTop:10,paddingTop:10,borderTop:'1px solid #E5E7EB'}}>
-                          <div style={{fontSize:10,fontWeight:700,color:'#6B7280',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:6}}>Signals</div>
-                          {biz.signals.map((sig,i)=><div key={i} style={{fontSize:12,color:'#374151',display:'flex',gap:6,marginBottom:3}}><span style={{color:'#10B981'}}>·</span>{sig}</div>)}
-                          {biz.website&&<a href={biz.website} target="_blank" rel="noreferrer" style={{fontSize:11,color:'#0057FF',marginTop:6,display:'block'}}>{biz.website}</a>}
-                        </div>
-                      )}
-                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:12}}>
-                        <button style={{fontSize:11,color:'#6B7280',background:'transparent',border:'none',cursor:'pointer',padding:0}} onClick={()=>setExpandedId(expanded?null:biz.id)}>{expanded?'▲ Less':'▼ Signals'}</button>
-                        <button style={{padding:'5px 14px',fontSize:12,fontWeight:600,borderRadius:5,background:selected?'#0057FF':'#F3F4F6',color:selected?'#fff':'#374151',border:`1px solid ${selected?'#0057FF':'#D1D5DB'}`,cursor:'pointer'}} onClick={()=>{const n=new Set(selectedIds);selected?n.delete(biz.id):n.add(biz.id);setSelectedIds(n);}}>
-                          {selected?'✓ Selected':'Select'}
-                        </button>
-                      </div>
-                    </div>;
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Enrich Results */}
-            {enrichResults&&(
-              <div style={s.section}>
-                <div style={s.sectionHeader}>
-                  <div>
-                    <div style={s.sectionTitle}>Enrichment Results</div>
-                    <div style={s.sectionSub}>{enrichResults.enriched_count} of {enrichResults.total} emails found ({enrichResults.hit_rate}% hit rate)</div>
-                  </div>
-                  <button style={{...s.btn,...s.btnGreen,opacity:(running||enriched.length===0)?.5:1}} onClick={runOutreach} disabled={running||enriched.length===0}>
-                    {currentStep===3?'⟳ Loading…':`Load ${enriched.length} to Smartlead →`}
-                  </button>
-                </div>
-                <div style={s.tableWrap}>
-                  <table style={s.table}>
-                    <thead><tr><th style={s.th}>Business</th><th style={s.th}>Owner</th><th style={s.th}>Email</th><th style={s.th}>Status</th><th style={s.th}>Ownership</th></tr></thead>
-                    <tbody>
-                      {enrichResults.results.map((b,i)=>(
-                        <tr key={i} style={{background:i%2?'#fff':'#F9FAFB'}}>
-                          <td style={s.td}><div style={{fontWeight:600,fontSize:13,color:'#111827'}}>{b.business_name}</div><div style={{fontSize:11,color:'#9CA3AF'}}>{b.city}</div></td>
-                          <td style={s.td}><span style={{fontSize:13,color:'#374151'}}>{b.owner_name||'—'}</span></td>
-                          <td style={s.td}>{b.email?<span style={{fontSize:12,color:'#15803D',fontWeight:600}}>{b.email}</span>:<span style={{fontSize:12,color:'#D1D5DB'}}>Not found</span>}</td>
-                          <td style={s.td}><span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:4,background:b.enriched?'#DCFCE7':'#F3F4F6',color:b.enriched?'#15803D':'#9CA3AF'}}>{b.enriched?'✓ Found':'No email'}</span></td>
-                          <td style={s.td}>{b.ownership_candidate?<span style={{fontSize:11,fontWeight:700,color:'#B45309',background:'#FEF3C7',padding:'2px 7px',borderRadius:4}}>🏆 Yes</span>:<span style={{fontSize:11,color:'#D1D5DB'}}>—</span>}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* Outreach Results */}
-            {outreachResults&&(
-              <div style={s.section}>
-                <div style={s.sectionTitle} style={{marginBottom:12}}>Loaded to Smartlead</div>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:16}}>
-                  {[{label:'Contacts Loaded',value:outreachResults.loaded,color:'#15803D',bg:'#DCFCE7'},{label:'Sequences Written',value:outreachResults.results?.filter(r=>r.sequence_written).length||0,color:'#0057FF',bg:'#EFF6FF'},{label:'Failed',value:outreachResults.failed||0,color:outreachResults.failed>0?'#DC2626':'#9CA3AF',bg:outreachResults.failed>0?'#FEE2E2':'#F3F4F6'}].map(({label,value,color,bg})=>(
-                    <div key={label} style={{background:bg,border:`1px solid ${color}33`,borderRadius:8,padding:'16px 20px',textAlign:'center'}}>
-                      <div style={{fontSize:32,fontWeight:800,color,lineHeight:1}}>{value}</div>
-                      <div style={{fontSize:11,fontWeight:600,color:'#6B7280',marginTop:4,textTransform:'uppercase',letterSpacing:'0.05em'}}>{label}</div>
-                    </div>
+            {results && (
+              <>
+                <div style={s.statsBar}>
+                  {[
+                    { label: 'Businesses Found', value: results.stats.found, color: '#111827' },
+                    { label: 'Emails Found', value: `${results.stats.enriched_count} of ${results.stats.found}`, color: '#0057FF' },
+                    { label: 'Enrichment Rate', value: `${results.stats.enrichment_rate}%`, color: results.stats.enrichment_rate >= 50 ? '#15803D' : '#B45309' },
+                    { label: 'Loaded to Smartlead', value: results.stats.loaded, color: '#15803D' },
+                    { label: 'Ownership Candidates', value: results.stats.ownership_candidates, color: '#B45309' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} style={s.statItem}><div style={{ fontSize: 24, fontWeight: 800, color, lineHeight: 1 }}>{value}</div><div style={{ fontSize: 10, fontWeight: 600, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 3 }}>{label}</div></div>
                   ))}
                 </div>
-                {outreachResults.results?.map((r,i)=>(
-                  <div key={i} style={{padding:'12px 16px',background:'#fff',border:'1px solid #E5E7EB',borderRadius:6,marginBottom:6,display:'flex',alignItems:'flex-start',gap:12}}>
-                    <div style={{width:8,height:8,borderRadius:'50%',marginTop:4,flexShrink:0,background:r.status==='loaded'?'#10B981':'#EF4444'}}/>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:600,fontSize:13,color:'#111827'}}>{r.business_name}</div>
-                      <div style={{fontSize:11,color:'#9CA3AF'}}>{r.email}</div>
-                      {r.emails_preview?.length>0&&<div style={{marginTop:6,display:'flex',flexWrap:'wrap',gap:6}}>
-                        {r.emails_preview.map((e,ei)=><span key={ei} style={{fontSize:10,color:'#6B7280',background:'#F3F4F6',borderRadius:4,padding:'2px 8px'}}>Day {e.day}: {e.subject}</span>)}
-                      </div>}
-                    </div>
-                    {r.ownership_candidate&&<span style={{fontSize:10,fontWeight:700,color:'#B45309',background:'#FEF3C7',padding:'2px 7px',borderRadius:4,flexShrink:0}}>🏆 Ownership</span>}
+                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{results.stats.city} — {results.stats.industry}</div>
+                  <div style={{ fontSize: 12, color: '#94A3B8' }}>Tap scores to see breakdown · Tap Details to expand</div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
+                  {results.businesses.map((biz, i) => <BusinessCard key={biz.id || i} biz={biz} index={i} />)}
+                </div>
+              </>
+            )}
+
+            {history.length > 0 && (
+              <div style={s.historySection}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 12 }}>Run History</div>
+                <div style={s.tableWrap}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '8px 16px', background: '#FAFBFD', borderBottom: '1px solid #E2E8F0' }}>
+                    {['Date','City','Industry','Found','Enriched','Loaded','Ownership'].map((h, i) => <div key={h} style={{ width: i===0?120:i===1?undefined:i===2?140:i===3?60:i===4?70:i===5?70:80, flex: i===1?1:undefined, fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', textAlign: i>2?'center':'left' }}>{h}</div>)}
                   </div>
-                ))}
-                <div style={{marginTop:16,display:'flex',gap:10}}>
-                  <button style={{...s.btn,...s.btnBlue}} onClick={reset}>↻ Run Another City</button>
-                  <a href="https://app.smartlead.ai" target="_blank" rel="noreferrer" style={{...s.btn,background:'#fff',color:'#374151',border:'1px solid #D1D5DB',textDecoration:'none',display:'flex',alignItems:'center'}}>View in Smartlead →</a>
+                  {history.map((run, i) => <HistoryRow key={i} run={run} />)}
                 </div>
               </div>
             )}
@@ -306,35 +309,27 @@ export default function PipelinePage({ perms={}, platformLogo=null, navOrder=nul
 }
 
 const s = {
-  page:{display:'flex',minHeight:'100vh',background:'#FAFBFD',fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif"},
-  sidebar:{width:210,flexShrink:0,background:'#fff',borderRight:'1px solid #E2E8F0',display:'flex',flexDirection:'column',position:'sticky',top:0,height:'100vh'},
-  sideLogoWrap:{padding:'20px 16px 16px',borderBottom:'1px solid #E2E8F0'},
-  sideLogoRow:{display:'flex',alignItems:'center',gap:9},
-  sideNav:{flex:1,padding:'10px 8px',display:'flex',flexDirection:'column',gap:1,overflowY:'auto'},
-  sideNavItem:{display:'flex',alignItems:'center',gap:10,padding:'9px 10px',borderRadius:7,fontSize:13,fontWeight:500,color:'#475569',textDecoration:'none',transition:'all .15s'},
-  sideNavItemActive:{background:'#EFF6FF',color:'#0057FF',fontWeight:600},
-  sideBottom:{borderTop:'1px solid #E2E8F0',padding:'8px 8px 16px'},
-  main:{flex:1,display:'flex',flexDirection:'column',minWidth:0},
-  topBar:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 24px',background:'#fff',borderBottom:'1px solid #E2E8F0',flexShrink:0},
-  topTitle:{fontSize:20,fontWeight:700,color:'#0F172A'},
-  topSub:{fontSize:12,color:'#64748B',marginTop:2},
-  body:{flex:1,padding:'20px 24px',overflowY:'auto'},
-  card:{background:'#fff',border:'1px solid #E2E8F0',borderRadius:10,padding:'20px 24px',marginBottom:20,boxShadow:'0 1px 3px rgba(15,23,42,.04)'},
-  section:{marginBottom:24},
-  sectionHeader:{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:14,gap:12,flexWrap:'wrap'},
-  sectionTitle:{fontSize:15,fontWeight:700,color:'#111827'},
-  sectionSub:{fontSize:12,color:'#6B7280',marginTop:2},
-  cardGrid:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:12},
-  bizCard:{background:'#fff',border:'1px solid #E5E7EB',borderRadius:10,padding:16,boxShadow:'0 1px 3px rgba(15,23,42,.03)',transition:'all .15s'},
-  tableWrap:{background:'#fff',border:'1px solid #E2E8F0',borderRadius:10,overflow:'hidden'},
-  table:{width:'100%',borderCollapse:'collapse'},
-  th:{fontSize:10,fontWeight:700,color:'#64748B',textTransform:'uppercase',letterSpacing:'0.05em',padding:'9px 14px',background:'#FAFBFD',borderBottom:'1px solid #E2E8F0',textAlign:'left'},
-  td:{fontSize:13,color:'#0F172A',padding:'11px 14px',borderBottom:'1px solid #F1F5F9',verticalAlign:'middle'},
-  fieldGroup:{display:'flex',flexDirection:'column',gap:5},
-  fieldLabel:{fontSize:11,fontWeight:600,color:'#6B7280',textTransform:'uppercase',letterSpacing:'0.05em'},
-  select:{padding:'8px 12px',borderRadius:6,border:'1px solid #D1D5DB',fontSize:13,color:'#111827',background:'#fff',cursor:'pointer',minWidth:180},
-  btn:{padding:'8px 18px',fontSize:13,fontWeight:600,borderRadius:6,border:'none',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6},
-  btnBlue:{background:'#0057FF',color:'#fff'},
-  btnGreen:{background:'#15803D',color:'#fff'},
-  btnSm:{padding:'5px 12px',fontSize:12,fontWeight:500,borderRadius:5,border:'1px solid #E2E8F0',background:'#fff',color:'#374151',cursor:'pointer'},
+  page: { display: 'flex', minHeight: '100vh', background: '#FAFBFD', fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" },
+  sidebar: { width: 210, flexShrink: 0, background: '#fff', borderRight: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh' },
+  sideLogoWrap: { padding: '20px 16px 16px', borderBottom: '1px solid #E2E8F0' },
+  sideLogoRow: { display: 'flex', alignItems: 'center', gap: 9 },
+  sideNav: { flex: 1, padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 1, overflowY: 'auto' },
+  sideNavItem: { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 7, fontSize: 13, fontWeight: 500, color: '#475569', textDecoration: 'none', transition: 'all .15s' },
+  sideNavItemActive: { background: '#EFF6FF', color: '#0057FF', fontWeight: 600 },
+  sideBottom: { borderTop: '1px solid #E2E8F0', padding: '8px 8px 16px' },
+  main: { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 },
+  topBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', background: '#fff', borderBottom: '1px solid #E2E8F0', flexShrink: 0 },
+  topTitle: { fontSize: 20, fontWeight: 700, color: '#0F172A' },
+  topSub: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  body: { flex: 1, padding: '20px 24px', overflowY: 'auto' },
+  controlCard: { background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '20px 24px', marginBottom: 20, boxShadow: '0 1px 3px rgba(15,23,42,.04)' },
+  statsBar: { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 20, background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px 20px' },
+  statItem: { textAlign: 'center', padding: '4px 0' },
+  fieldGroup: { display: 'flex', flexDirection: 'column', gap: 5 },
+  fieldLabel: { fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em' },
+  select: { padding: '8px 12px', borderRadius: 6, border: '1px solid #D1D5DB', fontSize: 13, color: '#111827', background: '#fff', cursor: 'pointer', minWidth: 180 },
+  btn: { padding: '9px 20px', fontSize: 13, fontWeight: 600, borderRadius: 6, border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 },
+  btnBlue: { background: '#0057FF', color: '#fff' },
+  historySection: { marginTop: 8 },
+  tableWrap: { background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' },
 };
