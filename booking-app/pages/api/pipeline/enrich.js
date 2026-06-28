@@ -11,54 +11,53 @@ export default async function handler(req, res) {
   for (const biz of businesses) {
     const { owner_name, domain, business_name } = biz;
 
-    if (!domain) {
-      results.push({ ...biz, email: null, email_status: 'no_domain', enriched: false });
+    if (!domain && !owner_name) {
+      results.push({ ...biz, email: null, email_status: 'no_data', enriched: false });
       continue;
     }
 
     let email = null;
     let emailStatus = 'not_found';
 
-    if (owner_name) {
-      const nameParts = owner_name.trim().split(' ');
-      const firstName = nameParts[0];
-      const lastName = nameParts.slice(1).join(' ');
-      if (firstName && lastName) {
-        try {
-          const r = await fetch('https://api.anymailfinder.com/v5.0/search/person.json', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ api_key: ANYMAIL_KEY, first_name: firstName, last_name: lastName, domain }),
-          });
-          const d = await r.json();
-          if (d.email && d.result_status !== 'not_found') {
-            email = d.email;
-            emailStatus = d.result_status || 'found';
-          }
-        } catch (err) {
-          console.error(`Person search failed for ${business_name}:`, err.message);
+    // Person search using full_name + domain
+    if (owner_name && domain) {
+      try {
+        const r = await fetch('https://api.anymailfinder.com/v5.1/find-email/person', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': ANYMAIL_KEY,
+          },
+          body: JSON.stringify({ full_name: owner_name, domain }),
+        });
+        const d = await r.json();
+        if (d.email) {
+          email = d.email;
+          emailStatus = d.result_status || 'found';
         }
+      } catch (err) {
+        console.error(`Person search failed for ${business_name}:`, err.message);
       }
     }
 
-    if (!email) {
+    // Fallback: company name search
+    if (!email && business_name) {
       try {
-        const r = await fetch('https://api.anymailfinder.com/v5.0/search/company.json', {
+        const r = await fetch('https://api.anymailfinder.com/v5.1/find-email/person', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ api_key: ANYMAIL_KEY, domain }),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': ANYMAIL_KEY,
+          },
+          body: JSON.stringify({ full_name: owner_name || '', company_name: business_name }),
         });
         const d = await r.json();
-        if (d.emails && d.emails.length > 0) {
-          const priority = d.emails.find(e =>
-            ['owner','founder','ceo','president','director'].some(t => (e.position||'').toLowerCase().includes(t))
-          );
-          const picked = priority || d.emails[0];
-          email = picked.email;
-          emailStatus = picked.result_status || 'domain_found';
+        if (d.email) {
+          email = d.email;
+          emailStatus = d.result_status || 'company_found';
         }
       } catch (err) {
-        console.error(`Domain search failed for ${business_name}:`, err.message);
+        console.error(`Company search failed for ${business_name}:`, err.message);
       }
     }
 
