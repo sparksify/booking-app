@@ -6,80 +6,87 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: 'Missing ANTHROPIC_API_KEY' });
 
   try {
-    // Step 1: Research
-    const researchRes = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 3000,
-        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-        messages: [{ role: 'user', content: `Find the top 10 independent locally-owned ${industry} businesses in ${city} that are NOT franchises. For each one find: owner name, years open, number of locations, website domain, any awards or press. Plain text summary only.` }],
-      }),
-    });
-    const researchData = await researchRes.json();
-    const researchText = (researchData.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').slice(0, 3000);
-
-    // Step 2: Score and return JSON using a strict prompt
-    const scoreRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 3000,
-        system: 'You are a JSON API. You only output raw JSON arrays. Never output any text before or after the JSON array. Never use markdown. Your entire response must be parseable by JSON.parse().',
-        messages: [
+        max_tokens: 4000,
+        tools: [
+          { type: 'web_search_20250305', name: 'web_search' },
           {
-            role: 'user',
-            content: `Score these ${industry} businesses in ${city} and return a JSON array.
-
-Research data:
-${researchText}
-
-Scoring rules:
-- franchise_score (0-10): +3 multiple locations same city, +2 4+ years open, +2 high reviews, +2 systemized team, +1 each for press/social/hiring
-- ownership_score (0-10): +3 unique concept no national competitor, +2 strong brand, +2 scalable economics, +2 owner at growth ceiling, +1 hot category
-- disqualify if: already franchising, FDD mention, corporate parent, 8+ locations across multiple states
-
-Return this exact JSON structure with no other text:
-[{"business_name":"string","city":"${city}","industry":"${industry}","website":"string or null","owner_name":"string or null","domain":"string or null","franchise_score":0,"ownership_score":0,"total_score":0,"ownership_candidate":false,"signals":["string"],"disqualified":false,"disqualify_reason":null}]`
-          },
-          {
-            role: 'assistant',
-            content: '[',
+            name: 'submit_businesses',
+            description: 'Submit the final list of scored franchise-ready businesses. Call this tool once when done researching.',
+            input_schema: {
+              type: 'object',
+              properties: {
+                businesses: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      business_name:     { type: 'string' },
+                      owner_name:        { type: 'string' },
+                      website:           { type: 'string' },
+                      domain:            { type: 'string' },
+                      franchise_score:   { type: 'number' },
+                      ownership_score:   { type: 'number' },
+                      total_score:       { type: 'number' },
+                      signals:           { type: 'array', items: { type: 'string' } },
+                      disqualified:      { type: 'boolean' },
+                      disqualify_reason: { type: 'string' },
+                    },
+                    required: ['business_name', 'franchise_score', 'ownership_score', 'total_score', 'signals', 'disqualified'],
+                  }
+                }
+              },
+              required: ['businesses'],
+            }
           }
         ],
+        tool_choice: { type: 'auto' },
+        messages: [{
+          role: 'user',
+          content: `Search for the top independent locally-owned ${industry} businesses in ${city} that are NOT franchises and NOT part of a corporate chain.
+
+For each business score it:
+- franchise_score (0-10): +3 multiple locations same city, +2 4+ years open, +2 200+ reviews 4.2+ stars, +2 systemized team roles, +1 press coverage, +1 social media, +1 hiring posts
+- ownership_score (0-10): +3 unique concept no national franchise competitor, +2 strong brand identity, +2 scalable low build-out model, +2 owner appears at growth ceiling, +1 hot franchise category
+
+Disqualify if: already franchising, FDD mentioned, corporate parent, 8+ locations across multiple states.
+
+Find 6-10 businesses then call submit_businesses with your results.`
+        }],
       }),
     });
 
-    const scoreData = await scoreRes.json();
-    const rawText = (scoreData.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-
-    // The assistant was primed to start with '[' so prepend it
-    const jsonStr = '[' + rawText;
-
-    let businesses = [];
-    try {
-      businesses = JSON.parse(jsonStr);
-    } catch(e) {
-      // Try to find array in response anyway
-      const s = jsonStr.lastIndexOf('[');
-      const en = jsonStr.lastIndexOf(']');
-      if (s !== -1 && en > s) {
-        try {
-          businesses = JSON.parse(jsonStr.slice(s, en + 1));
-        } catch(e2) {
-          return res.status(500).json({ error: 'Parse failed', detail: e2.message, raw: jsonStr.slice(0, 400) });
-        }
-      } else {
-        return res.status(500).json({ error: 'No JSON array found', raw: jsonStr.slice(0, 400) });
-      }
+    if (!response.ok) {
+      const err = await response.text();
+      return res.status(500).json({ error: 'Claude API error', detail: err });
     }
+
+    const data = await response.json();
+
+    // Extract the submit_businesses tool call
+    const toolUse = (data.content || []).find(b => b.type === 'tool_use' && b.name === 'submit_businesses');
+
+    if (!toolUse) {
+      const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+      return res.status(500).json({ error: 'No submit_businesses tool call found', stop_reason: data.stop_reason, text_preview: text.slice(0, 300) });
+    }
+
+    let businesses = toolUse.input?.businesses || [];
 
     businesses = businesses
       .filter(b => !b.disqualified)
       .map(b => ({
         ...b,
+        city,
+        industry,
         ownership_candidate: (b.ownership_score || 0) >= 6,
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       }));
