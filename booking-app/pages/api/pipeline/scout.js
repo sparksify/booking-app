@@ -27,10 +27,10 @@ OWNERSHIP SIGNAL SCORE (0-10):
 
 DISQUALIFY if: already franchising, corporate parent, national chain, FDD mention, 8+ locations across states.
 
-After your research, output ONLY a JSON array as your final response with no text after the closing bracket:
-[{"business_name":"Name","city":"City, State","industry":"Industry","website":"url or null","owner_name":"First Last or null","domain":"domain.com or null","franchise_score":7,"ownership_score":5,"total_score":12,"ownership_candidate":true,"signals":["Signal 1","Signal 2"],"disqualified":false,"disqualify_reason":null}]`;
+After research output ONLY a raw JSON array with no markdown fences, no backticks, no explanation. Start your final response with [ and end with ].`;
 
-  const userPrompt = `Find franchise-ready independent businesses in ${city} in the ${industry} industry. Search for top-rated local businesses, award lists, Best of ${city} coverage, and highly-reviewed independents. Output 8-15 results as a JSON array sorted by total_score descending.`;
+  const userPrompt = `Find franchise-ready independent businesses in ${city} in the ${industry} industry. Search for top-rated local businesses, award lists, Best of ${city} coverage. Output 8-15 results as a raw JSON array (no markdown, start with [, end with ]):
+[{"business_name":"Name","city":"City, State","industry":"Industry","website":"url or null","owner_name":"First Last or null","domain":"domain.com or null","franchise_score":7,"ownership_score":5,"total_score":12,"ownership_candidate":true,"signals":["Signal 1","Signal 2"],"disqualified":false,"disqualify_reason":null}]`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -56,6 +56,7 @@ After your research, output ONLY a JSON array as your final response with no tex
 
     const data = await response.json();
 
+    // Collect all text blocks
     const allText = (data.content || [])
       .filter(b => b.type === 'text')
       .map(b => b.text)
@@ -64,32 +65,59 @@ After your research, output ONLY a JSON array as your final response with no tex
     let businesses = [];
     let parseError = null;
 
-    const attempts = [
-      () => { const s=allText.lastIndexOf('['),e=allText.lastIndexOf(']'); if(s!==-1&&e>s) return JSON.parse(allText.slice(s,e+1)); },
-      () => { const c=allText.replace(/```json|```/g,'').trim(),s=c.indexOf('['),e=c.lastIndexOf(']'); if(s!==-1&&e>s) return JSON.parse(c.slice(s,e+1)); },
-    ];
+    // Clean up the text — remove markdown fences and unescape
+    const cleaned = allText
+      .replace(/```json/g, '')
+      .replace(/```/g, '')
+      .replace(/\\n/g, '\n')
+      .replace(/\\"/g, '"')
+      .replace(/\\t/g, ' ')
+      .trim();
 
-    for (const attempt of attempts) {
-      if (businesses.length) break;
-      try { const r=attempt(); if(Array.isArray(r)&&r.length) businesses=r; } catch(e) { parseError=e.message; }
+    // Try every [ ... ] block from last to first
+    let searchText = cleaned;
+    let lastStart = searchText.lastIndexOf('[');
+    let lastEnd   = searchText.lastIndexOf(']');
+
+    if (lastStart !== -1 && lastEnd > lastStart) {
+      try {
+        businesses = JSON.parse(searchText.slice(lastStart, lastEnd + 1));
+      } catch(e) {
+        parseError = e.message;
+        // Try first occurrence instead
+        const firstStart = searchText.indexOf('[');
+        const firstEnd   = searchText.indexOf(']', firstStart);
+        if (firstStart !== -1 && firstEnd > firstStart) {
+          try {
+            businesses = JSON.parse(searchText.slice(firstStart, firstEnd + 1));
+          } catch(e2) {
+            parseError = e2.message;
+          }
+        }
+      }
     }
 
-    if (!businesses.length) {
-      return res.status(500).json({ error: 'Failed to parse response', parseError, rawPreview: allText.slice(0,800) });
+    if (!Array.isArray(businesses) || !businesses.length) {
+      return res.status(500).json({
+        error: 'Failed to parse response',
+        parseError,
+        rawPreview: allText.slice(0, 1000),
+        cleanedPreview: cleaned.slice(0, 1000),
+      });
     }
 
     businesses = businesses
       .filter(b => !b.disqualified)
       .map(b => ({
         ...b,
-        ownership_candidate: (b.ownership_score||0) >= 6,
-        id: `${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
+        ownership_candidate: (b.ownership_score || 0) >= 6,
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       }));
 
     return res.status(200).json({
       city, industry,
       count: businesses.length,
-      ownership_candidates: businesses.filter(b=>b.ownership_candidate).length,
+      ownership_candidates: businesses.filter(b => b.ownership_candidate).length,
       businesses,
       run_at: new Date().toISOString(),
     });
