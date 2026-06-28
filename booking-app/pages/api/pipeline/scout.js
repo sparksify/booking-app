@@ -6,76 +6,73 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: 'Missing ANTHROPIC_API_KEY' });
 
   try {
-    // Step 1: Research with web search
+    // Step 1: Research
     const researchRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 4000,
+        max_tokens: 3000,
         tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-        messages: [{ role: 'user', content: `Research the top independent locally-owned ${industry} businesses in ${city}. Find their owners, how long they have been open, number of locations, and any awards or press coverage. Summarize your findings in plain text.` }],
+        messages: [{ role: 'user', content: `Find the top 10 independent locally-owned ${industry} businesses in ${city} that are NOT franchises. For each one find: owner name, years open, number of locations, website domain, any awards or press. Plain text summary only.` }],
       }),
     });
-
     const researchData = await researchRes.json();
-    const researchText = (researchData.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+    const researchText = (researchData.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').slice(0, 3000);
 
-    // Step 2: Score and format as JSON (no web search, pure generation)
+    // Step 2: Score and return JSON using a strict prompt
     const scoreRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 4000,
-        messages: [{
-          role: 'user',
-          content: `Based on this research about ${industry} businesses in ${city}:
+        max_tokens: 3000,
+        system: 'You are a JSON API. You only output raw JSON arrays. Never output any text before or after the JSON array. Never use markdown. Your entire response must be parseable by JSON.parse().',
+        messages: [
+          {
+            role: 'user',
+            content: `Score these ${industry} businesses in ${city} and return a JSON array.
 
+Research data:
 ${researchText}
 
-Score each business and return ONLY a JSON array. No text before or after. No markdown. Start with [ and end with ].
+Scoring rules:
+- franchise_score (0-10): +3 multiple locations same city, +2 4+ years open, +2 high reviews, +2 systemized team, +1 each for press/social/hiring
+- ownership_score (0-10): +3 unique concept no national competitor, +2 strong brand, +2 scalable economics, +2 owner at growth ceiling, +1 hot category
+- disqualify if: already franchising, FDD mention, corporate parent, 8+ locations across multiple states
 
-Scoring:
-Franchise score (0-10): +3 multiple locations, +2 4+ years, +2 200+ reviews 4.2+, +2 systemized roles, +1 each for press/social/hiring posts/owner profile/multiple revenue
-Ownership score (0-10): +3 unique concept no national competitor, +2 strong brand, +2 scalable economics, +2 owner at growth ceiling, +1 hot category
-
-Disqualify if: already franchising, corporate parent, FDD mention, 8+ locations across states.
-
-Use only simple ASCII characters in all string values. No apostrophes in business names - use plain text only.
-
-Output format (start response with [ character):
-[{"business_name":"Name","city":"${city}","industry":"${industry}","website":"domain.com or null","owner_name":"First Last or null","domain":"domain.com or null","franchise_score":7,"ownership_score":5,"total_score":12,"ownership_candidate":false,"signals":["Signal 1","Signal 2","Signal 3"],"disqualified":false,"disqualify_reason":null}]`
-        }],
+Return this exact JSON structure with no other text:
+[{"business_name":"string","city":"${city}","industry":"${industry}","website":"string or null","owner_name":"string or null","domain":"string or null","franchise_score":0,"ownership_score":0,"total_score":0,"ownership_candidate":false,"signals":["string"],"disqualified":false,"disqualify_reason":null}]`
+          },
+          {
+            role: 'assistant',
+            content: '[',
+          }
+        ],
       }),
     });
 
     const scoreData = await scoreRes.json();
-    const scoreText = (scoreData.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+    const rawText = (scoreData.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
 
-    // Parse JSON
+    // The assistant was primed to start with '[' so prepend it
+    const jsonStr = '[' + rawText;
+
     let businesses = [];
-    const clean = scoreText.replace(/```json|```/g, '').trim();
-    const s = clean.indexOf('[');
-    const e = clean.lastIndexOf(']');
-
-    if (s === -1 || e <= s) {
-      return res.status(500).json({ error: 'No JSON array found', raw: clean.slice(0, 500) });
-    }
-
     try {
-      businesses = JSON.parse(clean.slice(s, e + 1));
-    } catch(parseErr) {
-      // Sanitize and retry
-      const sanitized = clean.slice(s, e + 1)
-        .replace(/[\u2018\u2019]/g, "'")
-        .replace(/[\u201C\u201D]/g, '"')
-        .replace(/[\u2013\u2014]/g, '-')
-        .replace(/[^\x20-\x7E\n\r\t]/g, '');
-      try {
-        businesses = JSON.parse(sanitized);
-      } catch(err2) {
-        return res.status(500).json({ error: 'Parse failed after sanitize', detail: err2.message, raw: clean.slice(s, s + 300) });
+      businesses = JSON.parse(jsonStr);
+    } catch(e) {
+      // Try to find array in response anyway
+      const s = jsonStr.lastIndexOf('[');
+      const en = jsonStr.lastIndexOf(']');
+      if (s !== -1 && en > s) {
+        try {
+          businesses = JSON.parse(jsonStr.slice(s, en + 1));
+        } catch(e2) {
+          return res.status(500).json({ error: 'Parse failed', detail: e2.message, raw: jsonStr.slice(0, 400) });
+        }
+      } else {
+        return res.status(500).json({ error: 'No JSON array found', raw: jsonStr.slice(0, 400) });
       }
     }
 
