@@ -4,13 +4,14 @@
  * hidden per-member, and pageAccess guards block direct URL access.
  */
 export const NAV_ITEMS = [
-  { href: '/dashboard/analytics',   label: 'Dashboard',   icon: 'dashboard', perm: 'page_dashboard' },
-  { href: '/dashboard/leads',       label: 'Leads',       icon: 'leads',     perm: 'page_leads' },
-  { href: '/dashboard/prospects',   label: 'Prospecting', icon: 'clients',   perm: 'page_prospecting' },
-  { href: '/dashboard/bookings',    label: 'Meetings',    icon: 'meetings',  perm: 'page_meetings' },
-  { href: '/dashboard/cq-recovery', label: 'CQ Recovery', icon: 'cq',        perm: 'page_cq' },
-  { href: '/dashboard/nurture',     label: 'Nurture',     icon: 'nurture',   perm: 'page_nurture' },
-  { href: '/dashboard/settings',    label: 'Settings',    icon: 'settings',  perm: 'page_settings' },
+  { href: '/dashboard/analytics',   label: 'Dashboard',      icon: 'dashboard', perm: 'page_dashboard' },
+  { href: '/dashboard/leads',       label: 'Leads',          icon: 'leads',     perm: 'page_leads' },
+  { href: '/dashboard/prospects',   label: 'Prospecting',    icon: 'clients',   perm: 'page_prospecting' },
+  { href: '/dashboard/bookings',    label: 'Meetings',       icon: 'meetings',  perm: 'page_meetings' },
+  { href: '/dashboard/pipeline',    label: 'Scout Pipeline', icon: 'pipeline',  perm: 'page_pipeline' },
+  { href: '/dashboard/cq-recovery', label: 'CQ Recovery',   icon: 'cq',        perm: 'page_cq' },
+  { href: '/dashboard/nurture',     label: 'Nurture',        icon: 'nurture',   perm: 'page_nurture' },
+  { href: '/dashboard/settings',    label: 'Settings',       icon: 'settings',  perm: 'page_settings' },
 ];
 
 /** NAV_ITEMS sorted by a stored order of hrefs (unknown items keep default order at the end). */
