@@ -8,41 +8,7 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: 'Missing ANTHROPIC_API_KEY' });
 
   try {
-    // Step 1: Web search research — find real businesses with real owner names
-    const researchRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 3000,
-        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-        messages: [{ role: 'user', content: `Search the web for independent locally-owned ${industry} businesses in ${city} that are NOT franchises. 
-
-Search for:
-1. "best independent ${industry.toLowerCase()} ${city} owner"
-2. "top rated local ${industry.toLowerCase()} ${city} founded by"
-3. "${city} ${industry.toLowerCase()} small business owner"
-
-For each business you find I need:
-- Business name
-- Owner first and last name (real person, not a company name)
-- Website URL
-- How long in business
-- Number of locations
-- Any awards or press mentions
-
-Only include businesses where you can find the actual owner's real first and last name. Skip any where only a generic contact or company name is available. I need at least 6-8 businesses with real named owners.` }],
-      }),
-    });
-
-    let researchText = '';
-    if (researchRes.ok) {
-      const d = await researchRes.json();
-      researchText = (d.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').slice(0, 3000);
-    }
-
-    // Step 2: Score into structured format using tool_use
-    const scoreRes = await fetch('https://api.anthropic.com/v1/messages', {
+    const res2 = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
@@ -60,9 +26,9 @@ Only include businesses where you can find the actual owner's real first and las
                   type: 'object',
                   properties: {
                     business_name:     { type: 'string' },
-                    owner_name:        { type: 'string', description: 'Real first and last name of owner. E.g. Randy Hays, Mike Rodriguez. NEVER use Local Owner, Business Owner, Family, Group, or any placeholder. Set null if genuinely unknown.' },
+                    owner_name:        { type: 'string', description: 'Real first and last name only. E.g. Randy Hays, Sarah Chen. Never use Local Owner, Business Owner, or any group placeholder. Null if genuinely unknown.' },
                     website:           { type: 'string' },
-                    domain:            { type: 'string', description: 'Domain without www. E.g. hayscooling.com' },
+                    domain:            { type: 'string' },
                     franchise_score:   { type: 'number' },
                     ownership_score:   { type: 'number' },
                     total_score:       { type: 'number' },
@@ -78,33 +44,32 @@ Only include businesses where you can find the actual owner's real first and las
           }
         }],
         tool_choice: { type: 'tool', name: 'submit_businesses' },
-        messages: [{ role: 'user', content: `Score these ${industry} businesses in ${city} based on this research.
+        messages: [{ role: 'user', content: `List 8 real independent locally-owned ${industry} businesses in ${city} that are NOT franchises. Use your training knowledge — think carefully about actual businesses you know of in this city.
 
-Research:
-${researchText || `Use your training knowledge to list 8 real independent ${industry} businesses in ${city} with real owner names.`}
+For owner_name: dig into your training data for the actual founder or owner first and last name. Examples of good answers: "Randy Hays" for Hays Cooling in Phoenix, "Justin Fourton" for Pecan Lodge in Dallas. Only put a real name you are confident about — set null if uncertain. Never use "Local Owner", "Business Owner", "Family", or any group name.
+
+Also provide the real website domain for each business.
 
 Scoring:
-- franchise_score (0-10): +3 multiple city locations, +2 4+ years in business, +2 200+ high reviews, +2 systemized team roles, +1 local press or awards, +1 active social media, +1 detailed hiring posts
-- ownership_score (0-10): +3 unique concept no national franchise competitor, +2 strong recognizable brand, +2 scalable low build-out model, +2 owner appears at growth ceiling, +1 hot franchise category right now
+- franchise_score (0-10): +3 multiple city locations, +2 4+ years, +2 200+ high reviews, +2 systemized team, +1 press, +1 social, +1 hiring
+- ownership_score (0-10): +3 unique no national competitor, +2 strong brand, +2 scalable low build-out, +2 owner at growth ceiling, +1 hot category
 - total_score = franchise_score + ownership_score
-- DISQUALIFY if: already franchising, FDD mention, corporate parent, 8+ locations across multiple states
-
-CRITICAL: owner_name must be a real person's first and last name found in the research. Never submit a placeholder. If the research did not find a real owner name for a business, set owner_name to null — do not invent a name.
+- disqualify if: already franchising, FDD mention, corporate parent, 8+ locations across states
 
 Call submit_businesses now.` }],
       }),
     });
 
-    if (!scoreRes.ok) {
-      const err = await scoreRes.text();
+    if (!res2.ok) {
+      const err = await res2.text();
       return res.status(500).json({ error: 'Claude error', detail: err });
     }
 
-    const scoreData = await scoreRes.json();
-    const toolUse = (scoreData.content || []).find(b => b.type === 'tool_use' && b.name === 'submit_businesses');
-    if (!toolUse) return res.status(500).json({ error: 'No structured response', stop_reason: scoreData.stop_reason });
+    const data = await res2.json();
+    const toolUse = (data.content || []).find(b => b.type === 'tool_use' && b.name === 'submit_businesses');
+    if (!toolUse) return res.status(500).json({ error: 'No structured response', stop_reason: data.stop_reason });
 
-    const GENERIC_NAMES = ['local owner','business owner','owner','local ownership','local ownership group','family','the owner','unknown','n/a','management','staff','team'];
+    const GENERIC = ['local owner','business owner','owner','local ownership','local ownership group','family','the owner','unknown','n/a','management','staff','team'];
 
     const businesses = (toolUse.input?.businesses || [])
       .filter(b => !b.disqualified)
@@ -112,7 +77,7 @@ Call submit_businesses now.` }],
         ...b,
         city,
         industry,
-        owner_name: b.owner_name && !GENERIC_NAMES.some(g => b.owner_name.toLowerCase().includes(g)) ? b.owner_name : null,
+        owner_name: b.owner_name && !GENERIC.some(g => b.owner_name.toLowerCase().includes(g)) ? b.owner_name : null,
         ownership_candidate: (b.ownership_score || 0) >= 6,
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       }))
