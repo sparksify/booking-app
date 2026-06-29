@@ -60,7 +60,7 @@ export default function Pipeline() {
     setError(null);
 
     try {
-      // ── 1. Scout ──────────────────────────────────────────────
+      // 1. Scout
       setStage('scout');
       addLog(`Scouting ${industry} businesses in ${city}...`);
       const scoutData = await callStage('/api/pipeline/scout', { city, industry });
@@ -70,7 +70,7 @@ export default function Pipeline() {
         throw new Error('No businesses found. Try a different city or industry.');
       }
 
-      // ── 2. Filter ─────────────────────────────────────────────
+      // 2. Filter
       setStage('filter');
       addLog(`Checking ${scoutData.businesses.length} businesses for franchise status...`);
       const filterData = await callStage('/api/pipeline/filter', {
@@ -82,7 +82,7 @@ export default function Pipeline() {
         throw new Error('All businesses were franchises. Try a different search.');
       }
 
-      // ── 3. Discover ───────────────────────────────────────────
+      // 3. Discover
       setStage('discover');
       addLog(`Hunting owner names and signals for ${filterData.businesses.length} businesses...`);
       const discoverData = await callStage('/api/pipeline/discover', {
@@ -90,7 +90,7 @@ export default function Pipeline() {
       });
       addLog(`Owner names found: ${discoverData.owner_found} of ${discoverData.total} (${discoverData.hit_rate}%)`);
 
-      // ── 4. Enrich ─────────────────────────────────────────────
+      // 4. Enrich
       setStage('enrich');
       addLog(`Enriching emails for ${discoverData.businesses.length} businesses...`);
       const enrichData = await callStage('/api/pipeline/enrich', {
@@ -106,7 +106,7 @@ export default function Pipeline() {
         return;
       }
 
-      // ── 5. Outreach ───────────────────────────────────────────
+      // 5. Outreach
       setStage('outreach');
       addLog(`Writing sequences and loading ${enriched.length} contacts to Smartlead...`);
       const outreachData = await callStage('/api/pipeline/outreach', {
@@ -114,7 +114,7 @@ export default function Pipeline() {
       });
       addLog(`Loaded: ${outreachData.loaded} | Skipped: ${outreachData.skipped} | Failed: ${outreachData.failed}`);
 
-      // ── Done ──────────────────────────────────────────────────
+      // Done
       setStage('done');
       addLog('Pipeline complete ✓');
       setResults({ scout: scoutData, filter: filterData, discover: discoverData, enrich: enrichData, outreach: outreachData });
@@ -134,17 +134,15 @@ export default function Pipeline() {
       <Nav />
       <div style={{ flex: 1, padding: '40px', maxWidth: '860px' }}>
 
-        {/* Header */}
         <div style={{ marginBottom: '32px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
             <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700 }}>Genesis Agent</h1>
-            <span style={{ fontSize: '11px', background: '#1e1e1e', border: '1px solid #333', borderRadius: '4px', padding: '2px 8px', color: '#888' }}>v2.3</span>
+            <span style={{ fontSize: '11px', background: '#1e1e1e', border: '1px solid #333', borderRadius: '4px', padding: '2px 8px', color: '#888' }}>v2.4</span>
             <span style={{ fontSize: '12px', color: stageInfo.color, fontWeight: 600 }}>{stageInfo.text}</span>
           </div>
           <p style={{ margin: 0, color: '#666', fontSize: '13px' }}>Scout → Filter → Discover → Enrich → Outreach</p>
         </div>
 
-        {/* Controls */}
         <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
           <input
             value={city}
@@ -179,7 +177,6 @@ export default function Pipeline() {
           </button>
         </div>
 
-        {/* Progress log */}
         {log.length > 0 && (
           <div style={{ background: '#111', border: '1px solid #222', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
             <div style={{ fontSize: '11px', color: '#555', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pipeline Log</div>
@@ -189,22 +186,20 @@ export default function Pipeline() {
           </div>
         )}
 
-        {/* Error */}
         {error && (
           <div style={{ background: '#1a0a0a', border: '1px solid #4a1a1a', borderRadius: '8px', padding: '14px 16px', marginBottom: '24px', color: '#f87171', fontSize: '13px' }}>
             {error}
           </div>
         )}
 
-        {/* Results summary */}
         {results && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '32px' }}>
             {[
-              { label: 'Scouted',   value: results.scout?.count ?? 0 },
+              { label: 'Scouted',       value: results.scout?.count ?? 0 },
               { label: 'Passed Filter', value: results.filter?.passed ?? 0 },
-              { label: 'Names Found',  value: results.discover?.owner_found ?? 0 },
-              { label: 'Emails Found', value: results.enrich?.enriched_count ?? 0 },
-              { label: 'Loaded',    value: results.outreach?.loaded ?? 0 },
+              { label: 'Names Found',   value: results.discover?.owner_found ?? 0 },
+              { label: 'Emails Found',  value: results.enrich?.enriched_count ?? 0 },
+              { label: 'Loaded',        value: results.outreach?.loaded ?? 0 },
             ].map(({ label, value }) => (
               <div key={label} style={{ background: '#111', border: '1px solid #222', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
                 <div style={{ fontSize: '28px', fontWeight: 700, color: '#10b981' }}>{value}</div>
@@ -214,7 +209,6 @@ export default function Pipeline() {
           </div>
         )}
 
-        {/* Loaded prospects detail */}
         {results?.outreach?.results?.filter(r => r.outreach_status === 'loaded').map((biz, i) => (
           <div key={i} style={{ background: '#111', border: '1px solid #222', borderRadius: '8px', padding: '20px', marginBottom: '12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
