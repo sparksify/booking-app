@@ -49,7 +49,23 @@ export default async function handler(req, res) {
   try {
     // Run both searches in parallel
     const [mapsResults, editorialResults] = await Promise.all([
-      searchGoogleMaps(`independent ${industry} ${city}`, city),
+      searchGoogleMaps((() => {
+      const map = {
+        'Food & Beverage': 'restaurants',
+        'Health & Wellness': 'wellness spa med spa',
+        'Fitness': 'fitness studio gym',
+        'Beauty & Personal Care': 'salon spa beauty',
+        'Pet Services': 'pet grooming dog training',
+        'Auto Services': 'auto repair shop',
+        'Home Services': 'home services contractor',
+        'Senior Care': 'senior care assisted living',
+        'Cleaning Services': 'cleaning service',
+        "Children's Education": 'kids education tutoring',
+        'Real Estate Services': 'real estate agency',
+        'Marketing & Media': 'marketing agency',
+      };
+      return `${map[industry] || industry} ${city}`;
+    })(), city),
       searchGoogleOrganic(`best new ${industry} ${city} 2025 owner founded`),
     ]);
 
