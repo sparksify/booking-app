@@ -188,7 +188,7 @@ Call submit_businesses with ALL businesses that are not obvious national chains.
     allBusinesses.forEach(b => { mapsMap[b.name?.toLowerCase()] = b; });
 
     let businesses = (toolUse.input?.businesses || [])
-      .filter(b => !b.disqualified)
+      //.filter(b => !b.disqualified)
       .map(b => {
         const mapsMatch = mapsMap[b.business_name?.toLowerCase()];
         const website = b.website || mapsMatch?.website || null;
