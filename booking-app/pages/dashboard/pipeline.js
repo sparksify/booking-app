@@ -266,6 +266,7 @@ export default function PipelinePage({ perms={}, platformLogo=null, navOrder=nul
                 <div style={s.statsBar}>
                   {[
                     {label:'Found',value:results.stats.found,color:'#111827'},
+                    {label:'Emerging',value:results.stats.emerging_count||0,color:'#7C3AED'},
                     {label:'Emails Found',value:`${results.stats.enriched_count}/${results.stats.found}`,color:'#0057FF'},
                     {label:'Enrichment Rate',value:`${results.stats.enrichment_rate}%`,color:results.stats.enrichment_rate>=50?'#15803D':'#B45309'},
                     {label:'Loaded',value:results.stats.loaded,color:'#15803D'},
