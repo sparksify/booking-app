@@ -44,9 +44,8 @@ async function searchGoogleMaps(query, city) {
 async function searchGoogleNews(query) {
   try {
     const params = new URLSearchParams({
-      engine: 'google',
+      engine: 'google_news',
       q: query,
-      tbm: 'nws',
       num: 10,
       api_key: SERP_API_KEY,
     });
