@@ -1,3 +1,5 @@
+export const config = { maxDuration: 60 };
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const { city, industry } = req.body;
@@ -6,35 +8,40 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: 'Missing ANTHROPIC_API_KEY' });
 
   try {
-    // Step 1: Research pass — Claude thinks hard about real businesses and owners
+    // Step 1: Web search research — find real businesses with real owner names
     const researchRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 2000,
-        messages: [{ role: 'user', content: `I need the actual first and last names of real business owners for independent ${industry} companies in ${city}.
+        max_tokens: 3000,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        messages: [{ role: 'user', content: `Search the web for independent locally-owned ${industry} businesses in ${city} that are NOT franchises. 
 
-Think carefully through your training data. For each business you know of in this city and industry, recall:
-- The business name
-- The REAL owner or founder's first and last name (not "Local Owner" or "the owner" — actual names like "Randy Hays" or "Mike Chen")
-- Their website domain
-- How long they have been in business
+Search for:
+1. "best independent ${industry.toLowerCase()} ${city} owner"
+2. "top rated local ${industry.toLowerCase()} ${city} founded by"
+3. "${city} ${industry.toLowerCase()} small business owner"
+
+For each business you find I need:
+- Business name
+- Owner first and last name (real person, not a company name)
+- Website URL
+- How long in business
 - Number of locations
+- Any awards or press mentions
 
-Only include businesses where you actually know or can confidently recall the owner's real name. If you only know the business name but not who owns it, skip it. I would rather have 4 businesses with real owner names than 8 with fake placeholders.
-
-List them in plain text, one per line.` }],
+Only include businesses where you can find the actual owner's real first and last name. Skip any where only a generic contact or company name is available. I need at least 6-8 businesses with real named owners.` }],
       }),
     });
 
     let researchText = '';
     if (researchRes.ok) {
       const d = await researchRes.json();
-      researchText = (d.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+      researchText = (d.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').slice(0, 3000);
     }
 
-    // Step 2: Score into structured format
+    // Step 2: Score into structured format using tool_use
     const scoreRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
@@ -43,7 +50,7 @@ List them in plain text, one per line.` }],
         max_tokens: 3000,
         tools: [{
           name: 'submit_businesses',
-          description: 'Submit the scored list of franchise-ready businesses with real owner names.',
+          description: 'Submit the final scored list of franchise-ready businesses.',
           input_schema: {
             type: 'object',
             properties: {
@@ -53,9 +60,9 @@ List them in plain text, one per line.` }],
                   type: 'object',
                   properties: {
                     business_name:     { type: 'string' },
-                    owner_name:        { type: 'string', description: 'The real first and last name of the owner. Examples: Randy Hays, Mike Rodriguez, Sarah Chen. NEVER use Local Owner, Business Owner, Local Ownership Group, or any placeholder. Set to null if genuinely unknown.' },
+                    owner_name:        { type: 'string', description: 'Real first and last name of owner. E.g. Randy Hays, Mike Rodriguez. NEVER use Local Owner, Business Owner, Family, Group, or any placeholder. Set null if genuinely unknown.' },
                     website:           { type: 'string' },
-                    domain:            { type: 'string', description: 'The website domain without www, e.g. hayscooling.com' },
+                    domain:            { type: 'string', description: 'Domain without www. E.g. hayscooling.com' },
                     franchise_score:   { type: 'number' },
                     ownership_score:   { type: 'number' },
                     total_score:       { type: 'number' },
@@ -71,18 +78,18 @@ List them in plain text, one per line.` }],
           }
         }],
         tool_choice: { type: 'tool', name: 'submit_businesses' },
-        messages: [{ role: 'user', content: `Using this research about ${industry} businesses in ${city}, score each one.
+        messages: [{ role: 'user', content: `Score these ${industry} businesses in ${city} based on this research.
 
 Research:
-${researchText}
+${researchText || `Use your training knowledge to list 8 real independent ${industry} businesses in ${city} with real owner names.`}
 
 Scoring:
-- franchise_score (0-10): +3 multiple city locations, +2 4+ years, +2 200+ high reviews, +2 systemized team, +1 press, +1 social, +1 hiring
-- ownership_score (0-10): +3 unique no national competitor, +2 strong brand, +2 scalable low build-out, +2 owner at growth ceiling, +1 hot category
+- franchise_score (0-10): +3 multiple city locations, +2 4+ years in business, +2 200+ high reviews, +2 systemized team roles, +1 local press or awards, +1 active social media, +1 detailed hiring posts
+- ownership_score (0-10): +3 unique concept no national franchise competitor, +2 strong recognizable brand, +2 scalable low build-out model, +2 owner appears at growth ceiling, +1 hot franchise category right now
 - total_score = franchise_score + ownership_score
-- disqualify if: already franchising, FDD mention, corporate parent, 8+ locations across states
+- DISQUALIFY if: already franchising, FDD mention, corporate parent, 8+ locations across multiple states
 
-IMPORTANT: Only include businesses where owner_name is a real person's first and last name. Do not submit any business with a placeholder owner name like "Local Owner" or "Local Ownership Group" — set owner_name to null for those and still include the business.
+CRITICAL: owner_name must be a real person's first and last name found in the research. Never submit a placeholder. If the research did not find a real owner name for a business, set owner_name to null — do not invent a name.
 
 Call submit_businesses now.` }],
       }),
@@ -95,9 +102,9 @@ Call submit_businesses now.` }],
 
     const scoreData = await scoreRes.json();
     const toolUse = (scoreData.content || []).find(b => b.type === 'tool_use' && b.name === 'submit_businesses');
-    if (!toolUse) return res.status(500).json({ error: 'No structured response' });
+    if (!toolUse) return res.status(500).json({ error: 'No structured response', stop_reason: scoreData.stop_reason });
 
-    const GENERIC_NAMES = ['local owner','business owner','owner','local ownership','local ownership group','family','the owner','unknown','n/a'];
+    const GENERIC_NAMES = ['local owner','business owner','owner','local ownership','local ownership group','family','the owner','unknown','n/a','management','staff','team'];
 
     const businesses = (toolUse.input?.businesses || [])
       .filter(b => !b.disqualified)
@@ -105,7 +112,7 @@ Call submit_businesses now.` }],
         ...b,
         city,
         industry,
-        owner_name: b.owner_name && !GENERIC_NAMES.includes(b.owner_name.toLowerCase().trim()) ? b.owner_name : null,
+        owner_name: b.owner_name && !GENERIC_NAMES.some(g => b.owner_name.toLowerCase().includes(g)) ? b.owner_name : null,
         ownership_candidate: (b.ownership_score || 0) >= 6,
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       }))
