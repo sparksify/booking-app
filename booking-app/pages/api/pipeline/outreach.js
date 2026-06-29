@@ -8,17 +8,17 @@ const LANDING_PAGE_URL = process.env.LANDING_PAGE_URL || 'https://halloway.co/gr
 
 async function checkDuplicate(supabase, email, businessName, city) {
   if (email) {
-    const { data } = await supabase.from('pipeline_prospects').select('id,business_name,city,created_at').eq('email', email).limit(1);
-    if (data?.length > 0) return { isDuplicate: true, reason: `Email already in pipeline (added ${new Date(data[0].created_at).toLocaleDateString()})` };
+    const { data } = await supabase.from('pipeline_prospects').select('id,created_at').eq('email', email).limit(1);
+    if (data?.length > 0) return { isDuplicate: true, reason: `Email already in pipeline (${new Date(data[0].created_at).toLocaleDateString()})` };
   }
   const { data: nameCheck } = await supabase.from('pipeline_prospects').select('id,created_at').ilike('business_name', businessName).ilike('city', city).limit(1);
-  if (nameCheck?.length > 0) return { isDuplicate: true, reason: `${businessName} in ${city} already in pipeline (${new Date(nameCheck[0].created_at).toLocaleDateString()})` };
+  if (nameCheck?.length > 0) return { isDuplicate: true, reason: `${businessName} already in pipeline (${new Date(nameCheck[0].created_at).toLocaleDateString()})` };
   return { isDuplicate: false };
 }
 
 async function writeSequence(business) {
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
@@ -47,10 +47,10 @@ async function writeSequence(business) {
         }
       }],
       tool_choice: { type: 'tool', name: 'submit_sequence' },
-      messages: [{ role: 'user', content: `Write a 4-email cold outreach sequence from Steve Sparks at Halloway (halloway.co), a franchise consulting firm.\n\nTarget:\nBusiness: ${business.business_name}\nCity: ${business.city}\nIndustry: ${business.industry}\nOwner: ${business.owner_name || 'the owner'}\nSignals: ${(business.signals || []).join(', ')}\n\nRules:\n- Each email under 150 words\n- Sound like a real human, not a marketer\n- Reference something specific about this business\n- Never say: synergy, leverage, scalable, game-changer, reach out\n- Never pitch franchising directly - invite curiosity\n- Emails 2-4 include: ${LANDING_PAGE_URL}\n- Email 1 ends with one question, no link\n- Days: 0, 3, 7, 14\n\nCall submit_sequence now.` }],
+      messages: [{ role: 'user', content: `Write a 4-email cold outreach sequence from Steve Sparks at Halloway (halloway.co), a franchise consulting firm.\n\nTarget:\nBusiness: ${business.business_name}\nCity: ${business.city}\nIndustry: ${business.industry}\nOwner: ${business.owner_name || 'the owner'}\nSignals: ${(business.signals || []).join(', ')}\n\nRules:\n- Each email under 120 words\n- Sound like a real human, not a marketer\n- Reference something specific about this business\n- Never say: synergy, leverage, scalable, game-changer, reach out\n- Never pitch franchising directly - invite curiosity\n- Emails 2-4 include: ${LANDING_PAGE_URL}\n- Email 1 ends with one question, no link\n- Days: 0, 3, 7, 14\n\nCall submit_sequence now.` }],
     }),
   });
-  const data = await res.json();
+  const data = await r.json();
   const toolUse = (data.content || []).find(b => b.type === 'tool_use' && b.name === 'submit_sequence');
   return toolUse?.input || null;
 }
@@ -95,6 +95,44 @@ async function addSequenceToSmartlead(sequence) {
   return r.ok;
 }
 
+async function processOne(biz, supabase, run_id) {
+  try {
+    const dupCheck = await checkDuplicate(supabase, biz.email, biz.business_name, biz.city);
+    if (dupCheck.isDuplicate) {
+      return { business_name: biz.business_name, email: biz.email, status: 'duplicate', reason: dupCheck.reason, ownership_candidate: biz.ownership_candidate, emails_preview: [] };
+    }
+
+    const [sequence, leadAdded] = await Promise.all([
+      writeSequence(biz),
+      addLeadToSmartlead(biz),
+    ]);
+
+    let sequenceAdded = false;
+    if (sequence) sequenceAdded = await addSequenceToSmartlead(sequence);
+
+    const status = leadAdded ? 'loaded' : 'failed';
+
+    if (run_id) {
+      await supabase.from('pipeline_prospects').insert({
+        run_id, business_name: biz.business_name, city: biz.city, industry: biz.industry,
+        owner_name: biz.owner_name, email: biz.email, domain: biz.domain, website: biz.website,
+        franchise_score: biz.franchise_score, ownership_score: biz.ownership_score, total_score: biz.total_score,
+        ownership_candidate: biz.ownership_candidate, signals: biz.signals || [],
+        enriched: biz.enriched, loaded: status === 'loaded', smartlead_status: status,
+      });
+    }
+
+    return {
+      business_name: biz.business_name, email: biz.email, ownership_candidate: biz.ownership_candidate,
+      lead_added: leadAdded, sequence_written: !!sequence, sequence_loaded: sequenceAdded,
+      emails_preview: sequence?.emails?.map(e => ({ subject: e.subject, day: e.day })) || [],
+      status,
+    };
+  } catch (err) {
+    return { business_name: biz.business_name, email: biz.email, status: 'error', error: err.message };
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const { businesses, run_id } = req.body;
@@ -104,43 +142,8 @@ export default async function handler(req, res) {
   const eligible = businesses.filter(b => b.enriched && b.email);
   if (!eligible.length) return res.status(200).json({ message: 'No enriched businesses', loaded: 0, duplicates: 0, results: [] });
 
-  const results = [];
-
-  for (const biz of eligible) {
-    try {
-      const dupCheck = await checkDuplicate(supabase, biz.email, biz.business_name, biz.city);
-      if (dupCheck.isDuplicate) {
-        results.push({ business_name: biz.business_name, email: biz.email, status: 'duplicate', reason: dupCheck.reason, ownership_candidate: biz.ownership_candidate, emails_preview: [] });
-        continue;
-      }
-
-      const sequence = await writeSequence(biz);
-      const leadAdded = await addLeadToSmartlead(biz);
-      let sequenceAdded = false;
-      if (sequence) sequenceAdded = await addSequenceToSmartlead(sequence);
-      const status = leadAdded ? 'loaded' : 'failed';
-
-      if (run_id) {
-        await supabase.from('pipeline_prospects').insert({
-          run_id, business_name: biz.business_name, city: biz.city, industry: biz.industry,
-          owner_name: biz.owner_name, email: biz.email, domain: biz.domain, website: biz.website,
-          franchise_score: biz.franchise_score, ownership_score: biz.ownership_score, total_score: biz.total_score,
-          ownership_candidate: biz.ownership_candidate, signals: biz.signals || [],
-          enriched: biz.enriched, loaded: status === 'loaded', smartlead_status: status,
-        });
-      }
-
-      results.push({
-        business_name: biz.business_name, email: biz.email, ownership_candidate: biz.ownership_candidate,
-        lead_added: leadAdded, sequence_written: !!sequence, sequence_loaded: sequenceAdded,
-        emails_preview: sequence?.emails?.map(e => ({ subject: e.subject, day: e.day })) || [],
-        status,
-      });
-      await new Promise(r => setTimeout(r, 200));
-    } catch (err) {
-      results.push({ business_name: biz.business_name, email: biz.email, status: 'error', error: err.message });
-    }
-  }
+  // Run all in parallel — sequence writing + Smartlead loading simultaneously
+  const results = await Promise.all(eligible.map(biz => processOne(biz, supabase, run_id)));
 
   const loaded = results.filter(r => r.status === 'loaded').length;
   const duplicates = results.filter(r => r.status === 'duplicate').length;
