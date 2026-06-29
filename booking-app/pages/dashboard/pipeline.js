@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import Nav from '../../lib/nav';
+import dynamic from 'next/dynamic';
+
+const Pipeline = dynamic(() => Promise.resolve(PipelinePage), { ssr: false });
 
 const INDUSTRIES = [
   'Food & Beverage',
@@ -17,17 +18,19 @@ const INDUSTRIES = [
 ];
 
 const STAGE_LABELS = {
-  idle:      { text: 'Ready',          color: '#888' },
-  scout:     { text: 'Scouting...',    color: '#f59e0b' },
-  filter:    { text: 'Filtering...',   color: '#f59e0b' },
-  discover:  { text: 'Discovering...', color: '#f59e0b' },
-  enrich:    { text: 'Enriching...',   color: '#f59e0b' },
-  outreach:  { text: 'Loading...',     color: '#f59e0b' },
-  done:      { text: 'Complete',       color: '#10b981' },
-  error:     { text: 'Error',          color: '#ef4444' },
+  idle:     { text: 'Ready',          color: '#888' },
+  scout:    { text: 'Scouting...',    color: '#f59e0b' },
+  filter:   { text: 'Filtering...',   color: '#f59e0b' },
+  discover: { text: 'Discovering...', color: '#f59e0b' },
+  enrich:   { text: 'Enriching...',   color: '#f59e0b' },
+  outreach: { text: 'Loading...',     color: '#f59e0b' },
+  done:     { text: 'Complete',       color: '#10b981' },
+  error:    { text: 'Error',          color: '#ef4444' },
 };
 
-export default function Pipeline() {
+import { useState } from 'react';
+
+function PipelinePage() {
   const [city, setCity]         = useState('');
   const [industry, setIndustry] = useState(INDUSTRIES[0]);
   const [stage, setStage]       = useState('idle');
@@ -65,37 +68,25 @@ export default function Pipeline() {
       addLog(`Scouting ${industry} businesses in ${city}...`);
       const scoutData = await callStage('/api/pipeline/scout', { city, industry });
       addLog(`Found ${scoutData.count} businesses`);
-
-      if (!scoutData.businesses?.length) {
-        throw new Error('No businesses found. Try a different city or industry.');
-      }
+      if (!scoutData.businesses?.length) throw new Error('No businesses found. Try a different city or industry.');
 
       // 2. Filter
       setStage('filter');
       addLog(`Checking ${scoutData.businesses.length} businesses for franchise status...`);
-      const filterData = await callStage('/api/pipeline/filter', {
-        businesses: scoutData.businesses,
-      });
+      const filterData = await callStage('/api/pipeline/filter', { businesses: scoutData.businesses });
       addLog(`${filterData.filtered} franchises removed — ${filterData.passed} independents remaining`);
-
-      if (!filterData.businesses?.length) {
-        throw new Error('All businesses were franchises. Try a different search.');
-      }
+      if (!filterData.businesses?.length) throw new Error('All businesses were franchises. Try a different search.');
 
       // 3. Discover
       setStage('discover');
       addLog(`Hunting owner names and signals for ${filterData.businesses.length} businesses...`);
-      const discoverData = await callStage('/api/pipeline/discover', {
-        businesses: filterData.businesses,
-      });
+      const discoverData = await callStage('/api/pipeline/discover', { businesses: filterData.businesses });
       addLog(`Owner names found: ${discoverData.owner_found} of ${discoverData.total} (${discoverData.hit_rate}%)`);
 
       // 4. Enrich
       setStage('enrich');
       addLog(`Enriching emails for ${discoverData.businesses.length} businesses...`);
-      const enrichData = await callStage('/api/pipeline/enrich', {
-        businesses: discoverData.businesses,
-      });
+      const enrichData = await callStage('/api/pipeline/enrich', { businesses: discoverData.businesses });
       addLog(`Emails found: ${enrichData.enriched_count} of ${enrichData.total} (${enrichData.hit_rate}%)`);
 
       const enriched = enrichData.results.filter(b => b.enriched);
@@ -109,12 +100,9 @@ export default function Pipeline() {
       // 5. Outreach
       setStage('outreach');
       addLog(`Writing sequences and loading ${enriched.length} contacts to Smartlead...`);
-      const outreachData = await callStage('/api/pipeline/outreach', {
-        businesses: enriched,
-      });
+      const outreachData = await callStage('/api/pipeline/outreach', { businesses: enriched });
       addLog(`Loaded: ${outreachData.loaded} | Skipped: ${outreachData.skipped} | Failed: ${outreachData.failed}`);
 
-      // Done
       setStage('done');
       addLog('Pipeline complete ✓');
       setResults({ scout: scoutData, filter: filterData, discover: discoverData, enrich: enrichData, outreach: outreachData });
@@ -131,7 +119,6 @@ export default function Pipeline() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#0f0f0f', color: '#f0f0f0', fontFamily: 'Inter, sans-serif' }}>
-      <Nav />
       <div style={{ flex: 1, padding: '40px', maxWidth: '860px' }}>
 
         <div style={{ marginBottom: '32px' }}>
@@ -239,3 +226,5 @@ export default function Pipeline() {
     </div>
   );
 }
+
+export default Pipeline;
