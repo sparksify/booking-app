@@ -1,6 +1,6 @@
 {
   "functions": {
-    "booking-app/pages/api/pipeline/*.js": {
+    "pages/api/pipeline/*.js": {
       "maxDuration": 60
     }
   }
