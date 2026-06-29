@@ -4,15 +4,15 @@ const SMARTLEAD_API_KEY = process.env.SMARTLEAD_API_KEY;
 const SMARTLEAD_CAMPAIGN_ID = process.env.SMARTLEAD_CAMPAIGN_ID;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
-// ── Claude writes the sequence ───────────────────────────────────────────────
+function getFirstName(fullName) {
+  if (!fullName) return null;
+  return fullName.trim().split(' ')[0];
+}
 
 async function writeSequence(biz) {
-  const { business_name, city, owner_name, industry } = biz;
+  const { business_name, city, email_owner, industry, signal } = biz;
 
-  // Use first name only for personalization
-  const firstName = owner_name
-    ? owner_name.split(/\s+and\s+|\s*&\s*|,\s*/)[0].trim().split(' ')[0]
-    : null;
+  const firstName = getFirstName(email_owner);
 
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -26,31 +26,28 @@ async function writeSequence(biz) {
       max_tokens: 1000,
       messages: [{
         role: 'user',
-        content: `You are writing a cold outreach email sequence for Steve Sparks, a franchise broker and Managing Partner at Halloway (halloway.co).
+        content: `You are writing a cold outreach email sequence for Steve Sparks, Managing Partner at Halloway (halloway.co).
 
-Steve helps independent business owners explore whether franchising their concept makes sense. He earns $20K per closed deal but only works with businesses that are a genuine fit. He is not a consultant selling a service — he is a broker who gets paid at close.
+Steve works with independent business owners to explore whether franchising their concept makes sense. He is a broker — he only gets paid when a deal closes, so he has no reason to waste anyone's time.
 
-Write exactly 2 emails. Use Alex Hormozi's cold outreach style:
-- Lead with a hook that names the person and their situation specifically
-- No fluff, no corporate speak, no "I hope this email finds you well"
-- Short sentences. Direct. Respect their time.
-- One clear ask per email — a simple reply, not a call booking link
-- Sound like a real person wrote it, not a marketing department
-- The goal is to start a conversation, not close a deal in email
+Write exactly 2 emails using Alex Hormozi's cold outreach style:
+- Open with the personalization signal to make them feel seen — reference it naturally, don't be cheesy about it
+- Short sentences. Direct. No fluff. No "I hope this email finds you well."
+- Never use the word "consultant" or position Steve as one
+- The CTA is always: Steve has a 5-minute video that explains the whole process — ask if they want him to send it over
+- Sound like a real person, not a marketing department
+- One ask per email, nothing more
 
-Hook formula to use: Audience Call-Out
-Structure: [Name their identity] + [Acknowledge what they built] + [Open a door they didn't know existed]
-
-Business details:
-- Owner: ${firstName || 'there'}
-- Business: ${business_name}
-- Location: ${city}
-- Industry: ${industry || 'independent business'}
+Personalization signal to open with: ${signal || `${business_name} in ${city}`}
+Owner first name: ${firstName || 'there'}
+Business: ${business_name}
+Location: ${city}
+Industry: ${industry || 'independent business'}
 
 Email 1 — The opener. 4-6 sentences max. Subject line included.
-Email 2 — The follow-up. 3-4 sentences. Sent 4 days later. Reference email 1 without being needy. Subject line included.
+Email 2 — Follow-up. 3-4 sentences. Sent 4 days later. Don't be needy. Reference the video. Subject line included.
 
-Return ONLY valid JSON in this exact format, no markdown, no explanation:
+Return ONLY valid JSON, no markdown:
 {
   "email1": {
     "subject": "...",
@@ -70,22 +67,15 @@ Return ONLY valid JSON in this exact format, no markdown, no explanation:
   try {
     return JSON.parse(text);
   } catch (e) {
-    // Strip any markdown fences if Claude added them
     const clean = text.replace(/```json|```/g, '').trim();
     return JSON.parse(clean);
   }
 }
 
-// ── Smartlead API calls ──────────────────────────────────────────────────────
-
 async function addLeadToSmartlead(biz, sequence) {
-  const { email, owner_name, business_name } = biz;
-  const firstName = owner_name
-    ? owner_name.split(/\s+and\s+|\s*&\s*|,\s*/)[0].trim().split(' ')[0]
-    : 'there';
-  const lastName = owner_name
-    ? owner_name.split(/\s+and\s+|\s*&\s*|,\s*/)[0].trim().split(' ').slice(1).join(' ')
-    : '';
+  const { email, email_owner, business_name } = biz;
+  const firstName = getFirstName(email_owner) || 'there';
+  const lastName = email_owner ? email_owner.trim().split(' ').slice(1).join(' ') : '';
 
   const r = await fetch(
     `https://server.smartlead.ai/api/v1/campaigns/${SMARTLEAD_CAMPAIGN_ID}/leads?api_key=${SMARTLEAD_API_KEY}`,
@@ -111,8 +101,6 @@ async function addLeadToSmartlead(biz, sequence) {
   return r.ok;
 }
 
-// ── Duplicate check ──────────────────────────────────────────────────────────
-
 async function isDuplicate(email) {
   try {
     const r = await fetch(
@@ -125,22 +113,14 @@ async function isDuplicate(email) {
   }
 }
 
-// ── Main ─────────────────────────────────────────────────────────────────────
-
 async function outreachOne(biz) {
-  const { email, business_name } = biz;
+  const { email } = biz;
 
-  if (!email) {
-    return { ...biz, outreach_status: 'skipped_no_email' };
-  }
+  if (!email) return { ...biz, outreach_status: 'skipped_no_email' };
 
-  // Duplicate check
   const duplicate = await isDuplicate(email);
-  if (duplicate) {
-    return { ...biz, outreach_status: 'skipped_duplicate' };
-  }
+  if (duplicate) return { ...biz, outreach_status: 'skipped_duplicate' };
 
-  // Write sequence
   let sequence;
   try {
     sequence = await writeSequence(biz);
@@ -148,7 +128,6 @@ async function outreachOne(biz) {
     return { ...biz, outreach_status: 'failed_sequence_write', error: e.message };
   }
 
-  // Load to Smartlead
   const loaded = await addLeadToSmartlead(biz, sequence);
 
   return {
@@ -171,7 +150,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Run in parallel
     const results = await Promise.all(businesses.map(biz => outreachOne(biz)));
 
     const loaded = results.filter(r => r.outreach_status === 'loaded');

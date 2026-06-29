@@ -20,7 +20,7 @@ async function fetchPage(url) {
   }
 }
 
-async function extractOwnerFromHtml(businessName, html) {
+async function extractOwnerAndSignal(businessName, html) {
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -31,55 +31,60 @@ async function extractOwnerFromHtml(businessName, html) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 100,
+        max_tokens: 200,
         messages: [{
           role: 'user',
-          content: `Extract the owner or founder's full name from this business website page.
+          content: `Extract two things from this business website page for "${businessName}":
 
-Business: ${businessName}
+1. OWNER: The full name of the owner or founder. Must be the primary owner/founder, not staff.
+2. SIGNAL: One specific, genuine compliment about this business. Look for: award wins, press features, years in business, a specific menu item or service they're known for, a standout customer quote, community recognition, or anything that makes them distinctly notable. Must be specific and real — not generic. If nothing specific exists, return NOT_FOUND for signal.
+
 Page HTML:
 ${html.slice(0, 20000)}
 
-Rules:
-- Return ONLY the person's full name, nothing else
-- Must be the owner, founder, or operator — not a staff member or manager
-- If multiple owners, return the primary one
-- If no owner name is found, reply with exactly: NOT_FOUND`,
+Return ONLY valid JSON, no markdown:
+{
+  "owner": "Full Name or NOT_FOUND",
+  "signal": "One specific notable thing about this business or NOT_FOUND"
+}`,
         }],
       }),
     });
     const d = await r.json();
-    const name = d.content?.[0]?.text?.trim();
-    if (!name || name === 'NOT_FOUND') return null;
-    return name;
+    const text = d.content?.[0]?.text?.trim();
+    const clean = text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+    return {
+      owner: parsed.owner !== 'NOT_FOUND' ? parsed.owner : null,
+      signal: parsed.signal !== 'NOT_FOUND' ? parsed.signal : null,
+    };
   } catch (e) {
-    return null;
+    return { owner: null, signal: null };
   }
 }
 
 async function findOwnerOnWebsite(businessName, website) {
-  if (!website) return null;
+  if (!website) return { owner: null, signal: null };
 
-  // Build base URL
   let base;
   try {
     const u = new URL(website);
     base = `${u.protocol}//${u.hostname}`;
   } catch (e) {
-    return null;
+    return { owner: null, signal: null };
   }
 
-  // Try homepage first, then common owner page slugs
   const urls = [website, ...OWNER_PAGE_SLUGS.map(s => `${base}/${s}`)];
 
   for (const url of urls) {
     const html = await fetchPage(url);
     if (!html) continue;
-    const name = await extractOwnerFromHtml(businessName, html);
-    if (name) return { owner_name: name, owner_source: 'website' };
+    const result = await extractOwnerAndSignal(businessName, html);
+    // Keep going if we got a signal even without an owner name
+    if (result.owner || result.signal) return result;
   }
 
-  return null;
+  return { owner: null, signal: null };
 }
 
 async function findOwnerViaNews(businessName, city) {
@@ -130,25 +135,50 @@ Rules:
     const cd = await cr.json();
     const name = cd.content?.[0]?.text?.trim();
     if (!name || name === 'NOT_FOUND') return null;
-    return { owner_name: name, owner_source: 'news' };
+    return name;
   } catch (e) {
     return null;
   }
 }
 
 async function discoverOne(biz) {
-  const { business_name, city, website } = biz;
+  const { business_name, city, website, rating, review_count } = biz;
 
-  // Step 1 — scrape website pages
+  // Step 1 — scrape website, extract owner + signal in one Claude call
   const websiteResult = await findOwnerOnWebsite(business_name, website);
-  if (websiteResult) return { ...biz, ...websiteResult };
 
-  // Step 2 — Google News/search fallback
-  const newsResult = await findOwnerViaNews(business_name, city);
-  if (newsResult) return { ...biz, ...newsResult };
+  // Build signal — use website signal, or fall back to SerpAPI rating/reviews
+  let signal = websiteResult.signal;
+  if (!signal && rating && review_count) {
+    signal = `${rating} stars across ${review_count} reviews on Google`;
+  }
 
-  // Nothing found — pass through with null, still moves to enrich
-  return { ...biz, owner_name: null, owner_source: 'not_found' };
+  if (websiteResult.owner) {
+    return {
+      ...biz,
+      owner_name: websiteResult.owner,
+      owner_source: 'website',
+      signal,
+    };
+  }
+
+  // Step 2 — Google News fallback for owner name
+  const newsOwner = await findOwnerViaNews(business_name, city);
+  if (newsOwner) {
+    return {
+      ...biz,
+      owner_name: newsOwner,
+      owner_source: 'news',
+      signal,
+    };
+  }
+
+  return {
+    ...biz,
+    owner_name: null,
+    owner_source: 'not_found',
+    signal,
+  };
 }
 
 export default async function handler(req, res) {
@@ -165,7 +195,6 @@ export default async function handler(req, res) {
 
   try {
     const results = await Promise.all(businesses.map(biz => discoverOne(biz)));
-
     const found = results.filter(r => r.owner_name);
 
     return res.status(200).json({
