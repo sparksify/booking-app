@@ -221,7 +221,7 @@ export default function PipelinePage({ perms={}, platformLogo=null, navOrder=nul
 
   return (
     <>
-      <Head><title>Scout Pipeline v1.2 — KANSO</title></Head>
+      <Head><title>Genesis Agent v1.4 — KANSO</title></Head>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}*{box-sizing:border-box}button:not(:disabled):hover{opacity:.85}select,button{font-family:inherit}`}</style>
       <div style={s.page}>
         <aside style={s.sidebar}>
@@ -237,13 +237,13 @@ export default function PipelinePage({ perms={}, platformLogo=null, navOrder=nul
         <div style={s.main}>
           <div style={s.topBar}>
             <div>
-              <div style={s.topTitle}>Scout Pipeline <span style={{fontSize:12,fontWeight:500,color:'#94A3B8',marginLeft:6}}>v1.2</span></div>
+              <div style={s.topTitle}>Genesis Agent <span style={{fontSize:12,fontWeight:500,color:'#94A3B8',marginLeft:6}}>v1.4</span></div>
               <div style={s.topSub}>Find franchise-ready businesses → enrich → load to Smartlead automatically</div>
             </div>
             <div style={{display:'flex',gap:8}}>
               {['run','history','replies'].map(tab=>(
                 <button key={tab} style={{...s.tabBtn,...(activeTab===tab?s.tabBtnActive:{})}} onClick={()=>setActiveTab(tab)}>
-                  {tab==='run'?'Run Pipeline':tab==='history'?'History':
+                  {tab==='run'?'Start Agent':tab==='history'?'History':
                     <span style={{display:'flex',alignItems:'center',gap:6}}>Replies{unreadCount>0&&<span style={{background:'#EF4444',color:'#fff',borderRadius:10,fontSize:10,fontWeight:700,padding:'1px 6px'}}>{unreadCount}</span>}</span>}
                 </button>
               ))}
@@ -256,7 +256,7 @@ export default function PipelinePage({ perms={}, platformLogo=null, navOrder=nul
                   <div style={s.fieldGroup}><label style={s.fieldLabel}>City</label><select value={city} onChange={e=>setCity(e.target.value)} style={s.select} disabled={running}>{CITIES.map(c=><option key={c}>{c}</option>)}</select></div>
                   <div style={s.fieldGroup}><label style={s.fieldLabel}>Industry</label><select value={industry} onChange={e=>setIndustry(e.target.value)} style={s.select} disabled={running}>{INDUSTRIES.map(i=><option key={i}>{i}</option>)}</select></div>
                   <button style={{...s.btn,...s.btnBlue,opacity:running?.6:1,minWidth:140}} onClick={runPipeline} disabled={running}>
-                    {running?<span style={{display:'flex',alignItems:'center',gap:8}}><span style={{width:14,height:14,borderRadius:'50%',border:'2px solid rgba(255,255,255,.4)',borderTopColor:'#fff',animation:'spin .8s linear infinite',display:'inline-block'}}/>Running...</span>:'🔍 Run Pipeline'}
+                    {running?<span style={{display:'flex',alignItems:'center',gap:8}}><span style={{width:14,height:14,borderRadius:'50%',border:'2px solid rgba(255,255,255,.4)',borderTopColor:'#fff',animation:'spin .8s linear infinite',display:'inline-block'}}/>Agent Running...</span>:'⚡ Start Agent'}
                   </button>
                 </div>
                 {stage&&<div style={{marginTop:12,display:'flex',alignItems:'center',gap:8}}><div style={{width:8,height:8,borderRadius:'50%',background:'#0057FF',animation:'pulse 1s ease infinite'}}/><span style={{fontSize:13,color:'#0057FF',fontWeight:500}}>{stage}</span></div>}
