@@ -15,7 +15,7 @@ export async function getServerSideProps(context) {
 const INDUSTRIES = [
   'Food & Beverage','Health & Wellness','Fitness','Beauty & Personal Care',
   'Pet Services','Auto Services','Home Services','Senior Care',
-  'Cleaning Services',"Children\'s Education",'Real Estate Services','Marketing & Media',
+  'Cleaning Services',"Children's Education",'Real Estate Services','Marketing & Media',
 ];
 
 const STAGE_LABELS = {
@@ -70,11 +70,39 @@ function Badge({ children, color, bg, border }) {
   );
 }
 
+function StatusChip({ status }) {
+  const map = {
+    'loaded':              { label: 'Loaded',     color: '#16A34A', bg: '#DCFCE7' },
+    'skipped_duplicate':   { label: 'Duplicate',  color: '#F59E0B', bg: '#FEF3C7' },
+    'skipped_no_email':    { label: 'No Email',   color: '#94A3B8', bg: '#F1F5F9' },
+    'no_email':            { label: 'No Email',   color: '#94A3B8', bg: '#F1F5F9' },
+    'enriched_not_loaded': { label: 'Not Loaded', color: '#64748B', bg: '#F8FAFC' },
+    'failed_smartlead':    { label: 'Failed',     color: '#DC2626', bg: '#FEE2E2' },
+  };
+  const m = map[status] || { label: status || '—', color: '#94A3B8', bg: '#F1F5F9' };
+  return <span style={{ fontSize: 11, fontWeight: 700, color: m.color, background: m.bg, borderRadius: 10, padding: '1px 7px' }}>{m.label}</span>;
+}
+
+function exportCSV(rows, filename, headers, rowFn) {
+  const csv = [headers.join(','), ...rows.map(rowFn)].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function csvVal(v) {
+  return '"' + String(v ?? '').replace(/"/g, '""') + '"';
+}
+
 function ProspectCard({ biz }) {
-  const [expanded, setExpanded]     = useState(false);
-  const [phone, setPhone]           = useState(biz.phone || null);
-  const [findingPhone, setFinding]  = useState(false);
-  const [phoneError, setPhoneError] = useState(null);
+  const [expanded, setExpanded]    = useState(false);
+  const [phone, setPhone]          = useState(biz.phone || null);
+  const [findingPhone, setFinding] = useState(false);
+  const [phoneError, setPhoneError]= useState(null);
 
   async function findMobile() {
     if (!biz.email_owner || !biz.domain) return;
@@ -95,39 +123,23 @@ function ProspectCard({ biz }) {
     setFinding(false);
   }
 
-  const statusColor = biz.outreach_status === 'loaded' ? '#16A34A'
-    : biz.outreach_status === 'skipped_duplicate' ? '#F59E0B'
-    : '#94A3B8';
-  const statusBg = biz.outreach_status === 'loaded' ? '#DCFCE7'
-    : biz.outreach_status === 'skipped_duplicate' ? '#FEF3C7'
-    : '#F1F5F9';
-  const statusBorder = biz.outreach_status === 'loaded' ? '#BBF7D0'
-    : biz.outreach_status === 'skipped_duplicate' ? '#FDE68A'
-    : '#E2E8F0';
-  const statusLabel = biz.outreach_status === 'loaded' ? 'Loaded'
-    : biz.outreach_status === 'skipped_duplicate' ? 'Duplicate'
-    : biz.outreach_status === 'skipped_no_email' ? 'No Email'
-    : biz.outreach_status || 'Pending';
+  const statusColor  = biz.outreach_status === 'loaded' ? '#16A34A' : biz.outreach_status === 'skipped_duplicate' ? '#F59E0B' : '#94A3B8';
+  const statusBg     = biz.outreach_status === 'loaded' ? '#DCFCE7' : biz.outreach_status === 'skipped_duplicate' ? '#FEF3C7' : '#F1F5F9';
+  const statusBorder = biz.outreach_status === 'loaded' ? '#BBF7D0' : biz.outreach_status === 'skipped_duplicate' ? '#FDE68A' : '#E2E8F0';
+  const statusLabel  = biz.outreach_status === 'loaded' ? 'Loaded' : biz.outreach_status === 'skipped_duplicate' ? 'Duplicate' : biz.outreach_status === 'skipped_no_email' ? 'No Email' : biz.outreach_status || 'Pending';
 
   return (
     <div style={cs.card}>
-      {/* Main row */}
       <div style={cs.cardMain}>
         <Avatar name={biz.email_owner || biz.business_name} />
-
         <div style={{ flex: 1, minWidth: 0 }}>
-          {/* Business name */}
           <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 1 }}>{biz.business_name}</div>
-
-          {/* Owner name + validated */}
           {biz.email_owner && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
               <span style={{ fontSize: 13, color: '#475569' }}>{biz.email_owner}</span>
               <Badge color="#0057FF" bg="#EFF6FF" border="#BFDBFE">✓ Validated</Badge>
             </div>
           )}
-
-          {/* Email + verified check */}
           {biz.email && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
               <span style={{ fontSize: 11, color: '#16A34A', fontWeight: 700 }}>✓</span>
@@ -135,8 +147,6 @@ function ProspectCard({ biz }) {
               <span style={{ fontSize: 10, color: '#94A3B8' }}>· {SOURCE_LABELS[biz.email_source] || biz.email_source}</span>
             </div>
           )}
-
-          {/* Phone row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
             {phone ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -149,18 +159,15 @@ function ProspectCard({ biz }) {
                 disabled={findingPhone}
                 style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: '1px solid #E2E8F0', borderRadius: 5, padding: '2px 8px', fontSize: 11, color: findingPhone ? '#94A3B8' : '#0057FF', cursor: findingPhone ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
               >
-                {findingPhone ? (
-                  <><span style={{ width: 9, height: 9, border: '1.5px solid #CBD5E1', borderTopColor: '#0057FF', borderRadius: '50%', display: 'inline-block', animation: 'spin .8s linear infinite' }} />Finding mobile...</>
-                ) : (
-                  <>📞 Find Mobile</>
-                )}
+                {findingPhone
+                  ? <><span style={{ width: 9, height: 9, border: '1.5px solid #CBD5E1', borderTopColor: '#0057FF', borderRadius: '50%', display: 'inline-block', animation: 'spin .8s linear infinite' }} />Finding mobile...</>
+                  : <>📞 Find Mobile</>
+                }
               </button>
             ) : null}
             {phoneError && <span style={{ fontSize: 11, color: '#94A3B8' }}>{phoneError}</span>}
           </div>
         </div>
-
-        {/* Right side stats */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
           <Badge color={statusColor} bg={statusBg} border={statusBorder}>{statusLabel}</Badge>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -174,19 +181,10 @@ function ProspectCard({ biz }) {
           )}
         </div>
       </div>
-
-      {/* Signal */}
-      {biz.signal && (
-        <div style={cs.signal}>"{biz.signal}"</div>
-      )}
-
-      {/* Emails */}
+      {biz.signal && <div style={cs.signal}>"{biz.signal}"</div>}
       {expanded && biz.sequence && (
         <div style={cs.emails}>
-          {[
-            { label: 'Email 1', data: biz.sequence.email1 },
-            { label: 'Email 2 — day 4', data: biz.sequence.email2 },
-          ].map(({ label, data }) => (
+          {[{ label: 'Email 1', data: biz.sequence.email1 }, { label: 'Email 2 — day 4', data: biz.sequence.email2 }].map(({ label, data }) => (
             <div key={label} style={cs.emailBlock}>
               <div style={cs.emailLabel}>{label}</div>
               <div style={cs.emailSubject}>{data.subject}</div>
@@ -210,154 +208,159 @@ const cs = {
   emailBody:   { fontSize: 12, color: '#475569', lineHeight: 1.7, whiteSpace: 'pre-wrap' },
 };
 
-// ── Full data table ───────────────────────────────────────────────────────────
-
-function DataTable({ allResults, filterData }) {
+function DataTable({ allResults }) {
   if (!allResults) return null;
 
-  const enriched    = allResults.enrich?.results || [];
-  const outreach    = allResults.outreach?.results || [];
-  const franchises  = allResults.filter?.filtered_businesses || [];
+  const enriched   = allResults.enrich?.results || [];
+  const outreach   = allResults.outreach?.results || [];
+  const franchises = allResults.filter?.filtered_businesses || [];
 
-  // Build enriched map for quick lookup
   const outreachMap = {};
   outreach.forEach(b => { outreachMap[b.email || b.business_name] = b; });
 
-  // All businesses that made it to enrich
   const enrichRows = enriched.map(b => {
     const out = outreachMap[b.email || b.business_name] || {};
     return { ...b, outreach_status: out.outreach_status || (b.enriched ? 'enriched_not_loaded' : 'no_email') };
   });
 
-  const cols = ['Business', 'Owner', 'Email', 'Phone', 'Rating', 'Reviews', 'Source', 'Status'];
+  const PROSPECT_HEADERS = ['Business','Owner','Email','Phone','Rating','Reviews','Source','Status'];
+  const FRANCHISE_HEADERS = ['Business','City','Industry','Website','Phone','Rating','Reviews','Detected As'];
 
-  function exportCSV(rows, filename) {
-    const franchiseCols = ['Business', 'City', 'Industry', 'Website', 'Phone', 'Rating', 'Reviews', 'Detected As'];
-    const isFranchise = filename.includes('franchise');
-    const headers = isFranchise ? franchiseCols : cols;
-
-    const csvRows = isFranchise
-      ? rows.map(b => [b.business_name, b.city, b.industry, b.website, b.phone, b.rating, b.review_count, b.franchise_check].map(v => `"${v ?? ''}"`).join(','))
-      : rows.map(b => [b.business_name, b.email_owner, b.email, b.phone, b.rating, b.review_count, SOURCE_LABELS[b.email_source] || b.email_source, b.outreach_status].map(v => `"${v ?? ''}"`).join(','));
-
-    const csv = [headers.join(','), ...csvRows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+  function prospectRow(b) {
+    return [b.business_name, b.email_owner || b.owner_name, b.email, b.phone, b.rating, b.review_count, SOURCE_LABELS[b.email_source] || b.email_source, b.outreach_status].map(csvVal).join(',');
   }
 
-  function TableSection({ title, rows, color, bg, exportName }) {
-    if (!rows.length) return null;
+  function franchiseRow(b) {
+    return [b.business_name, b.city, b.industry, b.website, b.phone, b.rating, b.review_count, b.franchise_check].map(csvVal).join(',');
+  }
+
+  function ExportBtn({ onClick }) {
     return (
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{title}</span>
-            <span style={{ fontSize: 11, background: bg, color, borderRadius: 10, padding: '1px 7px', fontWeight: 700 }}>{rows.length}</span>
-          </div>
-          <button onClick={() => exportCSV(rows, exportName)} style={{ fontSize: 11, color: '#0057FF', background: 'none', border: '1px solid #BFDBFE', borderRadius: 5, padding: '3px 10px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
-            ↓ Export CSV
-          </button>
+      <button onClick={onClick} style={{ fontSize: 11, color: '#0057FF', background: 'none', border: '1px solid #BFDBFE', borderRadius: 5, padding: '3px 10px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
+        ↓ Export CSV
+      </button>
+    );
+  }
+
+  function SectionHeader({ title, count, color, bg, onExport }) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{title}</span>
+          <span style={{ fontSize: 11, background: bg, color, borderRadius: 10, padding: '1px 7px', fontWeight: 700 }}>{count}</span>
         </div>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={ts.table}>
-            <thead>
-              <tr>{cols.map(c => <th key={c} style={ts.th}>{c}</th>)}</tr>
-            </thead>
-            <tbody>
-              {rows.map((b, i) => (
-                <tr key={i} style={{ background: i % 2 ? '#fff' : '#FAFBFD' }}>
-                  <td style={ts.td}><span style={{ fontWeight: 600, color: '#0F172A' }}>{b.business_name}</span></td>
-                  <td style={ts.td}>{b.email_owner || b.owner_name || '—'}</td>
-                  <td style={ts.td}>{b.email ? <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ color: '#16A34A', fontWeight: 700 }}>✓</span>{b.email}</span> : '—'}</td>
-                  <td style={ts.td}>{b.phone || '—'}</td>
-                  <td style={ts.td}>{b.rating ? `★ ${b.rating}` : '—'}</td>
-                  <td style={ts.td}>{b.review_count || '—'}</td>
-                  <td style={ts.td}>{SOURCE_LABELS[b.email_source] || b.email_source || '—'}</td>
-                  <td style={ts.td}><StatusChip status={b.outreach_status} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ExportBtn onClick={onExport} />
       </div>
     );
   }
 
-  function FranchiseSection({ rows }) {
-    if (!rows.length) return null;
-    const franchiseCols = ['Business', 'City', 'Industry', 'Website', 'Phone', 'Rating', 'Reviews', 'Detected As'];
+  function ProspectTable({ rows }) {
     return (
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#DC2626' }} />
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Franchises Detected</span>
-            <span style={{ fontSize: 11, background: '#FEE2E2', color: '#DC2626', borderRadius: 10, padding: '1px 7px', fontWeight: 700 }}>{rows.length}</span>
-          </div>
-          <button onClick={() => exportCSV(rows, 'franchises.csv')} style={{ fontSize: 11, color: '#0057FF', background: 'none', border: '1px solid #BFDBFE', borderRadius: 5, padding: '3px 10px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
-            ↓ Export CSV
-          </button>
-        </div>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={ts.table}>
-            <thead>
-              <tr>{franchiseCols.map(c => <th key={c} style={ts.th}>{c}</th>)}</tr>
-            </thead>
-            <tbody>
-              {rows.map((b, i) => (
-                <tr key={i} style={{ background: i % 2 ? '#fff' : '#FAFBFD' }}>
-                  <td style={ts.td}><span style={{ fontWeight: 600, color: '#0F172A' }}>{b.business_name}</span></td>
-                  <td style={ts.td}>{b.city}</td>
-                  <td style={ts.td}>{b.industry}</td>
-                  <td style={ts.td}>{b.website ? <a href={b.website} target="_blank" rel="noopener noreferrer" style={{ color: '#0057FF', fontSize: 12 }}>{b.domain || b.website}</a> : '—'}</td>
-                  <td style={ts.td}>{b.phone || '—'}</td>
-                  <td style={ts.td}>{b.rating ? `★ ${b.rating}` : '—'}</td>
-                  <td style={ts.td}>{b.review_count || '—'}</td>
-                  <td style={ts.td}><span style={{ fontSize: 11, color: '#DC2626', fontWeight: 600 }}>{b.franchise_check}</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={ts.table}>
+          <thead>
+            <tr>{PROSPECT_HEADERS.map(c => <th key={c} style={ts.th}>{c}</th>)}</tr>
+          </thead>
+          <tbody>
+            {rows.map((b, i) => (
+              <tr key={i} style={{ background: i % 2 ? '#fff' : '#FAFBFD' }}>
+                <td style={ts.td}><span style={{ fontWeight: 600, color: '#0F172A' }}>{b.business_name}</span></td>
+                <td style={ts.td}>{b.email_owner || b.owner_name || '—'}</td>
+                <td style={ts.td}>{b.email ? <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ color: '#16A34A', fontWeight: 700 }}>✓</span>{b.email}</span> : '—'}</td>
+                <td style={ts.td}>{b.phone || '—'}</td>
+                <td style={ts.td}>{b.rating ? `★ ${b.rating}` : '—'}</td>
+                <td style={ts.td}>{b.review_count || '—'}</td>
+                <td style={ts.td}>{SOURCE_LABELS[b.email_source] || b.email_source || '—'}</td>
+                <td style={ts.td}><StatusChip status={b.outreach_status} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     );
   }
 
   const loaded     = enrichRows.filter(b => b.outreach_status === 'loaded');
   const duplicates = enrichRows.filter(b => b.outreach_status === 'skipped_duplicate');
-  const noEmail    = enrichRows.filter(b => b.outreach_status === 'no_email' || b.outreach_status === 'skipped_no_email');
-  const noName     = (allResults.discover?.businesses || []).filter(b => !b.owner_name && !enriched.find(e => e.business_name === b.business_name));
+  const noEmail    = enrichRows.filter(b => b.outreach_status === 'no_email' || b.outreach_status === 'skipped_no_email' || b.outreach_status === 'enriched_not_loaded');
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  function exportAll() {
+    const ALL_HEADERS = ['Section','Business','City','Industry','Owner','Email','Phone','Rating','Reviews','Email Source','Status','Website'];
+    const allRows = [
+      ...enrichRows.map(b => ['prospect', b.business_name, b.city, b.industry, b.email_owner || b.owner_name, b.email, b.phone, b.rating, b.review_count, b.email_source, b.outreach_status, b.website].map(csvVal).join(',')),
+      ...franchises.map(b => ['franchise', b.business_name, b.city, b.industry, '', '', b.phone, b.rating, b.review_count, '', b.franchise_check, b.website].map(csvVal).join(',')),
+    ];
+    const csv  = [ALL_HEADERS.join(','), ...allRows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'full-run-' + today + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <div style={{ marginTop: 32 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', marginBottom: 16, paddingBottom: 8, borderBottom: '2px solid #E2E8F0' }}>
-        Full Run Data
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, paddingBottom: 10, borderBottom: '2px solid #E2E8F0' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>Full Run Data</div>
+        <button onClick={exportAll} style={{ fontSize: 12, fontWeight: 600, color: '#0057FF', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 6, padding: '6px 16px', cursor: 'pointer', fontFamily: 'inherit' }}>
+          ↓ Export All Data
+        </button>
       </div>
-      <TableSection title="Loaded to Smartlead"   rows={loaded}     color="#16A34A" bg="#DCFCE7" exportName="loaded.csv" />
-      <TableSection title="Skipped — Duplicate"   rows={duplicates} color="#F59E0B" bg="#FEF3C7" exportName="duplicates.csv" />
-      <TableSection title="Email Not Found"       rows={noEmail}    color="#94A3B8" bg="#F1F5F9" exportName="no-email.csv" />
-      <FranchiseSection rows={franchises} />
+
+      {loaded.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <SectionHeader title="Loaded to Smartlead" count={loaded.length} color="#16A34A" bg="#DCFCE7" onExport={() => exportCSV(loaded, 'loaded-' + today + '.csv', PROSPECT_HEADERS, prospectRow)} />
+          <ProspectTable rows={loaded} />
+        </div>
+      )}
+
+      {duplicates.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <SectionHeader title="Skipped — Duplicate" count={duplicates.length} color="#F59E0B" bg="#FEF3C7" onExport={() => exportCSV(duplicates, 'duplicates-' + today + '.csv', PROSPECT_HEADERS, prospectRow)} />
+          <ProspectTable rows={duplicates} />
+        </div>
+      )}
+
+      {noEmail.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <SectionHeader title="Email Not Found" count={noEmail.length} color="#94A3B8" bg="#F1F5F9" onExport={() => exportCSV(noEmail, 'no-email-' + today + '.csv', PROSPECT_HEADERS, prospectRow)} />
+          <ProspectTable rows={noEmail} />
+        </div>
+      )}
+
+      {franchises.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <SectionHeader title="Franchises Detected" count={franchises.length} color="#DC2626" bg="#FEE2E2" onExport={() => exportCSV(franchises, 'franchises-' + today + '.csv', FRANCHISE_HEADERS, franchiseRow)} />
+          <div style={{ overflowX: 'auto' }}>
+            <table style={ts.table}>
+              <thead>
+                <tr>{FRANCHISE_HEADERS.map(c => <th key={c} style={ts.th}>{c}</th>)}</tr>
+              </thead>
+              <tbody>
+                {franchises.map((b, i) => (
+                  <tr key={i} style={{ background: i % 2 ? '#fff' : '#FAFBFD' }}>
+                    <td style={ts.td}><span style={{ fontWeight: 600, color: '#0F172A' }}>{b.business_name}</span></td>
+                    <td style={ts.td}>{b.city}</td>
+                    <td style={ts.td}>{b.industry}</td>
+                    <td style={ts.td}>{b.website ? <a href={b.website} target="_blank" rel="noopener noreferrer" style={{ color: '#0057FF', fontSize: 12 }}>{b.domain || b.website}</a> : '—'}</td>
+                    <td style={ts.td}>{b.phone || '—'}</td>
+                    <td style={ts.td}>{b.rating ? `★ ${b.rating}` : '—'}</td>
+                    <td style={ts.td}>{b.review_count || '—'}</td>
+                    <td style={ts.td}><span style={{ fontSize: 11, color: '#DC2626', fontWeight: 600 }}>{b.franchise_check}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
-}
-
-function StatusChip({ status }) {
-  const map = {
-    'loaded':              { label: 'Loaded',     color: '#16A34A', bg: '#DCFCE7' },
-    'skipped_duplicate':   { label: 'Duplicate',  color: '#F59E0B', bg: '#FEF3C7' },
-    'skipped_no_email':    { label: 'No Email',   color: '#94A3B8', bg: '#F1F5F9' },
-    'no_email':            { label: 'No Email',   color: '#94A3B8', bg: '#F1F5F9' },
-    'enriched_not_loaded': { label: 'Not Loaded', color: '#64748B', bg: '#F8FAFC' },
-    'failed_smartlead':    { label: 'Failed',     color: '#DC2626', bg: '#FEE2E2' },
-  };
-  const m = map[status] || { label: status || '—', color: '#94A3B8', bg: '#F1F5F9' };
-  return <span style={{ fontSize: 11, fontWeight: 700, color: m.color, background: m.bg, borderRadius: 10, padding: '1px 7px' }}>{m.label}</span>;
 }
 
 const ts = {
@@ -367,16 +370,16 @@ const ts = {
 };
 
 export default function PipelinePage({ perms = {}, platformLogo = null, navOrder = null }) {
-  const [city, setCity]           = useState('');
-  const [industry, setIndustry]   = useState(INDUSTRIES[0]);
-  const [stage, setStage]         = useState('idle');
-  const [log, setLog]             = useState([]);
-  const [logOpen, setLogOpen]     = useState(false);
-  const [results, setResults]     = useState(null);
-  const [error, setError]         = useState(null);
+  const [city, setCity]         = useState('');
+  const [industry, setIndustry] = useState(INDUSTRIES[0]);
+  const [stage, setStage]       = useState('idle');
+  const [log, setLog]           = useState([]);
+  const [logOpen, setLogOpen]   = useState(false);
+  const [results, setResults]   = useState(null);
+  const [error, setError]       = useState(null);
 
   const addLog = useCallback((msg) => {
-    setLog(prev => [...prev, `${new Date().toLocaleTimeString()} — ${msg}`]);
+    setLog(prev => [...prev, new Date().toLocaleTimeString() + ' — ' + msg]);
   }, []);
 
   async function callStage(endpoint, body) {
@@ -391,26 +394,32 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
 
     try {
       setStage('scout');
-      addLog(`Scouting ${industry} businesses in ${city}...`);
+      addLog('Scouting ' + industry + ' businesses in ' + city + '...');
       const scoutData = await callStage('/api/pipeline/scout', { city, industry });
-      addLog(`Found ${scoutData.count} businesses`);
+      addLog('Found ' + scoutData.count + ' businesses');
       if (!scoutData.businesses?.length) throw new Error('No businesses found.');
 
       setStage('filter');
-      addLog(`Checking ${scoutData.businesses.length} for franchise status...`);
+      addLog('Checking ' + scoutData.businesses.length + ' for franchise status...');
       const filterData = await callStage('/api/pipeline/filter', { businesses: scoutData.businesses });
-      addLog(`${filterData.filtered} franchises removed — ${filterData.passed} independents remaining`);
+      addLog(filterData.filtered + ' franchises removed — ' + filterData.passed + ' independents remaining');
       if (!filterData.businesses?.length) throw new Error('All businesses were franchises.');
 
       setStage('discover');
-      addLog(`Hunting owner names for ${filterData.businesses.length} businesses...`);
+      addLog('Hunting owner names for ' + filterData.businesses.length + ' businesses...');
       const discoverData = await callStage('/api/pipeline/discover', { businesses: filterData.businesses });
-      addLog(`Owner names found: ${discoverData.owner_found} of ${discoverData.total} (${discoverData.hit_rate}%)`);
+      addLog('Owner names found: ' + discoverData.owner_found + ' of ' + discoverData.total + ' (' + discoverData.hit_rate + '%)');
 
       setStage('enrich');
-      addLog(`Enriching emails for ${discoverData.businesses.length} businesses...`);
+      addLog('Enriching emails for ' + discoverData.businesses.length + ' businesses...');
       const enrichData = await callStage('/api/pipeline/enrich', { businesses: discoverData.businesses });
-      addLog(`Emails found: ${enrichData.enriched_count} of ${enrichData.total} (${enrichData.hit_rate}%) — Anymail person: ${enrichData.stages_summary?.anymail_person_attempted ?? 0} tried, Company: ${enrichData.stages_summary?.anymail_company_attempted ?? 0} tried, FullEnrich: ${enrichData.stages_summary?.fullenrich_attempted ?? 0} tried`);
+      const ss = enrichData.stages_summary || {};
+      addLog(
+        'Emails found: ' + enrichData.enriched_count + ' of ' + enrichData.total + ' (' + enrichData.hit_rate + '%) — ' +
+        'Anymail: ' + (ss.anymail_person_attempted || 0) + ' tried · ' +
+        'Co: ' + (ss.anymail_company_attempted || 0) + ' tried · ' +
+        'FullEnrich: ' + (ss.fullenrich_attempted || 0) + ' tried'
+      );
 
       const enriched = enrichData.results.filter(b => b.enriched);
       if (!enriched.length) {
@@ -421,29 +430,29 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
       }
 
       setStage('outreach');
-      addLog(`Writing sequences and loading ${enriched.length} contacts...`);
+      addLog('Writing sequences and loading ' + enriched.length + ' contacts...');
       const outreachData = await callStage('/api/pipeline/outreach', { businesses: enriched });
-      addLog(`Loaded: ${outreachData.loaded} | Skipped: ${outreachData.skipped} | Failed: ${outreachData.failed}`);
+      addLog('Loaded: ' + outreachData.loaded + ' | Skipped: ' + outreachData.skipped + ' | Failed: ' + outreachData.failed);
 
       setStage('done');
       addLog('Pipeline complete ✓');
       setResults({ scout: scoutData, filter: filterData, discover: discoverData, enrich: enrichData, outreach: outreachData });
 
     } catch (err) {
-      setStage('error'); setError(err.message); addLog(`Error: ${err.message}`);
+      setStage('error'); setError(err.message); addLog('Error: ' + err.message);
     }
   }
 
-  const stageInfo  = STAGE_LABELS[stage] || STAGE_LABELS.idle;
-  const isRunning  = !['idle', 'done', 'error'].includes(stage);
-  const isDone     = stage === 'done';
+  const stageInfo = STAGE_LABELS[stage] || STAGE_LABELS.idle;
+  const isRunning = !['idle', 'done', 'error'].includes(stage);
+  const isDone    = stage === 'done';
 
   const statCards = results ? [
-    { label: 'Scouted',      value: results.scout?.count ?? 0,            pct: null,                         color: '#0057FF' },
-    { label: 'Independent',  value: results.filter?.passed ?? 0,          pct: results.filter?.passed && results.scout?.count ? Math.round((results.filter.passed / results.scout.count) * 100) : null, color: '#0891B2' },
-    { label: 'Names Found',  value: results.discover?.owner_found ?? 0,   pct: results.discover?.hit_rate,   color: '#F59E0B' },
-    { label: 'Emails Found', value: results.enrich?.enriched_count ?? 0,  pct: results.enrich?.hit_rate,     color: '#7C3AED' },
-    { label: 'Loaded',       value: results.outreach?.loaded ?? 0,         pct: results.enrich?.enriched_count ? Math.round(((results.outreach?.loaded ?? 0) / results.enrich.enriched_count) * 100) : null, color: '#16A34A' },
+    { label: 'Scouted',      value: results.scout?.count ?? 0,           pct: null,                          color: '#0057FF' },
+    { label: 'Independent',  value: results.filter?.passed ?? 0,         pct: results.scout?.count ? Math.round((results.filter.passed / results.scout.count) * 100) : null, color: '#0891B2' },
+    { label: 'Names Found',  value: results.discover?.owner_found ?? 0,  pct: results.discover?.hit_rate,    color: '#F59E0B' },
+    { label: 'Emails Found', value: results.enrich?.enriched_count ?? 0, pct: results.enrich?.hit_rate,      color: '#7C3AED' },
+    { label: 'Loaded',       value: results.outreach?.loaded ?? 0,        pct: results.enrich?.enriched_count ? Math.round(((results.outreach?.loaded ?? 0) / results.enrich.enriched_count) * 100) : null, color: '#16A34A' },
   ] : [];
 
   const loadedProspects = results?.outreach?.results?.filter(r => r.outreach_status === 'loaded') || [];
@@ -453,7 +462,6 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
       <Head><title>Genesis Agent — KANSO</title></Head>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}*{box-sizing:border-box}`}</style>
       <div style={s.page}>
-
         <aside style={s.sidebar}>
           <div style={s.sideLogoWrap}><div style={s.sideLogoRow}><BrandLogo logo={platformLogo} /></div></div>
           <nav style={s.sideNav}>
@@ -478,13 +486,11 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: stageInfo.color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{stageInfo.text}</span>
-              <span style={{ fontSize: 11, background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: 4, padding: '2px 8px', color: '#64748B' }}>v2.9</span>
+              <span style={{ fontSize: 11, background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: 4, padding: '2px 8px', color: '#64748B' }}>v3.0</span>
             </div>
           </div>
 
           <main style={s.main}>
-
-            {/* Controls */}
             <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
               <input value={city} onChange={e => setCity(e.target.value)} onKeyDown={e => e.key === 'Enter' && !isRunning && city.trim() && runPipeline()} placeholder="City (e.g. Dallas, TX)" disabled={isRunning} style={s.input} />
               <select value={industry} onChange={e => setIndustry(e.target.value)} disabled={isRunning} style={s.select}>
@@ -495,28 +501,23 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
               </button>
             </div>
 
-            {/* Log — collapsed when done */}
             {log.length > 0 && (
               <div style={{ ...s.card, marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: logOpen ? 10 : 0 }}>
                   <div style={s.cardLabel}>Pipeline Log</div>
                   <button onClick={() => setLogOpen(o => !o)} style={{ fontSize: 11, color: '#0057FF', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-                    {logOpen ? '▲ Collapse' : `▼ ${log.length} entries`}
+                    {logOpen ? '▲ Collapse' : '▼ ' + log.length + ' entries'}
                   </button>
                 </div>
-                {(!isDone || logOpen) && log.map((line, i) => (
-                  <div key={i} style={{ fontSize: 13, color: i === log.length - 1 ? '#0F172A' : '#64748B', lineHeight: 1.9, fontWeight: i === log.length - 1 ? 500 : 400 }}>{line}</div>
-                ))}
-                {isDone && !logOpen && (
-                  <div style={{ fontSize: 13, color: '#16A34A', fontWeight: 600 }}>{log[log.length - 1]}</div>
-                )}
+                {(!isDone || logOpen)
+                  ? log.map((line, i) => <div key={i} style={{ fontSize: 13, color: i === log.length - 1 ? '#0F172A' : '#64748B', lineHeight: 1.9, fontWeight: i === log.length - 1 ? 500 : 400 }}>{line}</div>)
+                  : <div style={{ fontSize: 13, color: '#16A34A', fontWeight: 600 }}>{log[log.length - 1]}</div>
+                }
               </div>
             )}
 
-            {/* Error */}
             {error && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '12px 16px', marginBottom: 20, color: '#DC2626', fontSize: 13, fontWeight: 500 }}>{error}</div>}
 
-            {/* Stats */}
             {results && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 24 }}>
                 {statCards.map(({ label, value, pct, color }) => (
@@ -529,7 +530,6 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
               </div>
             )}
 
-            {/* Prospect cards */}
             {loadedProspects.length > 0 && (
               <>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
@@ -539,36 +539,7 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
               </>
             )}
 
-            {/* Full data table */}
-            {results && (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 32, marginBottom: 16, paddingBottom: 8, borderBottom: '2px solid #E2E8F0' }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>Full Run Data</div>
-                  <button
-                    onClick={() => {
-                      const all = [
-                        ...(results.enrich?.results || []).map(b => ({ ...b, section: 'prospect' })),
-                        ...(results.filter?.filtered_businesses || []).map(b => ({ ...b, section: 'franchise' })),
-                      ];
-                      const headers = ['Section','Business','City','Industry','Owner','Email','Phone','Rating','Reviews','Email Source','Status','Website'];
-                      const rows = all.map(b => [b.section, b.business_name, b.city, b.industry, b.email_owner || b.owner_name, b.email, b.phone, b.rating, b.review_count, b.email_source, b.outreach_status || b.franchise_check, b.website].map(v => ' + (v ?? ) + ').join(','));
-                      const csv = [headers.join(','), ...rows].join('
-');
-                      const blob = new Blob([csv], { type: 'text/csv' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url; a.download = 'full-run-' + new Date().toISOString().slice(0,10) + '.csv'; a.click();
-                      URL.revokeObjectURL(url);
-                    }}
-                    style={{ fontSize: 12, fontWeight: 600, color: '#0057FF', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontFamily: 'inherit' }}
-                  >
-                    ↓ Export All Data
-                  </button>
-                </div>
-                <DataTable allResults={results} />
-              </>
-            )}
-
+            {results && <DataTable allResults={results} />}
           </main>
         </div>
       </div>
