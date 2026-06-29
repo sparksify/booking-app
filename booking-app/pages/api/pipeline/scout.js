@@ -30,9 +30,6 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const { city, industry } = req.body;
   if (!city || !industry) return res.status(400).json({ error: 'city and industry required' });
-
-  const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-  if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: 'Missing ANTHROPIC_API_KEY' });
   if (!SERP_API_KEY) return res.status(500).json({ error: 'Missing SERP_API_KEY' });
 
   try {
@@ -44,114 +41,51 @@ export default async function handler(req, res) {
     ]);
 
     const seen = new Set();
-    const allBusinesses = [...(maps1data?.local_results || []), ...(maps2data?.local_results || [])]
+    const businesses = [...(maps1data?.local_results || []), ...(maps2data?.local_results || [])]
       .filter(b => {
         const key = b.title?.toLowerCase();
         if (!key || seen.has(key)) return false;
         seen.add(key);
         return true;
-      }).slice(0, 30);
-
-    if (allBusinesses.length === 0) {
-      return res.status(200).json({ city, industry, count: 0, businesses: [], maps_found: 0, run_at: new Date().toISOString() });
-    }
-
-    const businessList = allBusinesses.map((b, i) =>
-      `${i+1}. ${b.title} — ${b.rating || '?'} stars, ${b.reviews || 0} reviews, website: ${b.website || 'none'}`
-    ).join('\n');
-
-    const scoreRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 4000,
-        tools: [{
-          name: 'submit_businesses',
-          description: 'Submit all businesses with scores.',
-          input_schema: {
-            type: 'object',
-            properties: {
-              businesses: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    business_name:       { type: 'string' },
-                    owner_name:          { type: 'string' },
-                    website:             { type: 'string' },
-                    domain:              { type: 'string' },
-                    franchise_score:     { type: 'number' },
-                    ownership_score:     { type: 'number' },
-                    total_score:         { type: 'number' },
-                    signals:             { type: 'array', items: { type: 'string' } },
-                    already_franchising: { type: 'boolean', description: 'True ONLY if you know for certain this business already has an active franchise program with multiple franchisees.' },
-                  },
-                  required: ['business_name', 'franchise_score', 'ownership_score', 'total_score', 'signals', 'already_franchising'],
-                }
-              }
-            },
-            required: ['businesses'],
-          }
-        }],
-        tool_choice: { type: 'tool', name: 'submit_businesses' },
-        messages: [{ role: 'user', content: `You are a franchise development scout. Score every business in this list for franchise potential. Include ALL of them.
-
-${businessList}
-
-For each business:
-- franchise_score (0-10): rate based on review count, rating, number of locations, years in business
-- ownership_score (0-10): rate based on how unique the concept is, brand strength, scalability
-- total_score = franchise_score + ownership_score  
-- signals: list 2-3 real facts from the data (e.g. "4.7 stars with 423 reviews")
-- owner_name: real name only if you know it, otherwise null
-- already_franchising: true ONLY if you are certain this business already sells franchises to third parties
-
-Submit ALL ${allBusinesses.length} businesses. Do not skip any.` }],
-      }),
-    });
-
-    if (!scoreRes.ok) {
-      const err = await scoreRes.text();
-      return res.status(500).json({ error: 'Claude error', detail: err.slice(0, 300) });
-    }
-
-    const scoreData = await scoreRes.json();
-    const toolUse = (scoreData.content || []).find(b => b.type === 'tool_use' && b.name === 'submit_businesses');
-    if (!toolUse) return res.status(500).json({ error: 'No tool response', stop_reason: scoreData.stop_reason });
-
-    const mapsMap = {};
-    allBusinesses.forEach(b => { mapsMap[b.title?.toLowerCase()] = b; });
-
-    const GENERIC = ['local owner','business owner','owner','local ownership','family','the owner','unknown','n/a'];
-
-    let businesses = (toolUse.input?.businesses || [])
-      .filter(b => !b.already_franchising)
+      })
+      .slice(0, 30)
       .map(b => {
-        const maps = mapsMap[b.business_name?.toLowerCase()];
-        const website = b.website || maps?.website || null;
+        const website = b.website || null;
         const domain = website ? (() => { try { return new URL(website).hostname.replace(/^www\./, ''); } catch(e) { return null; } })() : null;
         return {
-          ...b,
-          city, industry, website, domain,
-          rating: maps?.rating || null,
-          review_count: maps?.reviews || null,
-          owner_name: b.owner_name && !GENERIC.some(g => b.owner_name.toLowerCase().includes(g)) ? b.owner_name : null,
-          ownership_candidate: (b.ownership_score || 0) >= 6,
-          broker_candidate: (b.franchise_score || 0) >= 6 && (b.total_score || 0) >= 12,
-          is_emerging: false,
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          business_name: b.title,
+          city,
+          industry,
+          owner_name: null,
+          website,
+          domain,
+          rating: b.rating || null,
+          review_count: b.reviews || null,
+          address: b.address || null,
+          phone: b.phone || null,
+          place_id: b.place_id || null,
+          franchise_score: 5,
+          ownership_score: 5,
+          total_score: 10,
+          signals: [
+            b.rating ? `${b.rating} stars` : null,
+            b.reviews ? `${b.reviews} reviews` : null,
+            b.type ? b.type : null,
+          ].filter(Boolean),
+          ownership_candidate: false,
+          broker_candidate: false,
+          is_emerging: false,
         };
-      })
-      .sort((a, b) => (b.total_score || 0) - (a.total_score || 0));
+      });
 
     return res.status(200).json({
       city, industry,
       count: businesses.length,
       emerging_count: 0,
-      ownership_candidates: businesses.filter(b => b.ownership_candidate).length,
-      broker_candidates: businesses.filter(b => b.broker_candidate).length,
-      maps_found: allBusinesses.length,
+      ownership_candidates: 0,
+      broker_candidates: 0,
+      maps_found: businesses.length,
       businesses,
       run_at: new Date().toISOString(),
     });
