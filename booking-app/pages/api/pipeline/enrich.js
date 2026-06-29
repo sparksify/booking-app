@@ -26,7 +26,6 @@ function isValidOwnerEmail(email, ownerName) {
   return scoreEmailAgainstOwner(email, ownerName) > 0;
 }
 
-export const config = { maxDuration: 60 };
 
 async function getVerifiedDomain(businessName, city, placesKey) {
   try {
