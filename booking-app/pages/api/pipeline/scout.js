@@ -107,7 +107,7 @@ Call submit_businesses now with all businesses scored.` }],
     const GENERIC = ['local owner','business owner','owner','local ownership','local ownership group','family','the owner','unknown','n/a','management','staff','team'];
 
     let businesses = (toolUse.input?.businesses || [])
-      .filter(b => !b.disqualified)
+      //.filter(b => !b.disqualified)
       .map(b => ({
         ...b,
         city,
