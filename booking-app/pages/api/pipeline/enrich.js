@@ -1,3 +1,5 @@
+export const config = { maxDuration: 60 };
+
 const GENERIC_PREFIXES = ['info','hello','help','contact','support','admin','office','team','mail','inquiries','general','service','services','booking','bookings','sales','marketing','intake','schedule','scheduling','ask','questions','request','requests','quote','quotes','estimates','estimate','hello','hey','hi'];
 
 function isGenericEmail(email) {
@@ -125,7 +127,7 @@ export default async function handler(req, res) {
       enrichment_path: path.join(' → '),
     });
 
-    await new Promise(r => setTimeout(r, 400));
+    await new Promise(r => setTimeout(r, 100));
   }
 
   const enriched = results.filter(r => r.enriched);

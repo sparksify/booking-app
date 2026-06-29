@@ -1,3 +1,5 @@
+export const config = { maxDuration: 60 };
+
 import { getSupabaseAdmin } from '@/lib/supabase';
 
 const SMARTLEAD_API_KEY = process.env.SMARTLEAD_API_KEY;
@@ -134,7 +136,7 @@ export default async function handler(req, res) {
         emails_preview: sequence?.emails?.map(e => ({ subject: e.subject, day: e.day })) || [],
         status,
       });
-      await new Promise(r => setTimeout(r, 800));
+      await new Promise(r => setTimeout(r, 200));
     } catch (err) {
       results.push({ business_name: biz.business_name, email: biz.email, status: 'error', error: err.message });
     }

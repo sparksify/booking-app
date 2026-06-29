@@ -1,3 +1,5 @@
+export const config = { maxDuration: 60 };
+
 import { getSupabaseAdmin } from '@/lib/supabase';
 
 export default async function handler(req, res) {
