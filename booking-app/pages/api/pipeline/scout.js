@@ -3,61 +3,27 @@ export const config = { maxDuration: 300 };
 const SERP_API_KEY = process.env.SERP_API_KEY;
 
 const INDUSTRY_QUERIES = {
-  'Food & Beverage':        ['local independent restaurant', 'locally owned cafe coffee shop'],
-  'Health & Wellness':      ['local independent med spa wellness', 'locally owned health clinic spa'],
-  'Fitness':                ['local independent fitness studio gym', 'locally owned pilates yoga studio'],
-  'Beauty & Personal Care': ['local independent salon spa', 'locally owned beauty boutique'],
-  'Pet Services':           ['local independent dog grooming pet care', 'locally owned dog training boarding'],
-  'Auto Services':          ['local independent auto repair shop', 'locally owned car service mechanic'],
-  'Home Services':          ['local independent home services contractor', 'locally owned cleaning restoration'],
-  'Senior Care':            ['local independent senior care', 'locally owned assisted living memory care'],
-  'Cleaning Services':      ['local independent cleaning service', 'locally owned maid janitorial service'],
-  "Children's Education":   ['local independent kids tutoring education', 'locally owned children learning center'],
-  'Real Estate Services':   ['local independent real estate agency', 'locally owned property management'],
-  'Marketing & Media':      ['local independent marketing agency', 'locally owned creative branding agency'],
+  'Food & Beverage':        ['local independent restaurant', 'locally owned cafe'],
+  'Health & Wellness':      ['local independent med spa', 'locally owned wellness center'],
+  'Fitness':                ['local independent fitness studio', 'locally owned gym'],
+  'Beauty & Personal Care': ['local independent salon', 'locally owned spa'],
+  'Pet Services':           ['local independent dog grooming', 'locally owned pet care'],
+  'Auto Services':          ['local independent auto repair', 'locally owned mechanic'],
+  'Home Services':          ['local independent home services', 'locally owned contractor'],
+  'Senior Care':            ['local independent senior care', 'locally owned assisted living'],
+  'Cleaning Services':      ['local independent cleaning service', 'locally owned maid service'],
+  "Children's Education":   ['local independent kids tutoring', 'locally owned learning center'],
+  'Real Estate Services':   ['local independent real estate', 'locally owned property management'],
+  'Marketing & Media':      ['local independent marketing agency', 'locally owned creative agency'],
 };
 
-async function searchGoogleMaps(query, city) {
+async function serpSearch(params) {
   try {
-    const params = new URLSearchParams({
-      engine: 'google_maps',
-      q: `${query} ${city}`,
-      type: 'search',
-      api_key: SERP_API_KEY,
-    });
-    const r = await fetch(`https://serpapi.com/search?${params}`);
-    const d = await r.json();
-    return (d.local_results || []).map(b => ({
-      name: b.title,
-      rating: b.rating,
-      reviews: b.reviews,
-      address: b.address,
-      website: b.website || null,
-      domain: b.website ? (() => { try { return new URL(b.website).hostname.replace(/^www\./, ''); } catch(e) { return null; } })() : null,
-      phone: b.phone,
-      place_id: b.place_id,
-      source: 'google_maps',
-    }));
-  } catch(e) { return []; }
-}
-
-async function searchGoogleNews(query) {
-  try {
-    const params = new URLSearchParams({
-      engine: 'google_news',
-      q: query,
-      num: 10,
-      api_key: SERP_API_KEY,
-    });
-    const r = await fetch(`https://serpapi.com/search?${params}`);
-    const d = await r.json();
-    return (d.news_results || []).map(n => ({
-      title: n.title,
-      snippet: n.snippet,
-      source: n.source,
-      date: n.date,
-    }));
-  } catch(e) { return []; }
+    const p = new URLSearchParams({ ...params, api_key: SERP_API_KEY });
+    const r = await fetch(`https://serpapi.com/search?${p}`);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch(e) { return null; }
 }
 
 export default async function handler(req, res) {
@@ -70,29 +36,28 @@ export default async function handler(req, res) {
   if (!SERP_API_KEY) return res.status(500).json({ error: 'Missing SERP_API_KEY' });
 
   try {
-    const queries = INDUSTRY_QUERIES[industry] || [`local independent ${industry.toLowerCase()}`, `locally owned ${industry.toLowerCase()}`];
+    const queries = INDUSTRY_QUERIES[industry] || [`local independent ${industry}`, `locally owned ${industry}`];
 
-    const [maps1, maps2, newsResults] = await Promise.all([
-      searchGoogleMaps(queries[0], city),
-      searchGoogleMaps(queries[1], city),
-      searchGoogleNews(`best new ${industry} ${city} 2025 owner founded independent`),
+    const [maps1data, maps2data] = await Promise.all([
+      serpSearch({ engine: 'google_maps', q: `${queries[0]} ${city}`, type: 'search' }),
+      serpSearch({ engine: 'google_maps', q: `${queries[1]} ${city}`, type: 'search' }),
     ]);
 
-    // Dedupe by name
     const seen = new Set();
-    const allBusinesses = [...maps1, ...maps2].filter(b => {
-      const key = b.name?.toLowerCase();
-      if (!key || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    }).slice(0, 30);
+    const allBusinesses = [...(maps1data?.local_results || []), ...(maps2data?.local_results || [])]
+      .filter(b => {
+        const key = b.title?.toLowerCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }).slice(0, 30);
 
-    const mapsData = allBusinesses.map(b =>
-      `- ${b.name}: ${b.rating || '?'} stars, ${b.reviews || 0} reviews, website: ${b.website || 'none'}`
-    ).join('\n');
+    if (allBusinesses.length === 0) {
+      return res.status(200).json({ city, industry, count: 0, businesses: [], maps_found: 0, run_at: new Date().toISOString() });
+    }
 
-    const newsData = newsResults.slice(0, 8).map(n =>
-      `- ${n.title} (${n.source}, ${n.date}): ${n.snippet}`
+    const businessList = allBusinesses.map((b, i) =>
+      `${i+1}. ${b.title} — ${b.rating || '?'} stars, ${b.reviews || 0} reviews, website: ${b.website || 'none'}`
     ).join('\n');
 
     const scoreRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -103,7 +68,7 @@ export default async function handler(req, res) {
         max_tokens: 4000,
         tools: [{
           name: 'submit_businesses',
-          description: 'Submit scored businesses. Include ALL businesses from the data — only disqualify obvious national chains or corporate-owned businesses.',
+          description: 'Submit all businesses with scores.',
           input_schema: {
             type: 'object',
             properties: {
@@ -112,22 +77,17 @@ export default async function handler(req, res) {
                 items: {
                   type: 'object',
                   properties: {
-                    business_name:     { type: 'string' },
-                    owner_name:        { type: 'string' },
-                    website:           { type: 'string' },
-                    domain:            { type: 'string' },
-                    years_in_business: { type: 'number' },
-                    num_locations:     { type: 'number' },
-                    rating:            { type: 'number' },
-                    review_count:      { type: 'number' },
-                    franchise_score:   { type: 'number' },
-                    ownership_score:   { type: 'number' },
-                    total_score:       { type: 'number' },
-                    signals:           { type: 'array', items: { type: 'string' } },
-                    disqualified:      { type: 'boolean' },
-                    disqualify_reason: { type: 'string' },
+                    business_name:       { type: 'string' },
+                    owner_name:          { type: 'string' },
+                    website:             { type: 'string' },
+                    domain:              { type: 'string' },
+                    franchise_score:     { type: 'number' },
+                    ownership_score:     { type: 'number' },
+                    total_score:         { type: 'number' },
+                    signals:             { type: 'array', items: { type: 'string' } },
+                    already_franchising: { type: 'boolean', description: 'True ONLY if you know for certain this business already has an active franchise program with multiple franchisees.' },
                   },
-                  required: ['business_name','franchise_score','ownership_score','total_score','signals','disqualified'],
+                  required: ['business_name', 'franchise_score', 'ownership_score', 'total_score', 'signals', 'already_franchising'],
                 }
               }
             },
@@ -135,93 +95,63 @@ export default async function handler(req, res) {
           }
         }],
         tool_choice: { type: 'tool', name: 'submit_businesses' },
-        messages: [{ role: 'user', content: `Score these real local businesses in ${city} for franchise development potential.
+        messages: [{ role: 'user', content: `You are a franchise development scout. Score every business in this list for franchise potential. Include ALL of them.
 
-BUSINESSES FOUND:
-${mapsData}
+${businessList}
 
-NEWS/PRESS COVERAGE:
-${newsData || 'None found'}
+For each business:
+- franchise_score (0-10): rate based on review count, rating, number of locations, years in business
+- ownership_score (0-10): rate based on how unique the concept is, brand strength, scalability
+- total_score = franchise_score + ownership_score  
+- signals: list 2-3 real facts from the data (e.g. "4.7 stars with 423 reviews")
+- owner_name: real name only if you know it, otherwise null
+- already_franchising: true ONLY if you are certain this business already sells franchises to third parties
 
-SCORING:
-franchise_score (0-10):
-+3 multiple locations in same city (evidence required)
-+2 strong review count with high rating (use actual numbers)
-+2 4+ years in business
-+2 systemized team signals
-+1 press coverage found above
-+1 strong brand presence
-
-ownership_score (0-10):
-+3 truly unique concept, no national franchise competitor
-+2 strong recognizable brand
-+2 scalable model
-+2 owner identified with growth ambition
-+1 hot franchise category
-+2 BONUS if under 3 years old with buzz
-
-SIGNALS must be real facts: "4.7 stars with 623 reviews" not "strong reviews"
-
-DISQUALIFICATION — only disqualify if CLEARLY:
-- A known national chain (Applebees, Chilis, etc.)
-- Corporate owned (hotel restaurant, stadium food, etc.)
-- Already has franchise program
-
-DO NOT disqualify: independent local restaurants, local concepts, anything with fewer than 8 locations, anything that might be independent even if you are unsure. When in doubt, include it.
-
-Call submit_businesses with ALL businesses that are not obvious national chains.` }],
+Submit ALL ${allBusinesses.length} businesses. Do not skip any.` }],
       }),
     });
 
     if (!scoreRes.ok) {
       const err = await scoreRes.text();
-      return res.status(500).json({ error: 'Claude error', detail: err });
+      return res.status(500).json({ error: 'Claude error', detail: err.slice(0, 300) });
     }
 
-    const data = await scoreRes.json();
-    const toolUse = (data.content || []).find(b => b.type === 'tool_use' && b.name === 'submit_businesses');
-    if (!toolUse) return res.status(500).json({ error: 'No structured response', stop_reason: data.stop_reason });
-
-    const GENERIC = ['local owner','business owner','owner','local ownership','local ownership group','family','the owner','unknown','n/a','management','staff','team'];
+    const scoreData = await scoreRes.json();
+    const toolUse = (scoreData.content || []).find(b => b.type === 'tool_use' && b.name === 'submit_businesses');
+    if (!toolUse) return res.status(500).json({ error: 'No tool response', stop_reason: scoreData.stop_reason });
 
     const mapsMap = {};
-    allBusinesses.forEach(b => { mapsMap[b.name?.toLowerCase()] = b; });
+    allBusinesses.forEach(b => { mapsMap[b.title?.toLowerCase()] = b; });
+
+    const GENERIC = ['local owner','business owner','owner','local ownership','family','the owner','unknown','n/a'];
 
     let businesses = (toolUse.input?.businesses || [])
-      //.filter(b => !b.disqualified)
+      .filter(b => !b.already_franchising)
       .map(b => {
-        const mapsMatch = mapsMap[b.business_name?.toLowerCase()];
-        const website = b.website || mapsMatch?.website || null;
-        const domain = b.domain || mapsMatch?.domain || (website ? (() => { try { return new URL(website).hostname.replace(/^www\./, ''); } catch(e) { return null; } })() : null);
-        const yearsOld = b.years_in_business || 5;
+        const maps = mapsMap[b.business_name?.toLowerCase()];
+        const website = b.website || maps?.website || null;
+        const domain = website ? (() => { try { return new URL(website).hostname.replace(/^www\./, ''); } catch(e) { return null; } })() : null;
         return {
           ...b,
           city, industry, website, domain,
-          rating: b.rating || mapsMatch?.rating || null,
-          review_count: b.review_count || mapsMatch?.reviews || null,
+          rating: maps?.rating || null,
+          review_count: maps?.reviews || null,
           owner_name: b.owner_name && !GENERIC.some(g => b.owner_name.toLowerCase().includes(g)) ? b.owner_name : null,
-          is_emerging: yearsOld < 3 && (b.ownership_score || 0) >= 6,
           ownership_candidate: (b.ownership_score || 0) >= 6,
           broker_candidate: (b.franchise_score || 0) >= 6 && (b.total_score || 0) >= 12,
-          established: yearsOld >= 5 && (b.num_locations || 1) >= 2,
+          is_emerging: false,
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         };
-      });
-
-    businesses.sort((a, b) => {
-      if (a.is_emerging && !b.is_emerging) return -1;
-      if (!a.is_emerging && b.is_emerging) return 1;
-      return (b.total_score || 0) - (a.total_score || 0);
-    });
+      })
+      .sort((a, b) => (b.total_score || 0) - (a.total_score || 0));
 
     return res.status(200).json({
       city, industry,
       count: businesses.length,
-      emerging_count: businesses.filter(b => b.is_emerging).length,
+      emerging_count: 0,
       ownership_candidates: businesses.filter(b => b.ownership_candidate).length,
       broker_candidates: businesses.filter(b => b.broker_candidate).length,
       maps_found: allBusinesses.length,
-      news_found: newsResults.length,
       businesses,
       run_at: new Date().toISOString(),
     });
