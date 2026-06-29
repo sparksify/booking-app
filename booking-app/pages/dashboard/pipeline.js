@@ -221,7 +221,7 @@ export default function PipelinePage({ perms={}, platformLogo=null, navOrder=nul
 
   return (
     <>
-      <Head><title>Genesis Agent v1.4 — KANSO</title></Head>
+      <Head><title>Genesis Agent v1.5 — KANSO</title></Head>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}*{box-sizing:border-box}button:not(:disabled):hover{opacity:.85}select,button{font-family:inherit}`}</style>
       <div style={s.page}>
         <aside style={s.sidebar}>
@@ -237,7 +237,7 @@ export default function PipelinePage({ perms={}, platformLogo=null, navOrder=nul
         <div style={s.main}>
           <div style={s.topBar}>
             <div>
-              <div style={s.topTitle}>Genesis Agent <span style={{fontSize:12,fontWeight:500,color:'#94A3B8',marginLeft:6}}>v1.4</span></div>
+              <div style={s.topTitle}>Genesis Agent <span style={{fontSize:12,fontWeight:500,color:'#94A3B8',marginLeft:6}}>v1.5</span></div>
               <div style={s.topSub}>Find franchise-ready businesses → enrich → load to Smartlead automatically</div>
             </div>
             <div style={{display:'flex',gap:8}}>
