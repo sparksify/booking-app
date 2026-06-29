@@ -410,7 +410,7 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
       setStage('enrich');
       addLog(`Enriching emails for ${discoverData.businesses.length} businesses...`);
       const enrichData = await callStage('/api/pipeline/enrich', { businesses: discoverData.businesses });
-      addLog(`Emails found: ${enrichData.enriched_count} of ${enrichData.total} (${enrichData.hit_rate}%)`);
+      addLog(`Emails found: ${enrichData.enriched_count} of ${enrichData.total} (${enrichData.hit_rate}%) — Anymail person: ${enrichData.stages_summary?.anymail_person_attempted ?? 0} tried, Company: ${enrichData.stages_summary?.anymail_company_attempted ?? 0} tried, FullEnrich: ${enrichData.stages_summary?.fullenrich_attempted ?? 0} tried`);
 
       const enriched = enrichData.results.filter(b => b.enriched);
       if (!enriched.length) {
@@ -540,7 +540,34 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
             )}
 
             {/* Full data table */}
-            {results && <DataTable allResults={results} />}
+            {results && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 32, marginBottom: 16, paddingBottom: 8, borderBottom: '2px solid #E2E8F0' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>Full Run Data</div>
+                  <button
+                    onClick={() => {
+                      const all = [
+                        ...(results.enrich?.results || []).map(b => ({ ...b, section: 'prospect' })),
+                        ...(results.filter?.filtered_businesses || []).map(b => ({ ...b, section: 'franchise' })),
+                      ];
+                      const headers = ['Section','Business','City','Industry','Owner','Email','Phone','Rating','Reviews','Email Source','Status','Website'];
+                      const rows = all.map(b => [b.section, b.business_name, b.city, b.industry, b.email_owner || b.owner_name, b.email, b.phone, b.rating, b.review_count, b.email_source, b.outreach_status || b.franchise_check, b.website].map(v => ' + (v ?? ) + ').join(','));
+                      const csv = [headers.join(','), ...rows].join('
+');
+                      const blob = new Blob([csv], { type: 'text/csv' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url; a.download = 'full-run-' + new Date().toISOString().slice(0,10) + '.csv'; a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    style={{ fontSize: 12, fontWeight: 600, color: '#0057FF', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    ↓ Export All Data
+                  </button>
+                </div>
+                <DataTable allResults={results} />
+              </>
+            )}
 
           </main>
         </div>
