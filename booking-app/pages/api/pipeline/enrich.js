@@ -1,88 +1,157 @@
 export const config = { maxDuration: 300 };
 
-async function getVerifiedDomain(businessName, city, placesKey) {
+const HUNTER_API_KEY = process.env.HUNTER_API_KEY;
+const ANYMAIL_API_KEY = process.env.ANYMAIL_FINDER_API_KEY;
+
+// Split "John Smith and Jane Doe" or "John Smith & Jane Doe" into individual names
+function parseOwnerNames(ownerName) {
+  if (!ownerName) return [];
+  return ownerName
+    .split(/\s+and\s+|\s*&\s*|,\s*/)
+    .map(n => n.trim())
+    .filter(Boolean);
+}
+
+async function anymailPerson(name, domain) {
+  if (!name || !domain || !ANYMAIL_API_KEY) return null;
   try {
-    const r = await fetch('https://places.googleapis.com/v1/places:searchText', {
+    const r = await fetch('https://api.anymailfinder.com/v5.1/find-email/person', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Goog-Api-Key': placesKey,
-        'X-Goog-FieldMask': 'places.websiteUri',
+        'Authorization': ANYMAIL_API_KEY,
       },
-      body: JSON.stringify({ textQuery: `${businessName} ${city}`, maxResultCount: 1 }),
+      body: JSON.stringify({ full_name: name, domain }),
     });
     const d = await r.json();
-    const uri = d.places?.[0]?.websiteUri;
-    if (!uri) return null;
-    return new URL(uri).hostname.replace(/^www\./, '');
-  } catch(e) { return null; }
+    return d.email || null;
+  } catch (e) { return null; }
 }
 
-async function anymailSearch(ownerName, domain, businessName, anymailKey) {
-  if (ownerName && domain) {
-    try {
-      const r = await fetch('https://api.anymailfinder.com/v5.1/find-email/person', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': anymailKey },
-        body: JSON.stringify({ full_name: ownerName, domain }),
-      });
-      const d = await r.json();
-      if (d.email) return { email: d.email, method: 'anymail_person' };
-    } catch(e) {}
-  }
-  if (businessName) {
-    try {
-      const r = await fetch('https://api.anymailfinder.com/v5.1/find-email/person', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': anymailKey },
-        body: JSON.stringify({ full_name: ownerName || 'owner', company_name: businessName }),
-      });
-      const d = await r.json();
-      if (d.email) return { email: d.email, method: 'anymail_company' };
-    } catch(e) {}
-  }
-  return null;
+async function anymailCompany(businessName) {
+  if (!businessName || !ANYMAIL_API_KEY) return null;
+  try {
+    const r = await fetch('https://api.anymailfinder.com/v5.1/find-email/person', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': ANYMAIL_API_KEY,
+      },
+      body: JSON.stringify({ full_name: 'owner', company_name: businessName }),
+    });
+    const d = await r.json();
+    return d.email || null;
+  } catch (e) { return null; }
 }
 
-async function enrichOne(biz, PLACES_KEY, ANYMAIL_KEY) {
-  const { owner_name, domain: claudeDomain, business_name, city } = biz;
-  let verifiedDomain = claudeDomain;
+async function hunterPerson(name, domain) {
+  if (!name || !domain || !HUNTER_API_KEY) return null;
+  try {
+    const [first, ...rest] = name.split(' ');
+    const last = rest.join(' ');
+    if (!first || !last) return null;
+    const params = new URLSearchParams({
+      first_name: first,
+      last_name: last,
+      domain,
+      api_key: HUNTER_API_KEY,
+    });
+    const r = await fetch(`https://api.hunter.io/v2/email-finder?${params}`);
+    const d = await r.json();
+    return d.data?.email || null;
+  } catch (e) { return null; }
+}
 
-  // Google Places — get real domain
-  if (PLACES_KEY) {
-    const placeDomain = await getVerifiedDomain(business_name, city, PLACES_KEY);
-    if (placeDomain) verifiedDomain = placeDomain;
+async function hunterDomain(domain) {
+  if (!domain || !HUNTER_API_KEY) return null;
+  try {
+    const params = new URLSearchParams({ domain, api_key: HUNTER_API_KEY });
+    const r = await fetch(`https://api.hunter.io/v2/domain-search?${params}`);
+    const d = await r.json();
+    // Return the first email that looks like an owner/founder/general contact
+    const emails = d.data?.emails || [];
+    const priority = emails.find(e =>
+      ['owner', 'founder', 'ceo', 'president', 'info', 'hello', 'contact']
+        .some(kw => e.value?.toLowerCase().includes(kw))
+    );
+    return priority?.value || emails[0]?.value || null;
+  } catch (e) { return null; }
+}
+
+async function enrichOne(biz) {
+  const { owner_name, domain, business_name } = biz;
+
+  const names = parseOwnerNames(owner_name);
+
+  // Try each owner name through the waterfall, return first hit
+  for (const name of names) {
+    // 1. Anymail person search
+    const anymailHit = await anymailPerson(name, domain);
+    if (anymailHit) return {
+      ...biz,
+      email: anymailHit,
+      email_owner: name,
+      email_source: 'anymail_person',
+      enriched: true,
+    };
+
+    // 2. Hunter person search
+    const hunterHit = await hunterPerson(name, domain);
+    if (hunterHit) return {
+      ...biz,
+      email: hunterHit,
+      email_owner: name,
+      email_source: 'hunter_person',
+      enriched: true,
+    };
   }
 
-  // Anymail search
-  let email = null;
-  let emailStatus = 'not_found';
-  if (ANYMAIL_KEY) {
-    const result = await anymailSearch(owner_name, verifiedDomain, business_name, ANYMAIL_KEY);
-    if (result) { email = result.email; emailStatus = result.method; }
-  }
+  // 3. Anymail company fallback
+  const anymailCompanyHit = await anymailCompany(business_name);
+  if (anymailCompanyHit) return {
+    ...biz,
+    email: anymailCompanyHit,
+    email_owner: null,
+    email_source: 'anymail_company',
+    enriched: true,
+  };
 
-  return { ...biz, domain: verifiedDomain || claudeDomain, email, email_status: emailStatus, enriched: !!email };
+  // 4. Hunter domain search fallback
+  const hunterDomainHit = await hunterDomain(domain);
+  if (hunterDomainHit) return {
+    ...biz,
+    email: hunterDomainHit,
+    email_owner: null,
+    email_source: 'hunter_domain',
+    enriched: true,
+  };
+
+  return { ...biz, email: null, email_owner: null, email_source: 'not_found', enriched: false };
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
   const { businesses } = req.body;
-  if (!businesses || !Array.isArray(businesses)) return res.status(400).json({ error: 'businesses array required' });
+  if (!businesses || !Array.isArray(businesses)) {
+    return res.status(400).json({ error: 'businesses array required' });
+  }
 
-  const ANYMAIL_KEY = process.env.ANYMAIL_FINDER_API_KEY;
-  const PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY;
+  try {
+    const results = await Promise.all(businesses.map(biz => enrichOne(biz)));
 
-  // Run all enrichments IN PARALLEL — cuts time from 60s to under 15s
-  const results = await Promise.all(
-    businesses.map(biz => enrichOne(biz, PLACES_KEY, ANYMAIL_KEY))
-  );
+    const enriched = results.filter(r => r.enriched);
 
-  const enriched = results.filter(r => r.enriched);
-  return res.status(200).json({
-    total: results.length,
-    enriched_count: enriched.length,
-    hit_rate: results.length > 0 ? Math.round((enriched.length / results.length) * 100) : 0,
-    results,
-  });
+    return res.status(200).json({
+      total: results.length,
+      enriched_count: enriched.length,
+      hit_rate: results.length > 0
+        ? Math.round((enriched.length / results.length) * 100)
+        : 0,
+      results,
+    });
+
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 }
