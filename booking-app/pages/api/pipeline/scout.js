@@ -1,4 +1,4 @@
-export const config = { maxDuration: 60 };
+export const config = { maxDuration: 300 };
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -52,7 +52,7 @@ export default async function handler(req, res) {
           }
         }],
         tool_choice: { type: 'tool', name: 'submit_businesses' },
-        messages: [{ role: 'user', content: `Find 8-10 real independent locally-owned ${industry} businesses in ${city} that are NOT franchises and NOT corporate chains. Must be at least 1 year old with at least one operating location.
+        messages: [{ role: 'user', content: `Find 15-20 real independent locally-owned ${industry} businesses in ${city} that are NOT franchises and NOT corporate chains. Must be at least 1 year old with at least one operating location.
 
 For each business provide the real owner first and last name if you know it. Never use "Local Owner" or placeholder names.
 

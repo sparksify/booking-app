@@ -1,4 +1,4 @@
-export const config = { maxDuration: 60 };
+export const config = { maxDuration: 300 };
 
 import { getSupabaseAdmin } from '@/lib/supabase';
 

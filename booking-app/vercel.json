@@ -1,19 +1,9 @@
 {
   "functions": {
-    "pages/api/pipeline/scout.js": {
-      "maxDuration": 60
-    },
-    "pages/api/pipeline/enrich.js": {
-      "maxDuration": 60
-    },
-    "pages/api/pipeline/outreach.js": {
-      "maxDuration": 60
-    },
-    "pages/api/pipeline/runs.js": {
-      "maxDuration": 60
-    },
-    "pages/api/webhooks/pipeline-reply.js": {
-      "maxDuration": 30
-    }
+    "pages/api/pipeline/scout.js": { "maxDuration": 300 },
+    "pages/api/pipeline/enrich.js": { "maxDuration": 300 },
+    "pages/api/pipeline/outreach.js": { "maxDuration": 300 },
+    "pages/api/pipeline/runs.js": { "maxDuration": 300 },
+    "pages/api/webhooks/pipeline-reply.js": { "maxDuration": 300 }
   }
 }
