@@ -10,8 +10,7 @@ function getFirstName(fullName) {
 }
 
 async function writeSequence(biz) {
-  const { business_name, city, email_owner, industry, signal } = biz;
-
+  const { business_name, email_owner, industry, signal, rating, review_count } = biz;
   const firstName = getFirstName(email_owner);
 
   const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -23,31 +22,70 @@ async function writeSequence(biz) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1000,
+      max_tokens: 1500,
       messages: [{
         role: 'user',
-        content: `You are writing a cold outreach email sequence for Steve Sparks, Managing Partner at Halloway (halloway.co).
+        content: `You are writing cold outreach emails for Steve Sparks, Managing Partner at Halloway (halloway.co). Steve helps independent business owners figure out if franchising their concept makes sense. He is a broker — he only earns money when a deal closes, so he has no interest in wasting anyone's time.
 
-Steve works with independent business owners to explore whether franchising their concept makes sense. He is a broker — he only gets paid when a deal closes, so he has no reason to waste anyone's time.
+FRAMEWORK — use this exact structure for every email:
+1. Personalized proof — open with something specific and real about this business (reviews, concept, operational detail, signal)
+2. Strategic question — immediately create tension by raising the real question (is it repeatable? is the concept location-dependent? can it be taught to someone else? does the math work?)
+3. Risk reversal — make it clear this is about finding out IF it makes sense, not pitching them on franchising
+4. CTA — always end with "Should I send it?" never "Want me to send it over?"
 
-Write exactly 2 emails using Alex Hormozi's cold outreach style:
-- Open with the personalization signal to make them feel seen — reference it naturally, don't be cheesy about it
-- Short sentences. Direct. No fluff. No "I hope this email finds you well."
-- Never use the word "consultant" or position Steve as one
-- The CTA is always: Steve has a 5-minute video that explains the whole process — ask if they want him to send it over
-- Sound like a real person, not a marketing department
-- One ask per email, nothing more
+TONE RULES — strictly follow these:
+- Never just compliment. Every proof point must immediately raise a question or tension
+- Never say "I only get paid if a deal closes" — it creates skepticism before trust
+- Never say "consultant" or position Steve as one
+- Short paragraphs. One idea per paragraph. Direct.
+- Sound skeptical and analytical, not enthusiastic
+- The follow-up email must return to the specific strategic question about THIS business — never send a generic bump
+- "Should I send it?" is the only acceptable CTA format
 
-Personalization signal to open with: ${signal || `${business_name} in ${city}`}
+GOOD EXAMPLE (use this as your model):
+Subject: Whiskey Bird + Little Bird
+
+Anthony — Whiskey Bird plus Little Bird caught my eye.
+
+Most restaurants struggle to make one model run cleanly. You have a dine-in concept, a takeout concept, brunch, dinner, cocktails, and online ordering under one roof.
+
+That usually means one of two things:
+
+Either the operation is too complex to scale, or you have a model that could be more valuable than a single-location restaurant.
+
+I help independent restaurant owners figure out which one is true before they spend a dollar on franchising.
+
+I have a 5-minute video that shows how we evaluate whether a concept is actually franchise-ready.
+
+Should I send it over?
+
+---
+
+FOLLOW-UP EXAMPLE (specific, not generic):
+Subject: Re: Whiskey Bird + Little Bird
+
+Anthony — quick bump.
+
+The reason I reached out is because Whiskey Bird/Little Bird already has something franchise buyers look for: more than one revenue path inside the same operating system.
+
+The video will show you whether that is actually an asset for scaling, or just added complexity.
+
+Should I send it?
+
+---
+
+Now write 2 emails for this business:
+
 Owner first name: ${firstName || 'there'}
-Business: ${business_name}
-Location: ${city}
+Business name: ${business_name}
 Industry: ${industry || 'independent business'}
+Personalization signal: ${signal || `${business_name} caught my attention`}
+${rating ? `Google rating: ${rating} stars${review_count ? ` across ${review_count} reviews` : ''}` : ''}
 
-Email 1 — The opener. 4-6 sentences max. Subject line included.
-Email 2 — Follow-up. 3-4 sentences. Sent 4 days later. Don't be needy. Reference the video. Subject line included.
+Email 1 — The opener. 5-8 sentences across short paragraphs. Subject line included.
+Email 2 — Follow-up sent 4 days later. Returns to the specific strategic question raised in email 1. 4-6 sentences. Subject line included.
 
-Return ONLY valid JSON, no markdown:
+Return ONLY valid JSON, no markdown, no explanation:
 {
   "email1": {
     "subject": "...",
@@ -90,9 +128,9 @@ async function addLeadToSmartlead(biz, sequence) {
           company_name: business_name,
           custom_fields: {
             email1_subject: sequence.email1.subject,
-            email1_body: sequence.email1.body,
+            email1_body:    sequence.email1.body,
             email2_subject: sequence.email2.subject,
-            email2_body: sequence.email2.body,
+            email2_body:    sequence.email2.body,
           },
         }],
       }),
@@ -152,9 +190,9 @@ export default async function handler(req, res) {
   try {
     const results = await Promise.all(businesses.map(biz => outreachOne(biz)));
 
-    const loaded = results.filter(r => r.outreach_status === 'loaded');
+    const loaded  = results.filter(r => r.outreach_status === 'loaded');
     const skipped = results.filter(r => r.outreach_status?.startsWith('skipped'));
-    const failed = results.filter(r => r.outreach_status?.startsWith('failed'));
+    const failed  = results.filter(r => r.outreach_status?.startsWith('failed'));
 
     return res.status(200).json({
       total: results.length,
