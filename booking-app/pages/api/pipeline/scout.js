@@ -2,22 +2,65 @@ export const config = { maxDuration: 300 };
 
 const SERP_API_KEY = process.env.SERP_API_KEY;
 
-async function searchGoogleMaps(query, location) {
+const INDUSTRY_QUERIES = {
+  'Food & Beverage':        ['restaurants', 'local food'],
+  'Health & Wellness':      ['wellness spa', 'med spa'],
+  'Fitness':                ['fitness studio', 'gym'],
+  'Beauty & Personal Care': ['salon spa', 'beauty salon'],
+  'Pet Services':           ['dog grooming', 'dog training'],
+  'Auto Services':          ['auto repair shop', 'car service'],
+  'Home Services':          ['home services', 'contractor'],
+  'Senior Care':            ['senior care', 'assisted living'],
+  'Cleaning Services':      ['cleaning service', 'maid service'],
+  "Children's Education":   ['kids tutoring', 'children education'],
+  'Real Estate Services':   ['real estate agency', 'property management'],
+  'Marketing & Media':      ['marketing agency', 'creative agency'],
+};
+
+async function searchGoogleMaps(query, city) {
   try {
     const params = new URLSearchParams({
       engine: 'google_maps',
-      q: query,
-      location: location,
+      q: `${query} ${city}`,
       type: 'search',
       api_key: SERP_API_KEY,
     });
     const r = await fetch(`https://serpapi.com/search?${params}`);
     const d = await r.json();
-    return d.local_results || [];
-  } catch(e) {
-    console.error('Google Maps search failed:', e.message);
-    return [];
-  }
+    return (d.local_results || []).map(b => ({
+      name: b.title,
+      rating: b.rating,
+      reviews: b.reviews,
+      address: b.address,
+      website: b.website || null,
+      domain: b.website ? (() => { try { return new URL(b.website).hostname.replace(/^www\./, ''); } catch(e) { return null; } })() : null,
+      phone: b.phone,
+      place_id: b.place_id,
+      type: b.type,
+      source: 'google_maps',
+    }));
+  } catch(e) { return []; }
+}
+
+async function searchGoogleNews(query) {
+  try {
+    const params = new URLSearchParams({
+      engine: 'google',
+      q: query,
+      tbm: 'nws',
+      num: 10,
+      api_key: SERP_API_KEY,
+    });
+    const r = await fetch(`https://serpapi.com/search?${params}`);
+    const d = await r.json();
+    return (d.news_results || []).map(n => ({
+      title: n.title,
+      snippet: n.snippet,
+      source: n.source,
+      date: n.date,
+      link: n.link,
+    }));
+  } catch(e) { return []; }
 }
 
 async function searchGoogleOrganic(query) {
@@ -30,11 +73,12 @@ async function searchGoogleOrganic(query) {
     });
     const r = await fetch(`https://serpapi.com/search?${params}`);
     const d = await r.json();
-    return d.organic_results || [];
-  } catch(e) {
-    console.error('Google organic search failed:', e.message);
-    return [];
-  }
+    return (d.organic_results || []).map(r => ({
+      title: r.title,
+      snippet: r.snippet,
+      link: r.link,
+    }));
+  } catch(e) { return []; }
 }
 
 export default async function handler(req, res) {
@@ -47,58 +91,38 @@ export default async function handler(req, res) {
   if (!SERP_API_KEY) return res.status(500).json({ error: 'Missing SERP_API_KEY' });
 
   try {
-    // Run both searches in parallel
-    const [mapsResults, editorialResults] = await Promise.all([
-      searchGoogleMaps((() => {
-      const map = {
-        'Food & Beverage': 'restaurants',
-        'Health & Wellness': 'wellness spa med spa',
-        'Fitness': 'fitness studio gym',
-        'Beauty & Personal Care': 'salon spa beauty',
-        'Pet Services': 'pet grooming dog training',
-        'Auto Services': 'auto repair shop',
-        'Home Services': 'home services contractor',
-        'Senior Care': 'senior care assisted living',
-        'Cleaning Services': 'cleaning service',
-        "Children's Education": 'kids education tutoring',
-        'Real Estate Services': 'real estate agency',
-        'Marketing & Media': 'marketing agency',
-      };
-      return `${map[industry] || industry} ${city}`;
-    })(), city),
-      searchGoogleOrganic(`best new ${industry} ${city} 2025 owner founded`),
+    const queries = INDUSTRY_QUERIES[industry] || [industry.toLowerCase()];
+    const cityState = city;
+
+    // Run all searches in parallel
+    const [maps1, maps2, newsResults, editorialResults] = await Promise.all([
+      searchGoogleMaps(queries[0], cityState),
+      searchGoogleMaps(queries[1] || queries[0], cityState),
+      searchGoogleNews(`best new ${industry} ${cityState} 2025 owner founded`),
+      searchGoogleOrganic(`best independent ${industry} ${cityState} owner founder 2024 OR 2025`),
     ]);
 
-    // Format maps results
-    const mapsData = mapsResults.slice(0, 20).map(r => ({
-      name: r.title,
-      rating: r.rating,
-      reviews: r.reviews,
-      address: r.address,
-      website: r.website,
-      phone: r.phone,
-      type: r.type,
-      years_in_business: r.years_in_business || null,
-      thumbnail: r.thumbnail,
-    }));
+    // Dedupe businesses by name
+    const seen = new Set();
+    const allBusinesses = [...maps1, ...maps2].filter(b => {
+      if (seen.has(b.name?.toLowerCase())) return false;
+      seen.add(b.name?.toLowerCase());
+      return true;
+    }).slice(0, 25);
 
-    // Format editorial results
-    const editorialData = editorialResults.slice(0, 10).map(r => ({
-      title: r.title,
-      snippet: r.snippet,
-      link: r.link,
-      source: r.source,
-    }));
+    const mapsData = allBusinesses.map(b =>
+      `- ${b.name}: ${b.rating || 'no rating'} stars, ${b.reviews || 0} reviews, website: ${b.website || 'none'}, address: ${b.address || ''}`
+    ).join('\n');
 
-    const researchSummary = `
-GOOGLE MAPS RESULTS for "${industry}" in ${city}:
-${mapsData.map(b => `- ${b.name}: ${b.rating || 'no rating'} stars, ${b.reviews || 0} reviews, ${b.website || 'no website'}, ${b.address || ''}`).join('\n')}
+    const newsData = newsResults.slice(0, 8).map(n =>
+      `- ${n.title} (${n.source}, ${n.date}): ${n.snippet}`
+    ).join('\n');
 
-EDITORIAL COVERAGE (emerging brands, press mentions, founder stories):
-${editorialData.map(r => `- ${r.title}: ${r.snippet}`).join('\n')}
-`;
+    const editorialData = editorialResults.slice(0, 5).map(r =>
+      `- ${r.title}: ${r.snippet}`
+    ).join('\n');
 
-    // Claude scores based only on real data found
+    // Score using real data only
     const scoreRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
@@ -107,7 +131,7 @@ ${editorialData.map(r => `- ${r.title}: ${r.snippet}`).join('\n')}
         max_tokens: 4000,
         tools: [{
           name: 'submit_businesses',
-          description: 'Submit the scored list of franchise-ready businesses based only on the real data provided.',
+          description: 'Submit scored franchise-ready businesses based only on real data provided.',
           input_schema: {
             type: 'object',
             properties: {
@@ -117,7 +141,7 @@ ${editorialData.map(r => `- ${r.title}: ${r.snippet}`).join('\n')}
                   type: 'object',
                   properties: {
                     business_name:     { type: 'string' },
-                    owner_name:        { type: 'string', description: 'Real owner name only if found in the data. Null if not found.' },
+                    owner_name:        { type: 'string', description: 'Owner name only if found in news/editorial data. Null if not found.' },
                     website:           { type: 'string' },
                     domain:            { type: 'string' },
                     years_in_business: { type: 'number' },
@@ -127,7 +151,7 @@ ${editorialData.map(r => `- ${r.title}: ${r.snippet}`).join('\n')}
                     franchise_score:   { type: 'number' },
                     ownership_score:   { type: 'number' },
                     total_score:       { type: 'number' },
-                    signals:           { type: 'array', items: { type: 'string' }, description: 'Only real signals from the data provided. Quote actual review counts, ratings, press sources.' },
+                    signals:           { type: 'array', items: { type: 'string' }, description: 'ONLY real facts from the data. Quote actual numbers and sources.' },
                     disqualified:      { type: 'boolean' },
                     disqualify_reason: { type: 'string' },
                   },
@@ -139,34 +163,46 @@ ${editorialData.map(r => `- ${r.title}: ${r.snippet}`).join('\n')}
           }
         }],
         tool_choice: { type: 'tool', name: 'submit_businesses' },
-        messages: [{ role: 'user', content: `You are a franchise development analyst. Score these real businesses found in ${city} for their franchise potential.
+        messages: [{ role: 'user', content: `You are a franchise development analyst scoring real businesses for franchise potential.
 
-${researchSummary}
+GOOGLE MAPS RESULTS — ${industry} in ${city}:
+${mapsData || 'No Maps results found'}
 
-Score each business found in the data above. DO NOT invent businesses not in this data. DO NOT invent signals — every signal must reference actual data provided (real review counts, real ratings, real press mentions found above).
+NEWS COVERAGE — emerging brands and press mentions:
+${newsData || 'No news results found'}
+
+EDITORIAL COVERAGE — best-of lists and founder stories:
+${editorialData || 'No editorial results found'}
+
+Score ONLY the businesses that appear in the data above. Do not invent businesses.
 
 franchise_score (0-10):
-+3 multiple locations in same city (only if evidence shows this)
-+2 4+ years in business (only if evidence shows this)
-+2 high review count with strong rating (use actual numbers from data)
-+2 systemized team or hiring signals
-+1 press coverage found in editorial results above
-+1 active social media or strong brand presence
-+1 unique concept
++3 evidence of multiple locations in same city
++2 evidence of 4+ years in business
++2 high review count with strong rating (use ACTUAL numbers: e.g. "4.7 stars, 847 reviews")
++2 systemized team signals (hiring posts, manager titles)
++1 press coverage found above
++1 strong social or brand presence
 
 ownership_score (0-10):
 +3 unique concept with no clear national franchise competitor
-+2 strong brand identity or cult following signals
-+2 scalable model (low build-out, high margin category)
-+2 owner visible or expansion intent found in editorial
-+1 hot franchise category right now
++2 strong brand identity or cult following
++2 scalable model, favorable category economics
++2 owner identified and shows growth ambition (from news/editorial)
++1 hot franchise category
+BONUS +2 if under 3 years old with strong press buzz
 
 total_score = franchise_score + ownership_score
 
-DISQUALIFY only if: already franchising, corporate parent, or 8+ locations across multiple states.
-Do NOT disqualify for being new or young — emerging brands are high priority.
+IMPORTANT for signals: Write real facts only. Examples of good signals:
+"4.8 stars with 1,247 Google reviews"
+"Featured in Dallas Morning News 2025 Best New Restaurants"
+"Founder [name] quoted discussing expansion plans"
+"3 Dallas locations confirmed"
+BAD signals (do not use): "Strong brand identity" "4+ years in business" "Multiple locations" — these are generic, not facts.
 
-For signals, write them like: "4.7 stars with 312 Google reviews" or "Featured in Eater Dallas 2025" — real facts only.
+DISQUALIFY only if: clearly already franchising, corporate chain, or 8+ locations across multiple states.
+Do NOT disqualify young or new businesses.
 
 Call submit_businesses now.` }],
       }),
@@ -183,23 +219,32 @@ Call submit_businesses now.` }],
 
     const GENERIC = ['local owner','business owner','owner','local ownership','local ownership group','family','the owner','unknown','n/a','management','staff','team'];
 
+    // Merge website/domain from Maps data where Claude might have missed it
+    const mapsMap = {};
+    allBusinesses.forEach(b => { mapsMap[b.name?.toLowerCase()] = b; });
+
     let businesses = (toolUse.input?.businesses || [])
       .filter(b => !b.disqualified)
       .map(b => {
+        const mapsMatch = mapsMap[b.business_name?.toLowerCase()];
+        const website = b.website || mapsMatch?.website || null;
+        const domain = b.domain || mapsMatch?.domain || (website ? (() => { try { return new URL(website).hostname.replace(/^www\./, ''); } catch(e) { return null; } })() : null);
+        const rating = b.rating || mapsMatch?.rating || null;
+        const review_count = b.review_count || mapsMatch?.reviews || null;
         const yearsOld = b.years_in_business || 5;
-        const isEmerging = yearsOld < 3 && (b.ownership_score || 0) >= 6;
-        const isOwnership = (b.ownership_score || 0) >= 6;
-        const isBroker = (b.franchise_score || 0) >= 6 && (b.total_score || 0) >= 12;
-        const isEstablished = yearsOld >= 5 && (b.num_locations || 1) >= 2;
         return {
           ...b,
           city,
           industry,
+          website,
+          domain,
+          rating,
+          review_count,
           owner_name: b.owner_name && !GENERIC.some(g => b.owner_name.toLowerCase().includes(g)) ? b.owner_name : null,
-          is_emerging: isEmerging,
-          ownership_candidate: isOwnership,
-          broker_candidate: isBroker,
-          established: isEstablished,
+          is_emerging: yearsOld < 3 && (b.ownership_score || 0) >= 6,
+          ownership_candidate: (b.ownership_score || 0) >= 6,
+          broker_candidate: (b.franchise_score || 0) >= 6 && (b.total_score || 0) >= 12,
+          established: yearsOld >= 5 && (b.num_locations || 1) >= 2,
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         };
       });
@@ -216,8 +261,8 @@ Call submit_businesses now.` }],
       emerging_count: businesses.filter(b => b.is_emerging).length,
       ownership_candidates: businesses.filter(b => b.ownership_candidate).length,
       broker_candidates: businesses.filter(b => b.broker_candidate).length,
-      maps_found: mapsData.length,
-      editorial_found: editorialData.length,
+      maps_found: allBusinesses.length,
+      news_found: newsResults.length,
       businesses,
       run_at: new Date().toISOString(),
     });
