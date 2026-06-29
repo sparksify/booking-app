@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../api/auth/[...nextauth]';
 import { guardDashboardPage } from '@/lib/pageAccess';
 import { visibleNav } from '@/lib/nav';
 import BrandLogo from '@/components/BrandLogo';
@@ -11,13 +9,7 @@ import SidebarUser from '@/components/SidebarUser';
 export async function getServerSideProps(context) {
   const gate = await guardDashboardPage(context, '/dashboard/pipeline');
   if (gate.redirect) return gate;
-  return {
-    props: {
-      perms:       gate.perms,
-      platformLogo: gate.logo,
-      navOrder:    gate.navOrder,
-    },
-  };
+  return { props: { perms: gate.perms, platformLogo: gate.logo, navOrder: gate.navOrder } };
 }
 
 const INDUSTRIES = [
@@ -37,6 +29,15 @@ const STAGE_LABELS = {
   error:    { text: 'Error',          color: '#DC2626' },
 };
 
+const SOURCE_LABELS = {
+  anymail_person:  'Anymail',
+  anymail_company: 'Anymail Co',
+  fullenrich:      'FullEnrich',
+  hunter_person:   'Hunter',
+  hunter_domain:   'Hunter Domain',
+  not_found:       'Not found',
+};
+
 function SideIcon({ name }) {
   const p = { width: 17, height: 17, fill: 'none', stroke: 'currentColor', strokeWidth: 1.75, strokeLinecap: 'round', strokeLinejoin: 'round', viewBox: '0 0 24 24', style: { display: 'block' } };
   if (name === 'dashboard') return <svg {...p}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>;
@@ -50,13 +51,114 @@ function SideIcon({ name }) {
   return null;
 }
 
+// ── Stat pill ────────────────────────────────────────────────────────────────
+function StatPill({ icon, value, label, color }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+      <span style={{ fontSize: 11, color }}>{icon}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>{value}</span>
+      <span style={{ fontSize: 11, color: '#94A3B8' }}>{label}</span>
+    </div>
+  );
+}
+
+// ── Avatar initials ──────────────────────────────────────────────────────────
+function Avatar({ name, size = 38 }) {
+  const initials = name
+    ? name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+    : '?';
+  const colors = ['#0057FF','#7C3AED','#16A34A','#EA580C','#0891B2','#DC2626'];
+  const color = colors[initials.charCodeAt(0) % colors.length];
+  return (
+    <div style={{ width: size, height: size, borderRadius: '50%', background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.35, fontWeight: 700, flexShrink: 0 }}>
+      {initials}
+    </div>
+  );
+}
+
+// ── Prospect card ────────────────────────────────────────────────────────────
+function ProspectCard({ biz }) {
+  const [expanded, setExpanded] = useState(false);
+  const firstName = biz.email_owner?.trim().split(' ')[0] || '';
+
+  return (
+    <div style={cs.card}>
+      <div style={cs.cardMain} onClick={() => setExpanded(e => !e)}>
+        {/* Avatar */}
+        <Avatar name={biz.email_owner || biz.business_name} />
+
+        {/* Name + meta */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>{biz.email_owner || biz.business_name}</span>
+            <span style={{ fontSize: 10, background: '#DCFCE7', color: '#16A34A', border: '1px solid #BBF7D0', borderRadius: 10, padding: '1px 7px', fontWeight: 700 }}>Loaded</span>
+          </div>
+          <div style={{ fontSize: 12, color: '#64748B', marginBottom: 4 }}>{biz.business_name} · {biz.city}</div>
+          <div style={{ fontSize: 11, color: '#94A3B8' }}>{biz.email}</div>
+        </div>
+
+        {/* Stats */}
+        <div style={{ display: 'flex', gap: 18, alignItems: 'center', flexShrink: 0 }}>
+          {biz.rating && (
+            <StatPill icon="★" value={`${biz.rating}`} label="rating" color="#F59E0B" />
+          )}
+          {biz.review_count && (
+            <StatPill icon="✦" value={biz.review_count} label="reviews" color="#0057FF" />
+          )}
+          <StatPill
+            icon="✉"
+            value={SOURCE_LABELS[biz.email_source] || biz.email_source}
+            label=""
+            color="#7C3AED"
+          />
+          <div style={{ width: 20, color: '#CBD5E1', fontSize: 12, flexShrink: 0 }}>
+            {expanded ? '▲' : '▼'}
+          </div>
+        </div>
+      </div>
+
+      {/* Signal */}
+      {biz.signal && (
+        <div style={cs.signal}>"{biz.signal}"</div>
+      )}
+
+      {/* Expanded emails */}
+      {expanded && biz.sequence && (
+        <div style={cs.emails}>
+          {[
+            { label: 'Email 1', data: biz.sequence.email1 },
+            { label: 'Email 2 — sent day 4', data: biz.sequence.email2 },
+          ].map(({ label, data }) => (
+            <div key={label} style={cs.emailBlock}>
+              <div style={cs.emailLabel}>{label}</div>
+              <div style={cs.emailSubject}>{data.subject}</div>
+              <div style={cs.emailBody}>{data.body}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const cs = {
+  card:        { background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, marginBottom: 8, overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,.04)' },
+  cardMain:    { display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', cursor: 'pointer' },
+  signal:      { fontSize: 12, color: '#64748B', fontStyle: 'italic', background: '#F8FAFC', borderTop: '1px solid #F1F5F9', padding: '8px 18px' },
+  emails:      { borderTop: '1px solid #F1F5F9', padding: '14px 18px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+  emailBlock:  { background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '12px 14px' },
+  emailLabel:  { fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 },
+  emailSubject:{ fontSize: 12, fontWeight: 600, color: '#0F172A', marginBottom: 6 },
+  emailBody:   { fontSize: 12, color: '#475569', lineHeight: 1.7, whiteSpace: 'pre-wrap' },
+};
+
 export default function PipelinePage({ perms = {}, platformLogo = null, navOrder = null }) {
-  const [city, setCity]       = useState('');
+  const [city, setCity]         = useState('');
   const [industry, setIndustry] = useState(INDUSTRIES[0]);
-  const [stage, setStage]     = useState('idle');
-  const [log, setLog]         = useState([]);
-  const [results, setResults] = useState(null);
-  const [error, setError]     = useState(null);
+  const [stage, setStage]       = useState('idle');
+  const [log, setLog]           = useState([]);
+  const [results, setResults]   = useState(null);
+  const [error, setError]       = useState(null);
 
   function addLog(msg) {
     setLog(prev => [...prev, `${new Date().toLocaleTimeString()} — ${msg}`]);
@@ -77,26 +179,23 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
 
   async function runPipeline() {
     if (!city.trim()) return;
-    setStage('idle');
-    setLog([]);
-    setResults(null);
-    setError(null);
+    setStage('idle'); setLog([]); setResults(null); setError(null);
 
     try {
       setStage('scout');
       addLog(`Scouting ${industry} businesses in ${city}...`);
       const scoutData = await callStage('/api/pipeline/scout', { city, industry });
       addLog(`Found ${scoutData.count} businesses`);
-      if (!scoutData.businesses?.length) throw new Error('No businesses found. Try a different city or industry.');
+      if (!scoutData.businesses?.length) throw new Error('No businesses found.');
 
       setStage('filter');
-      addLog(`Checking ${scoutData.businesses.length} businesses for franchise status...`);
+      addLog(`Checking ${scoutData.businesses.length} for franchise status...`);
       const filterData = await callStage('/api/pipeline/filter', { businesses: scoutData.businesses });
       addLog(`${filterData.filtered} franchises removed — ${filterData.passed} independents remaining`);
-      if (!filterData.businesses?.length) throw new Error('All businesses were franchises. Try a different search.');
+      if (!filterData.businesses?.length) throw new Error('All businesses were franchises.');
 
       setStage('discover');
-      addLog(`Hunting owner names and signals for ${filterData.businesses.length} businesses...`);
+      addLog(`Hunting owner names for ${filterData.businesses.length} businesses...`);
       const discoverData = await callStage('/api/pipeline/discover', { businesses: filterData.businesses });
       addLog(`Owner names found: ${discoverData.owner_found} of ${discoverData.total} (${discoverData.hit_rate}%)`);
 
@@ -107,7 +206,7 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
 
       const enriched = enrichData.results.filter(b => b.enriched);
       if (!enriched.length) {
-        addLog('No emails found — pipeline complete with no outreach loaded');
+        addLog('No emails found — pipeline complete');
         setStage('done');
         setResults({ scout: scoutData, filter: filterData, discover: discoverData, enrich: enrichData, outreach: null });
         return;
@@ -132,38 +231,39 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
   const stageInfo = STAGE_LABELS[stage] || STAGE_LABELS.idle;
   const isRunning = !['idle', 'done', 'error'].includes(stage);
 
+  // Compute run stats for the summary bar
+  const stats = results ? [
+    { label: 'Scouted',       value: results.scout?.count ?? 0,           pct: null,          color: '#0057FF' },
+    { label: 'Independent',   value: results.filter?.passed ?? 0,         pct: results.scout?.count ? Math.round((results.filter.passed / results.scout.count) * 100) : null, color: '#0891B2' },
+    { label: 'Names Found',   value: results.discover?.owner_found ?? 0,  pct: results.discover?.hit_rate ?? null, color: '#F59E0B' },
+    { label: 'Emails Found',  value: results.enrich?.enriched_count ?? 0, pct: results.enrich?.hit_rate ?? null,   color: '#7C3AED' },
+    { label: 'Loaded',        value: results.outreach?.loaded ?? 0,        pct: results.enrich?.enriched_count ? Math.round(((results.outreach?.loaded ?? 0) / results.enrich.enriched_count) * 100) : null, color: '#16A34A' },
+  ] : [];
+
+  const loadedProspects = results?.outreach?.results?.filter(r => r.outreach_status === 'loaded') || [];
+
   return (
     <>
       <Head><title>Genesis Agent — KANSO</title></Head>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}*{box-sizing:border-box}`}</style>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}*{box-sizing:border-box}`}</style>
       <div style={s.page}>
 
-        {/* Sidebar */}
         <aside style={s.sidebar}>
-          <div style={s.sideLogoWrap}>
-            <div style={s.sideLogoRow}>
-              <BrandLogo logo={platformLogo} />
-            </div>
-          </div>
+          <div style={s.sideLogoWrap}><div style={s.sideLogoRow}><BrandLogo logo={platformLogo} /></div></div>
           <nav style={s.sideNav}>
             {visibleNav(perms, navOrder).map(({ href, label, icon }) => {
               const active = href === '/dashboard/pipeline';
               return (
                 <Link key={label} href={href} style={{ ...s.sideNavItem, ...(active ? s.sideNavItemActive : {}) }}>
-                  <span style={{ color: active ? '#0057FF' : '#9CA3AF', display: 'flex', alignItems: 'center' }}>
-                    <SideIcon name={icon} />
-                  </span>
+                  <span style={{ color: active ? '#0057FF' : '#9CA3AF', display: 'flex', alignItems: 'center' }}><SideIcon name={icon} /></span>
                   <span>{label}</span>
                 </Link>
               );
             })}
           </nav>
-          <div style={s.sideBottom}>
-            <SidebarUser />
-          </div>
+          <div style={s.sideBottom}><SidebarUser /></div>
         </aside>
 
-        {/* Main */}
         <div style={s.mainCol}>
           <div style={s.topBar}>
             <div>
@@ -171,10 +271,8 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
               <div style={s.topDate}>Scout → Filter → Discover → Enrich → Outreach</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: stageInfo.color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                {stageInfo.text}
-              </span>
-              <span style={{ fontSize: 11, background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: 4, padding: '2px 8px', color: '#64748B' }}>v2.5</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: stageInfo.color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{stageInfo.text}</span>
+              <span style={{ fontSize: 11, background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: 4, padding: '2px 8px', color: '#64748B' }}>v2.8</span>
             </div>
           </div>
 
@@ -190,107 +288,56 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
                 disabled={isRunning}
                 style={s.input}
               />
-              <select
-                value={industry}
-                onChange={e => setIndustry(e.target.value)}
-                disabled={isRunning}
-                style={s.select}
-              >
+              <select value={industry} onChange={e => setIndustry(e.target.value)} disabled={isRunning} style={s.select}>
                 {INDUSTRIES.map(i => <option key={i}>{i}</option>)}
               </select>
-              <button
-                onClick={runPipeline}
-                disabled={isRunning || !city.trim()}
-                style={{ ...s.btn, ...(isRunning || !city.trim() ? s.btnDisabled : {}) }}
-              >
-                {isRunning ? (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={s.spinner} />
-                    Running...
-                  </span>
-                ) : 'Run Pipeline'}
+              <button onClick={runPipeline} disabled={isRunning || !city.trim()} style={{ ...s.btn, ...(isRunning || !city.trim() ? s.btnDisabled : {}) }}>
+                {isRunning ? <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={s.spinner} />Running...</span> : 'Run Pipeline'}
               </button>
             </div>
 
-            {/* Pipeline Log */}
+            {/* Log */}
             {log.length > 0 && (
               <div style={{ ...s.card, marginBottom: 20 }}>
                 <div style={s.cardLabel}>Pipeline Log</div>
                 {log.map((line, i) => (
-                  <div key={i} style={{ fontSize: 13, color: i === log.length - 1 ? '#0F172A' : '#64748B', lineHeight: 1.9, fontWeight: i === log.length - 1 ? 500 : 400 }}>
-                    {line}
-                  </div>
+                  <div key={i} style={{ fontSize: 13, color: i === log.length - 1 ? '#0F172A' : '#64748B', lineHeight: 1.9, fontWeight: i === log.length - 1 ? 500 : 400 }}>{line}</div>
                 ))}
               </div>
             )}
 
             {/* Error */}
             {error && (
-              <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '12px 16px', marginBottom: 20, color: '#DC2626', fontSize: 13, fontWeight: 500 }}>
-                {error}
-              </div>
+              <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '12px 16px', marginBottom: 20, color: '#DC2626', fontSize: 13, fontWeight: 500 }}>{error}</div>
             )}
 
             {/* Stats row */}
             {results && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 20 }}>
-                {[
-                  { label: 'Scouted',       value: results.scout?.count ?? 0,              color: '#0057FF' },
-                  { label: 'Passed Filter', value: results.filter?.passed ?? 0,            color: '#0057FF' },
-                  { label: 'Names Found',   value: results.discover?.owner_found ?? 0,     color: '#F59E0B' },
-                  { label: 'Emails Found',  value: results.enrich?.enriched_count ?? 0,    color: '#7C3AED' },
-                  { label: 'Loaded',        value: results.outreach?.loaded ?? 0,          color: '#16A34A' },
-                ].map(({ label, value, color }) => (
+                {stats.map(({ label, value, pct, color }) => (
                   <div key={label} style={s.statCard}>
-                    <div style={{ fontSize: 30, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+                    <div style={{ fontSize: 28, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+                    {pct !== null && (
+                      <div style={{ fontSize: 11, fontWeight: 700, color, marginTop: 2 }}>{pct}%</div>
+                    )}
                     <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 4 }}>{label}</div>
                   </div>
                 ))}
               </div>
             )}
 
-            {/* Prospect cards */}
-            {results?.outreach?.results?.filter(r => r.outreach_status === 'loaded').map((biz, i) => (
-              <div key={i} style={{ ...s.card, marginBottom: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>{biz.business_name}</div>
-                    <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>{biz.city} · {biz.industry}</div>
-                  </div>
-                  <span style={{ fontSize: 11, background: '#DCFCE7', color: '#16A34A', border: '1px solid #BBF7D0', borderRadius: 4, padding: '2px 10px', fontWeight: 700, flexShrink: 0 }}>Loaded</span>
+            {/* Prospect list header */}
+            {loadedProspects.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  {loadedProspects.length} prospect{loadedProspects.length !== 1 ? 's' : ''} loaded — click to expand emails
                 </div>
-
-                <div style={{ fontSize: 12, color: '#475569', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontWeight: 600, color: '#0F172A' }}>{biz.email_owner}</span>
-                  <span style={{ color: '#CBD5E1' }}>·</span>
-                  <span>{biz.email}</span>
-                  <span style={{ color: '#CBD5E1' }}>·</span>
-                  <span style={{ color: '#94A3B8' }}>{biz.email_source}</span>
-                </div>
-
-                {biz.signal && (
-                  <div style={{ fontSize: 12, color: '#64748B', fontStyle: 'italic', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '8px 12px', marginBottom: 12 }}>
-                    "{biz.signal}"
-                  </div>
-                )}
-
-                {biz.sequence && (
-                  <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 12 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                      {[
-                        { label: 'Email 1', data: biz.sequence.email1 },
-                        { label: 'Email 2', data: biz.sequence.email2 },
-                      ].map(({ label, data }) => (
-                        <div key={label} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '12px 14px' }}>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>{label}</div>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: '#0F172A', marginBottom: 6 }}>{data.subject}</div>
-                          <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{data.body}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
+            )}
+
+            {/* Prospect cards */}
+            {loadedProspects.map((biz, i) => (
+              <ProspectCard key={i} biz={biz} />
             ))}
 
           </main>
@@ -316,7 +363,7 @@ const s = {
   main:             { flex: 1, padding: '20px 24px', overflowY: 'auto' },
   card:             { background: '#FFFFFF', borderRadius: 10, border: '1px solid #E2E8F0', padding: '18px 20px', boxShadow: '0 1px 3px rgba(15,23,42,.04)' },
   cardLabel:        { fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 },
-  statCard:         { background: '#FFFFFF', borderRadius: 10, border: '1px solid #E2E8F0', padding: '18px 20px', boxShadow: '0 1px 3px rgba(15,23,42,.04)' },
+  statCard:         { background: '#FFFFFF', borderRadius: 10, border: '1px solid #E2E8F0', padding: '16px 18px', boxShadow: '0 1px 3px rgba(15,23,42,.04)' },
   input:            { flex: 1, minWidth: 200, padding: '9px 14px', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 7, color: '#0F172A', fontSize: 13, fontFamily: 'inherit', outline: 'none' },
   select:           { flex: 1, minWidth: 200, padding: '9px 14px', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 7, color: '#0F172A', fontSize: 13, fontFamily: 'inherit', outline: 'none' },
   btn:              { padding: '9px 24px', background: '#0057FF', color: '#FFFFFF', border: 'none', borderRadius: 7, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
