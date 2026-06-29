@@ -25,26 +25,26 @@ export default async function handler(req, res) {
                 items: {
                   type: 'object',
                   properties: {
-                    business_name:     { type: 'string' },
-                    owner_name:        { type: 'string', description: 'Real first and last name only. E.g. Randy Hays, Sarah Chen. Never use Local Owner or any placeholder. Null if genuinely unknown.' },
-                    website:           { type: 'string' },
-                    domain:            { type: 'string' },
-                    years_in_business: { type: 'number', description: 'Approximate years in operation. Must be at least 1.' },
-                    num_locations:     { type: 'number', description: 'Number of current locations.' },
-                    concept_score:     { type: 'number', description: 'Score 0-15 based on uniqueness, press, brand strength, unit economics, demand signals.' },
-                    owner_score:       { type: 'number', description: 'Score 0-10 based on owner visibility, growth ambition, career stage, background.' },
-                    market_score:      { type: 'number', description: 'Score 0-10 based on category demand, city underserved, capacity signals.' },
-                    traction_score:    { type: 'number', description: 'Score 0-5 based on review velocity, awards, press frequency.' },
-                    total_score:       { type: 'number', description: 'Sum of all four scores.' },
-                    signals:           { type: 'array', items: { type: 'string' }, description: 'Specific evidence found for this business.' },
-                    is_emerging:       { type: 'boolean', description: 'True if under 3 years old AND concept_score >= 10. These are high-priority ownership candidates.' },
-                    ownership_candidate: { type: 'boolean', description: 'True if concept_score >= 10 AND owner_score >= 6.' },
-                    broker_candidate:  { type: 'boolean', description: 'True if concept_score >= 8 AND total_score >= 20.' },
-                    established:       { type: 'boolean', description: 'True if 5+ years AND 2+ locations. Flag carefully - may have been approached before.' },
-                    disqualified:      { type: 'boolean' },
-                    disqualify_reason: { type: 'string' },
+                    business_name:       { type: 'string' },
+                    owner_name:          { type: 'string' },
+                    website:             { type: 'string' },
+                    domain:              { type: 'string' },
+                    years_in_business:   { type: 'number' },
+                    num_locations:       { type: 'number' },
+                    concept_score:       { type: 'number' },
+                    owner_score:         { type: 'number' },
+                    market_score:        { type: 'number' },
+                    traction_score:      { type: 'number' },
+                    total_score:         { type: 'number' },
+                    signals:             { type: 'array', items: { type: 'string' } },
+                    is_emerging:         { type: 'boolean' },
+                    ownership_candidate: { type: 'boolean' },
+                    broker_candidate:    { type: 'boolean' },
+                    established:         { type: 'boolean' },
+                    disqualified:        { type: 'boolean' },
+                    disqualify_reason:   { type: 'string' },
                   },
-                  required: ['business_name','concept_score','owner_score','market_score','traction_score','total_score','signals','is_emerging','ownership_candidate','broker_candidate','established','disqualified'],
+                  required: ['business_name','concept_score','owner_score','market_score','traction_score','total_score','signals','disqualified'],
                 }
               }
             },
@@ -52,44 +52,46 @@ export default async function handler(req, res) {
           }
         }],
         tool_choice: { type: 'tool', name: 'submit_businesses' },
-        messages: [{ role: 'user', content: `Find 15-20 real independent locally-owned ${industry} businesses in ${city} that are NOT franchises and NOT corporate chains. Must be at least 1 year old with at least one operating location.
+        messages: [{ role: 'user', content: `Find 15-20 real independent locally-owned ${industry} businesses in ${city} that are NOT franchises. Must be at least 1 year old.
 
-For each business provide the real owner first and last name if you know it. Never use "Local Owner" or placeholder names.
+For owner_name: provide real first and last name only if you know it. Never use "Local Owner" or placeholder names.
 
-Score each business using this framework:
+Score each using:
 
 CONCEPT SCORE (0-15):
-+5 Unique concept with no direct national franchise competitor
-+3 Press coverage in city/regional media or industry blogs
-+3 Strong visual brand, cult following, or notable social presence
-+2 Favorable unit economics (low build-out cost, high margin category)
-+2 Demand signals: waitlists, sold-out events, capacity constraints
++5 Unique concept, no direct national franchise competitor
++3 Press coverage in city/regional media
++3 Strong brand, cult following, notable social presence
++2 Favorable unit economics (low build-out, high margin)
++2 Demand signals: waitlists, sold-out, capacity constraints
 
 OWNER SCORE (0-10):
-+3 Owner is public-facing, visible, named in press or social media
-+3 Owner has expressed growth interest or expansion ambition
-+2 Owner appears early to mid career (not near retirement)
++3 Owner public-facing, named in press or social
++3 Owner expressed growth or expansion interest
++2 Owner early to mid career
 +2 Prior entrepreneurship or business background
 
 MARKET SCORE (0-10):
-+4 Category is trending in franchise buyer demand right now
-+3 City is underserved in this specific concept or category
-+3 Demonstrable demand exceeding current capacity
++4 Category trending in franchise buyer demand
++3 City underserved in this concept
++3 Demand exceeding capacity
 
 TRACTION SCORE (0-5):
-+2 High review velocity (many reviews in short time period)
-+2 Award nominations or editorial recognition
-+1 Repeat press coverage across multiple outlets
++2 High review velocity
++2 Awards or editorial recognition
++1 Repeat press coverage
 
-FLAGS:
-- is_emerging: true if under 3 years old AND concept_score >= 10
-- ownership_candidate: true if concept_score >= 10 AND owner_score >= 6
-- broker_candidate: true if concept_score >= 8 AND total_score >= 20
-- established: true if 5+ years AND 2+ locations (flag carefully)
+total_score = concept_score + owner_score + market_score + traction_score
 
-DISQUALIFY if: already franchising, FDD mention, corporate parent, 8+ locations across states, less than 1 year old.
+FLAGS (set based on scores):
+is_emerging = years_in_business < 3 AND concept_score >= 8
+ownership_candidate = concept_score >= 10 AND owner_score >= 6
+broker_candidate = concept_score >= 8 AND total_score >= 18
+established = years_in_business >= 5 AND num_locations >= 2
 
-Call submit_businesses now.` }],
+DISQUALIFY only if: already actively franchising with FDD, corporate parent, or 8+ locations across multiple states. Do NOT disqualify for being new or young.
+
+Call submit_businesses now with all businesses scored.` }],
       }),
     });
 
@@ -111,10 +113,14 @@ Call submit_businesses now.` }],
         city,
         industry,
         owner_name: b.owner_name && !GENERIC.some(g => b.owner_name.toLowerCase().includes(g)) ? b.owner_name : null,
+        is_emerging: b.is_emerging || false,
+        ownership_candidate: b.ownership_candidate || false,
+        broker_candidate: b.broker_candidate || false,
+        established: b.established || false,
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       }));
 
-    // Sort: emerging first, then by total_score
+    // Emerging brands first, then by total_score
     businesses.sort((a, b) => {
       if (a.is_emerging && !b.is_emerging) return -1;
       if (!a.is_emerging && b.is_emerging) return 1;
