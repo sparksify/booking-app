@@ -408,7 +408,8 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
       setStage('discover');
       addLog('Hunting owner names for ' + filterData.businesses.length + ' businesses...');
       const discoverData = await callStage('/api/pipeline/discover', { businesses: filterData.businesses });
-      const src = discoverData.sources || {}; addLog('Owner names found: ' + discoverData.owner_found + ' of ' + discoverData.total + ' (' + discoverData.hit_rate + '%) — Maps: ' + (src.google_maps_field||0) + ' · Website: ' + (src.website||0) + ' · Search: ' + (src.google_search||0) + ' · Not found: ' + (src.not_found||0));
+      const src = discoverData.sources || {};
+      addLog('Owner names found: ' + discoverData.owner_found + ' of ' + discoverData.total + ' (' + discoverData.hit_rate + '%) — Maps: ' + (src.google_maps_field||0) + ' · Website: ' + (src.website||0) + ' · Search: ' + (src.google_search||0) + ' · Not found: ' + (src.not_found||0));
 
       setStage('enrich');
       addLog('Enriching emails for ' + discoverData.businesses.length + ' businesses...');
