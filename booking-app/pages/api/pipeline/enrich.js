@@ -43,8 +43,9 @@ async function anymailCompany(businessName) {
   } catch (e) { return null; }
 }
 
-// Tightened: 6 attempts x 2.5s = max 15s per FullEnrich lookup (was 10 x 3s = 30s)
-async function fullEnrichLookup(firstName, lastName, domain) {
+// Now includes company_name — FullEnrich's own docs say providing name + company + domain
+// together gives the best match rate. We were only sending name + domain before.
+async function fullEnrichLookup(firstName, lastName, domain, businessName) {
   if (!firstName || !lastName || !domain || !FULLENRICH_KEY) return null;
   try {
     const postRes = await fetch('https://app.fullenrich.com/api/v2/contact/enrich/bulk', {
@@ -52,7 +53,13 @@ async function fullEnrichLookup(firstName, lastName, domain) {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${FULLENRICH_KEY}` },
       body: JSON.stringify({
         name: `${firstName} ${lastName} @ ${domain}`,
-        data: [{ first_name: firstName, last_name: lastName, domain, enrich_fields: ['contact.work_emails'] }],
+        data: [{
+          first_name: firstName,
+          last_name: lastName,
+          domain,
+          company_name: businessName || undefined,
+          enrich_fields: ['contact.work_emails'],
+        }],
       }),
     });
     const postData = await postRes.json();
@@ -68,14 +75,12 @@ async function fullEnrichLookup(firstName, lastName, domain) {
       if (getData.status === 'FINISHED') return getData.data?.[0]?.contact_info?.most_probable_work_email?.email || null;
       if (['CANCELED', 'CREDITS_INSUFFICIENT'].includes(getData.status)) return null;
     }
-    return null; // gave up after 15s — still counts as "tried", just didn't wait forever
+    return null;
   } catch (e) { return null; }
 }
 
-// Global budget check — if we're getting close to the Vercel timeout, stop trying FullEnrich
-// and just return what we have. Better to finish with partial FullEnrich coverage than crash.
 const PIPELINE_START = Date.now();
-const MAX_BUDGET_MS = 250000; // 250s — leaves 40s buffer under the 290s function limit
+const MAX_BUDGET_MS = 250000;
 
 function timeRemaining() {
   return MAX_BUDGET_MS - (Date.now() - PIPELINE_START);
@@ -86,7 +91,6 @@ async function enrichOne(biz) {
   const names = parseOwnerNames(owner_name);
   const tried = [];
 
-  // Stage 1a — Anymail person, fast, always attempted
   for (const name of names) {
     if (!hasFullName(name)) continue;
     tried.push('anymail_person:' + name);
@@ -94,19 +98,17 @@ async function enrichOne(biz) {
     if (email) return { ...biz, email, email_owner: name, email_source: 'anymail_person', enriched: true, enrichment_stages_tried: tried };
   }
 
-  // Stage 1b — Anymail company fallback, fast
   tried.push('anymail_company');
   const companyEmail = await anymailCompany(business_name);
   if (companyEmail) return { ...biz, email: companyEmail, email_owner: null, email_source: 'anymail_company', enriched: true, enrichment_stages_tried: tried };
 
-  // Stage 2 — FullEnrich, slow. Only attempt if we have budget left.
   if (FULLENRICH_KEY && domain && timeRemaining() > 20000) {
     for (const name of names) {
       if (!hasFullName(name)) continue;
-      if (timeRemaining() < 20000) break; // bail mid-loop if budget runs out
+      if (timeRemaining() < 20000) break;
       const parts = name.trim().split(/\s+/);
       tried.push('fullenrich:' + name);
-      const email = await fullEnrichLookup(parts[0], parts.slice(1).join(' '), domain);
+      const email = await fullEnrichLookup(parts[0], parts.slice(1).join(' '), domain, business_name);
       if (email) return { ...biz, email, email_owner: name, email_source: 'fullenrich', enriched: true, enrichment_stages_tried: tried };
     }
   } else if (FULLENRICH_KEY && domain) {
@@ -141,7 +143,6 @@ export default async function handler(req, res) {
       },
     });
   } catch (err) {
-    // Always return SOMETHING usable, even on unexpected failure, with the real error message
     console.error('Enrich handler error:', err);
     return res.status(500).json({ error: err.message || String(err) || 'Unknown error in enrich handler' });
   }
