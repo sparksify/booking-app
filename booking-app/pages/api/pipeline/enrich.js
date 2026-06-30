@@ -4,6 +4,7 @@ const ANYMAIL_KEY    = process.env.ANYMAIL_FINDER_API_KEY;
 const FULLENRICH_KEY = process.env.FULLENRICH_API_KEY;
 const PROSPEO_KEY    = process.env.PROSPEO_API_KEY;
 const MV_KEY         = process.env.MILLIONVERIFIER_API_KEY;
+const SERP_API_KEY   = process.env.SERP_API_KEY;
 
 function parseOwnerNames(ownerName) {
   if (!ownerName) return [];
@@ -30,13 +31,118 @@ async function verifyEmail(email) {
     const params = new URLSearchParams({ api: MV_KEY, email, timeout: '10' });
     const r = await fetch(`https://api.millionverifier.com/api/v3/?${params}`);
     const d = await r.json();
-    if (d.result === 'ok')         return 'ok';
-    if (d.result === 'catch_all')  return 'catch_all';
+    if (d.result === 'ok')        return 'ok';
+    if (d.result === 'catch_all') return 'catch_all';
     return 'reject';
   } catch (e) {
     return 'unchecked';
   }
 }
+
+// ── NEW: Google search for emails — mirrors discover.js's owner-name waterfall ──
+// Reads AI Overview / organic snippets the same way, since that's exactly where
+// Gus Perez's and Angel Bajana's emails were sitting in plain text.
+
+const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+const EMAIL_JUNK = /(example\.(com|org)|sentry|wixpress|\.png|\.jpe?g|\.gif|\.svg|\.webp|@2x|no-?reply|noreply|donotreply|godaddy|squarespace|wordpress|cloudflare|yourdomain|domain\.com|email\.com|sentry\.io|\.css|\.js$)/i;
+const EMAIL_ROLE = /^(info|contact|hello|admin|sales|support|office|booking|bookings|reservations|reserve|hi|team|mail|enquiries|inquiries|help|jobs|careers|press|media|marketing|accounts|billing|orders|catering|concierge)@/i;
+
+function extractEmails(text) {
+  if (!text) return [];
+  const found = [...new Set((text.match(EMAIL_RE) || []).map(e => e.toLowerCase().replace(/\.$/, '')))];
+  return found.filter(e => !EMAIL_JUNK.test(e) && e.length < 60);
+}
+
+function extractAiOverviewText(aiOverview) {
+  if (!aiOverview?.text_blocks) return '';
+  const lines = [];
+  for (const block of aiOverview.text_blocks) {
+    if (block.snippet) lines.push(block.snippet);
+    if (block.list) {
+      for (const item of block.list) {
+        if (item.title) lines.push(item.title);
+        if (item.snippet) lines.push(item.snippet);
+      }
+    }
+  }
+  return lines.join('\n');
+}
+
+async function fetchAiOverviewPageToken(pageToken) {
+  if (!pageToken || !SERP_API_KEY) return '';
+  try {
+    const params = new URLSearchParams({ engine: 'google_ai_overview', page_token: pageToken, api_key: SERP_API_KEY });
+    const r = await fetch(`https://serpapi.com/search?${params}`);
+    if (!r.ok) return '';
+    const data = await r.json();
+    return extractAiOverviewText(data.ai_overview);
+  } catch (e) { return ''; }
+}
+
+async function serpSearchForEmail(query) {
+  if (!SERP_API_KEY) return [];
+  try {
+    const params = new URLSearchParams({ engine: 'google', q: query, num: '10', api_key: SERP_API_KEY });
+    const r = await fetch(`https://serpapi.com/search?${params}`);
+    if (!r.ok) return [];
+    const data = await r.json();
+
+    const text = [];
+
+    if (data.ai_overview) {
+      const directText = extractAiOverviewText(data.ai_overview);
+      if (directText) {
+        text.push(directText);
+      } else if (data.ai_overview.page_token) {
+        const followUp = await fetchAiOverviewPageToken(data.ai_overview.page_token);
+        if (followUp) text.push(followUp);
+      }
+    }
+
+    if (data.answer_box?.answer)  text.push(data.answer_box.answer);
+    if (data.answer_box?.snippet) text.push(data.answer_box.snippet);
+    if (data.knowledge_graph?.description) text.push(data.knowledge_graph.description);
+
+    (data.organic_results || []).forEach(r => {
+      if (r.snippet) text.push(r.snippet);
+      if (r.title) text.push(r.title);
+      if (r.rich_snippet?.top?.extensions) text.push(r.rich_snippet.top.extensions.join(' '));
+    });
+
+    return text;
+  } catch (e) { return []; }
+}
+
+async function googleSearchEmail(ownerName, businessName, domain) {
+  if (!SERP_API_KEY) return null;
+
+  const queries = [
+    ownerName ? `"${businessName}" "${ownerName}" email address` : null,
+    ownerName ? `"${ownerName}" "${businessName}" contact email` : null,
+    `"${businessName}" contact email`,
+  ].filter(Boolean);
+
+  const snippetArrays = await Promise.all(queries.map(q => serpSearchForEmail(q)));
+  const allText = snippetArrays.flat().join('\n');
+  const found = extractEmails(allText);
+  if (!found.length) return null;
+
+  // Prefer an email on the business's own domain, then a personal-looking one,
+  // then anything else non-role-based.
+  const d = (domain || '').toLowerCase();
+  const ranked = found.sort((a, b) => {
+    const ad = d && a.endsWith('@' + d) ? 0 : 1;
+    const bd = d && b.endsWith('@' + d) ? 0 : 1;
+    if (ad !== bd) return ad - bd;
+    const ar = EMAIL_ROLE.test(a) ? 1 : 0;
+    const br = EMAIL_ROLE.test(b) ? 1 : 0;
+    return ar - br;
+  });
+
+  return ranked[0] || null;
+}
+
+// ── Existing paid-vendor stages, unchanged ──
 
 async function anymailPerson(name, domain) {
   if (!name || !domain || !ANYMAIL_KEY || !hasFullName(name)) return null;
@@ -70,11 +176,7 @@ async function prospeoLookup(firstName, lastName, businessName, domain) {
     const r = await fetch('https://api.prospeo.io/email-finder', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-KEY': PROSPEO_KEY },
-      body: JSON.stringify({
-        first_name: firstName,
-        last_name:  lastName,
-        company:    businessName || domain || undefined,
-      }),
+      body: JSON.stringify({ first_name: firstName, last_name: lastName, company: businessName || domain || undefined }),
     });
     const d = await r.json();
     return d?.response?.email?.email || d?.response?.email || d?.email || null;
@@ -153,6 +255,7 @@ async function enrichOne(biz) {
   const tried = [];
   let heldCatchAll = null;
 
+  // Stage 1 — website-harvested emails (free, from discover.js)
   for (const we of websiteEmails) {
     tried.push('website_email:' + we);
     const v = await verifyEmail(we);
@@ -162,6 +265,22 @@ async function enrichOne(biz) {
       heldCatchAll = { email: we, owner: pickOwner(names), source: 'website_email' };
   }
 
+  // Stage 2 — Google search for email (free, new). Runs early since it clearly
+  // catches a segment paid vendors structurally miss: personal/business emails
+  // surfaced by Google's own index rather than LinkedIn-pattern guessing.
+  if (SERP_API_KEY) {
+    tried.push('google_search_email');
+    const searchEmail = await googleSearchEmail(pickOwner(names), business_name, domain);
+    if (searchEmail) {
+      const v = await verifyEmail(searchEmail);
+      if (v === 'ok' || v === 'unchecked')
+        return mk(biz, searchEmail, pickOwner(names), 'google_search_email', v, true, null, tried);
+      if (v === 'catch_all' && !heldCatchAll)
+        heldCatchAll = { email: searchEmail, owner: pickOwner(names), source: 'google_search_email' };
+    }
+  }
+
+  // Stage 3 — Anymail person
   for (const name of names) {
     if (!hasFullName(name)) continue;
     tried.push('anymail_person:' + name);
@@ -169,6 +288,7 @@ async function enrichOne(biz) {
     if (email) return mk(biz, email, name, 'anymail_person', 'skipped_verified_source', true, null, tried);
   }
 
+  // Stage 4 — Prospeo
   if (PROSPEO_KEY) {
     for (const name of names) {
       if (!hasFullName(name)) continue;
@@ -179,6 +299,7 @@ async function enrichOne(biz) {
     }
   }
 
+  // Stage 5 — Anymail company guess
   tried.push('anymail_company');
   const companyEmail = await anymailCompany(business_name);
   if (companyEmail) {
@@ -189,6 +310,7 @@ async function enrichOne(biz) {
       heldCatchAll = { email: companyEmail, owner: null, source: 'anymail_company' };
   }
 
+  // Stage 6 — FullEnrich (work + personal)
   if (FULLENRICH_KEY && domain && timeRemaining() > 20000) {
     for (const name of names) {
       if (!hasFullName(name)) continue;
@@ -293,15 +415,17 @@ export default async function handler(req, res) {
       },
       results,
       stages_summary: {
-        website_email_attempted:   results.filter(r => r.enrichment_stages_tried?.some(s => s.startsWith('website_email'))).length,
-        website_email_won:         results.filter(r => r.email_source === 'website_email').length,
-        anymail_person_attempted:  results.filter(r => r.enrichment_stages_tried?.some(s => s.startsWith('anymail_person'))).length,
-        prospeo_attempted:         results.filter(r => r.enrichment_stages_tried?.some(s => s.startsWith('prospeo'))).length,
-        anymail_company_attempted: results.filter(r => r.enrichment_stages_tried?.includes('anymail_company')).length,
-        fullenrich_attempted:      results.filter(r => r.enrichment_stages_tried?.some(s => s.startsWith('fullenrich:') && s !== 'fullenrich:skipped_budget')).length,
-        fullenrich_personal_won:   results.filter(r => r.email_source === 'fullenrich_personal').length,
-        cross_domain_recovered:    results.filter(r => r.email_source === 'cross_domain_owner').length,
-        fullenrich_skipped_budget: results.filter(r => r.enrichment_stages_tried?.includes('fullenrich:skipped_budget')).length,
+        website_email_attempted:    results.filter(r => r.enrichment_stages_tried?.some(s => s.startsWith('website_email'))).length,
+        website_email_won:          results.filter(r => r.email_source === 'website_email').length,
+        google_search_attempted:    results.filter(r => r.enrichment_stages_tried?.includes('google_search_email')).length,
+        google_search_won:          results.filter(r => r.email_source === 'google_search_email').length,
+        anymail_person_attempted:   results.filter(r => r.enrichment_stages_tried?.some(s => s.startsWith('anymail_person'))).length,
+        prospeo_attempted:          results.filter(r => r.enrichment_stages_tried?.some(s => s.startsWith('prospeo'))).length,
+        anymail_company_attempted:  results.filter(r => r.enrichment_stages_tried?.includes('anymail_company')).length,
+        fullenrich_attempted:       results.filter(r => r.enrichment_stages_tried?.some(s => s.startsWith('fullenrich:') && s !== 'fullenrich:skipped_budget')).length,
+        fullenrich_personal_won:    results.filter(r => r.email_source === 'fullenrich_personal').length,
+        cross_domain_recovered:     results.filter(r => r.email_source === 'cross_domain_owner').length,
+        fullenrich_skipped_budget:  results.filter(r => r.enrichment_stages_tried?.includes('fullenrich:skipped_budget')).length,
       },
     });
   } catch (err) {
