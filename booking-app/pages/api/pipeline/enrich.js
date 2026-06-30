@@ -1,10 +1,11 @@
 export const config = { maxDuration: 290 };
 
-const ANYMAIL_KEY    = process.env.ANYMAIL_FINDER_API_KEY;
-const FULLENRICH_KEY = process.env.FULLENRICH_API_KEY;
-const PROSPEO_KEY    = process.env.PROSPEO_API_KEY;
-const MV_KEY         = process.env.MILLIONVERIFIER_API_KEY;
-const SERP_API_KEY   = process.env.SERP_API_KEY;
+const ANYMAIL_KEY     = process.env.ANYMAIL_FINDER_API_KEY;
+const FULLENRICH_KEY  = process.env.FULLENRICH_API_KEY;
+const PROSPEO_KEY     = process.env.PROSPEO_API_KEY;
+const MV_KEY          = process.env.MILLIONVERIFIER_API_KEY;
+const SERP_API_KEY    = process.env.SERP_API_KEY;
+const OPENROUTER_KEY  = process.env.OPENROUTER_API_KEY;
 
 function parseOwnerNames(ownerName) {
   if (!ownerName) return [];
@@ -39,9 +40,7 @@ async function verifyEmail(email) {
   }
 }
 
-// ── NEW: Google search for emails — mirrors discover.js's owner-name waterfall ──
-// Reads AI Overview / organic snippets the same way, since that's exactly where
-// Gus Perez's and Angel Bajana's emails were sitting in plain text.
+// ── Email extraction helpers, shared by both search-based stages ──
 
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 const EMAIL_JUNK = /(example\.(com|org)|sentry|wixpress|\.png|\.jpe?g|\.gif|\.svg|\.webp|@2x|no-?reply|noreply|donotreply|godaddy|squarespace|wordpress|cloudflare|yourdomain|domain\.com|email\.com|sentry\.io|\.css|\.js$)/i;
@@ -52,6 +51,22 @@ function extractEmails(text) {
   const found = [...new Set((text.match(EMAIL_RE) || []).map(e => e.toLowerCase().replace(/\.$/, '')))];
   return found.filter(e => !EMAIL_JUNK.test(e) && e.length < 60);
 }
+
+function rankExtractedEmails(emails, domain) {
+  const d = (domain || '').toLowerCase();
+  return [...new Set(emails)].sort((a, b) => {
+    const ad = d && a.endsWith('@' + d) ? 0 : 1;
+    const bd = d && b.endsWith('@' + d) ? 0 : 1;
+    if (ad !== bd) return ad - bd;
+    const ar = EMAIL_ROLE.test(a) ? 1 : 0;
+    const br = EMAIL_ROLE.test(b) ? 1 : 0;
+    return ar - br;
+  });
+}
+
+// ── Stage A: SerpAPI Google search (AI Overview + organic snippets) ──
+// Opportunistic — catches real, already-indexed emails when Google happens to
+// surface them. Not reliable on every query, but free and zero downside.
 
 function extractAiOverviewText(aiOverview) {
   if (!aiOverview?.text_blocks) return '';
@@ -127,19 +142,44 @@ async function googleSearchEmail(ownerName, businessName, domain) {
   const found = extractEmails(allText);
   if (!found.length) return null;
 
-  // Prefer an email on the business's own domain, then a personal-looking one,
-  // then anything else non-role-based.
-  const d = (domain || '').toLowerCase();
-  const ranked = found.sort((a, b) => {
-    const ad = d && a.endsWith('@' + d) ? 0 : 1;
-    const bd = d && b.endsWith('@' + d) ? 0 : 1;
-    if (ad !== bd) return ad - bd;
-    const ar = EMAIL_ROLE.test(a) ? 1 : 0;
-    const br = EMAIL_ROLE.test(b) ? 1 : 0;
-    return ar - br;
-  });
+  return rankExtractedEmails(found, domain)[0] || null;
+}
 
-  return ranked[0] || null;
+// ── Stage B: Perplexity (via OpenRouter) — independent search+synthesis path. ──
+// Steve's own testing found Perplexity to be the strongest owner-name finder in
+// the original Make.com build. This applies that same strength one step further:
+// asking it directly for a real, already-existing email rather than constructing
+// a probable one. Runs as a second, independent dice roll alongside SerpAPI —
+// different model, different search/synthesis pipeline, so it's likely to catch
+// a different slice of lucky hits, not just duplicate SerpAPI's misses.
+
+async function perplexitySearchEmail(ownerName, businessName, domain, city) {
+  if (!OPENROUTER_KEY) return null;
+  try {
+    const prompt = ownerName
+      ? `Find the real, currently-active email address for ${ownerName}, who is the owner of "${businessName}" in ${city || 'the US'}. Search the web for this. Only return an email address if you find one stated explicitly on a real webpage (business listing, directory, article, social profile, etc.) — do not guess or construct one from a pattern. If you find one, reply with ONLY the email address, nothing else. If you cannot find a real, explicitly-stated email address, reply with exactly: NOT_FOUND`
+      : `Find the real, currently-active contact email address for the business "${businessName}" in ${city || 'the US'}${domain ? ` (website: ${domain})` : ''}. Search the web for this. Only return an email address if you find one stated explicitly on a real webpage. If you find one, reply with ONLY the email address, nothing else. If you cannot find one, reply with exactly: NOT_FOUND`;
+
+    const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENROUTER_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'perplexity/sonar',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 100,
+      }),
+    });
+    const d = await r.json();
+    const text = d.choices?.[0]?.message?.content?.trim();
+    if (!text || text.toUpperCase().includes('NOT_FOUND')) return null;
+
+    const found = extractEmails(text);
+    if (!found.length) return null;
+    return rankExtractedEmails(found, domain)[0] || null;
+  } catch (e) { return null; }
 }
 
 // ── Existing paid-vendor stages, unchanged ──
@@ -249,7 +289,7 @@ function mk(biz, email, owner, source, verification, loadable, holdReason, tried
 }
 
 async function enrichOne(biz) {
-  const { owner_name, domain, business_name } = biz;
+  const { owner_name, domain, business_name, city } = biz;
   const websiteEmails = biz.website_emails || (biz.website_email ? [biz.website_email] : []);
   const names = parseOwnerNames(owner_name);
   const tried = [];
@@ -265,9 +305,7 @@ async function enrichOne(biz) {
       heldCatchAll = { email: we, owner: pickOwner(names), source: 'website_email' };
   }
 
-  // Stage 2 — Google search for email (free, new). Runs early since it clearly
-  // catches a segment paid vendors structurally miss: personal/business emails
-  // surfaced by Google's own index rather than LinkedIn-pattern guessing.
+  // Stage 2 — SerpAPI Google search (AI Overview + organic). Free, opportunistic.
   if (SERP_API_KEY) {
     tried.push('google_search_email');
     const searchEmail = await googleSearchEmail(pickOwner(names), business_name, domain);
@@ -280,7 +318,21 @@ async function enrichOne(biz) {
     }
   }
 
-  // Stage 3 — Anymail person
+  // Stage 3 — Perplexity via OpenRouter. Independent search+synthesis path,
+  // separate dice roll from SerpAPI. Free/cheap, opportunistic, never blocks.
+  if (OPENROUTER_KEY) {
+    tried.push('perplexity_search_email');
+    const pplxEmail = await perplexitySearchEmail(pickOwner(names), business_name, domain, city);
+    if (pplxEmail) {
+      const v = await verifyEmail(pplxEmail);
+      if (v === 'ok' || v === 'unchecked')
+        return mk(biz, pplxEmail, pickOwner(names), 'perplexity_search_email', v, true, null, tried);
+      if (v === 'catch_all' && !heldCatchAll)
+        heldCatchAll = { email: pplxEmail, owner: pickOwner(names), source: 'perplexity_search_email' };
+    }
+  }
+
+  // Stage 4 — Anymail person
   for (const name of names) {
     if (!hasFullName(name)) continue;
     tried.push('anymail_person:' + name);
@@ -288,7 +340,7 @@ async function enrichOne(biz) {
     if (email) return mk(biz, email, name, 'anymail_person', 'skipped_verified_source', true, null, tried);
   }
 
-  // Stage 4 — Prospeo
+  // Stage 5 — Prospeo
   if (PROSPEO_KEY) {
     for (const name of names) {
       if (!hasFullName(name)) continue;
@@ -299,7 +351,7 @@ async function enrichOne(biz) {
     }
   }
 
-  // Stage 5 — Anymail company guess
+  // Stage 6 — Anymail company guess
   tried.push('anymail_company');
   const companyEmail = await anymailCompany(business_name);
   if (companyEmail) {
@@ -310,7 +362,7 @@ async function enrichOne(biz) {
       heldCatchAll = { email: companyEmail, owner: null, source: 'anymail_company' };
   }
 
-  // Stage 6 — FullEnrich (work + personal)
+  // Stage 7 — FullEnrich (work + personal)
   if (FULLENRICH_KEY && domain && timeRemaining() > 20000) {
     for (const name of names) {
       if (!hasFullName(name)) continue;
@@ -419,6 +471,8 @@ export default async function handler(req, res) {
         website_email_won:          results.filter(r => r.email_source === 'website_email').length,
         google_search_attempted:    results.filter(r => r.enrichment_stages_tried?.includes('google_search_email')).length,
         google_search_won:          results.filter(r => r.email_source === 'google_search_email').length,
+        perplexity_search_attempted:results.filter(r => r.enrichment_stages_tried?.includes('perplexity_search_email')).length,
+        perplexity_search_won:      results.filter(r => r.email_source === 'perplexity_search_email').length,
         anymail_person_attempted:   results.filter(r => r.enrichment_stages_tried?.some(s => s.startsWith('anymail_person'))).length,
         prospeo_attempted:          results.filter(r => r.enrichment_stages_tried?.some(s => s.startsWith('prospeo'))).length,
         anymail_company_attempted:  results.filter(r => r.enrichment_stages_tried?.includes('anymail_company')).length,
