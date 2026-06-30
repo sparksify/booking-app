@@ -40,7 +40,7 @@ async function extractOwnerAndSignal(businessName, html) {
    - Never merge multiple names together without "and" between them
    - If nothing found, return NOT_FOUND
 
-2. SIGNAL: One specific, genuine notable fact about this business. Look for: awards, press features, years in business, a standout dish or service, community recognition, or anything specific and real. If nothing specific exists, return NOT_FOUND.
+2. SIGNAL: One specific, genuine notable fact about this business. If nothing specific exists, return NOT_FOUND.
 
 Page HTML:
 ${html.slice(0, 20000)}
@@ -78,6 +78,38 @@ async function findOwnerOnWebsite(businessName, website) {
   return { owner: null, signal: null };
 }
 
+// Pull text out of an ai_overview object (handles nested lists too)
+function extractAiOverviewText(aiOverview) {
+  if (!aiOverview?.text_blocks) return '';
+  const lines = [];
+  for (const block of aiOverview.text_blocks) {
+    if (block.snippet) lines.push(block.snippet);
+    if (block.list) {
+      for (const item of block.list) {
+        if (item.title) lines.push(item.title);
+        if (item.snippet) lines.push(item.snippet);
+      }
+    }
+  }
+  return lines.join('\n');
+}
+
+// Follow up to fetch full AI Overview content if Google lazy-loaded it
+async function fetchAiOverviewPageToken(pageToken) {
+  if (!pageToken || !SERP_API_KEY) return '';
+  try {
+    const params = new URLSearchParams({
+      engine: 'google_ai_overview',
+      page_token: pageToken,
+      api_key: SERP_API_KEY,
+    });
+    const r = await fetch(`https://serpapi.com/search?${params}`);
+    if (!r.ok) return '';
+    const data = await r.json();
+    return extractAiOverviewText(data.ai_overview);
+  } catch (e) { return ''; }
+}
+
 async function serpSearch(query) {
   if (!SERP_API_KEY) return [];
   try {
@@ -85,20 +117,51 @@ async function serpSearch(query) {
     const r = await fetch(`https://serpapi.com/search?${params}`);
     if (!r.ok) return [];
     const data = await r.json();
+
     const snippets = [];
+
+    // AI Overview — the richest source, was completely missing before
+    if (data.ai_overview) {
+      const directText = extractAiOverviewText(data.ai_overview);
+      if (directText) {
+        snippets.push(directText);
+      } else if (data.ai_overview.page_token) {
+        // Needs a follow-up call to get the lazy-loaded content
+        const followUpText = await fetchAiOverviewPageToken(data.ai_overview.page_token);
+        if (followUpText) snippets.push(followUpText);
+      }
+    }
+
+    // Answer box / knowledge graph — keep as secondary sources
     if (data.answer_box?.answer)   snippets.push(data.answer_box.answer);
     if (data.answer_box?.snippet)  snippets.push(data.answer_box.snippet);
     if (data.knowledge_graph?.description) snippets.push(data.knowledge_graph.description);
+
+    // Organic results — push titles AND snippets, including subtext mentions
     (data.organic_results || []).forEach(r => {
       if (r.title)   snippets.push(r.title);
       if (r.snippet) snippets.push(r.snippet);
+      // Rich snippet extensions sometimes carry owner mentions too
+      if (r.rich_snippet?.top?.extensions) snippets.push(r.rich_snippet.top.extensions.join(' '));
     });
+
+    // Related questions can carry owner answers too
+    (data.related_questions || []).forEach(q => {
+      if (q.snippet) snippets.push(q.snippet);
+    });
+
     return snippets;
   } catch (e) { return []; }
 }
 
 async function findOwnerViaSearch(businessName, city) {
-  const queries = [`${businessName} owner`, `${businessName} founder`, `${businessName} ${city} owner`];
+  // Simple direct queries, exactly like a human would type
+  const queries = [
+    `${businessName} owner`,
+    `${businessName} founder`,
+    `${businessName} managing partner`,
+  ];
+
   const snippetArrays = await Promise.all(queries.map(q => serpSearch(q)));
   const allSnippets = [...new Set(snippetArrays.flat())].join('\n');
   if (!allSnippets.trim()) return null;
@@ -116,18 +179,19 @@ async function findOwnerViaSearch(businessName, city) {
         max_tokens: 100,
         messages: [{
           role: 'user',
-          content: `Extract the owner or founder name(s) of "${businessName}" from these search result snippets.
+          content: `Extract the owner, founder, or managing partner name(s) of "${businessName}" from these search result snippets. The name may appear anywhere in the text, including subtext, captions, or secondary sentences — not just the title or first line. Read everything carefully.
 
 Rules:
 - If ONE owner: return their full name, e.g. "John Smith"
 - If MULTIPLE owners: separate with " and " exactly, e.g. "John Smith and Jane Doe"
 - Never merge multiple names together without "and" between them
-- Must be owner or founder of THIS specific business, not an employee or manager
+- Must be owner, founder, or managing partner of THIS specific business, not an employee, chef, or manager
+- Titles like "managing member," "managing partner," "owner/operator," and "founder" all count
 - Full name required — first AND last name. If only a first name appears, return NOT_FOUND
-- If no clear owner name found, return NOT_FOUND
+- If no clear owner name found anywhere in the text, return NOT_FOUND
 
 Snippets:
-${allSnippets.slice(0, 8000)}
+${allSnippets.slice(0, 10000)}
 
 Reply with ONLY the name(s) or NOT_FOUND:`,
         }],
@@ -182,7 +246,6 @@ export default async function handler(req, res) {
     const results = await Promise.all(businesses.map(biz => discoverOne(biz)));
     const found   = results.filter(r => r.owner_name);
 
-    // Build source breakdown directly from owner_source field — single source of truth
     const sources = {
       google_maps_field: results.filter(r => r.owner_source === 'google_maps_field').length,
       website:           results.filter(r => r.owner_source === 'website').length,
