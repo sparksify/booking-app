@@ -21,23 +21,26 @@ const FRANCHISE_NAV_PATTERNS = [
   'exclusive territory',
 ];
 
-// Generic "Own a/an [Brand]" nav-link pattern — this is what catches "Own an ISI®"
-// without us ever having to know the brand name in advance. Works for any brand.
+// Generic "Own a/an [Brand]" nav-link pattern — catches "Own an ISI®" for any brand,
+// no hardcoded names needed.
 const OWN_BRAND_RE = /\bown\s+(a|an|your\s+own)\b[^.<>\n]{0,40}/i;
 
-// Catches "territory/territories ... available" even when not an exact phrase match above,
-// e.g. "Territories still available in select markets"
+// "territory/territories ... available" even when not an exact phrase match above
 const TERRITORY_RE = /\bterritor(y|ies)\b[^.<>\n]{0,60}\bavailable\b|\bavailable\b[^.<>\n]{0,60}\bterritor(y|ies)\b/i;
 
-// Multi-location URL structure is itself a franchise signal, independent of page wording —
-// catches cases like a /locations/miami/ subpage that has zero franchise-recruiting copy
-// on it because the franchise pitch lives on a different page of the same site.
-const LOCATION_URL_RE = /\/locations?\//i;
+// Multi-location URL structure is itself a franchise signal
+const LOCATION_URL_RE = /\/locations?\/|\/gyms\/|\/studios\/|\/stores\//i;
 
 function matchesLocationUrl(website) {
   return !!(website && LOCATION_URL_RE.test(website));
 }
 
+// CRITICAL: this runs against the FULL, UNTRUNCATED HTML. Real-world sites — especially
+// WordPress/Divi/Elementor sites, which is exactly what franchise brands like ISI and
+// SWEAT440 run on — can have 30,000+ characters of <head> content (fonts, JSON-LD schema,
+// inline CSS, minified JS) before the nav bar even appears in the document. Truncating
+// before this check runs was silently cutting off the word "Franchise" in the nav before
+// we ever looked for it. This must run on the full page, every time.
 function quickFranchiseCheck(html) {
   const lower = html.toLowerCase();
   if (FRANCHISE_NAV_PATTERNS.some(p => lower.includes(p))) return true;
@@ -46,10 +49,12 @@ function quickFranchiseCheck(html) {
   return false;
 }
 
+// Fetch the FULL page, no truncation here. Truncation only happens later, and only for
+// the slice we send to Claude (which has real token limits the keyword check doesn't).
 async function fetchWebsite(url) {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), 10000);
     const r = await fetch(url, {
       signal: controller.signal,
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' },
@@ -57,13 +62,23 @@ async function fetchWebsite(url) {
     clearTimeout(timeout);
     if (!r.ok) return null;
     const html = await r.text();
-    return html.slice(0, 30000);
+    return html; // FULL page, untruncated
   } catch (e) { return null; }
 }
 
-// If the scouted URL matches the /locations/ pattern, the franchise pitch likely lives on
-// a sibling page (site root, or /franchise) rather than this specific location subpage —
-// exactly the ISI case. Check those before falling through to the AI check.
+// Pull out just the <nav>, <header>, and <footer> regions if present — this is where
+// franchise nav links live, and isolating them means we can hand a much smaller, more
+// relevant slice to Claude instead of guessing at a fixed character truncation point
+// that might still miss the nav on an unusually long page.
+function extractNavAndFooter(html) {
+  const regions = [];
+  const navMatches = html.match(/<nav[\s\S]{0,8000}?<\/nav>/gi) || [];
+  const headerMatches = html.match(/<header[\s\S]{0,8000}?<\/header>/gi) || [];
+  const footerMatches = html.match(/<footer[\s\S]{0,8000}?<\/footer>/gi) || [];
+  regions.push(...navMatches, ...headerMatches, ...footerMatches);
+  return regions.join('\n\n');
+}
+
 async function checkSiblingFranchisePages(website) {
   try {
     const u = new URL(website);
@@ -73,12 +88,20 @@ async function checkSiblingFranchisePages(website) {
       const html = await fetchWebsite(url);
       if (html && quickFranchiseCheck(html)) return true;
     }
-  } catch (e) { /* fall through to AI check on the original page */ }
+  } catch (e) { /* fall through */ }
   return false;
 }
 
 async function claudeFranchiseCheck(businessName, html) {
   try {
+    // For the AI fallback, prefer the isolated nav/header/footer regions (small, relevant)
+    // over a blind truncation of the full page. Fall back to a larger truncated slice
+    // only if no nav/header/footer regions were found at all.
+    const navRegions = extractNavAndFooter(html);
+    const contentForAI = navRegions && navRegions.length > 200
+      ? navRegions.slice(0, 15000)
+      : html.slice(0, 15000);
+
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -87,17 +110,17 @@ async function claudeFranchiseCheck(businessName, html) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-sonnet-4-6',
         max_tokens: 100,
         messages: [{
           role: 'user',
           content: `You are checking whether a business is already a franchise system (i.e. they franchise TO others, or are a location of a national/regional franchise brand).
 
-Look for: navigation links or page text mentioning franchise opportunities, becoming a franchisee, owning a franchise location, franchise development, franchise disclosure documents (FDD), "own a [brand]" language, or "territories available" language. Also consider whether the business name and branding suggest a multi-location national chain even if this specific page doesn't mention franchising directly (the franchise pitch may live on a different page of the same site).
+Look for: navigation links or page text mentioning franchise opportunities, becoming a franchisee, owning a franchise location, franchise development, franchise disclosure documents (FDD), "own a [brand]" language, or "territories available" language. Also consider whether the business name and branding suggest a multi-location national chain even if this specific excerpt doesn't mention franchising directly.
 
 Business: ${businessName}
-Website HTML (truncated):
-${html.slice(0, 15000)}
+Page navigation/header/footer HTML (these are the regions most likely to contain a "Franchise" nav link):
+${contentForAI}
 
 Reply with ONLY one word: FRANCHISE or INDEPENDENT`,
         }],
@@ -142,13 +165,14 @@ async function checkOne(biz) {
     return { ...biz, is_franchise: false, franchise_check: 'fetch_failed' };
   }
 
+  // Keyword check on the FULL untruncated page — this is the actual fix.
   if (quickFranchiseCheck(html)) {
     await saveFranchise(biz, 'keyword_match');
     return { ...biz, is_franchise: true, franchise_check: 'keyword_match' };
   }
 
-  // This page itself is clean, but if the URL looks like a location subpage of a larger
-  // site, check sibling pages (root, /franchise) before trusting that it's independent.
+  // If the URL itself looks like a location/gym/studio subpage, also check sibling pages
+  // (root, /franchise) before trusting that it's independent.
   if (matchesLocationUrl(website)) {
     const siblingMatch = await checkSiblingFranchisePages(website);
     if (siblingMatch) {
@@ -191,4 +215,3 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: err.message });
   }
 }
-// redeploy trigger Tue Jun 30 10:00:25 CDT 2026

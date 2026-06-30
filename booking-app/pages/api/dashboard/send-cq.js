@@ -109,27 +109,35 @@ export default async function handler(req, res) {
 
   logLeadEvent(email, 'cq_email_sent', { booking_id: bookingId }).catch(() => {});
 
-  // Trigger mapped GHL workflow for the assigned rep (fire-and-forget, non-blocking)
-  if (assigned_user_id) {
-    try {
-      const { data: settingsRow } = await supabase.from('settings').select('workflow_mappings').eq('id', 1).single();
-      const workflowId = settingsRow?.workflow_mappings?.send_cq?.[assigned_user_id];
-      if (workflowId) {
-        // Resolve GHL contact ID for the workflow call (uuid-keyed bookings only)
-        const { data: bookingRow } = isUuidBooking
-          ? await supabase.from('bookings').select('ghl_contact_id').eq('id', bookingId).single()
-          : { data: null };
-        let ghlContactId = bookingRow?.ghl_contact_id ?? null;
-        if (!ghlContactId) {
-          const { lookupGHLContactByEmail } = await import('@/lib/ghl');
-          const c = await lookupGHLContactByEmail(email).catch(() => null);
-          ghlContactId = c?.id ?? null;
-        }
-        if (ghlContactId) {
-          triggerWorkflow(ghlContactId, workflowId).catch(() => {});
-        }
-      }
-    } catch { /* non-fatal */ }
+  // Trigger the mapped GHL workflow for the assigned rep. Resolve the rep from
+  // the booking's GHL user id OR — for Calendly/native rows that carry none —
+  // from the GHL contact's assignedTo, exactly like the no-show flow does.
+  try {
+    const { data: settingsRow } = await supabase.from('settings').select('workflow_mappings').eq('id', 1).single();
+    const mapping = settingsRow?.workflow_mappings?.send_cq || {};
+
+    const ghlContact = process.env.GHL_API_KEY
+      ? await lookupGHLContactByEmail(email).catch(() => null)
+      : null;
+
+    const userId       = assigned_user_id || ghlContact?.assignedTo || null;
+    const workflowId   = userId ? mapping[userId] : null;
+    const ghlContactId = booking?.ghl_contact_id ?? ghlContact?.id ?? null;
+
+    if (!userId) {
+      console.warn('[send-cq] workflow skipped: row and contact both unassigned', { email });
+      errors.push('CQ workflow: no assigned GHL user (row + contact)');
+    } else if (!workflowId) {
+      console.warn('[send-cq] workflow skipped: no send_cq mapping for user', userId);
+      errors.push(`CQ workflow: no mapping for user ${userId}`);
+    } else if (!ghlContactId) {
+      errors.push('CQ workflow: no contact id');
+    } else {
+      await triggerWorkflow(ghlContactId, workflowId);
+    }
+  } catch (e) {
+    console.error('[send-cq] workflow:', e.message);
+    errors.push(`CQ workflow: ${e.message}`);
   }
 
   res.json({ ok: true, errors: errors.length ? errors : undefined });
