@@ -78,7 +78,6 @@ async function findOwnerOnWebsite(businessName, website) {
   return { owner: null, signal: null };
 }
 
-// Pull text out of an ai_overview object (handles nested lists too)
 function extractAiOverviewText(aiOverview) {
   if (!aiOverview?.text_blocks) return '';
   const lines = [];
@@ -94,15 +93,10 @@ function extractAiOverviewText(aiOverview) {
   return lines.join('\n');
 }
 
-// Follow up to fetch full AI Overview content if Google lazy-loaded it
 async function fetchAiOverviewPageToken(pageToken) {
   if (!pageToken || !SERP_API_KEY) return '';
   try {
-    const params = new URLSearchParams({
-      engine: 'google_ai_overview',
-      page_token: pageToken,
-      api_key: SERP_API_KEY,
-    });
+    const params = new URLSearchParams({ engine: 'google_ai_overview', page_token: pageToken, api_key: SERP_API_KEY });
     const r = await fetch(`https://serpapi.com/search?${params}`);
     if (!r.ok) return '';
     const data = await r.json();
@@ -110,6 +104,8 @@ async function fetchAiOverviewPageToken(pageToken) {
   } catch (e) { return ''; }
 }
 
+// Tag each snippet with which query produced it, so we can tell Claude
+// which result block to trust if there's ambiguity (e.g. STL Café vs St. Louis cafes)
 async function serpSearch(query) {
   if (!SERP_API_KEY) return [];
   try {
@@ -120,50 +116,52 @@ async function serpSearch(query) {
 
     const snippets = [];
 
-    // AI Overview — the richest source, was completely missing before
     if (data.ai_overview) {
       const directText = extractAiOverviewText(data.ai_overview);
       if (directText) {
-        snippets.push(directText);
+        snippets.push(`[AI Overview for query "${query}"]: ${directText}`);
       } else if (data.ai_overview.page_token) {
-        // Needs a follow-up call to get the lazy-loaded content
         const followUpText = await fetchAiOverviewPageToken(data.ai_overview.page_token);
-        if (followUpText) snippets.push(followUpText);
+        if (followUpText) snippets.push(`[AI Overview for query "${query}"]: ${followUpText}`);
       }
     }
 
-    // Answer box / knowledge graph — keep as secondary sources
-    if (data.answer_box?.answer)   snippets.push(data.answer_box.answer);
-    if (data.answer_box?.snippet)  snippets.push(data.answer_box.snippet);
-    if (data.knowledge_graph?.description) snippets.push(data.knowledge_graph.description);
+    if (data.answer_box?.answer)   snippets.push(`[Answer box]: ${data.answer_box.answer}`);
+    if (data.answer_box?.snippet)  snippets.push(`[Answer box]: ${data.answer_box.snippet}`);
+    if (data.knowledge_graph?.description) snippets.push(`[Knowledge graph]: ${data.knowledge_graph.description}`);
 
-    // Organic results — push titles AND snippets, including subtext mentions
     (data.organic_results || []).forEach(r => {
-      if (r.title)   snippets.push(r.title);
-      if (r.snippet) snippets.push(r.snippet);
-      // Rich snippet extensions sometimes carry owner mentions too
-      if (r.rich_snippet?.top?.extensions) snippets.push(r.rich_snippet.top.extensions.join(' '));
+      const parts = [];
+      if (r.title)   parts.push(r.title);
+      if (r.snippet) parts.push(r.snippet);
+      if (r.rich_snippet?.top?.extensions) parts.push(r.rich_snippet.top.extensions.join(' '));
+      if (parts.length) snippets.push(`[Organic result, source: ${r.source || r.displayed_link || 'unknown'}]: ${parts.join(' — ')}`);
     });
 
-    // Related questions can carry owner answers too
     (data.related_questions || []).forEach(q => {
-      if (q.snippet) snippets.push(q.snippet);
+      if (q.snippet) snippets.push(`[Related question]: ${q.snippet}`);
     });
 
     return snippets;
   } catch (e) { return []; }
 }
 
-async function findOwnerViaSearch(businessName, city) {
-  // Simple direct queries, exactly like a human would type
-  const queries = [
-    `${businessName} owner`,
-    `${businessName} founder`,
-    `${businessName} managing partner`,
-  ];
+async function findOwnerViaSearch(businessName, city, attempt = 1) {
+  // Always include city in every query to disambiguate similarly-named businesses
+  const queries = attempt === 1
+    ? [
+        `"${businessName}" ${city} owner`,
+        `"${businessName}" ${city} founder`,
+        `"${businessName}" ${city} managing partner`,
+      ]
+    : [
+        // Retry pass — more forceful exact match, strips out wiki/generic noise
+        `"${businessName}" "${city}" owner -wikipedia`,
+        `"${businessName}" "${city}" restaurant owner operator`,
+      ];
 
   const snippetArrays = await Promise.all(queries.map(q => serpSearch(q)));
-  const allSnippets = [...new Set(snippetArrays.flat())].join('\n');
+  const allSnippets = [...new Set(snippetArrays.flat())].join('\n\n');
   if (!allSnippets.trim()) return null;
 
   try {
@@ -176,22 +174,26 @@ async function findOwnerViaSearch(businessName, city) {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 100,
+        max_tokens: 150,
         messages: [{
           role: 'user',
-          content: `Extract the owner, founder, or managing partner name(s) of "${businessName}" from these search result snippets. The name may appear anywhere in the text, including subtext, captions, or secondary sentences — not just the title or first line. Read everything carefully.
+          content: `Extract the owner, founder, or managing partner name(s) of "${businessName}" located in ${city} from these search result snippets.
+
+IMPORTANT — disambiguation: These snippets may contain information about OTHER businesses with similar or identical names in different cities (e.g. a search for "STL Café" might return results about unrelated cafes in St. Louis). Only extract the owner if the snippet clearly refers to the business in ${city}. If a snippet doesn't mention ${city} or doesn't clearly match this specific business, ignore it.
+
+The name may appear anywhere in the text, including subtext, captions, or secondary sentences — not just the title or first line. Read everything carefully.
 
 Rules:
 - If ONE owner: return their full name, e.g. "John Smith"
 - If MULTIPLE owners: separate with " and " exactly, e.g. "John Smith and Jane Doe"
 - Never merge multiple names together without "and" between them
-- Must be owner, founder, or managing partner of THIS specific business, not an employee, chef, or manager
+- Must be owner, founder, or managing partner of THIS specific business in ${city} — not an employee, chef, or manager, and not the owner of a same-named business elsewhere
 - Titles like "managing member," "managing partner," "owner/operator," and "founder" all count
 - Full name required — first AND last name. If only a first name appears, return NOT_FOUND
-- If no clear owner name found anywhere in the text, return NOT_FOUND
+- If no clear, confidently-matched owner name found, return NOT_FOUND
 
 Snippets:
-${allSnippets.slice(0, 10000)}
+${allSnippets.slice(0, 12000)}
 
 Reply with ONLY the name(s) or NOT_FOUND:`,
         }],
@@ -228,9 +230,18 @@ async function discoverOne(biz) {
     return { ...biz, owner_name: websiteResult.owner, owner_source: 'website', signal };
   }
 
-  const searchOwner = await findOwnerViaSearch(business_name, city);
+  // First pass — city-qualified queries
+  let searchOwner = await findOwnerViaSearch(business_name, city, 1);
+  let source = 'google_search';
+
+  // Retry pass — only if first pass came up empty, more forceful disambiguation
+  if (!searchOwner) {
+    searchOwner = await findOwnerViaSearch(business_name, city, 2);
+    source = 'google_search_retry';
+  }
+
   if (searchOwner) {
-    return { ...biz, owner_name: searchOwner, owner_source: 'google_search', signal };
+    return { ...biz, owner_name: searchOwner, owner_source: source, signal };
   }
 
   return { ...biz, owner_name: null, owner_source: 'not_found', signal };
@@ -247,10 +258,11 @@ export default async function handler(req, res) {
     const found   = results.filter(r => r.owner_name);
 
     const sources = {
-      google_maps_field: results.filter(r => r.owner_source === 'google_maps_field').length,
-      website:           results.filter(r => r.owner_source === 'website').length,
-      google_search:     results.filter(r => r.owner_source === 'google_search').length,
-      not_found:         results.filter(r => r.owner_source === 'not_found').length,
+      google_maps_field:   results.filter(r => r.owner_source === 'google_maps_field').length,
+      website:             results.filter(r => r.owner_source === 'website').length,
+      google_search:       results.filter(r => r.owner_source === 'google_search').length,
+      google_search_retry: results.filter(r => r.owner_source === 'google_search_retry').length,
+      not_found:           results.filter(r => r.owner_source === 'not_found').length,
     };
 
     return res.status(200).json({
