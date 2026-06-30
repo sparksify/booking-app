@@ -18,6 +18,29 @@ async function fetchPage(url) {
   } catch (e) { return null; }
 }
 
+const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+const EMAIL_JUNK = /(example\.(com|org)|sentry|wixpress|\.png|\.jpe?g|\.gif|\.svg|\.webp|@2x|no-?reply|noreply|donotreply|godaddy|squarespace|wordpress|cloudflare|yourdomain|domain\.com|email\.com|sentry\.io)/i;
+const EMAIL_ROLE = /^(info|contact|hello|admin|sales|support|office|booking|bookings|reservations|reserve|hi|team|mail|enquiries|inquiries|help|jobs|careers|press|media|marketing|accounts|billing|orders|catering)@/i;
+
+function harvestEmails(html) {
+  if (!html) return [];
+  const found = [...new Set((html.match(EMAIL_RE) || []).map(e => e.toLowerCase().replace(/\.$/, '')))];
+  return found.filter(e => !EMAIL_JUNK.test(e) && e.length < 60);
+}
+
+function rankEmails(emails, domain) {
+  const d = (domain || '').toLowerCase();
+  return [...new Set(emails)].sort((a, b) => {
+    const ad = d && a.endsWith('@' + d) ? 0 : 1;
+    const bd = d && b.endsWith('@' + d) ? 0 : 1;
+    if (ad !== bd) return ad - bd;
+    const ar = EMAIL_ROLE.test(a) ? 1 : 0;
+    const br = EMAIL_ROLE.test(b) ? 1 : 0;
+    if (ar !== br) return ar - br;
+    return a.length - b.length;
+  }).slice(0, 5);
+}
+
 async function extractOwnerAndSignal(businessName, html) {
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -60,22 +83,37 @@ Return ONLY valid JSON, no markdown:
   } catch (e) { return { owner: null, signal: null }; }
 }
 
-async function findOwnerOnWebsite(businessName, website) {
-  if (!website) return { owner: null, signal: null };
+async function findOwnerOnWebsite(businessName, website, domain) {
+  if (!website) return { owner: null, signal: null, emails: [] };
   let base;
   try {
     const u = new URL(website);
     base = `${u.protocol}//${u.hostname}`;
-  } catch (e) { return { owner: null, signal: null }; }
+  } catch (e) { return { owner: null, signal: null, emails: [] }; }
 
   const urls = [website, ...OWNER_PAGE_SLUGS.map(s => `${base}/${s}`)];
+  let owner = null, signal = null;
+  const emailSet = new Set();
+  let pagesChecked = 0;
+
   for (const url of urls) {
+    if (pagesChecked >= 6) break;
     const html = await fetchPage(url);
     if (!html) continue;
-    const result = await extractOwnerAndSignal(businessName, html);
-    if (result.owner || result.signal) return result;
+    pagesChecked++;
+
+    harvestEmails(html).forEach(e => emailSet.add(e));
+
+    if (!owner || !signal) {
+      const result = await extractOwnerAndSignal(businessName, html);
+      if (result.owner && !owner)   owner = result.owner;
+      if (result.signal && !signal) signal = result.signal;
+    }
+
+    if (owner && signal && emailSet.size) break;
   }
-  return { owner: null, signal: null };
+
+  return { owner, signal, emails: rankEmails([...emailSet], domain) };
 }
 
 function extractAiOverviewText(aiOverview) {
@@ -148,21 +186,17 @@ async function findOwnerViaSearch(businessName, city, pass) {
   let queries;
 
   if (pass === 1) {
-    // City-qualified, quoted — good disambiguation for common business names
     queries = [
       `"${businessName}" ${city} owner`,
       `"${businessName}" ${city} founder`,
       `"${businessName}" ${city} managing partner`,
     ];
   } else if (pass === 2) {
-    // Forceful exact-match retry, strips noise
     queries = [
       `"${businessName}" "${city}" owner -wikipedia`,
       `"${businessName}" "${city}" restaurant owner operator`,
     ];
   } else {
-    // Pass 3 — bare minimal query, exactly what a human would type.
-    // No quotes, no city, no exclusions. This is what found Slow Drip TX's owners.
     queries = [
       `${businessName} owner`,
     ];
@@ -217,48 +251,44 @@ Reply with ONLY the name(s) or NOT_FOUND:`,
 }
 
 async function discoverOne(biz) {
-  const { business_name, city, website, rating, review_count, owner: existingOwner } = biz;
+  const { business_name, city, website, rating, review_count, owner: existingOwner, domain } = biz;
+
+  const signalBase = rating && review_count ? `${rating} stars across ${review_count} reviews on Google` : null;
+
+  const websiteResult = website
+    ? await findOwnerOnWebsite(business_name, website, domain)
+    : { owner: null, signal: null, emails: [] };
+
+  const website_emails = websiteResult.emails || [];
+  const website_email  = website_emails[0] || null;
+  const signal = websiteResult.signal || signalBase;
 
   if (existingOwner && existingOwner.trim().split(/\s+/).length >= 2) {
-    return {
-      ...biz,
-      owner_name:   existingOwner,
-      owner_source: 'google_maps_field',
-      signal:       rating && review_count ? `${rating} stars across ${review_count} reviews on Google` : null,
-    };
-  }
-
-  const websiteResult = await findOwnerOnWebsite(business_name, website);
-  let signal = websiteResult.signal;
-  if (!signal && rating && review_count) {
-    signal = `${rating} stars across ${review_count} reviews on Google`;
+    return { ...biz, owner_name: existingOwner, owner_source: 'google_maps_field', signal, website_email, website_emails };
   }
 
   if (websiteResult.owner) {
-    return { ...biz, owner_name: websiteResult.owner, owner_source: 'website', signal };
+    return { ...biz, owner_name: websiteResult.owner, owner_source: 'website', signal, website_email, website_emails };
   }
 
-  // Pass 1 — city-qualified queries
   let searchOwner = await findOwnerViaSearch(business_name, city, 1);
   let source = 'google_search';
 
-  // Pass 2 — forceful exact match retry
   if (!searchOwner) {
     searchOwner = await findOwnerViaSearch(business_name, city, 2);
     source = 'google_search_retry';
   }
 
-  // Pass 3 — bare minimal query, exactly like a human would type it
   if (!searchOwner) {
     searchOwner = await findOwnerViaSearch(business_name, city, 3);
     source = 'google_search_bare';
   }
 
   if (searchOwner) {
-    return { ...biz, owner_name: searchOwner, owner_source: source, signal };
+    return { ...biz, owner_name: searchOwner, owner_source: source, signal, website_email, website_emails };
   }
 
-  return { ...biz, owner_name: null, owner_source: 'not_found', signal };
+  return { ...biz, owner_name: null, owner_source: 'not_found', signal, website_email, website_emails };
 }
 
 export default async function handler(req, res) {
@@ -284,6 +314,7 @@ export default async function handler(req, res) {
       total:       results.length,
       owner_found: found.length,
       hit_rate:    results.length > 0 ? Math.round((found.length / results.length) * 100) : 0,
+      website_emails_found: results.filter(r => r.website_email).length,
       sources,
       businesses:  results,
     });

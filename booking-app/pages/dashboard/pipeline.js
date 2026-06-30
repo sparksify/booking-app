@@ -30,13 +30,29 @@ const STAGE_LABELS = {
 };
 
 const SOURCE_LABELS = {
-  anymail_person:  'Anymail',
-  anymail_company: 'Anymail Co',
-  fullenrich:      'FullEnrich',
-  hunter_person:   'Hunter',
-  hunter_domain:   'Hunter Domain',
-  not_found:       '—',
+  website_email:       'Website',
+  anymail_person:      'Anymail',
+  anymail_company:     'Anymail Co',
+  prospeo:             'Prospeo',
+  fullenrich:          'FullEnrich',
+  fullenrich_personal: 'FullEnrich (personal)',
+  cross_domain_owner:  'Cross-domain',
+  not_found:           '—',
 };
+
+function verifyChip(v) {
+  switch (v) {
+    case 'ok':
+    case 'skipped_verified_source':
+      return { label: 'Verified', color: '#16A34A', bg: '#DCFCE7' };
+    case 'catch_all':
+      return { label: 'Catch-all', color: '#F59E0B', bg: '#FEF3C7' };
+    case 'unchecked':
+      return { label: 'Unchecked', color: '#64748B', bg: '#F1F5F9' };
+    default:
+      return { label: v || '—', color: '#94A3B8', bg: '#F1F5F9' };
+  }
+}
 
 function SideIcon({ name }) {
   const p = { width: 17, height: 17, fill: 'none', stroke: 'currentColor', strokeWidth: 1.75, strokeLinecap: 'round', strokeLinejoin: 'round', viewBox: '0 0 24 24', style: { display: 'block' } };
@@ -76,11 +92,17 @@ function StatusChip({ status }) {
     'skipped_duplicate':   { label: 'Duplicate',  color: '#F59E0B', bg: '#FEF3C7' },
     'skipped_no_email':    { label: 'No Email',   color: '#94A3B8', bg: '#F1F5F9' },
     'no_email':            { label: 'No Email',   color: '#94A3B8', bg: '#F1F5F9' },
+    'held_catch_all':      { label: 'Held',       color: '#F59E0B', bg: '#FEF3C7' },
+    'held_duplicate_owner':{ label: 'Held',       color: '#7C3AED', bg: '#F3E8FF' },
     'enriched_not_loaded': { label: 'Not Loaded', color: '#64748B', bg: '#F8FAFC' },
     'failed_smartlead':    { label: 'Failed',     color: '#DC2626', bg: '#FEE2E2' },
   };
   const m = map[status] || { label: status || '—', color: '#94A3B8', bg: '#F1F5F9' };
   return <span style={{ fontSize: 11, fontWeight: 700, color: m.color, background: m.bg, borderRadius: 10, padding: '1px 7px' }}>{m.label}</span>;
+}
+
+function csvVal(v) {
+  return '"' + String(v ?? '').replace(/"/g, '""') + '"';
 }
 
 function exportCSV(rows, filename, headers, rowFn) {
@@ -92,10 +114,6 @@ function exportCSV(rows, filename, headers, rowFn) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
-}
-
-function csvVal(v) {
-  return '"' + String(v ?? '').replace(/"/g, '""') + '"';
 }
 
 function ProspectCard({ biz }) {
@@ -128,6 +146,8 @@ function ProspectCard({ biz }) {
   const statusBorder = biz.outreach_status === 'loaded' ? '#BBF7D0' : biz.outreach_status === 'skipped_duplicate' ? '#FDE68A' : '#E2E8F0';
   const statusLabel  = biz.outreach_status === 'loaded' ? 'Loaded' : biz.outreach_status === 'skipped_duplicate' ? 'Duplicate' : biz.outreach_status === 'skipped_no_email' ? 'No Email' : biz.outreach_status || 'Pending';
 
+  const vc = verifyChip(biz.verification);
+
   return (
     <div style={cs.card}>
       <div style={cs.cardMain}>
@@ -141,16 +161,16 @@ function ProspectCard({ biz }) {
             </div>
           )}
           {biz.email && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
-              <span style={{ fontSize: 11, color: '#16A34A', fontWeight: 700 }}>✓</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12, color: '#64748B' }}>{biz.email}</span>
+              <Badge color={vc.color} bg={vc.bg} border={vc.bg}>{vc.label}</Badge>
               <span style={{ fontSize: 10, color: '#94A3B8' }}>· {SOURCE_LABELS[biz.email_source] || biz.email_source}</span>
             </div>
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
             {phone ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ fontSize: 11, color: '#0057FF' }}>📞</span>
+                <span style={{ fontSize: 11, color: '#0057FF' }}>☎</span>
                 <span style={{ fontSize: 12, color: '#64748B' }}>{phone}</span>
               </div>
             ) : biz.email_owner && biz.domain ? (
@@ -161,7 +181,7 @@ function ProspectCard({ biz }) {
               >
                 {findingPhone
                   ? <><span style={{ width: 9, height: 9, border: '1.5px solid #CBD5E1', borderTopColor: '#0057FF', borderRadius: '50%', display: 'inline-block', animation: 'spin .8s linear infinite' }} />Finding mobile...</>
-                  : <>📞 Find Mobile</>
+                  : <>☎ Find Mobile</>
                 }
               </button>
             ) : null}
@@ -220,14 +240,20 @@ function DataTable({ allResults }) {
 
   const enrichRows = enriched.map(b => {
     const out = outreachMap[b.email || b.business_name] || {};
-    return { ...b, outreach_status: out.outreach_status || (b.enriched ? 'enriched_not_loaded' : 'no_email') };
+    let status;
+    if (out.outreach_status) status = out.outreach_status;
+    else if (b.hold_reason === 'catch_all') status = 'held_catch_all';
+    else if (b.hold_reason === 'duplicate_owner') status = 'held_duplicate_owner';
+    else if (b.enriched) status = 'enriched_not_loaded';
+    else status = 'no_email';
+    return { ...b, outreach_status: status };
   });
 
-  const PROSPECT_HEADERS = ['Business','Owner','Email','Phone','Rating','Reviews','Source','Status'];
+  const PROSPECT_HEADERS  = ['Business','Owner','Email','Verification','Phone','Rating','Reviews','Source','Status'];
   const FRANCHISE_HEADERS = ['Business','City','Industry','Website','Phone','Rating','Reviews','Detected As'];
 
   function prospectRow(b) {
-    return [b.business_name, b.email_owner || b.owner_name, b.email, b.phone, b.rating, b.review_count, SOURCE_LABELS[b.email_source] || b.email_source, b.outreach_status].map(csvVal).join(',');
+    return [b.business_name, b.email_owner || b.owner_name, b.email, b.verification, b.phone, b.rating, b.review_count, SOURCE_LABELS[b.email_source] || b.email_source, b.outreach_status].map(csvVal).join(',');
   }
 
   function franchiseRow(b) {
@@ -242,13 +268,14 @@ function DataTable({ allResults }) {
     );
   }
 
-  function SectionHeader({ title, count, color, bg, onExport }) {
+  function SectionHeader({ title, count, color, bg, onExport, note }) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
           <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{title}</span>
           <span style={{ fontSize: 11, background: bg, color, borderRadius: 10, padding: '1px 7px', fontWeight: 700 }}>{count}</span>
+          {note && <span style={{ fontSize: 11, color: '#94A3B8' }}>{note}</span>}
         </div>
         <ExportBtn onClick={onExport} />
       </div>
@@ -263,35 +290,42 @@ function DataTable({ allResults }) {
             <tr>{PROSPECT_HEADERS.map(c => <th key={c} style={ts.th}>{c}</th>)}</tr>
           </thead>
           <tbody>
-            {rows.map((b, i) => (
-              <tr key={i} style={{ background: i % 2 ? '#fff' : '#FAFBFD' }}>
-                <td style={ts.td}><span style={{ fontWeight: 600, color: '#0F172A' }}>{b.business_name}</span></td>
-                <td style={ts.td}>{b.email_owner || b.owner_name || '—'}</td>
-                <td style={ts.td}>{b.email ? <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ color: '#16A34A', fontWeight: 700 }}>✓</span>{b.email}</span> : '—'}</td>
-                <td style={ts.td}>{b.phone || '—'}</td>
-                <td style={ts.td}>{b.rating ? `★ ${b.rating}` : '—'}</td>
-                <td style={ts.td}>{b.review_count || '—'}</td>
-                <td style={ts.td}>{SOURCE_LABELS[b.email_source] || b.email_source || '—'}</td>
-                <td style={ts.td}><StatusChip status={b.outreach_status} /></td>
-              </tr>
-            ))}
+            {rows.map((b, i) => {
+              const vc = verifyChip(b.verification);
+              return (
+                <tr key={i} style={{ background: i % 2 ? '#fff' : '#FAFBFD' }}>
+                  <td style={ts.td}><span style={{ fontWeight: 600, color: '#0F172A' }}>{b.business_name}</span></td>
+                  <td style={ts.td}>{b.email_owner || b.owner_name || '—'}</td>
+                  <td style={ts.td}>{b.email || '—'}</td>
+                  <td style={ts.td}>{b.email ? <span style={{ fontSize: 11, fontWeight: 700, color: vc.color, background: vc.bg, borderRadius: 10, padding: '1px 7px' }}>{vc.label}</span> : '—'}</td>
+                  <td style={ts.td}>{b.phone || '—'}</td>
+                  <td style={ts.td}>{b.rating ? `★ ${b.rating}` : '—'}</td>
+                  <td style={ts.td}>{b.review_count || '—'}</td>
+                  <td style={ts.td}>{SOURCE_LABELS[b.email_source] || b.email_source || '—'}</td>
+                  <td style={ts.td}><StatusChip status={b.outreach_status} /></td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
     );
   }
 
-  const loaded     = enrichRows.filter(b => b.outreach_status === 'loaded');
-  const duplicates = enrichRows.filter(b => b.outreach_status === 'skipped_duplicate');
-  const noEmail    = enrichRows.filter(b => b.outreach_status === 'no_email' || b.outreach_status === 'skipped_no_email' || b.outreach_status === 'enriched_not_loaded');
+  const loaded        = enrichRows.filter(b => b.outreach_status === 'loaded');
+  const smartleadDupes= enrichRows.filter(b => b.outreach_status === 'skipped_duplicate');
+  const heldCatchAll  = enrichRows.filter(b => b.outreach_status === 'held_catch_all');
+  const heldDuplicate = enrichRows.filter(b => b.outreach_status === 'held_duplicate_owner');
+  const notLoaded     = enrichRows.filter(b => b.outreach_status === 'enriched_not_loaded');
+  const noEmail       = enrichRows.filter(b => b.outreach_status === 'no_email');
 
   const today = new Date().toISOString().slice(0, 10);
 
   function exportAll() {
-    const ALL_HEADERS = ['Section','Business','City','Industry','Owner','Email','Phone','Rating','Reviews','Email Source','Status','Website'];
+    const ALL_HEADERS = ['Section','Business','City','Industry','Owner','Email','Verification','Phone','Rating','Reviews','Email Source','Status','Website'];
     const allRows = [
-      ...enrichRows.map(b => ['prospect', b.business_name, b.city, b.industry, b.email_owner || b.owner_name, b.email, b.phone, b.rating, b.review_count, b.email_source, b.outreach_status, b.website].map(csvVal).join(',')),
-      ...franchises.map(b => ['franchise', b.business_name, b.city, b.industry, '', '', b.phone, b.rating, b.review_count, '', b.franchise_check, b.website].map(csvVal).join(',')),
+      ...enrichRows.map(b => ['prospect', b.business_name, b.city, b.industry, b.email_owner || b.owner_name, b.email, b.verification, b.phone, b.rating, b.review_count, b.email_source, b.outreach_status, b.website].map(csvVal).join(',')),
+      ...franchises.map(b => ['franchise', b.business_name, b.city, b.industry, '', '', '', b.phone, b.rating, b.review_count, '', b.franchise_check, b.website].map(csvVal).join(',')),
     ];
     const csv  = [ALL_HEADERS.join(','), ...allRows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -319,10 +353,31 @@ function DataTable({ allResults }) {
         </div>
       )}
 
-      {duplicates.length > 0 && (
+      {heldCatchAll.length > 0 && (
         <div style={{ marginBottom: 24 }}>
-          <SectionHeader title="Skipped — Duplicate" count={duplicates.length} color="#F59E0B" bg="#FEF3C7" onExport={() => exportCSV(duplicates, 'duplicates-' + today + '.csv', PROSPECT_HEADERS, prospectRow)} />
-          <ProspectTable rows={duplicates} />
+          <SectionHeader title="Held — Catch-All" count={heldCatchAll.length} color="#F59E0B" bg="#FEF3C7" note="email found but server accepts everything — risky to send, excluded from campaign" onExport={() => exportCSV(heldCatchAll, 'held-catch-all-' + today + '.csv', PROSPECT_HEADERS, prospectRow)} />
+          <ProspectTable rows={heldCatchAll} />
+        </div>
+      )}
+
+      {heldDuplicate.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <SectionHeader title="Held — Same Owner" count={heldDuplicate.length} color="#7C3AED" bg="#F3E8FF" note="same person already contacted via another business in this run" onExport={() => exportCSV(heldDuplicate, 'held-duplicate-' + today + '.csv', PROSPECT_HEADERS, prospectRow)} />
+          <ProspectTable rows={heldDuplicate} />
+        </div>
+      )}
+
+      {smartleadDupes.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <SectionHeader title="Skipped — Already in Smartlead" count={smartleadDupes.length} color="#F59E0B" bg="#FEF3C7" onExport={() => exportCSV(smartleadDupes, 'smartlead-dupes-' + today + '.csv', PROSPECT_HEADERS, prospectRow)} />
+          <ProspectTable rows={smartleadDupes} />
+        </div>
+      )}
+
+      {notLoaded.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <SectionHeader title="Email Found — Not Loaded" count={notLoaded.length} color="#64748B" bg="#F8FAFC" onExport={() => exportCSV(notLoaded, 'not-loaded-' + today + '.csv', PROSPECT_HEADERS, prospectRow)} />
+          <ProspectTable rows={notLoaded} />
         </div>
       )}
 
@@ -409,30 +464,37 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
       addLog('Hunting owner names for ' + filterData.businesses.length + ' businesses...');
       const discoverData = await callStage('/api/pipeline/discover', { businesses: filterData.businesses });
       const src = discoverData.sources || {};
-      addLog('Owner names found: ' + discoverData.owner_found + ' of ' + discoverData.total + ' (' + discoverData.hit_rate + '%) — Maps: ' + (src.google_maps_field||0) + ' · Website: ' + (src.website||0) + ' · Search: ' + (src.google_search||0) + ' · Not found: ' + (src.not_found||0));
+      addLog('Owner names found: ' + discoverData.owner_found + ' of ' + discoverData.total + ' (' + discoverData.hit_rate + '%) — Maps: ' + (src.google_maps_field||0) + ' · Website: ' + (src.website||0) + ' · Search: ' + ((src.google_search||0)+(src.google_search_retry||0)+(src.google_search_bare||0)) + ' · Not found: ' + (src.not_found||0));
+      if (discoverData.website_emails_found != null) {
+        addLog('Website emails harvested: ' + discoverData.website_emails_found + ' (free source, gets verified before sending)');
+      }
 
       setStage('enrich');
       addLog('Enriching emails for ' + discoverData.businesses.length + ' businesses...');
       const enrichData = await callStage('/api/pipeline/enrich', { businesses: discoverData.businesses });
-      const ss = enrichData.stages_summary || {};
+      const v = enrichData.verification || {};
       addLog(
-        'Emails found: ' + enrichData.enriched_count + ' of ' + enrichData.total + ' (' + enrichData.hit_rate + '%) — ' +
-        'Anymail: ' + (ss.anymail_person_attempted || 0) + ' tried · ' +
-        'Co: ' + (ss.anymail_company_attempted || 0) + ' tried · ' +
-        'FullEnrich: ' + (ss.fullenrich_attempted || 0) + ' tried'
+        'Emails found: ' + enrichData.enriched_count + ' of ' + enrichData.total + ' (' + enrichData.hit_rate + '%)'
+      );
+      addLog(
+        'Deliverable now: ' + (enrichData.loadable_count ?? enrichData.enriched_count) +
+        ' · Catch-all held: ' + (v.catch_all_held || 0) +
+        ' · Same-owner held: ' + (v.duplicate_held || 0) +
+        ' · Unchecked: ' + (v.unchecked || 0) +
+        ' · Verifier: ' + (v.verifier || 'none')
       );
 
-      const enriched = enrichData.results.filter(b => b.enriched);
-      if (!enriched.length) {
-        addLog('No emails found — pipeline complete');
+      const loadable = enrichData.results.filter(b => b.enriched && b.loadable && b.email);
+      if (!loadable.length) {
+        addLog('Nothing deliverable to load — pipeline complete (see held/not-found buckets below)');
         setStage('done');
         setResults({ scout: scoutData, filter: filterData, discover: discoverData, enrich: enrichData, outreach: null });
         return;
       }
 
       setStage('outreach');
-      addLog('Writing sequences and loading ' + enriched.length + ' contacts...');
-      const outreachData = await callStage('/api/pipeline/outreach', { businesses: enriched });
+      addLog('Writing sequences and loading ' + loadable.length + ' deliverable contacts...');
+      const outreachData = await callStage('/api/pipeline/outreach', { businesses: loadable });
       addLog('Loaded: ' + outreachData.loaded + ' | Skipped: ' + outreachData.skipped + ' | Failed: ' + outreachData.failed);
 
       setStage('done');
@@ -454,7 +516,8 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
     { label: 'Independent',  value: results.filter?.passed ?? 0,         pct: results.scout?.count ? Math.round((results.filter.passed / results.scout.count) * 100) : null, color: '#0891B2' },
     { label: 'Names Found',  value: results.discover?.owner_found ?? 0,  pct: results.discover?.hit_rate,    color: '#F59E0B' },
     { label: 'Emails Found', value: results.enrich?.enriched_count ?? 0, pct: results.enrich?.hit_rate,      color: '#7C3AED' },
-    { label: 'Loaded',       value: results.outreach?.loaded ?? 0,        pct: results.enrich?.enriched_count ? Math.round(((results.outreach?.loaded ?? 0) / results.enrich.enriched_count) * 100) : null, color: '#16A34A' },
+    { label: 'Deliverable',  value: results.enrich?.loadable_count ?? results.enrich?.enriched_count ?? 0, pct: results.enrich?.total ? Math.round(((results.enrich?.loadable_count ?? results.enrich?.enriched_count ?? 0) / results.enrich.total) * 100) : null, color: '#0EA5E9' },
+    { label: 'Loaded',       value: results.outreach?.loaded ?? 0,        pct: (results.enrich?.loadable_count ?? results.enrich?.enriched_count) ? Math.round(((results.outreach?.loaded ?? 0) / (results.enrich?.loadable_count ?? results.enrich?.enriched_count)) * 100) : null, color: '#16A34A' },
   ] : [];
 
   const loadedProspects = results?.outreach?.results?.filter(r => r.outreach_status === 'loaded') || [];
@@ -488,7 +551,7 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: stageInfo.color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{stageInfo.text}</span>
-              <span style={{ fontSize: 11, background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: 4, padding: '2px 8px', color: '#64748B' }}>v3.0</span>
+              <span style={{ fontSize: 11, background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: 4, padding: '2px 8px', color: '#64748B' }}>v4.1</span>
             </div>
           </div>
 
@@ -521,12 +584,12 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
             {error && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '12px 16px', marginBottom: 20, color: '#DC2626', fontSize: 13, fontWeight: 500 }}>{error}</div>}
 
             {results && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 24 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10, marginBottom: 24 }}>
                 {statCards.map(({ label, value, pct, color }) => (
                   <div key={label} style={s.statCard}>
-                    <div style={{ fontSize: 28, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+                    <div style={{ fontSize: 26, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
                     {pct != null && <div style={{ fontSize: 11, fontWeight: 700, color, marginTop: 2 }}>{pct}%</div>}
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 4 }}>{label}</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 4 }}>{label}</div>
                   </div>
                 ))}
               </div>
@@ -565,7 +628,7 @@ const s = {
   main:             { flex: 1, padding: '20px 24px', overflowY: 'auto' },
   card:             { background: '#FFFFFF', borderRadius: 10, border: '1px solid #E2E8F0', padding: '18px 20px', boxShadow: '0 1px 3px rgba(15,23,42,.04)' },
   cardLabel:        { fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0 },
-  statCard:         { background: '#FFFFFF', borderRadius: 10, border: '1px solid #E2E8F0', padding: '16px 18px', boxShadow: '0 1px 3px rgba(15,23,42,.04)' },
+  statCard:         { background: '#FFFFFF', borderRadius: 10, border: '1px solid #E2E8F0', padding: '16px 16px', boxShadow: '0 1px 3px rgba(15,23,42,.04)' },
   input:            { flex: 1, minWidth: 200, padding: '9px 14px', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 7, color: '#0F172A', fontSize: 13, fontFamily: 'inherit', outline: 'none' },
   select:           { flex: 1, minWidth: 200, padding: '9px 14px', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 7, color: '#0F172A', fontSize: 13, fontFamily: 'inherit', outline: 'none' },
   btn:              { padding: '9px 24px', background: '#0057FF', color: '#FFFFFF', border: 'none', borderRadius: 7, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
