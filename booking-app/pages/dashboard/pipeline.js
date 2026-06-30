@@ -440,7 +440,8 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
       setResults({ scout: scoutData, filter: filterData, discover: discoverData, enrich: enrichData, outreach: outreachData });
 
     } catch (err) {
-      setStage('error'); setError(err.message); addLog('Error: ' + err.message);
+      const msg = err?.message || (typeof err === 'string' ? err : JSON.stringify(err)) || 'Unknown error';
+      setStage('error'); setError(msg); addLog('Error: ' + msg);
     }
   }
 
