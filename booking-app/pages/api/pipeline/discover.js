@@ -104,8 +104,6 @@ async function fetchAiOverviewPageToken(pageToken) {
   } catch (e) { return ''; }
 }
 
-// Tag each snippet with which query produced it, so we can tell Claude
-// which result block to trust if there's ambiguity (e.g. STL Café vs St. Louis cafes)
 async function serpSearch(query) {
   if (!SERP_API_KEY) return [];
   try {
@@ -146,19 +144,29 @@ async function serpSearch(query) {
   } catch (e) { return []; }
 }
 
-async function findOwnerViaSearch(businessName, city, attempt = 1) {
-  // Always include city in every query to disambiguate similarly-named businesses
-  const queries = attempt === 1
-    ? [
-        `"${businessName}" ${city} owner`,
-        `"${businessName}" ${city} founder`,
-        `"${businessName}" ${city} managing partner`,
-      ]
-    : [
-        // Retry pass — more forceful exact match, strips out wiki/generic noise
-        `"${businessName}" "${city}" owner -wikipedia`,
-        `"${businessName}" "${city}" restaurant owner operator`,
-      ];
+async function findOwnerViaSearch(businessName, city, pass) {
+  let queries;
+
+  if (pass === 1) {
+    // City-qualified, quoted — good disambiguation for common business names
+    queries = [
+      `"${businessName}" ${city} owner`,
+      `"${businessName}" ${city} founder`,
+      `"${businessName}" ${city} managing partner`,
+    ];
+  } else if (pass === 2) {
+    // Forceful exact-match retry, strips noise
+    queries = [
+      `"${businessName}" "${city}" owner -wikipedia`,
+      `"${businessName}" "${city}" restaurant owner operator`,
+    ];
+  } else {
+    // Pass 3 — bare minimal query, exactly what a human would type.
+    // No quotes, no city, no exclusions. This is what found Slow Drip TX's owners.
+    queries = [
+      `${businessName} owner`,
+    ];
+  }
 
   const snippetArrays = await Promise.all(queries.map(q => serpSearch(q)));
   const allSnippets = [...new Set(snippetArrays.flat())].join('\n\n');
@@ -179,7 +187,7 @@ async function findOwnerViaSearch(businessName, city, attempt = 1) {
           role: 'user',
           content: `Extract the owner, founder, or managing partner name(s) of "${businessName}" located in ${city} from these search result snippets.
 
-IMPORTANT — disambiguation: These snippets may contain information about OTHER businesses with similar or identical names in different cities (e.g. a search for "STL Café" might return results about unrelated cafes in St. Louis). Only extract the owner if the snippet clearly refers to the business in ${city}. If a snippet doesn't mention ${city} or doesn't clearly match this specific business, ignore it.
+IMPORTANT — disambiguation: These snippets may contain information about OTHER businesses with similar or identical names in different cities. Only extract the owner if the snippet clearly refers to the business in ${city}, OR if the business name is distinctive enough that there's no realistic ambiguity (e.g. a unique multi-word name). If genuinely uncertain which business is being described, return NOT_FOUND.
 
 The name may appear anywhere in the text, including subtext, captions, or secondary sentences — not just the title or first line. Read everything carefully.
 
@@ -187,7 +195,7 @@ Rules:
 - If ONE owner: return their full name, e.g. "John Smith"
 - If MULTIPLE owners: separate with " and " exactly, e.g. "John Smith and Jane Doe"
 - Never merge multiple names together without "and" between them
-- Must be owner, founder, or managing partner of THIS specific business in ${city} — not an employee, chef, or manager, and not the owner of a same-named business elsewhere
+- Must be owner, founder, or managing partner of THIS specific business — not an employee, chef, or manager
 - Titles like "managing member," "managing partner," "owner/operator," and "founder" all count
 - Full name required — first AND last name. If only a first name appears, return NOT_FOUND
 - If no clear, confidently-matched owner name found, return NOT_FOUND
@@ -230,14 +238,20 @@ async function discoverOne(biz) {
     return { ...biz, owner_name: websiteResult.owner, owner_source: 'website', signal };
   }
 
-  // First pass — city-qualified queries
+  // Pass 1 — city-qualified queries
   let searchOwner = await findOwnerViaSearch(business_name, city, 1);
   let source = 'google_search';
 
-  // Retry pass — only if first pass came up empty, more forceful disambiguation
+  // Pass 2 — forceful exact match retry
   if (!searchOwner) {
     searchOwner = await findOwnerViaSearch(business_name, city, 2);
     source = 'google_search_retry';
+  }
+
+  // Pass 3 — bare minimal query, exactly like a human would type it
+  if (!searchOwner) {
+    searchOwner = await findOwnerViaSearch(business_name, city, 3);
+    source = 'google_search_bare';
   }
 
   if (searchOwner) {
@@ -262,6 +276,7 @@ export default async function handler(req, res) {
       website:             results.filter(r => r.owner_source === 'website').length,
       google_search:       results.filter(r => r.owner_source === 'google_search').length,
       google_search_retry: results.filter(r => r.owner_source === 'google_search_retry').length,
+      google_search_bare:  results.filter(r => r.owner_source === 'google_search_bare').length,
       not_found:           results.filter(r => r.owner_source === 'not_found').length,
     };
 
