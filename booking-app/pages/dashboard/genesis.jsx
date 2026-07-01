@@ -112,7 +112,7 @@ function MapViz({ state, city }) {
       </div>
       {state==="idle"&&(
         <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"0 28px 28px",background:"linear-gradient(to top,rgba(13,27,46,0.95),transparent)"}}>
-          <h2 style={{color:T.white,fontSize:26,fontWeight:700,margin:"0 0 10px",lineHeight:1.2}}>Ready to scan your market</h2>
+          <h2 style={{color:T.white,fontSize:26,fontWeight:700,margin:"0 0 10px",lineHeight:1.2}}>Find emerging Concepts before they are a franchise</h2>
           <p style={{color:"rgba(255,255,255,0.6)",fontSize:13,margin:"0 0 12px",maxWidth:340,lineHeight:1.5}}>Launch Genesis to discover franchise-ready businesses, identify operators, and build outreach-ready prospect lists.</p>
           <div style={{color:"rgba(255,255,255,0.35)",fontSize:11}}>Secure. Compliant. Built for franchise growth.</div>
         </div>
