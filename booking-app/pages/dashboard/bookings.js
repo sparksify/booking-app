@@ -800,6 +800,10 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
               setBookings(bs => bs.map(b => b.id === panelBooking.id ? { ...b, cq_sent_at: ts } : b));
               setPanelBooking(b => b ? { ...b, cq_sent_at: ts } : b);
             }}
+            onAssign={(id, assignedEmail) => {
+              setBookings(bs => bs.map(b => b.id === id ? { ...b, assigned_to_email: assignedEmail } : b));
+              setPanelBooking(b => b ? { ...b, assigned_to_email: assignedEmail } : b);
+            }}
           />
         )}
 
@@ -1194,7 +1198,7 @@ function PIc({ name, size = 16 }) {
 const GHL_LOCATION = 'tsIW5P8nYSjx55tuMI43';
 
 // ─── CRM Side Panel ───────────────────────────────────────────────────────────
-function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, confirmation, initialNotes = '', onClose, onStatusChange, onCQSent }) {
+function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, confirmation, initialNotes = '', onClose, onStatusChange, onCQSent, onAssign }) {
   const [notes,         setNotes]         = useState('');
   const [interests,     setInterests]     = useState([]);
   const [selectedIdx,   setSelectedIdx]   = useState(null);
@@ -1239,6 +1243,13 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
   const [fuTemp,       setFuTemp]       = useState(3);
   const [fuSaving,     setFuSaving]     = useState(false);
   const [fuSaved,      setFuSaved]      = useState(false);
+  const [reps,         setReps]         = useState([]);
+  const [assigning,    setAssigning]    = useState(false);
+
+  useEffect(() => {
+    if (isDemo) return;
+    fetch('/api/dashboard/team-members').then(r => r.json()).then(d => setReps(d.reps || [])).catch(() => {});
+  }, [isDemo]);
   const panelRef = useRef(null);
   const notesRef = useRef(null);
   function focusNotes() {
@@ -1439,6 +1450,25 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
     setCqReceivedAt(data.cq_received_at || now);
     setCqRecvSaving(false);
   }
+  async function assignRep(repEmail) {
+    if (!repEmail) return;
+    if (isDemo) { onAssign?.(booking.id, repEmail); return; }
+    setAssigning(true);
+    try {
+      const res = await fetch('/api/dashboard/assign-booking', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingId: booking.id, email: booking.email, slot_start: booking.slot_start,
+          first_name: booking.first_name, last_name: booking.last_name, phone: booking.phone,
+          meet_link: booking.meet_link, investment_level: booking.investment_level, repEmail,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) alert(d.error || 'Could not assign this meeting.');
+      else onAssign?.(booking.id, d.assigned_to_email || repEmail);
+    } catch (e) { alert(e.message); }
+    finally { setAssigning(false); }
+  }
   async function addTag(tag) {
     const clean = tag.trim(); if (!clean || ghlTags.includes(clean)) return;
     setTagSaving(true); setGhlTags(prev => [...prev, clean]); setNewTagInput('');
@@ -1621,7 +1651,28 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                 {(() => { const phone = booking.phone || lead?.phone || ghlContact?.phone || ''; return <Row label="Phone" icon="phone"><a href={`tel:${phone}`} style={phone ? p.link : undefined}>{phone || '—'}</a></Row>; })()}
                 <Row label="Email" icon="mail"><a href={`mailto:${booking.email}`} style={p.link}>{booking.email}</a></Row>
                 <Row label="Scheduled" icon="calendar"><span style={p.val}>{slotLabel}</span></Row>
-                <Row label="Consultant" icon="user"><span style={p.val}>{booking.assigned_to_email || ghlContact?.owner_name || '—'}</span></Row>
+                <Row label="Consultant" icon="user">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={p.val}>
+                      {assigning
+                        ? 'Assigning…'
+                        : (booking.assigned_to_email
+                            ? (booking.assigned_to_email.includes('@') ? booking.assigned_to_email.split('@')[0] : booking.assigned_to_email)
+                            : (ghlContact?.owner_name || 'Unassigned'))}
+                    </span>
+                    {!isDemo && reps.length > 0 && (
+                      <select
+                        value=""
+                        onChange={e => { if (e.target.value) assignRep(e.target.value); }}
+                        disabled={assigning}
+                        style={{ fontSize: 12, padding: '3px 7px', borderRadius: 6, border: '1px solid #E2E8F0', fontFamily: 'inherit', color: '#2563EB', fontWeight: 600, cursor: assigning ? 'default' : 'pointer', background: '#fff' }}
+                      >
+                        <option value="">{booking.assigned_to_email ? 'Reassign…' : 'Assign…'}</option>
+                        {reps.map(r => <option key={r.email} value={r.email}>{r.name || r.email.split('@')[0]}</option>)}
+                      </select>
+                    )}
+                  </div>
+                </Row>
                 {liquidCapital && <Row label="Liquid Cap." icon="dollar"><span style={p.val}>{String(liquidCapital).replace(/_/g, ' ')}</span></Row>}
                 {ownedBusiness && <Row label="Owned Biz" icon="briefcase"><span style={p.val}>{String(ownedBusiness).replace(/_/g, ' ')}</span></Row>}
                 {territory && <Row label="Territory" icon="pin"><span style={p.val}>{territory.primary}{territory.sub && <span style={{ color: '#9CA3AF', fontSize: 11, marginLeft: 6 }}>{territory.sub}</span>}</span></Row>}
