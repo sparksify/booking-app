@@ -1852,6 +1852,14 @@ function TierRouting({ tier, rules, repEmails, members, onChange }) {
 
 function ChipInput({ values, onChange, placeholder }) {
   const [input, setInput] = useState('');
+  // Commit whatever's typed into a chip (dedup). Called on Enter, Add, AND blur
+  // so a value typed but not "entered" still saves when you click Save.
+  const commit = () => {
+    const v = input.trim();
+    if (!v) return;
+    if (!values.includes(v)) onChange([...values, v]);
+    setInput('');
+  };
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
@@ -1863,8 +1871,8 @@ function ChipInput({ values, onChange, placeholder }) {
         ))}
       </div>
       <div style={{ display:'flex', gap:6 }}>
-        <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&input.trim()){onChange([...values,input.trim()]);setInput('');}}} placeholder={placeholder} style={{ flex:1, padding:'7px 10px', fontSize:13, border:'1px solid #E2E8F0', borderRadius:6, fontFamily:'inherit', outline:'none' }} />
-        <button type="button" onClick={()=>{if(input.trim()){onChange([...values,input.trim()]);setInput('');}}} style={{ padding:'7px 14px', background:'#0057FF', color:'#fff', border:'none', borderRadius:6, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Add</button>
+        <input value={input} onChange={e=>setInput(e.target.value)} onBlur={commit} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();commit();}}} placeholder={placeholder} style={{ flex:1, padding:'7px 10px', fontSize:13, border:'1px solid #E2E8F0', borderRadius:6, fontFamily:'inherit', outline:'none' }} />
+        <button type="button" onClick={commit} style={{ padding:'7px 14px', background:'#0057FF', color:'#fff', border:'none', borderRadius:6, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Add</button>
       </div>
     </div>
   );
