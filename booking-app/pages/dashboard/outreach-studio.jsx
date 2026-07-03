@@ -31,6 +31,15 @@ function newVariant(n) {
   };
 }
 
+function Field({ label, children }) {
+  return (
+    <div>
+      <div style={{fontSize:11,fontWeight:600,color:T.gray500,marginBottom:4}}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
 function VariantEditor({ variant, onChange, onRemove, canRemove }) {
   const set = (patch) => onChange({ ...variant, ...patch });
 
@@ -134,15 +143,34 @@ function VariantEditor({ variant, onChange, onRemove, canRemove }) {
   );
 }
 
-function EmailPreviewCard({ variantResult }) {
+function EmailPreviewCard({ variantResult, isSelected, onSelect }) {
   const isTemplate = variantResult.mode === "custom_template";
   return (
-    <div style={{background:T.white,border:"1px solid "+T.gray200,borderRadius:14,overflow:"hidden",marginBottom:14}}>
-      <div style={{padding:"12px 16px",background:T.gray50,borderBottom:"1px solid "+T.gray200,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <span style={{fontSize:13,fontWeight:700,color:T.gray900}}>{variantResult.variant_label}</span>
-        <span style={{fontSize:10,fontWeight:600,color:isTemplate?T.purple:T.blue,background:isTemplate?T.purpleLight:"rgba(0,87,255,0.08)",padding:"2px 9px",borderRadius:20}}>
-          {isTemplate ? "Custom" : "AI · " + (variantResult.style||"")}
-        </span>
+    <div style={{
+      background:T.white,
+      border: isSelected ? "2px solid "+T.green : "1px solid "+T.gray200,
+      borderRadius:14,overflow:"hidden",marginBottom:14,
+      boxShadow: isSelected ? "0 0 0 3px rgba(16,185,129,0.12)" : "none",
+    }}>
+      <div style={{padding:"12px 16px",background:isSelected?T.greenLight:T.gray50,borderBottom:"1px solid "+T.gray200,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:13,fontWeight:700,color:T.gray900}}>{variantResult.variant_label}</span>
+          <span style={{fontSize:10,fontWeight:600,color:isTemplate?T.purple:T.blue,background:isTemplate?T.purpleLight:"rgba(0,87,255,0.08)",padding:"2px 9px",borderRadius:20}}>
+            {isTemplate ? "Custom" : "AI · " + (variantResult.style||"")}
+          </span>
+        </div>
+        <button
+          onClick={onSelect}
+          style={{
+            fontSize:12,fontWeight:700,padding:"6px 14px",borderRadius:8,cursor:"pointer",
+            border: isSelected ? "1.5px solid "+T.green : "1.5px solid "+T.gray300,
+            background: isSelected ? T.green : T.white,
+            color: isSelected ? T.white : T.gray600,
+            display:"flex",alignItems:"center",gap:6,
+          }}
+        >
+          {isSelected ? "Selected ✓" : "Select this one"}
+        </button>
       </div>
       <div style={{padding:16}}>
         <div style={{fontSize:10,fontWeight:700,color:T.gray400,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Email 1</div>
@@ -173,6 +201,7 @@ export default function OutreachStudio() {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedIndex, setSelectedIndex] = useState(null);
 
   const addVariant = () => setVariants(v => [...v, newVariant(v.length + 1)]);
   const updateVariant = (id, updated) => setVariants(v => v.map(x => x.id === id ? updated : x));
@@ -182,6 +211,7 @@ export default function OutreachStudio() {
     setLoading(true);
     setError(null);
     setResults(null);
+    setSelectedIndex(null);
     try {
       const payload = {
         businesses: [{
@@ -214,6 +244,8 @@ export default function OutreachStudio() {
     }
   };
 
+  const selectedVariant = selectedIndex !== null && results ? results[selectedIndex] : null;
+
   return (
     <div style={{display:"flex",height:"100vh",fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,sans-serif",background:T.gray50,position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:9999,overflow:"hidden"}}>
 
@@ -243,22 +275,46 @@ export default function OutreachStudio() {
           <p style={{margin:"3px 0 16px",fontSize:13,color:T.gray400}}>Build and split-test outreach styles before running them on real prospects.</p>
         </div>
 
+        {selectedVariant && (
+          <div style={{margin:"0 24px 16px",background:T.greenLight,border:"1.5px solid rgba(16,185,129,0.35)",borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+            <span style={{color:T.green,fontSize:16}}>✓</span>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:700,color:T.gray900}}>Selected: {selectedVariant.variant_label}</div>
+              <div style={{fontSize:11,color:T.gray500}}>This is the message you'd load into a real pipeline run once outreach is connected.</div>
+            </div>
+            <button onClick={()=>setSelectedIndex(null)} style={{fontSize:12,color:T.gray500,background:"transparent",border:"1px solid "+T.gray300,borderRadius:8,padding:"6px 12px",cursor:"pointer"}}>Clear</button>
+          </div>
+        )}
+
         <div style={{flex:1,padding:"0 24px 24px",overflow:"auto",display:"flex",gap:20}}>
 
           <div style={{width:420,flexShrink:0,display:"flex",flexDirection:"column"}}>
 
             <div style={{background:T.white,border:"1px solid "+T.gray200,borderRadius:14,padding:16,marginBottom:16}}>
-              <div style={{fontSize:12,fontWeight:700,color:T.gray700,marginBottom:10}}>Test business (for preview only)</div>
-              <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                <input value={biz.business_name} onChange={e=>setBiz({...biz,business_name:e.target.value})} placeholder="Business name" style={{border:"1.5px solid "+T.gray200,borderRadius:8,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-                <input value={biz.owner_name} onChange={e=>setBiz({...biz,owner_name:e.target.value})} placeholder="Owner name" style={{border:"1.5px solid "+T.gray200,borderRadius:8,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+              <div style={{fontSize:12,fontWeight:700,color:T.gray700,marginBottom:2}}>Test business</div>
+              <div style={{fontSize:11,color:T.gray400,marginBottom:12}}>Sample data used only to preview how each variant reads. Nothing here is sent anywhere.</div>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <Field label="Business name">
+                  <input value={biz.business_name} onChange={e=>setBiz({...biz,business_name:e.target.value})} placeholder="e.g. Thunder Gym" style={{width:"100%",border:"1.5px solid "+T.gray200,borderRadius:8,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+                </Field>
+                <Field label="Owner name">
+                  <input value={biz.owner_name} onChange={e=>setBiz({...biz,owner_name:e.target.value})} placeholder="e.g. Gus Perez" style={{width:"100%",border:"1.5px solid "+T.gray200,borderRadius:8,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+                </Field>
                 <div style={{display:"flex",gap:8}}>
-                  <input value={biz.city} onChange={e=>setBiz({...biz,city:e.target.value})} placeholder="City" style={{flex:1,border:"1.5px solid "+T.gray200,borderRadius:8,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-                  <input value={biz.category} onChange={e=>setBiz({...biz,category:e.target.value})} placeholder="Category" style={{flex:1,border:"1.5px solid "+T.gray200,borderRadius:8,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+                  <Field label="City">
+                    <input value={biz.city} onChange={e=>setBiz({...biz,city:e.target.value})} placeholder="e.g. Miami, FL" style={{width:"100%",border:"1.5px solid "+T.gray200,borderRadius:8,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+                  </Field>
+                  <Field label="Category / Industry">
+                    <input value={biz.category} onChange={e=>setBiz({...biz,category:e.target.value})} placeholder="e.g. Fitness" style={{width:"100%",border:"1.5px solid "+T.gray200,borderRadius:8,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+                  </Field>
                 </div>
                 <div style={{display:"flex",gap:8}}>
-                  <input value={biz.rating} onChange={e=>setBiz({...biz,rating:e.target.value})} placeholder="Rating" style={{flex:1,border:"1.5px solid "+T.gray200,borderRadius:8,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-                  <input value={biz.review_count} onChange={e=>setBiz({...biz,review_count:e.target.value})} placeholder="Review count" style={{flex:1,border:"1.5px solid "+T.gray200,borderRadius:8,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+                  <Field label="Google rating (out of 5)">
+                    <input value={biz.rating} onChange={e=>setBiz({...biz,rating:e.target.value})} placeholder="e.g. 4.5" style={{width:"100%",border:"1.5px solid "+T.gray200,borderRadius:8,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+                  </Field>
+                  <Field label="Number of Google reviews">
+                    <input value={biz.review_count} onChange={e=>setBiz({...biz,review_count:e.target.value})} placeholder="e.g. 112" style={{width:"100%",border:"1.5px solid "+T.gray200,borderRadius:8,padding:"7px 10px",fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+                  </Field>
                 </div>
               </div>
             </div>
@@ -292,7 +348,7 @@ export default function OutreachStudio() {
 
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:12,fontWeight:700,color:T.gray700,marginBottom:10}}>
-              {results ? results.length + " variant" + (results.length===1?"":"s") + " generated" : "Preview will appear here"}
+              {results ? results.length + " variant" + (results.length===1?"":"s") + " generated — click Select on the one you want" : "Preview will appear here"}
             </div>
             {!results && !loading && (
               <div style={{background:T.white,border:"1px dashed "+T.gray300,borderRadius:14,padding:40,textAlign:"center",color:T.gray400,fontSize:13}}>
@@ -304,7 +360,14 @@ export default function OutreachStudio() {
                 Generating {variants.length} variant{variants.length===1?"":"s"}...
               </div>
             )}
-            {results && results.map((r,i) => <EmailPreviewCard key={i} variantResult={r}/>)}
+            {results && results.map((r,i) => (
+              <EmailPreviewCard
+                key={i}
+                variantResult={r}
+                isSelected={selectedIndex === i}
+                onSelect={() => setSelectedIndex(selectedIndex === i ? null : i)}
+              />
+            ))}
           </div>
 
         </div>
