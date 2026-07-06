@@ -127,9 +127,46 @@ async function findLeadByEmail(supabase, email) {
   return data?.id ?? null;
 }
 
+async function findLeadByPhone(supabase, phone) {
+  // Normalize: strip everything except digits and leading +
+  const normalized = phone.replace(/[^\d+]/g, '');
+  // Try E.164 (+1XXXXXXXXXX) and digits-only (1XXXXXXXXXX and XXXXXXXXXX)
+  const variants = [
+    normalized,
+    normalized.startsWith('+') ? normalized.slice(1) : `+${normalized}`,
+    normalized.replace(/^\+1/, ''),
+  ];
+  for (const v of variants) {
+    const { data } = await supabase
+      .from('leads')
+      .select('id')
+      .eq('phone', v)
+      .maybeSingle();
+    if (data?.id) return data.id;
+  }
+  return null;
+}
+
+// Extract phone number from Granola phone call titles like "Phone call with +19723479713"
+function extractPhoneFromTitle(title) {
+  if (!title) return null;
+  const match = title.match(/(\+?1?\d{10,15})/);
+  return match ? match[1] : null;
+}
+
 async function findGhlContactByEmail(email) {
   const res = await fetch(
     `${GHL_BASE}/contacts/search?email=${encodeURIComponent(email)}&locationId=${process.env.GHL_LOCATION_ID}`,
+    { headers: { Authorization: `Bearer ${process.env.GHL_API_KEY}`, Version: GHL_VERSION } }
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data?.contacts?.[0]?.id ?? null;
+}
+
+async function findGhlContactByPhone(phone) {
+  const res = await fetch(
+    `${GHL_BASE}/contacts/search?phone=${encodeURIComponent(phone)}&locationId=${process.env.GHL_LOCATION_ID}`,
     { headers: { Authorization: `Bearer ${process.env.GHL_API_KEY}`, Version: GHL_VERSION } }
   );
   if (!res.ok) return null;
@@ -318,8 +355,9 @@ export default async function handler(req, res) {
         emailSet.delete(note.owner.email.toLowerCase());
         const prospectEmails = [...emailSet];
 
-        // Match to lead / GHL contact
+        // Match to lead / GHL contact — try email first, then phone from title
         let leadId = null, ghlContactId = null;
+
         for (const email of prospectEmails) {
           leadId = await findLeadByEmail(supabase, email);
           if (leadId) break;
@@ -327,6 +365,15 @@ export default async function handler(req, res) {
         for (const email of prospectEmails) {
           ghlContactId = await findGhlContactByEmail(email);
           if (ghlContactId) break;
+        }
+
+        // Fallback: match by phone number extracted from title
+        if (!leadId || !ghlContactId) {
+          const phone = extractPhoneFromTitle(note.title);
+          if (phone) {
+            if (!leadId)      leadId      = await findLeadByPhone(supabase, phone);
+            if (!ghlContactId) ghlContactId = await findGhlContactByPhone(phone);
+          }
         }
 
         const extraction = await extractCallData(note, transcriptText);
