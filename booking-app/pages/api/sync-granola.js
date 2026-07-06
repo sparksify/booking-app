@@ -102,23 +102,21 @@ Return this exact JSON structure:
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1024,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
     const data = await res.json();
     if (!res.ok) {
-      console.error('[sync-granola] Anthropic API error:', res.status, JSON.stringify(data));
-      return null;
+      throw new Error(`Anthropic ${res.status}: ${JSON.stringify(data)}`);
     }
     const text = data.content?.[0]?.text ?? '';
-    // Strip markdown code fences if Claude wrapped the JSON
     const cleaned = text.replace(/^```json?\s*/m, '').replace(/\s*```$/m, '').trim();
     return JSON.parse(cleaned);
   } catch (err) {
-    console.error('[sync-granola] Claude extraction failed:', err);
-    return null;
+    // Re-throw so the caller logs it in the errors array
+    throw new Error(`Claude extraction: ${err.message}`);
   }
 }
 
