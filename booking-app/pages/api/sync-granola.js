@@ -243,9 +243,10 @@ async function writeToGhl(ghlContactId, note, extraction) {
 
 // ─── Supabase writes ──────────────────────────────────────────────────────────
 
-async function writeToSupabase(supabase, leadId, note, transcriptText, extraction) {
+async function writeToSupabase(supabase, leadId, ghlContactId, note, transcriptText, extraction) {
   const callLog = {
     lead_id:              leadId,
+    ghl_contact_id:       ghlContactId,
     granola_note_id:      note.id,
     granola_note_url:     note.web_url,
     note_title:           note.title,
@@ -390,7 +391,7 @@ export default async function handler(req, res) {
 
         const extraction = await extractCallData(note, transcriptText);
 
-        await writeToSupabase(supabase, leadId, note, transcriptText, extraction);
+        await writeToSupabase(supabase, leadId, ghlContactId, note, transcriptText, extraction);
 
         if (ghlContactId && extraction) {
           await writeToGhl(ghlContactId, note, extraction);
