@@ -253,7 +253,9 @@ async function getLastSyncAt(supabase) {
     .select('value')
     .eq('key', 'granola_last_sync_at')
     .single();
-  return data?.value ?? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const raw = data?.value ?? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  // Normalize — Postgres TEXT may use space separator instead of T
+  return new Date(raw).toISOString();
 }
 
 async function setLastSyncAt(supabase, ts) {
