@@ -8,6 +8,7 @@ import { guardDashboardPage } from '@/lib/pageAccess';
 import { visibleNav } from '@/lib/nav';
 import BrandLogo from '@/components/BrandLogo';
 import SidebarUser from '@/components/SidebarUser';
+import CallIntel from '@/components/CallIntel';
 
 export async function getServerSideProps(context) {
   const gate = await guardDashboardPage(context, '/dashboard/prospects');
@@ -655,6 +656,7 @@ export default function ProspectsPage({ perms = {}, platformLogo = null, navOrde
             index={queueIndex}
             total={queueLeads.length}
             bucketConfig={BUCKETS[BUCKET_MAP[currentLead.bucket]] || BUCKETS[currentLead.bucket]}
+            isDemo={demoMode}
             onDisposition={(disp, note) => onDisposition(currentLead.id, disp, note)}
             onSkip={() => onSkip(currentLead.id)}
             onBack={() => { setQueueMode(false); setQueueIndex(0); }}
@@ -1460,7 +1462,7 @@ function OutcomeChart({ advisors }) {
 
 // ─── Queue Card ───────────────────────────────────────────────────────────────
 
-function QueueCard({ lead, index, total, bucketConfig, onDisposition, onSkip, onBack }) {
+function QueueCard({ lead, index, total, bucketConfig, isDemo, onDisposition, onSkip, onBack }) {
   const [copiedPhone,   setCopiedPhone]   = useState(false);
   const [copiedEmail,   setCopiedEmail]   = useState(false);
   const [ghlSignals,    setGhlSignals]    = useState(null);
@@ -1562,6 +1564,9 @@ function QueueCard({ lead, index, total, bucketConfig, onDisposition, onSkip, on
             </div>
           </div>
         </div>
+
+        {/* Call Intelligence (Granola) */}
+        <CallIntel ghlContactId={lead.ghl_contact_id} leadId={lead.id} email={lead.email} isDemo={isDemo} />
 
         {/* Why this lead + GHL signals */}
         <div style={{ display: 'grid', gridTemplateColumns: (ghlLoading || ghlSignals?.signals?.length) ? '1fr 1fr' : '1fr', gap: 16, marginBottom: 20 }}>
