@@ -128,23 +128,28 @@ async function findLeadByEmail(supabase, email) {
 }
 
 async function findLeadByPhone(supabase, phone) {
-  // Normalize: strip everything except digits and leading +
-  const normalized = phone.replace(/[^\d+]/g, '');
-  // Try E.164 (+1XXXXXXXXXX) and digits-only (1XXXXXXXXXX and XXXXXXXXXX)
+  const digits  = phone.replace(/\D/g, '');
+  const last10  = digits.slice(-10);
+  if (last10.length < 7) return null;
+
+  // Build all common format variants for the query
   const variants = [
-    normalized,
-    normalized.startsWith('+') ? normalized.slice(1) : `+${normalized}`,
-    normalized.replace(/^\+1/, ''),
+    phone,
+    digits,
+    last10,
+    `+1${last10}`,
+    `1${last10}`,
+    `(${last10.slice(0,3)}) ${last10.slice(3,6)}-${last10.slice(6)}`,
+    `${last10.slice(0,3)}-${last10.slice(3,6)}-${last10.slice(6)}`,
+    `${last10.slice(0,3)}.${last10.slice(3,6)}.${last10.slice(6)}`,
   ];
-  for (const v of variants) {
-    const { data } = await supabase
-      .from('leads')
-      .select('id')
-      .eq('phone', v)
-      .maybeSingle();
-    if (data?.id) return data.id;
-  }
-  return null;
+
+  const { data } = await supabase
+    .from('leads')
+    .select('id')
+    .in('phone', variants)
+    .limit(1);
+  return data?.[0]?.id ?? null;
 }
 
 // Extract phone number from Granola phone call titles like "Phone call with +19723479713"
@@ -156,7 +161,7 @@ function extractPhoneFromTitle(title) {
 
 async function findGhlContactByEmail(email) {
   const res = await fetch(
-    `${GHL_BASE}/contacts/search?email=${encodeURIComponent(email)}&locationId=${process.env.GHL_LOCATION_ID}`,
+    `${GHL_BASE}/contacts/?locationId=${process.env.GHL_LOCATION_ID}&query=${encodeURIComponent(email)}`,
     { headers: { Authorization: `Bearer ${process.env.GHL_API_KEY}`, Version: GHL_VERSION } }
   );
   if (!res.ok) return null;
@@ -165,8 +170,11 @@ async function findGhlContactByEmail(email) {
 }
 
 async function findGhlContactByPhone(phone) {
+  // Normalize to E.164 for the query
+  const digits = phone.replace(/\D/g, '');
+  const e164   = `+${digits.length === 10 ? '1' + digits : digits}`;
   const res = await fetch(
-    `${GHL_BASE}/contacts/search?phone=${encodeURIComponent(phone)}&locationId=${process.env.GHL_LOCATION_ID}`,
+    `${GHL_BASE}/contacts/?locationId=${process.env.GHL_LOCATION_ID}&query=${encodeURIComponent(e164)}`,
     { headers: { Authorization: `Bearer ${process.env.GHL_API_KEY}`, Version: GHL_VERSION } }
   );
   if (!res.ok) return null;
