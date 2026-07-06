@@ -4,6 +4,13 @@
     "pages/api/pipeline/enrich.js": { "maxDuration": 300 },
     "pages/api/pipeline/outreach.js": { "maxDuration": 300 },
     "pages/api/pipeline/runs.js": { "maxDuration": 300 },
-    "pages/api/webhooks/pipeline-reply.js": { "maxDuration": 300 }
-  }
+    "pages/api/webhooks/pipeline-reply.js": { "maxDuration": 300 },
+    "pages/api/sync-granola.js": { "maxDuration": 60 }
+  },
+  "crons": [
+    {
+      "path": "/api/sync-granola",
+      "schedule": "*/2 * * * *"
+    }
+  ]
 }
