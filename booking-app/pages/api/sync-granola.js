@@ -108,8 +108,14 @@ Return this exact JSON structure:
       }),
     });
     const data = await res.json();
+    if (!res.ok) {
+      console.error('[sync-granola] Anthropic API error:', res.status, JSON.stringify(data));
+      return null;
+    }
     const text = data.content?.[0]?.text ?? '';
-    return JSON.parse(text);
+    // Strip markdown code fences if Claude wrapped the JSON
+    const cleaned = text.replace(/^```json?\s*/m, '').replace(/\s*```$/m, '').trim();
+    return JSON.parse(cleaned);
   } catch (err) {
     console.error('[sync-granola] Claude extraction failed:', err);
     return null;
