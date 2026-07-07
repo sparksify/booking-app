@@ -190,6 +190,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
   const [panelOpen,    setPanelOpen]    = useState(false);
   const [repAvatars,   setRepAvatars]   = useState({});
   const [transferOpen, setTransferOpen] = useState(false);
+  const [addOpen,      setAddOpen]      = useState(false);
   const [isAdmin,      setIsAdmin]      = useState(true);   // "can view all reps"
   const [canTransfer,  setCanTransfer]  = useState(true);
   const [activeReps,   setActiveReps]   = useState(null);  // null until loaded
@@ -326,6 +327,20 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
   }, [filter]);
 
   useEffect(() => { load(); }, [load]);
+
+  // After a manual call is added, jump to the filter window that contains its
+  // date so the new row is visible, then refresh.
+  const refreshAfterAdd = useCallback((dateStr) => {
+    const today = new Date().toLocaleDateString('en-CA');
+    let target = 'all';
+    if (dateStr === today) {
+      target = 'today';
+    } else {
+      const diffDays = Math.round((new Date(`${dateStr}T12:00:00`) - new Date(`${today}T12:00:00`)) / 86400000);
+      if (diffDays > 0 && diffDays <= 14) target = 'week';
+    }
+    if (target === filter) load(); else setFilter(target);
+  }, [filter, load]);
 
   // Active team members (paused reps are excluded from the rep filter chips)
   useEffect(() => {
@@ -509,7 +524,8 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
               <button style={s.topBtn}>≡ Filters</button>
               {canTransfer && <button onClick={() => setTransferOpen(true)} style={s.topBtn}>⇄ Transfer</button>}
               <button onClick={load} style={s.topBtn}>↻ Refresh</button>
-              <button onClick={downloadCSV} style={s.topBtnPrimary}>+ Export ▾</button>
+              <button onClick={() => setAddOpen(true)} style={s.topBtnPrimary}>+ Add Call</button>
+              <button onClick={downloadCSV} style={s.topBtn}>Export ▾</button>
             </div>
           </div>
 
@@ -809,6 +825,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
         )}
 
         {transferOpen && <TransferModal onClose={() => setTransferOpen(false)} onDone={load} />}
+        {addOpen && <AddCallModal onClose={() => setAddOpen(false)} onCreated={refreshAfterAdd} defaultRepEmail={session?.user?.email || null} />}
       </div>
     </>
   );
@@ -1008,6 +1025,199 @@ const t = {
   footer:    { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '14px 22px', borderTop: '1px solid #EEF0F3' },
   btnGhost:  { padding: '10px 16px', fontSize: 13, fontWeight: 600, color: '#475569', background: '#fff', border: '1px solid #D7DCE3', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit' },
   btnPrimary:{ padding: '10px 18px', fontSize: 13, fontWeight: 700, color: '#fff', background: '#2563EB', border: 'none', borderRadius: 10, fontFamily: 'inherit' },
+};
+
+// ─── Add Call (manual quick-add) ──────────────────────────────────────────────
+function AddCallModal({ onClose, onCreated, defaultRepEmail }) {
+  const [query,     setQuery]     = useState('');
+  const [results,   setResults]   = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [selected,  setSelected]  = useState(null);   // GHL contact id when picked from search
+  const [firstName, setFirstName] = useState('');
+  const [lastName,  setLastName]  = useState('');
+  const [email,     setEmail]     = useState('');
+  const [phone,     setPhone]     = useState('');
+  const [date,      setDate]      = useState(() => new Date().toLocaleDateString('en-CA'));
+  const [time,      setTime]      = useState(() => {
+    const d = new Date(); d.setSeconds(0, 0);
+    const mm = d.getMinutes();
+    d.setMinutes(mm === 0 ? 0 : mm <= 30 ? 30 : 60);
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  });
+  const [notes,  setNotes]  = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error,  setError]  = useState('');
+
+  // Debounced GHL contact search (reuses the mobile contacts proxy)
+  useEffect(() => {
+    if (selected) return;                       // a contact is already chosen
+    const q = query.trim();
+    if (q.length < 2) { setResults([]); return; }
+    let cancelled = false;
+    setSearching(true);
+    const h = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/mobile/contacts?q=${encodeURIComponent(q)}&limit=8`);
+        const d = await r.json();
+        if (!cancelled) setResults(d.contacts || []);
+      } catch {
+        if (!cancelled) setResults([]);
+      } finally {
+        if (!cancelled) setSearching(false);
+      }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(h); };
+  }, [query, selected]);
+
+  function pick(c) {
+    const nameParts = (c.name || '').split(' ');
+    setSelected(c.id || null);
+    setFirstName(c.firstName || nameParts[0] || '');
+    setLastName(c.lastName || nameParts.slice(1).join(' ') || '');
+    setEmail(c.email || '');
+    setPhone(c.phone || '');
+    setResults([]);
+    setQuery(c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim());
+  }
+
+  function clearSelected() {
+    setSelected(null); setQuery('');
+    setFirstName(''); setLastName(''); setEmail(''); setPhone('');
+  }
+
+  const canSave = !!firstName.trim() && (!!email.trim() || !!phone.trim()) && !!date && !!time && !saving;
+
+  async function save() {
+    if (!canSave) {
+      setError(!firstName.trim() ? 'Enter a name'
+        : (!email.trim() && !phone.trim()) ? 'Enter an email or phone number'
+        : 'Pick a date and time');
+      return;
+    }
+    setSaving(true); setError('');
+    const [h, m] = time.split(':').map(Number);
+    try {
+      const r = await fetch('/api/dashboard/create-booking', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          firstName: firstName.trim(),
+          lastName:  lastName.trim(),
+          email:     email.trim(),
+          phone:     phone.trim(),
+          date, h, m,
+          ghl_contact_id:    selected || undefined,
+          assigned_to_email: defaultRepEmail || undefined,
+          notes:             notes.trim() || undefined,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setError(d.error || 'Could not add the call'); setSaving(false); return; }
+      onCreated && onCreated(date);
+      onClose && onClose();
+    } catch (e) {
+      setError(e.message); setSaving(false);
+    }
+  }
+
+  return (
+    <div style={t.overlay} onClick={onClose}>
+      <div style={{ ...t.modal, maxWidth: 480 }} onClick={e => e.stopPropagation()}>
+        <div style={t.header}>
+          <div>
+            <div style={t.title}>Add a Call</div>
+            <div style={t.sub}>Log a call on your dashboard. Search an existing client or enter someone new, then pick a date and time.</div>
+          </div>
+          <button onClick={onClose} style={t.close}>✕</button>
+        </div>
+
+        <div style={t.body}>
+          {/* Client search */}
+          <label style={t.label}>Find client</label>
+          <div style={{ position: 'relative' }}>
+            <input
+              autoFocus
+              value={query}
+              onChange={e => { setQuery(e.target.value); if (selected) setSelected(null); }}
+              placeholder="Search by name, email, or phone…"
+              style={ac.input}
+            />
+            {selected && <button onClick={clearSelected} style={ac.clearBtn} title="Clear">✕</button>}
+            {!selected && query.trim().length >= 2 && (results.length > 0 || searching) && (
+              <div style={ac.results}>
+                {searching && <div style={ac.resultEmpty}>Searching…</div>}
+                {!searching && results.map(c => (
+                  <button key={c.id} onClick={() => pick(c)} style={ac.resultRow}>
+                    <div style={{ fontWeight: 600, color: '#0F172A' }}>{c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown'}</div>
+                    <div style={{ fontSize: 12, color: '#64748B' }}>{[c.email, c.phone].filter(Boolean).join(' · ') || 'No contact info'}</div>
+                  </button>
+                ))}
+                {!searching && results.length === 0 && <div style={ac.resultEmpty}>No matches — enter details below.</div>}
+              </div>
+            )}
+          </div>
+          {selected && <div style={ac.pickedTag}>✓ Linked to existing contact</div>}
+
+          {/* Contact fields */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 14 }}>
+            <div>
+              <label style={t.label}>First name *</label>
+              <input value={firstName} onChange={e => setFirstName(e.target.value)} style={ac.input} placeholder="First" />
+            </div>
+            <div>
+              <label style={t.label}>Last name</label>
+              <input value={lastName} onChange={e => setLastName(e.target.value)} style={ac.input} placeholder="Last" />
+            </div>
+            <div>
+              <label style={t.label}>Email</label>
+              <input value={email} onChange={e => setEmail(e.target.value)} style={ac.input} placeholder="name@email.com" type="email" />
+            </div>
+            <div>
+              <label style={t.label}>Phone</label>
+              <input value={phone} onChange={e => setPhone(e.target.value)} style={ac.input} placeholder="(555) 123-4567" />
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 6 }}>Enter at least an email or a phone number.</div>
+
+          {/* Date + time */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 14 }}>
+            <div>
+              <label style={t.label}>Date *</label>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)} style={ac.input} />
+            </div>
+            <div>
+              <label style={t.label}>Time *</label>
+              <input type="time" value={time} onChange={e => setTime(e.target.value)} style={ac.input} />
+            </div>
+          </div>
+
+          {/* Note */}
+          <div style={{ marginTop: 14 }}>
+            <label style={t.label}>Note (optional)</label>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} style={{ ...ac.input, resize: 'vertical' }} placeholder="e.g. Wants a callback about territory availability" />
+          </div>
+
+          {error && <div style={{ ...t.note, color: '#B91C1C', background: '#FEF2F2', border: '1px solid #FECACA' }}>{error}</div>}
+        </div>
+
+        <div style={t.footer}>
+          <button onClick={onClose} style={t.btnGhost}>Cancel</button>
+          <button onClick={save} disabled={!canSave} style={{ ...t.btnPrimary, opacity: canSave ? 1 : 0.5, cursor: canSave ? 'pointer' : 'default' }}>
+            {saving ? 'Adding…' : 'Add Call'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const ac = {
+  input:       { width: '100%', padding: '10px 12px', fontSize: 14, color: '#0F172A', border: '1px solid #D7DCE3', borderRadius: 10, background: '#fff', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' },
+  clearBtn:    { position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', fontSize: 13 },
+  results:     { position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: '#fff', border: '1px solid #E5E8EC', borderRadius: 10, boxShadow: '0 12px 30px rgba(0,0,0,.12)', zIndex: 10, maxHeight: 240, overflowY: 'auto' },
+  resultRow:   { display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', background: 'none', border: 'none', borderBottom: '1px solid #F1F5F9', cursor: 'pointer', fontFamily: 'inherit' },
+  resultEmpty: { padding: '10px 12px', fontSize: 13, color: '#94A3B8' },
+  pickedTag:   { marginTop: 8, fontSize: 12, fontWeight: 700, color: '#15803D' },
 };
 
 // ─── Table Row ────────────────────────────────────────────────────────────────
