@@ -54,6 +54,7 @@ export default async function handler(req, res) {
       .from('pipeline_prospects')
       .select('*')
       .ilike('email', email.trim())
+      .order('loaded', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(1);
 

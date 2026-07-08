@@ -1,10 +1,66 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { guardDashboardPage } from '@/lib/pageAccess';
 import { visibleNav } from '@/lib/nav';
 import BrandLogo from '@/components/BrandLogo';
 import SidebarUser from '@/components/SidebarUser';
+import { METROS, SCOUT_COST, PER_BUSINESS_COST, EST_CITY_COST } from '@/lib/metros';
+
+// ── Shared pipeline helpers (used by both the single run and the metro sweep) ──
+
+async function callStage(endpoint, body) {
+  const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!r.ok) { const err = await r.json().catch(() => ({ error: r.statusText })); throw new Error(err.error || r.statusText); }
+  return r.json();
+}
+
+// Flatten a completed run into per-prospect rows so replies can be attributed
+// back to city / email source / variant. Mirrors the DataTable status logic.
+function buildProspectRows(results, city, industry) {
+  const enriched = results.enrich?.results || [];
+  const outreach = results.outreach?.results || [];
+  const variantLabels = (results.outreach?.variant_labels || []).join(', ') || null;
+  const outreachMap = {};
+  outreach.forEach(b => { outreachMap[b.email || b.business_name] = b; });
+  return enriched.map(b => {
+    const out = outreachMap[b.email || b.business_name] || {};
+    let status;
+    if (out.outreach_status) status = out.outreach_status;
+    else if (b.hold_reason === 'catch_all') status = 'held_catch_all';
+    else if (b.hold_reason === 'duplicate_owner') status = 'held_duplicate_owner';
+    else if (b.enriched) status = 'enriched_not_loaded';
+    else status = 'no_email';
+    return {
+      business_name: b.business_name, city: b.city || city, industry: b.industry || industry,
+      owner_name: b.email_owner || b.owner_name, email: b.email, domain: b.domain, website: b.website,
+      email_source: b.email_source, verification: b.verification, phone: b.phone,
+      variant_labels: status === 'loaded' ? variantLabels : null,
+      rating: b.rating, review_count: b.review_count,
+      franchise_score: b.franchise_score, ownership_score: b.ownership_score, total_score: b.total_score,
+      ownership_candidate: b.ownership_candidate, signals: b.signals, enriched: b.enriched,
+      outreach_status: status,
+    };
+  });
+}
+
+async function postRun(results, city, industry) {
+  const prospects = buildProspectRows(results, city, industry);
+  const loadedCount = prospects.filter(p => p.outreach_status === 'loaded').length;
+  const ownershipCount = prospects.filter(p => p.ownership_candidate).length;
+  const r = await fetch('/api/pipeline/runs', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      city, industry,
+      found: results.scout?.count ?? 0,
+      enriched_count: results.enrich?.enriched_count ?? 0,
+      enrichment_rate: results.enrich?.hit_rate ?? 0,
+      loaded: loadedCount, ownership_candidates: ownershipCount,
+      prospects,
+    }),
+  });
+  return r.json().catch(() => ({}));
+}
 
 export async function getServerSideProps(context) {
   const gate = await guardDashboardPage(context, '/dashboard/pipeline');
@@ -547,6 +603,216 @@ function RepliesPanel() {
   );
 }
 
+const SWEEP_STATUS = {
+  pending: { label: 'Queued',   color: '#94A3B8', bg: '#F1F5F9' },
+  running: { label: 'Running',  color: '#F59E0B', bg: '#FEF3C7' },
+  done:    { label: 'Done',     color: '#16A34A', bg: '#DCFCE7' },
+  empty:   { label: 'No results', color: '#94A3B8', bg: '#F1F5F9' },
+  skipped: { label: 'Skipped',  color: '#64748B', bg: '#F8FAFC' },
+  error:   { label: 'Error',    color: '#DC2626', bg: '#FEE2E2' },
+};
+
+function MetroSweep() {
+  const [metroId, setMetroId]       = useState(METROS[0].id);
+  const [industry, setIndustry]     = useState(INDUSTRIES[0]);
+  const [budget, setBudget]         = useState(1500);
+  const [running, setRunning]       = useState(false);
+  const [cityStates, setCityStates] = useState([]);
+  const [searchesUsed, setSearches] = useState(0);
+  const [allLoaded, setAllLoaded]   = useState([]);
+  const [stopReason, setStopReason] = useState(null);
+  const stopRef = useRef(false);
+
+  const metro = METROS.find(m => m.id === metroId) || METROS[0];
+
+  function updateCity(i, patch) {
+    setCityStates(prev => prev.map((s, idx) => idx === i ? { ...s, ...patch } : s));
+  }
+
+  async function runSweep() {
+    stopRef.current = false;
+    setRunning(true); setSearches(0); setAllLoaded([]); setStopReason(null);
+    const cities = metro.cities;
+    setCityStates(cities.map(c => ({ city: c, status: 'pending' })));
+    const seenEmails = new Set();
+    const loadedAgg = [];
+    let spent = 0;
+
+    for (let i = 0; i < cities.length; i++) {
+      const city = cities[i];
+      if (stopRef.current) {
+        setCityStates(prev => prev.map((s, idx) => idx >= i && s.status === 'pending' ? { ...s, status: 'skipped' } : s));
+        setStopReason(`Stopped manually after ${i} of ${cities.length} cities.`);
+        break;
+      }
+      if (spent + EST_CITY_COST > budget) {
+        setCityStates(prev => prev.map((s, idx) => idx >= i && s.status === 'pending' ? { ...s, status: 'skipped' } : s));
+        setStopReason(`Budget guard: stopped before ${city}. ~${spent} searches used; a full city (~${EST_CITY_COST}) would exceed the ${budget} budget. ${i} of ${cities.length} cities completed.`);
+        break;
+      }
+      updateCity(i, { status: 'running' });
+      try {
+        const scout = await callStage('/api/pipeline/scout', { city, industry });
+        spent += SCOUT_COST; setSearches(spent);
+        if (!scout.businesses?.length) { updateCity(i, { status: 'empty', found: 0 }); continue; }
+
+        const filter = await callStage('/api/pipeline/filter', { businesses: scout.businesses });
+        if (!filter.businesses?.length) { updateCity(i, { status: 'done', found: scout.count, independent: 0, emails: 0, loaded: 0, skipped_dupe: 0 }); continue; }
+
+        const discover = await callStage('/api/pipeline/discover', { businesses: filter.businesses });
+        spent += PER_BUSINESS_COST * filter.businesses.length; setSearches(spent);
+
+        const enrich = await callStage('/api/pipeline/enrich', { businesses: discover.businesses });
+        let loadable = (enrich.results || []).filter(b => b.enriched && b.loadable && b.email);
+
+        let skippedDupe = 0;
+        if (loadable.length) {
+          const dedup = await callStage('/api/pipeline/dedup-check', { prospects: loadable })
+            .catch(() => ({ duplicate_emails: [], duplicate_owner_keys: [] }));
+          const dupEmails = new Set(dedup.duplicate_emails || []);
+          const dupOwners = new Set(dedup.duplicate_owner_keys || []);
+          const before = loadable.length;
+          loadable = loadable.filter(b => {
+            const email = (b.email || '').trim().toLowerCase();
+            const ownerKey = (b.email_owner || b.owner_name || '').trim().toLowerCase() + '|' + (b.domain || '').trim().toLowerCase();
+            if (!email || dupEmails.has(email) || seenEmails.has(email) || dupOwners.has(ownerKey)) return false;
+            seenEmails.add(email);
+            return true;
+          });
+          skippedDupe = before - loadable.length;
+        }
+
+        let outreach = null;
+        if (loadable.length) outreach = await callStage('/api/pipeline/outreach', { businesses: loadable });
+
+        await postRun({ scout, filter, discover, enrich, outreach }, city, industry).catch(() => {});
+        loadable.forEach(b => loadedAgg.push({ ...b, city }));
+        setAllLoaded([...loadedAgg]);
+        updateCity(i, { status: 'done', found: scout.count, independent: filter.passed, emails: enrich.enriched_count, loaded: loadable.length, skipped_dupe: skippedDupe });
+      } catch (e) {
+        updateCity(i, { status: 'error', error: e.message });
+      }
+    }
+    setRunning(false);
+  }
+
+  const totals = cityStates.reduce((a, s) => ({
+    found: a.found + (s.found || 0),
+    loaded: a.loaded + (s.loaded || 0),
+    dupes: a.dupes + (s.skipped_dupe || 0),
+    done: a.done + (s.status === 'done' ? 1 : 0),
+  }), { found: 0, loaded: 0, dupes: 0, done: 0 });
+
+  function exportSweep() {
+    if (!allLoaded.length) return;
+    const HEADERS = ['City', 'Business', 'Owner', 'Email', 'Verification', 'Phone', 'Rating', 'Reviews', 'Source'];
+    exportCSV(allLoaded, `metro-${metro.id}-${new Date().toISOString().slice(0, 10)}.csv`, HEADERS, b =>
+      [b.city, b.business_name, b.email_owner || b.owner_name, b.email, b.verification, b.phone, b.rating, b.review_count, SOURCE_LABELS[b.email_source] || b.email_source].map(csvVal).join(','));
+  }
+
+  const budgetPct = Math.min(100, Math.round((searchesUsed / (budget || 1)) * 100));
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select value={metroId} onChange={e => setMetroId(e.target.value)} disabled={running} style={{ ...s.select, flex: 'none', minWidth: 240 }}>
+          {METROS.map(m => <option key={m.id} value={m.id}>{m.label} ({m.cities.length} cities)</option>)}
+        </select>
+        <select value={industry} onChange={e => setIndustry(e.target.value)} disabled={running} style={{ ...s.select, flex: 'none', minWidth: 190 }}>
+          {INDUSTRIES.map(i => <option key={i}>{i}</option>)}
+        </select>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <label style={{ fontSize: 12, color: '#64748B', fontWeight: 600 }}>Search budget</label>
+          <input type="number" value={budget} min={EST_CITY_COST} step={100} onChange={e => setBudget(parseInt(e.target.value, 10) || 0)} disabled={running} style={{ ...s.input, flex: 'none', width: 110, minWidth: 0 }} />
+        </div>
+        {!running
+          ? <button onClick={runSweep} style={s.btn}>Run Metro Sweep</button>
+          : <button onClick={() => { stopRef.current = true; }} style={{ ...s.btn, background: '#DC2626' }}>■ Stop after current city</button>}
+      </div>
+
+      <div style={{ fontSize: 12, color: '#64748B', marginBottom: 16, lineHeight: 1.6 }}>
+        Runs each city in <b>{metro.label}</b> sequentially through the full pipeline, deduping owners across cities so no one is loaded twice.
+        Each city is saved to history the moment it finishes — closing this tab keeps completed cities. Est. ~{EST_CITY_COST} searches/city.
+      </div>
+
+      {(running || cityStates.length > 0) && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+          {[
+            { label: 'Cities Done', value: `${totals.done}/${cityStates.length || metro.cities.length}`, color: '#0057FF' },
+            { label: 'Found', value: totals.found, color: '#0891B2' },
+            { label: 'Loaded (deduped)', value: totals.loaded, color: '#16A34A' },
+            { label: 'Dupes Skipped', value: totals.dupes, color: '#7C3AED' },
+          ].map(({ label, value, color }) => (
+            <div key={label} style={s.statCard}>
+              <div style={{ fontSize: 24, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 4 }}>{label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {(running || searchesUsed > 0) && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748B', marginBottom: 4 }}>
+            <span>Estimated searches used</span>
+            <span>~{searchesUsed} / {budget}</span>
+          </div>
+          <div style={{ height: 6, background: '#F1F5F9', borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${budgetPct}%`, background: budgetPct > 85 ? '#DC2626' : '#0057FF', transition: 'width .3s' }} />
+          </div>
+        </div>
+      )}
+
+      {stopReason && (
+        <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 14px', marginBottom: 16, color: '#92400E', fontSize: 13 }}>{stopReason}</div>
+      )}
+
+      {cityStates.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em' }}>City Queue</span>
+          {allLoaded.length > 0 && (
+            <button onClick={exportSweep} style={{ fontSize: 12, fontWeight: 600, color: '#0057FF', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 6, padding: '5px 14px', cursor: 'pointer', fontFamily: 'inherit' }}>
+              ↓ Export {allLoaded.length} loaded
+            </button>
+          )}
+        </div>
+      )}
+
+      {cityStates.length > 0 && (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={ts.table}>
+            <thead>
+              <tr>{['City', 'Status', 'Found', 'Independent', 'Emails', 'Loaded', 'Dupes Skipped'].map(c => <th key={c} style={ts.th}>{c}</th>)}</tr>
+            </thead>
+            <tbody>
+              {cityStates.map((cs2, i) => {
+                const st = SWEEP_STATUS[cs2.status] || SWEEP_STATUS.pending;
+                return (
+                  <tr key={cs2.city} style={{ background: i % 2 ? '#fff' : '#FAFBFD' }}>
+                    <td style={ts.td}><span style={{ fontWeight: 600, color: '#0F172A' }}>{cs2.city}</span></td>
+                    <td style={ts.td}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: st.color, background: st.bg, borderRadius: 10, padding: '2px 9px' }}>
+                        {cs2.status === 'running' && <span style={{ width: 8, height: 8, border: '1.5px solid #FDE68A', borderTopColor: '#F59E0B', borderRadius: '50%', display: 'inline-block', animation: 'spin .8s linear infinite' }} />}
+                        {st.label}
+                      </span>
+                      {cs2.status === 'error' && cs2.error && <span style={{ fontSize: 11, color: '#DC2626', marginLeft: 6 }}>{cs2.error}</span>}
+                    </td>
+                    <td style={ts.td}>{cs2.found != null ? cs2.found : '—'}</td>
+                    <td style={ts.td}>{cs2.independent != null ? cs2.independent : '—'}</td>
+                    <td style={ts.td}>{cs2.emails != null ? cs2.emails : '—'}</td>
+                    <td style={ts.td}>{cs2.loaded != null ? <span style={{ fontWeight: 700, color: '#16A34A' }}>{cs2.loaded}</span> : '—'}</td>
+                    <td style={ts.td}>{cs2.skipped_dupe ? <span style={{ color: '#7C3AED', fontWeight: 600 }}>{cs2.skipped_dupe}</span> : '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PipelinePage({ perms = {}, platformLogo = null, navOrder = null }) {
   const [city, setCity]         = useState('');
   const [industry, setIndustry] = useState(INDUSTRIES[0]);
@@ -561,58 +827,9 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
     setLog(prev => [...prev, new Date().toLocaleTimeString() + ' — ' + msg]);
   }, []);
 
-  async function callStage(endpoint, body) {
-    const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if (!r.ok) { const err = await r.json().catch(() => ({ error: r.statusText })); throw new Error(err.error || r.statusText); }
-    return r.json();
-  }
-
-  // Flatten a completed run into per-prospect rows so replies can be attributed
-  // back to city / email source / variant. Mirrors the DataTable status logic.
-  function buildProspectRows(results) {
-    const enriched = results.enrich?.results || [];
-    const outreach = results.outreach?.results || [];
-    const variantLabels = (results.outreach?.variant_labels || []).join(', ') || null;
-    const outreachMap = {};
-    outreach.forEach(b => { outreachMap[b.email || b.business_name] = b; });
-    return enriched.map(b => {
-      const out = outreachMap[b.email || b.business_name] || {};
-      let status;
-      if (out.outreach_status) status = out.outreach_status;
-      else if (b.hold_reason === 'catch_all') status = 'held_catch_all';
-      else if (b.hold_reason === 'duplicate_owner') status = 'held_duplicate_owner';
-      else if (b.enriched) status = 'enriched_not_loaded';
-      else status = 'no_email';
-      return {
-        business_name: b.business_name, city: b.city || city, industry: b.industry || industry,
-        owner_name: b.email_owner || b.owner_name, email: b.email, domain: b.domain, website: b.website,
-        email_source: b.email_source, verification: b.verification, phone: b.phone,
-        variant_labels: status === 'loaded' ? variantLabels : null,
-        rating: b.rating, review_count: b.review_count,
-        franchise_score: b.franchise_score, ownership_score: b.ownership_score, total_score: b.total_score,
-        ownership_candidate: b.ownership_candidate, signals: b.signals, enriched: b.enriched,
-        outreach_status: status,
-      };
-    });
-  }
-
   async function persistRun(results) {
     try {
-      const prospects = buildProspectRows(results);
-      const loadedCount = prospects.filter(p => p.outreach_status === 'loaded').length;
-      const ownershipCount = prospects.filter(p => p.ownership_candidate).length;
-      const r = await fetch('/api/pipeline/runs', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          city, industry,
-          found: results.scout?.count ?? 0,
-          enriched_count: results.enrich?.enriched_count ?? 0,
-          enrichment_rate: results.enrich?.hit_rate ?? 0,
-          loaded: loadedCount, ownership_candidates: ownershipCount,
-          prospects,
-        }),
-      });
-      const d = await r.json().catch(() => ({}));
+      const d = await postRun(results, city, industry);
       if (d.prospects_saved != null) addLog('Saved ' + d.prospects_saved + ' prospects to history (reply attribution enabled)');
     } catch (e) {
       addLog('Note: run not saved to history — ' + e.message);
@@ -737,14 +954,14 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
 
           <main style={s.main}>
             <div style={{ display: 'inline-flex', background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: 8, padding: 3, marginBottom: 20 }}>
-              {[{ k: 'run', label: 'Pipeline Run' }, { k: 'replies', label: 'Replies' }].map(({ k, label }) => (
+              {[{ k: 'run', label: 'Pipeline Run' }, { k: 'metro', label: 'Metro Sweep' }, { k: 'replies', label: 'Replies' }].map(({ k, label }) => (
                 <button key={k} onClick={() => setView(k)} style={{ fontSize: 13, fontWeight: 600, fontFamily: 'inherit', border: 'none', cursor: 'pointer', borderRadius: 6, padding: '6px 16px', background: view === k ? '#FFFFFF' : 'transparent', color: view === k ? '#0057FF' : '#64748B', boxShadow: view === k ? '0 1px 2px rgba(15,23,42,.08)' : 'none' }}>
                   {label}
                 </button>
               ))}
             </div>
 
-            {view === 'replies' ? <RepliesPanel /> : (
+            {view === 'replies' ? <RepliesPanel /> : view === 'metro' ? <MetroSweep /> : (
             <>
             <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
               <input value={city} onChange={e => setCity(e.target.value)} onKeyDown={e => e.key === 'Enter' && !isRunning && city.trim() && runPipeline()} placeholder="City (e.g. Dallas, TX)" disabled={isRunning} style={s.input} />
