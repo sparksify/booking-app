@@ -4,6 +4,7 @@ import { getLeadData, parseLeadFields, generateToken } from '@/lib/facebookLeads
 import { upsertGHLContact } from '@/lib/ghl';
 import { logLeadEvent } from '@/lib/leadEvents';
 import { normalizeLocation } from '@/lib/normalizeLocation';
+import { runCompanyIntel, isBusinessEmail } from '@/lib/companyIntel';
 
 /**
  * /api/webhooks/facebook
@@ -141,6 +142,18 @@ async function handleWebhook(req, res) {
         }
 
         console.log(`[fb-webhook] lead stored: ${lead.id} token=${lead.token}`);
+
+        // Auto-research the company for business-email leads. Awaited (bounded by
+        // internal fetch timeouts) so it completes within the serverless request
+        // rather than being killed as a floating promise. Never throws.
+        if (parsed.email && isBusinessEmail(parsed.email)) {
+          try {
+            const ci = await runCompanyIntel({ email: parsed.email, leadId: lead.id, supabase });
+            console.log(`[fb-webhook] company intel: ${parsed.email} -> ${ci.status}`);
+          } catch (e) {
+            console.warn('[fb-webhook] company intel failed:', e.message);
+          }
+        }
 
         // Log lead_submitted event
         if (parsed.email) {

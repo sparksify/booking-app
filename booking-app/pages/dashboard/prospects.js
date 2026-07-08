@@ -9,6 +9,7 @@ import { visibleNav } from '@/lib/nav';
 import BrandLogo from '@/components/BrandLogo';
 import SidebarUser from '@/components/SidebarUser';
 import CallIntel from '@/components/CallIntel';
+import CompanyIntel from '@/components/CompanyIntel';
 
 export async function getServerSideProps(context) {
   const gate = await guardDashboardPage(context, '/dashboard/prospects');
@@ -1564,6 +1565,9 @@ function QueueCard({ lead, index, total, bucketConfig, isDemo, onDisposition, on
             </div>
           </div>
         </div>
+
+        {/* Company Intelligence (auto-researched business profile) */}
+        <CompanyIntel email={lead.email} ghlContactId={lead.ghl_contact_id} leadId={lead.id} isDemo={isDemo} />
 
         {/* Call Intelligence (Granola) */}
         <CallIntel ghlContactId={lead.ghl_contact_id} leadId={lead.id} email={lead.email} isDemo={isDemo} />

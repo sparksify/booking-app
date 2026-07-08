@@ -10,6 +10,7 @@ import { repIdentitySet, repInSet } from '@/lib/repName';
 import BrandLogo from '@/components/BrandLogo';
 import SidebarUser from '@/components/SidebarUser';
 import CallIntel from '@/components/CallIntel';
+import CompanyIntel from '@/components/CompanyIntel';
 
 export async function getServerSideProps(context) {
   const { guardDashboardPage } = await import('@/lib/pageAccess');
@@ -1856,6 +1857,9 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                   </div>
                 );
               })()}
+
+              {/* Company Intelligence (auto-researched business profile) */}
+              <CompanyIntel email={booking.email} ghlContactId={booking.ghl_contact_id} leadId={lead?.id} isDemo={isDemo} />
 
               {/* Call Intelligence (Granola) */}
               <CallIntel ghlContactId={booking.ghl_contact_id} leadId={lead?.id} email={booking.email} isDemo={isDemo} />
