@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { guardDashboardPage } from '@/lib/pageAccess';
@@ -424,6 +424,129 @@ const ts = {
   td:    { padding: '10px 12px', borderBottom: '1px solid #F1F5F9', color: '#475569', verticalAlign: 'middle' },
 };
 
+const CLASSIFICATION = {
+  INTERESTED:     { label: 'Interested',      color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' },
+  QUESTION:       { label: 'Question',        color: '#0057FF', bg: '#EFF6FF', border: '#BFDBFE' },
+  NOT_NOW:        { label: 'Not Now',         color: '#F59E0B', bg: '#FEF3C7', border: '#FDE68A' },
+  NOT_INTERESTED: { label: 'Not Interested',  color: '#64748B', bg: '#F1F5F9', border: '#E2E8F0' },
+};
+
+function ReplyCard({ reply, onReviewed }) {
+  const [copied, setCopied] = useState(false);
+  const [marking, setMarking] = useState(false);
+  const c = CLASSIFICATION[reply.classification] || { label: reply.classification || '—', color: '#64748B', bg: '#F1F5F9', border: '#E2E8F0' };
+  const when = reply.replied_at ? new Date(reply.replied_at).toLocaleString() : '';
+  const isOwner = reply.ownership_candidate;
+
+  async function copyDraft() {
+    try { await navigator.clipboard.writeText(reply.drafted_response || ''); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch (e) {}
+  }
+  async function markReviewed() {
+    setMarking(true);
+    try {
+      await fetch('/api/pipeline/runs', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reply_id: reply.id }) });
+      onReviewed(reply.id);
+    } catch (e) { setMarking(false); }
+  }
+
+  return (
+    <div style={{ ...cs.card, borderLeft: `3px solid ${c.color}`, ...(isOwner ? { boxShadow: '0 0 0 1px #FDE68A, 0 1px 3px rgba(15,23,42,.04)' } : {}) }}>
+      <div style={{ padding: '14px 18px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            {isOwner && <span title="Ownership candidate" style={{ fontSize: 13 }}>🏆</span>}
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>{reply.business_name || 'Unknown'}</span>
+            <Badge color={c.color} bg={c.bg} border={c.border}>{c.label}</Badge>
+          </div>
+          <span style={{ fontSize: 11, color: '#94A3B8', whiteSpace: 'nowrap' }}>{when}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+          <span style={{ fontSize: 12, color: '#64748B' }}>{reply.email}</span>
+          {reply.city && <span style={{ fontSize: 11, color: '#94A3B8' }}>· {reply.city}</span>}
+          {reply.email_source && <span style={{ fontSize: 11, color: '#94A3B8' }}>· {SOURCE_LABELS[reply.email_source] || reply.email_source}</span>}
+          {reply.variant_labels && <span style={{ fontSize: 11, color: '#94A3B8' }}>· variant: {reply.variant_labels}</span>}
+        </div>
+        <div style={{ background: '#F8FAFC', border: '1px solid #F1F5F9', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#334155', lineHeight: 1.6, whiteSpace: 'pre-wrap', marginBottom: reply.drafted_response ? 10 : 0 }}>
+          {reply.reply_text}
+        </div>
+        {reply.drafted_response && (
+          <div style={{ border: '1px dashed #BFDBFE', background: '#F8FBFF', borderRadius: 8, padding: '10px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={cs.emailLabel}>AI-Drafted Reply</span>
+              <button onClick={copyDraft} style={{ fontSize: 11, color: '#0057FF', background: 'none', border: '1px solid #BFDBFE', borderRadius: 5, padding: '2px 10px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
+                {copied ? '✓ Copied' : 'Copy'}
+              </button>
+            </div>
+            <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{reply.drafted_response}</div>
+          </div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+          <button onClick={markReviewed} disabled={marking} style={{ fontSize: 12, fontWeight: 600, color: marking ? '#94A3B8' : '#16A34A', background: marking ? '#F1F5F9' : '#DCFCE7', border: '1px solid #BBF7D0', borderRadius: 6, padding: '5px 14px', cursor: marking ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+            {marking ? 'Saving…' : '✓ Mark reviewed'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RepliesPanel() {
+  const [replies, setReplies]   = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [showAll, setShowAll]   = useState(false);
+  const [error, setError]       = useState(null);
+
+  const load = useCallback(async (all) => {
+    setLoading(true); setError(null);
+    try {
+      const r = await fetch('/api/pipeline/runs?type=replies' + (all ? '&all=1' : ''));
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Failed to load');
+      setReplies(d.replies || []);
+    } catch (e) { setError(e.message); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(showAll); }, [load, showAll]);
+
+  function handleReviewed(id) {
+    setReplies(prev => showAll ? prev.map(x => x.id === id ? { ...x, reviewed: true } : x) : prev.filter(x => x.id !== id));
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>Replies from Smartlead</span>
+          <span style={{ fontSize: 11, background: '#EFF6FF', color: '#0057FF', borderRadius: 10, padding: '1px 8px', fontWeight: 700 }}>{replies.filter(x => !x.reviewed).length} to review</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => setShowAll(s => !s)} style={{ fontSize: 12, color: '#0057FF', background: 'none', border: '1px solid #BFDBFE', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
+            {showAll ? 'Show unreviewed only' : 'Show reviewed too'}
+          </button>
+          <button onClick={() => load(showAll)} style={{ fontSize: 12, color: '#64748B', background: 'none', border: '1px solid #E2E8F0', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>↻ Refresh</button>
+        </div>
+      </div>
+
+      {loading && <div style={{ fontSize: 13, color: '#94A3B8', padding: '20px 0' }}>Loading replies…</div>}
+      {error && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '12px 16px', color: '#DC2626', fontSize: 13 }}>{error}</div>}
+
+      {!loading && !error && replies.length === 0 && (
+        <div style={{ ...s.card, textAlign: 'center', padding: '40px 20px' }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginBottom: 6 }}>No replies yet</div>
+          <div style={{ fontSize: 13, color: '#64748B', lineHeight: 1.6, maxWidth: 460, margin: '0 auto' }}>
+            Replies appear here in real time once Smartlead is configured to send reply events to
+            <span style={{ fontFamily: 'monospace', fontSize: 12, background: '#F1F5F9', borderRadius: 4, padding: '1px 6px', margin: '0 4px' }}>/api/webhooks/pipeline-reply</span>.
+            Each reply is auto-classified and gets an AI-drafted response.
+          </div>
+        </div>
+      )}
+
+      {!loading && !error && replies.map(r => <ReplyCard key={r.id} reply={r} onReviewed={handleReviewed} />)}
+    </div>
+  );
+}
+
 export default function PipelinePage({ perms = {}, platformLogo = null, navOrder = null }) {
   const [city, setCity]         = useState('');
   const [industry, setIndustry] = useState(INDUSTRIES[0]);
@@ -432,6 +555,7 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
   const [logOpen, setLogOpen]   = useState(false);
   const [results, setResults]   = useState(null);
   const [error, setError]       = useState(null);
+  const [view, setView]         = useState('run');
 
   const addLog = useCallback((msg) => {
     setLog(prev => [...prev, new Date().toLocaleTimeString() + ' — ' + msg]);
@@ -441,6 +565,58 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
     const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (!r.ok) { const err = await r.json().catch(() => ({ error: r.statusText })); throw new Error(err.error || r.statusText); }
     return r.json();
+  }
+
+  // Flatten a completed run into per-prospect rows so replies can be attributed
+  // back to city / email source / variant. Mirrors the DataTable status logic.
+  function buildProspectRows(results) {
+    const enriched = results.enrich?.results || [];
+    const outreach = results.outreach?.results || [];
+    const variantLabels = (results.outreach?.variant_labels || []).join(', ') || null;
+    const outreachMap = {};
+    outreach.forEach(b => { outreachMap[b.email || b.business_name] = b; });
+    return enriched.map(b => {
+      const out = outreachMap[b.email || b.business_name] || {};
+      let status;
+      if (out.outreach_status) status = out.outreach_status;
+      else if (b.hold_reason === 'catch_all') status = 'held_catch_all';
+      else if (b.hold_reason === 'duplicate_owner') status = 'held_duplicate_owner';
+      else if (b.enriched) status = 'enriched_not_loaded';
+      else status = 'no_email';
+      return {
+        business_name: b.business_name, city: b.city || city, industry: b.industry || industry,
+        owner_name: b.email_owner || b.owner_name, email: b.email, domain: b.domain, website: b.website,
+        email_source: b.email_source, verification: b.verification, phone: b.phone,
+        variant_labels: status === 'loaded' ? variantLabels : null,
+        rating: b.rating, review_count: b.review_count,
+        franchise_score: b.franchise_score, ownership_score: b.ownership_score, total_score: b.total_score,
+        ownership_candidate: b.ownership_candidate, signals: b.signals, enriched: b.enriched,
+        outreach_status: status,
+      };
+    });
+  }
+
+  async function persistRun(results) {
+    try {
+      const prospects = buildProspectRows(results);
+      const loadedCount = prospects.filter(p => p.outreach_status === 'loaded').length;
+      const ownershipCount = prospects.filter(p => p.ownership_candidate).length;
+      const r = await fetch('/api/pipeline/runs', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          city, industry,
+          found: results.scout?.count ?? 0,
+          enriched_count: results.enrich?.enriched_count ?? 0,
+          enrichment_rate: results.enrich?.hit_rate ?? 0,
+          loaded: loadedCount, ownership_candidates: ownershipCount,
+          prospects,
+        }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (d.prospects_saved != null) addLog('Saved ' + d.prospects_saved + ' prospects to history (reply attribution enabled)');
+    } catch (e) {
+      addLog('Note: run not saved to history — ' + e.message);
+    }
   }
 
   async function runPipeline() {
@@ -488,7 +664,9 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
       if (!loadable.length) {
         addLog('Nothing deliverable to load — pipeline complete (see held/not-found buckets below)');
         setStage('done');
-        setResults({ scout: scoutData, filter: filterData, discover: discoverData, enrich: enrichData, outreach: null });
+        const noLoadResults = { scout: scoutData, filter: filterData, discover: discoverData, enrich: enrichData, outreach: null };
+        setResults(noLoadResults);
+        await persistRun(noLoadResults);
         return;
       }
 
@@ -499,7 +677,9 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
 
       setStage('done');
       addLog('Pipeline complete ✓');
-      setResults({ scout: scoutData, filter: filterData, discover: discoverData, enrich: enrichData, outreach: outreachData });
+      const finalResults = { scout: scoutData, filter: filterData, discover: discoverData, enrich: enrichData, outreach: outreachData };
+      setResults(finalResults);
+      await persistRun(finalResults);
 
     } catch (err) {
       const msg = err?.message || (typeof err === 'string' ? err : JSON.stringify(err)) || 'Unknown error';
@@ -556,6 +736,16 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
           </div>
 
           <main style={s.main}>
+            <div style={{ display: 'inline-flex', background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: 8, padding: 3, marginBottom: 20 }}>
+              {[{ k: 'run', label: 'Pipeline Run' }, { k: 'replies', label: 'Replies' }].map(({ k, label }) => (
+                <button key={k} onClick={() => setView(k)} style={{ fontSize: 13, fontWeight: 600, fontFamily: 'inherit', border: 'none', cursor: 'pointer', borderRadius: 6, padding: '6px 16px', background: view === k ? '#FFFFFF' : 'transparent', color: view === k ? '#0057FF' : '#64748B', boxShadow: view === k ? '0 1px 2px rgba(15,23,42,.08)' : 'none' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {view === 'replies' ? <RepliesPanel /> : (
+            <>
             <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
               <input value={city} onChange={e => setCity(e.target.value)} onKeyDown={e => e.key === 'Enter' && !isRunning && city.trim() && runPipeline()} placeholder="City (e.g. Dallas, TX)" disabled={isRunning} style={s.input} />
               <select value={industry} onChange={e => setIndustry(e.target.value)} disabled={isRunning} style={s.select}>
@@ -605,6 +795,8 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
             )}
 
             {results && <DataTable allResults={results} />}
+            </>
+            )}
           </main>
         </div>
       </div>

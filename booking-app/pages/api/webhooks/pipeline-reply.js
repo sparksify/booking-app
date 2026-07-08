@@ -53,7 +53,8 @@ export default async function handler(req, res) {
     const { data: prospects } = await supabase
       .from('pipeline_prospects')
       .select('*')
-      .eq('email', email)
+      .ilike('email', email.trim())
+      .order('created_at', { ascending: false })
       .limit(1);
 
     const prospect = prospects?.[0];
@@ -73,6 +74,9 @@ export default async function handler(req, res) {
       classification: classification.classification,
       ownership_candidate: prospect?.ownership_candidate || false,
       drafted_response: classification.drafted_response,
+      city: prospect?.city || null,
+      variant_labels: prospect?.variant_labels || null,
+      email_source: prospect?.email_source || null,
       raw_payload: payload,
       reviewed: false,
     });
