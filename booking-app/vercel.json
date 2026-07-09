@@ -4,6 +4,8 @@
     "pages/api/pipeline/enrich.js": { "maxDuration": 300 },
     "pages/api/pipeline/outreach.js": { "maxDuration": 300 },
     "pages/api/pipeline/runs.js": { "maxDuration": 300 },
+    "pages/api/pipeline/engine-tick.js": { "maxDuration": 300 },
+    "pages/api/pipeline/dispatch-tick.js": { "maxDuration": 300 },
     "pages/api/webhooks/pipeline-reply.js": { "maxDuration": 300 },
     "pages/api/sync-granola.js": { "maxDuration": 60 }
   },
@@ -11,6 +13,14 @@
     {
       "path": "/api/sync-granola",
       "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/pipeline/engine-tick",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/pipeline/dispatch-tick",
+      "schedule": "*/30 * * * *"
     }
   ]
 }
