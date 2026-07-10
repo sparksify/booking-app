@@ -58,6 +58,11 @@ CRITICAL RULES — never violate these:
 
 function buildSignalMenu(biz) {
   const signals = [];
+  // Media mentions / accolades (e.g. from the listicle lane) are the strongest
+  // hook — surface them first so the writer leads with them, not the rating.
+  if (Array.isArray(biz.signals)) {
+    for (const s of biz.signals) if (s && typeof s === 'string') signals.push(`media mention / accolade: ${s}`);
+  }
   if (biz.rating && biz.review_count) signals.push(`rating: ${biz.rating} stars across ${biz.review_count} reviews`);
   if (biz.description) signals.push(`business description: "${biz.description}"`);
   if (biz.category) signals.push(`category/niche: ${biz.category}`);

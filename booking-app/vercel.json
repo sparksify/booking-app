@@ -6,6 +6,8 @@
     "pages/api/pipeline/runs.js": { "maxDuration": 300 },
     "pages/api/pipeline/engine-tick.js": { "maxDuration": 300 },
     "pages/api/pipeline/dispatch-tick.js": { "maxDuration": 300 },
+    "pages/api/pipeline/discover-listicles.js": { "maxDuration": 300 },
+    "pages/api/pipeline/listicle-tick.js": { "maxDuration": 300 },
     "pages/api/webhooks/pipeline-reply.js": { "maxDuration": 300 },
     "pages/api/sync-granola.js": { "maxDuration": 60 }
   },
@@ -21,6 +23,10 @@
     {
       "path": "/api/pipeline/dispatch-tick",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/pipeline/listicle-tick",
+      "schedule": "0 */3 * * *"
     }
   ]
 }
