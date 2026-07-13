@@ -11,6 +11,8 @@
  *                     (generate in Business Manager → System Users)
  */
 
+import { createHash } from 'crypto';
+
 const PIXEL_ID   = process.env.FB_PIXEL_ID   || process.env.NEXT_PUBLIC_FB_PIXEL_ID || '';
 const CAPI_TOKEN = process.env.FB_CAPI_TOKEN || '';
 const API_VERSION = 'v19.0';
@@ -81,8 +83,9 @@ export function buildCapiEvent(eventName, { email, phone, sourceUrl, customData 
 
 // ─── SHA-256 hashing (required by CAPI for PII) ───────────────────────────────
 
-async function hashSha256(str) {
-  // Node.js crypto (server-side only)
-  const { createHash } = await import('crypto');
+function hashSha256(str) {
+  // Node.js crypto (server-side only). Synchronous so buildCapiEvent can assign
+  // the hash directly — an async version returned a Promise that serialized to
+  // {} in the request body, sending Meta no usable email/phone for matching.
   return createHash('sha256').update(str).digest('hex');
 }

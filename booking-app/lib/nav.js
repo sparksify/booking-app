@@ -10,6 +10,7 @@ export const NAV_ITEMS = [
   { href: '/dashboard/bookings',    label: 'Meetings',       icon: 'meetings',  perm: 'page_meetings' },
   { href: '/dashboard/pipeline',    label: 'Genesis Agent', icon: 'pipeline',  perm: 'page_pipeline' },
   { href: '/dashboard/cq-recovery', label: 'CQ Recovery',   icon: 'cq',        perm: 'page_cq' },
+  { href: '/dashboard/ads',         label: 'Ads',            icon: 'ads',       perm: 'page_ads' },
   { href: '/dashboard/nurture',     label: 'Nurture',        icon: 'nurture',   perm: 'page_nurture' },
   { href: '/dashboard/settings',    label: 'Settings',       icon: 'settings',  perm: 'page_settings' },
 ];
