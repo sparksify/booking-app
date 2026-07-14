@@ -43,6 +43,18 @@ export default function AdStudio({ perms = {}, platformLogo = null, navOrder = n
   // Docs
   const [docs, setDocs] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadNote, setUploadNote] = useState('');
+  const [openSummary, setOpenSummary] = useState(null);
+
+  async function resummarize(id) {
+    const r = await fetch('/api/ad-studio/docs', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'summarize', id }),
+    });
+    const d = await r.json();
+    if (d.error) alert(d.error);
+    loadDocs();
+  }
 
   // Library
   const [libraryAds, setLibraryAds] = useState([]);
@@ -67,20 +79,29 @@ export default function AdStudio({ perms = {}, platformLogo = null, navOrder = n
   function loadDocs() { fetch('/api/ad-studio/docs').then(r => r.json()).then(d => setDocs(d.docs || [])); }
   function loadLibrary() { fetch('/api/ad-studio/library').then(r => r.json()).then(d => setLibraryAds(d.ads || [])); }
 
-  async function uploadFiles(files) {
+  // Uploads run one-by-one; each PDF is text-extracted and AI-summarized into
+  // stored brand knowledge. autoSelect wires new docs straight into the brief.
+  async function uploadFiles(files, { autoSelect = false } = {}) {
     setUploading(true);
+    setUploadNote(`Uploading & summarizing ${files.length} document${files.length > 1 ? 's' : ''}… (this reads each doc with AI, ~15s per file)`);
+    const newIds = [];
     for (const file of files) {
       const b64 = await new Promise((resolve) => {
         const rd = new FileReader();
         rd.onload = () => resolve(rd.result.split(',')[1]);
         rd.readAsDataURL(file);
       });
-      await fetch('/api/ad-studio/docs', {
+      const r = await fetch('/api/ad-studio/docs', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: file.name, mimeType: file.type || 'text/plain', contentBase64: b64 }),
+        body: JSON.stringify({ filename: file.name, mimeType: file.type || 'application/octet-stream', contentBase64: b64, brand: form.brand || null }),
       });
+      const d = await r.json();
+      if (d.error) { setUploadNote(`⚠️ ${file.name}: ${d.error}`); setUploading(false); loadDocs(); return; }
+      if (d.doc?.id) newIds.push(d.doc.id);
     }
     setUploading(false);
+    setUploadNote(`✓ ${newIds.length} document${newIds.length > 1 ? 's' : ''} saved to brand knowledge`);
+    if (autoSelect) setSelDocs(sd => [...new Set([...sd, ...newIds])]);
     loadDocs();
   }
 
@@ -222,6 +243,29 @@ export default function AdStudio({ perms = {}, platformLogo = null, navOrder = n
                     })}
                   </div>
 
+                  <div style={s.secLabel}>Reference documents</div>
+                  <div style={s.uploadZone}>
+                    <label style={{ ...s.smallBtn, cursor: uploading ? 'wait' : 'pointer', display: 'inline-block' }}>
+                      {uploading ? 'Processing…' : '＋ Upload PDFs / docs'}
+                      <input type="file" multiple accept=".pdf,.txt,.md,.csv,application/pdf,text/plain,text/markdown" style={{ display: 'none' }} disabled={uploading}
+                        onChange={e => { if (e.target.files?.length) uploadFiles([...e.target.files], { autoSelect: true }); e.target.value = ''; }} />
+                    </label>
+                    <span style={{ fontSize: 11.5, color: '#64748B' }}>
+                      Each doc is read, AI-summarized, and saved to this brand&apos;s knowledge base for future campaigns. Selected docs feed this generation:
+                    </span>
+                    {uploadNote && <div style={{ fontSize: 12, color: uploadNote.startsWith('⚠️') ? '#EF4444' : '#059669', width: '100%' }}>{uploadNote}</div>}
+                    <div style={{ width: '100%' }}>
+                      {docs.map(d => (
+                        <span key={d.id} onClick={() => toggle(selDocs, setSelDocs, d.id)} title={d.brand ? `Brand: ${d.brand}` : ''}
+                          style={{ ...s.chip, background: selDocs.includes(d.id) ? '#EFF6FF' : '#F1F5F9', borderColor: selDocs.includes(d.id) ? '#0057FF' : '#E2E8F0', color: selDocs.includes(d.id) ? '#0057FF' : '#475569' }}>
+                          {selDocs.includes(d.id) ? '✓ ' : ''}{d.filename}
+                          {d.summary_status === 'ready' && ' 🧠'}
+                        </span>
+                      ))}
+                      {!docs.length && <span style={{ fontSize: 11.5, color: '#94A3B8' }}>No documents yet.</span>}
+                    </div>
+                  </div>
+
                   <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginTop: 14, flexWrap: 'wrap' }}>
                     <label style={{ fontSize: 12, color: '#475569', fontWeight: 600 }}>
                       Variants per style{' '}
@@ -229,17 +273,6 @@ export default function AdStudio({ perms = {}, platformLogo = null, navOrder = n
                         {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
                       </select>
                     </label>
-                    {docs.length > 0 && (
-                      <div style={{ fontSize: 12, color: '#475569' }}>
-                        <b>Reference docs:</b>{' '}
-                        {docs.map(d => (
-                          <span key={d.id} onClick={() => toggle(selDocs, setSelDocs, d.id)}
-                            style={{ ...s.chip, background: selDocs.includes(d.id) ? '#EFF6FF' : '#F1F5F9', borderColor: selDocs.includes(d.id) ? '#0057FF' : '#E2E8F0', color: selDocs.includes(d.id) ? '#0057FF' : '#475569' }}>
-                            {d.filename}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                     {libraryAds.filter(a => a.starred).length > 0 && (
                       <div style={{ fontSize: 12, color: '#475569' }}>
                         <b>Inspiration (starred ads):</b>{' '}
@@ -336,7 +369,7 @@ export default function AdStudio({ perms = {}, platformLogo = null, navOrder = n
             {tab === 'docs' && (
               <div style={s.card}>
                 <div style={s.cardTitle}>Reference Documents</div>
-                <div style={s.cardSub}>Upload brand guides, offer docs, or past winning copy. Text files (.txt, .md) are read directly by the AI when generating.</div>
+                <div style={s.cardSub}>Upload brand guides, offer docs, or past winning copy — PDFs and text files are read, AI-summarized, and stored as reusable brand knowledge.</div>
                 <label style={{ ...s.primaryBtn, display: 'inline-block', marginTop: 12, cursor: 'pointer' }}>
                   {uploading ? 'Uploading…' : '＋ Upload Documents'}
                   <input type="file" multiple style={{ display: 'none' }} disabled={uploading}
@@ -344,14 +377,34 @@ export default function AdStudio({ perms = {}, platformLogo = null, navOrder = n
                 </label>
                 <div style={{ marginTop: 16 }}>
                   {docs.map(d => (
-                    <div key={d.id} style={s.docRow}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: '#0F172A' }}>{d.filename}</div>
-                        <div style={{ fontSize: 11, color: '#94A3B8' }}>
-                          {new Date(d.created_at).toLocaleDateString()} · {d.extracted_text ? `${d.extracted_text.length.toLocaleString()} chars readable by AI` : 'stored (not text-readable)'}
+                    <div key={d.id} style={{ borderBottom: '1px solid #F1F5F9', padding: '10px 0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 13, color: '#0F172A' }}>
+                            {d.filename}
+                            {d.brand && <span style={{ ...s.chip, cursor: 'default', marginLeft: 8 }}>{d.brand}</span>}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#94A3B8' }}>
+                            {new Date(d.created_at).toLocaleDateString()} ·{' '}
+                            {d.summary_status === 'ready' ? '🧠 brand knowledge saved'
+                              : d.summary_status === 'failed' ? '⚠️ summary failed'
+                              : d.extracted_text ? `${d.extracted_text.length.toLocaleString()} chars readable by AI`
+                              : 'stored (not text-readable)'}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          {d.ai_summary && (
+                            <button onClick={() => setOpenSummary(o => o === d.id ? null : d.id)} style={s.smallBtn}>
+                              {openSummary === d.id ? 'Hide summary' : 'View summary'}
+                            </button>
+                          )}
+                          {d.summary_status === 'failed' && (
+                            <button onClick={() => resummarize(d.id)} style={s.smallBtn}>↻ Retry summary</button>
+                          )}
+                          <button onClick={() => deleteDoc(d.id)} style={{ ...s.smallBtn, color: '#EF4444' }}>Delete</button>
                         </div>
                       </div>
-                      <button onClick={() => deleteDoc(d.id)} style={{ ...s.smallBtn, color: '#EF4444' }}>Delete</button>
+                      {openSummary === d.id && d.ai_summary && <div style={s.summaryBox}>{d.ai_summary}</div>}
                     </div>
                   ))}
                   {!docs.length && <div style={s.empty}>No documents uploaded yet.</div>}
@@ -408,6 +461,8 @@ const s = {
   styleBadge:{ display: 'inline-block', padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 700 },
   imgPlaceholder: { background: '#F8FAFC', border: '1px dashed #CBD5E1', borderRadius: 8, margin: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120 },
   docRow:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #F1F5F9' },
+  uploadZone:{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: '#F8FAFC', border: '1px dashed #CBD5E1', borderRadius: 8, padding: '12px 14px' },
+  summaryBox:{ fontSize: 12, color: '#334155', background: '#F8FAFC', borderRadius: 7, padding: '10px 12px', marginTop: 8, whiteSpace: 'pre-wrap', lineHeight: 1.5, maxHeight: 300, overflow: 'auto' },
 
   empty:       { padding: 24, color: '#9CA3AF', fontSize: 12, textAlign: 'center', gridColumn: '1 / -1' },
   loadingWrap: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 60, gap: 16 },

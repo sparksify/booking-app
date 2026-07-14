@@ -79,10 +79,14 @@ export default async function handler(req, res) {
   let docsContext = '';
   if (docIds?.length) {
     const { data: docs } = await supabase
-      .from('ad_reference_docs').select('filename, extracted_text').in('id', docIds);
+      .from('ad_reference_docs').select('filename, extracted_text, ai_summary').in('id', docIds);
     docsContext = (docs || [])
-      .filter((d) => d.extracted_text)
-      .map((d) => `--- ${d.filename} ---\n${d.extracted_text.slice(0, 8000)}`)
+      .filter((d) => d.ai_summary || d.extracted_text)
+      .map((d) => {
+        // stored brand-knowledge summary is denser than raw text; prefer it
+        const content = d.ai_summary || d.extracted_text.slice(0, 8000);
+        return `--- ${d.filename} ---\n${content}`;
+      })
       .join('\n\n');
   }
   let inspirationContext = '';
