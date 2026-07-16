@@ -218,6 +218,7 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
     goals:     '',
   });
   const [isDesktop,   setIsDesktop]   = useState(false);
+  const [isMobile,    setIsMobile]    = useState(false);
   const [recommended, setRecommended] = useState(null);
   const dateStripRef = useRef(null);
   const setField = (k, v) => setAnswers(a => ({ ...a, [k]: v }));
@@ -354,14 +355,27 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
     }
   }, [step, phase]);
 
-  // Desktop detection (≥1024px). Mobile keeps the existing step-by-step flow.
+  // Desktop detection (≥1024px) drives the combined layout; phone detection
+  // (≤640px) makes the booking card fill the screen edge-to-edge instead of
+  // floating on a gray background with side margins.
   useEffect(() => {
-    const mq = window.matchMedia('(min-width: 1024px)');
-    const upd = () => setIsDesktop(mq.matches);
+    const mqD = window.matchMedia('(min-width: 1024px)');
+    const mqM = window.matchMedia('(max-width: 640px)');
+    const upd = () => { setIsDesktop(mqD.matches); setIsMobile(mqM.matches); };
     upd();
-    mq.addEventListener ? mq.addEventListener('change', upd) : mq.addListener(upd);
-    return () => { mq.removeEventListener ? mq.removeEventListener('change', upd) : mq.removeListener(upd); };
+    mqD.addEventListener ? mqD.addEventListener('change', upd) : mqD.addListener(upd);
+    mqM.addEventListener ? mqM.addEventListener('change', upd) : mqM.addListener(upd);
+    return () => {
+      mqD.removeEventListener ? mqD.removeEventListener('change', upd) : mqD.removeListener(upd);
+      mqM.removeEventListener ? mqM.removeEventListener('change', upd) : mqM.removeListener(upd);
+    };
   }, []);
+
+  // Full-bleed card styles on phones — no gray gutters, no floating margins.
+  const pageStyle = isMobile ? { ...ss.page, padding: 0, background: '#FFFFFF' } : ss.page;
+  const cardStyle = isMobile
+    ? { ...ss.card, maxWidth: 'none', borderRadius: 0, boxShadow: 'none', minHeight: '100vh' }
+    : ss.card;
 
   // The redesigned single-screen layout is ONLY for the personal calendar.
   // Brand calendars (Facebook lead-ad destinations) keep the existing flow.
@@ -404,8 +418,8 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
     return (
       <>
         <Head><title>Booked! — {cfg.brandName}</title></Head>
-        <div style={ss.page}>
-          <div style={ss.card}>
+        <div style={pageStyle}>
+          <div style={cardStyle}>
             <div style={{ textAlign: 'center', padding: '40px 24px' }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
               <h1 style={{ fontSize: 22, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>
@@ -579,9 +593,17 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
   if (phase === 'calendar' || phase === 'confirm') {
     return (
       <>
-        <Head><title>{cfg.brandName} — Pick a Time</title></Head>
-        <div style={ss.page}>
-          <div style={ss.card}>
+        <Head>
+          <title>{cfg.brandName} — Pick a Time</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+        </Head>
+        <style>{`
+          html, body { margin: 0; padding: 0; background: #FFFFFF; overflow-x: hidden; }
+          @media (max-width: 640px) { body { overscroll-behavior-y: none; } }
+          * { box-sizing: border-box; }
+        `}</style>
+        <div style={pageStyle}>
+          <div style={cardStyle}>
             {/* Header */}
             <div style={{ padding: '20px 24px 0', borderBottom: '1px solid #E2E8F0' }}>
               <div style={{ fontSize: 16, fontWeight: 700, color: '#0F172A', marginBottom: 2 }}>{cfg.meetingTitle}</div>
