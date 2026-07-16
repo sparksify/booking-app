@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { getBusyTimes, generateSlots } from '@/lib/googleCalendar';
+import { getBusyByMemberRange, generateSlots } from '@/lib/googleCalendar';
 import { getBrandBySlug } from '@/lib/routing';
 
 const DEFAULTS = {
@@ -103,30 +103,42 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. Get busy times from Google Calendar
-    const googleBusy = await getBusyTimes(members, date, settings.timezone);
+    // 1. Per-rep busy times. A slot is available if AT LEAST ONE rep is free
+    //    (union) — so a rep who's fully booked doesn't hide another rep's open
+    //    times on a shared brand calendar.
+    const busyByMember = await getBusyByMemberRange(members, date, date, settings.timezone);
 
-    // 2. Also check our own Supabase bookings — this is the reliable source of truth
-    //    for bookings made through this app, regardless of Google Calendar status.
+    // 2. Also check our own Supabase bookings — reliable source of truth for
+    //    app-made bookings. Each only blocks the rep it's assigned to.
     const offsetMins = getOffsetMinutes(date, settings.timezone);
     const timeMin = new Date(localToUTCMs(date,  0,  0, offsetMins)).toISOString();
     const timeMax = new Date(localToUTCMs(date, 23, 59, offsetMins)).toISOString();
 
     const { data: existingBookings } = await supabase
       .from('bookings')
-      .select('slot_start, slot_end')
+      .select('slot_start, slot_end, assigned_to_email')
       .gte('slot_start', timeMin)
       .lte('slot_start', timeMax)
       .neq('status', 'cancelled');
 
-    const supabaseBusy = (existingBookings || []).map(b => ({
-      start: b.slot_start,
-      end:   b.slot_end,
-    }));
+    const bookingsByEmail = {};
+    for (const b of existingBookings || []) {
+      const em = (b.assigned_to_email || '').toLowerCase();
+      (bookingsByEmail[em] = bookingsByEmail[em] || []).push({ start: b.slot_start, end: b.slot_end });
+    }
 
-    // 3. Merge both sources and generate available slots
-    const allBusy = [...googleBusy, ...supabaseBusy];
-    let slots = generateSlots(settings, allBusy, date);
+    // 3. Union each rep's free slots — a time is offered if any rep can take it.
+    const slotByKey = new Map();
+    for (const mem of members) {
+      const memberBusy = [
+        ...(busyByMember[mem.email] || []),
+        ...(bookingsByEmail[(mem.email || '').toLowerCase()] || []),
+      ];
+      for (const sl of generateSlots(settings, memberBusy, date)) {
+        slotByKey.set(`${sl.h}:${sl.m}`, sl);
+      }
+    }
+    let slots = [...slotByKey.values()].sort((a, b) => (a.h * 60 + a.m) - (b.h * 60 + b.m));
 
     // 4. For today: strip slots that have already passed (+ 30-min booking buffer)
     const todayStr = new Date().toISOString().slice(0, 10);

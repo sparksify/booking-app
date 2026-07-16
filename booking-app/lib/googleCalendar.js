@@ -171,6 +171,95 @@ export async function getBusyTimesRange(members, fromDateStr, toDateStr, timezon
   return busy;
 }
 
+/**
+ * Like getBusyTimesRange, but returns busy windows keyed by member email instead
+ * of one merged list. This is what multi-rep availability needs: a time slot is
+ * offered to the prospect if AT LEAST ONE rep is free (union), not only when every
+ * rep is free (intersection). Callers compute per-rep free slots and union them.
+ *
+ * Returns: { [email]: [{ start, end }, ...], ... }
+ */
+export async function getBusyByMemberRange(members, fromDateStr, toDateStr, timezone) {
+  if (!members.length) return {};
+  const offFrom = getOffsetMinutes(fromDateStr, timezone);
+  const offTo   = getOffsetMinutes(toDateStr, timezone);
+  const timeMin = new Date(localToUTCMs(fromDateStr,  0,  0, offFrom)).toISOString();
+  const timeMax = new Date(localToUTCMs(toDateStr,   23, 59, offTo)).toISOString();
+
+  const supabase = getSupabaseAdmin();
+  const key = 'bymember:' + freebusyCacheKey(members, fromDateStr, toDateStr);
+  try {
+    const { data: cached } = await supabase
+      .from('freebusy_cache')
+      .select('busy, computed_at')
+      .eq('cache_key', key)
+      .maybeSingle();
+    if (cached && (Date.now() - new Date(cached.computed_at).getTime()) < FREEBUSY_CACHE_TTL_MS) {
+      if (cached.busy && typeof cached.busy === 'object' && !Array.isArray(cached.busy)) return cached.busy;
+    }
+  } catch { /* cache miss → live query */ }
+
+  const FREEBUSY_TIMEOUT_MS = 2500;
+  const entries = await Promise.all(members.map(async member => {
+    try {
+      const auth = makeOAuthClient({
+        access_token:  member.google_access_token,
+        refresh_token: member.google_refresh_token,
+      });
+      const calendar = google.calendar({ version: 'v3', auth });
+      const response = await Promise.race([
+        calendar.freebusy.query({
+          requestBody: { timeMin, timeMax, timeZone: timezone, items: [{ id: member.calendar_id || 'primary' }] },
+        }),
+        new Promise(resolve => setTimeout(() => resolve(null), FREEBUSY_TIMEOUT_MS)),
+      ]);
+      if (!response) { console.warn(`[getBusyByMemberRange] ${member.email} timed out — treating as free`); return [member.email, []]; }
+      const cals = response.data.calendars || {};
+      const busy = [];
+      Object.values(cals).forEach(cal => { if (cal.busy) busy.push(...cal.busy); });
+      return [member.email, busy];
+    } catch (err) {
+      console.error(`[getBusyByMemberRange] error querying ${member.email}:`, err.message);
+      return [member.email, []];
+    }
+  }));
+
+  const byMember = Object.fromEntries(entries);
+  try {
+    await supabase.from('freebusy_cache').upsert({ cache_key: key, busy: byMember, computed_at: new Date().toISOString() });
+  } catch { /* best-effort */ }
+  return byMember;
+}
+
+/**
+ * Is this rep free for a specific window? Used at booking time so a multi-rep
+ * brand routes to a rep who is actually available (not one who's fully booked).
+ * Fails OPEN (returns true) on error/timeout so a calendar hiccup never blocks a
+ * booking outright — worst case it lands on a rep who can reassign.
+ */
+export async function isMemberFreeAt(member, startIso, endIso, timezone) {
+  try {
+    const auth = makeOAuthClient({
+      access_token:  member.google_access_token,
+      refresh_token: member.google_refresh_token,
+    });
+    const calendar = google.calendar({ version: 'v3', auth });
+    const response = await Promise.race([
+      calendar.freebusy.query({
+        requestBody: { timeMin: startIso, timeMax: endIso, timeZone: timezone, items: [{ id: member.calendar_id || 'primary' }] },
+      }),
+      new Promise(resolve => setTimeout(() => resolve(null), 2500)),
+    ]);
+    if (!response) return true; // timeout → don't block the booking
+    const cals = response.data.calendars || {};
+    let busy = [];
+    Object.values(cals).forEach(cal => { if (cal.busy) busy = busy.concat(cal.busy); });
+    return busy.length === 0;
+  } catch {
+    return true;
+  }
+}
+
 // ─── Slot generation ──────────────────────────────────────────────────────────
 
 /**

@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { getBusyTimesRange, generateSlots } from '@/lib/googleCalendar';
+import { getBusyByMemberRange, generateSlots } from '@/lib/googleCalendar';
 import { getBrandBySlug } from '@/lib/routing';
 
 const DEFAULTS = { workStart: 9, workEnd: 18, timezone: 'America/Chicago', meetingDuration: 15, bufferMinutes: 15 };
@@ -82,21 +82,39 @@ export default async function handler(req, res) {
   }
 
   try {
-    const googleBusy = await getBusyTimesRange(members, fromDate, toDate, settings.timezone);
+    // Per-rep busy windows. A slot is offered if AT LEAST ONE rep is free (union),
+    // so a rep who's fully booked (e.g. out of town) never hides another rep's
+    // open times on a shared brand calendar.
+    const busyByMember = await getBusyByMemberRange(members, fromDate, toDate, settings.timezone);
 
     const offFrom = getOffsetMinutes(fromDate, settings.timezone);
     const offTo = getOffsetMinutes(toDate, settings.timezone);
     const timeMin = new Date(localToUTCMs(fromDate, 0, 0, offFrom)).toISOString();
     const timeMax = new Date(localToUTCMs(toDate, 23, 59, offTo)).toISOString();
     const { data: existingBookings } = await supabase
-      .from('bookings').select('slot_start, slot_end')
+      .from('bookings').select('slot_start, slot_end, assigned_to_email')
       .gte('slot_start', timeMin).lte('slot_start', timeMax).neq('status', 'cancelled');
-    const supabaseBusy = (existingBookings || []).map(b => ({ start: b.slot_start, end: b.slot_end }));
-    const allBusy = [...googleBusy, ...supabaseBusy];
+    // Existing KANSO bookings only block the rep they're assigned to.
+    const bookingsByEmail = {};
+    for (const b of existingBookings || []) {
+      const em = (b.assigned_to_email || '').toLowerCase();
+      (bookingsByEmail[em] = bookingsByEmail[em] || []).push({ start: b.slot_start, end: b.slot_end });
+    }
 
     const days = {};
     for (const d of workDates) {
-      let slots = generateSlots(settings, allBusy, d);
+      // Union each rep's free slots — a time is available if any rep can take it.
+      const slotByKey = new Map();
+      for (const mem of members) {
+        const memberBusy = [
+          ...(busyByMember[mem.email] || []),
+          ...(bookingsByEmail[(mem.email || '').toLowerCase()] || []),
+        ];
+        for (const sl of generateSlots(settings, memberBusy, d)) {
+          slotByKey.set(`${sl.h}:${sl.m}`, sl);
+        }
+      }
+      let slots = [...slotByKey.values()].sort((a, b) => (a.h * 60 + a.m) - (b.h * 60 + b.m));
       slots = stripPast(slots, d);
       days[d] = applySlotDisplay(slots, d, settings.maxSlotsPerDay, settings.hiddenSlotsCount);
     }

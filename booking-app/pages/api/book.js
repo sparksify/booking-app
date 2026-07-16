@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { createCalendarEvent } from '@/lib/googleCalendar';
+import { createCalendarEvent, isMemberFreeAt } from '@/lib/googleCalendar';
 import { sendConfirmationEmail, sendBookingAlert } from '@/lib/resend';
 import { sendCapiEvents, buildCapiEvent } from '@/lib/fbConversionsApi';
 import { upsertGHLContact, createGHLOpportunity, addGHLTags } from '@/lib/ghl';
@@ -90,6 +90,14 @@ export default async function handler(req, res) {
   let assignedEmail = null;
   let assignedName  = null;
 
+  // Slot window in UTC (ISO) — used to check each candidate rep's real availability
+  // so a multi-rep brand routes to a rep who is actually free for this time.
+  const _slotOff   = getOffsetMinutes(date, settings.timezone);
+  const [_sy, _smo, _sd] = date.split('-').map(Number);
+  const _slotStartMs = Date.UTC(_sy, _smo - 1, _sd, h, m, 0) - _slotOff * 60_000;
+  const slotStartIso = new Date(_slotStartMs).toISOString();
+  const slotEndIso   = new Date(_slotStartMs + (settings.meetingDuration || 15) * 60_000).toISOString();
+
   // ── Rep selection ────────────────────────────────────────────────────────────
   // Brand routing: use weighted round-robin engine
   // Legacy routing: investment_ranges-based filtering with fewest-bookings tiebreak
@@ -110,6 +118,11 @@ export default async function handler(req, res) {
 
         const member = brandMembers.find(m => m.email === candidateEmail);
         if (!member) break;
+
+        // Skip a rep who isn't actually free for this slot (e.g. out of town) so
+        // the booking lands on an available rep instead of double-booking.
+        const isFree = await isMemberFreeAt(member, slotStartIso, slotEndIso, settings.timezone);
+        if (!isFree) { skippedEmail = member.email; attempts++; continue; }
 
         // Try to create the calendar event; if it fails (busy), skip to next rep
         try {
