@@ -371,10 +371,14 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
     };
   }, []);
 
-  // Full-bleed card styles on phones — no gray gutters, no floating margins.
-  const pageStyle = isMobile ? { ...ss.page, padding: 0, background: '#FFFFFF' } : ss.page;
+  // On phones: a framed app card that fills the screen with a small even gutter,
+  // and the page itself is the ONLY scroller (the body is locked below) so the
+  // whole thing can't be dragged around like loose content.
+  const pageStyle = isMobile
+    ? { ...ss.page, padding: '10px', background: '#E9EDF2', height: '100vh', overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }
+    : ss.page;
   const cardStyle = isMobile
-    ? { ...ss.card, maxWidth: 'none', borderRadius: 0, boxShadow: 'none', minHeight: '100vh' }
+    ? { ...ss.card, width: '100%', maxWidth: 'none', borderRadius: 16, boxShadow: '0 2px 16px rgba(15,23,42,.10)', minHeight: 'calc(100vh - 20px)' }
     : ss.card;
 
   // The redesigned single-screen layout is ONLY for the personal calendar.
@@ -598,9 +602,13 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
           <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
         </Head>
         <style>{`
-          html, body { margin: 0; padding: 0; background: #FFFFFF; overflow-x: hidden; }
-          @media (max-width: 640px) { body { overscroll-behavior-y: none; } }
+          html, body { margin: 0; padding: 0; background: #E9EDF2; }
           * { box-sizing: border-box; }
+          /* On phones, lock the body so only the card's page scroller moves —
+             prevents dragging the whole app around in any direction. */
+          @media (max-width: 640px) {
+            html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+          }
         `}</style>
         <div style={pageStyle}>
           <div style={cardStyle}>
