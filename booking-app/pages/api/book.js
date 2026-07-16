@@ -157,6 +157,34 @@ export default async function handler(req, res) {
     }
   }
 
+  // ── Safety net ───────────────────────────────────────────────────────────────
+  // A booking must NEVER be created without a rep + calendar event. If brand
+  // routing found no eligible rep (e.g. the brand's reps are inactive or
+  // misconfigured), fall back to any active team member so the meeting still
+  // lands on a real calendar. Steve can reassign afterward if needed.
+  if (!assignedEmail && (allMembers || []).length > 0) {
+    const { data: todayBookings } = await supabase
+      .from('bookings')
+      .select('assigned_to_email')
+      .gte('slot_start', `${date}T00:00:00Z`)
+      .lte('slot_start', `${date}T23:59:59Z`);
+    const counts = Object.fromEntries(allMembers.map(m => [m.email, 0]));
+    (todayBookings || []).forEach(b => {
+      if (b.assigned_to_email && counts[b.assigned_to_email] != null) counts[b.assigned_to_email]++;
+    });
+    const member = allMembers.reduce((a, b) => counts[a.email] <= counts[b.email] ? a : b);
+    assignedEmail = member.email;
+    assignedName  = member.name;
+    console.warn(`[book] brand routing found no rep — falling back to ${member.email}`);
+    try {
+      const result = await createCalendarEvent(member, { firstName, lastName, email, phone, date, h, m }, settings);
+      eventId  = result.eventId;
+      meetLink = result.meetLink;
+    } catch (err) {
+      console.error('[book] fallback createCalendarEvent error:', err.message);
+    }
+  }
+
   // ── Save to Supabase ────────────────────────────────────────────────────────
   // Convert local slot time to correct UTC using the settings timezone
   const [sy, smo, sd] = date.split('-').map(Number);

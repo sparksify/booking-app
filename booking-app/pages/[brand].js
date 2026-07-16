@@ -208,7 +208,7 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
   ];
 
   // ── State ──────────────────────────────────────────────────────────────────
-  const [phase,      setPhase]      = useState('questions'); // 'questions' | 'calendar' | 'confirm' | 'booked'
+  const [phase,      setPhase]      = useState('calendar'); // 'calendar' | 'confirm' | 'booked' — the question wizard is gone; contact fields live in the confirm panel
   const [step,       setStep]       = useState(0);
   const [answers,    setAnswers]    = useState({
     firstName: prefill.firstName,
@@ -367,13 +367,15 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
   // Brand calendars (Facebook lead-ad destinations) keep the existing flow.
   const isPersonal = brand?.type === 'personal';
 
-  // On the desktop layout the calendar + form show together — skip the wizard.
+  // Skip the step-by-step question wizard entirely — both desktop (combined
+  // form) and mobile (contact fields live in the confirm panel) go straight to
+  // the calendar. Land visitors on available times, not a typeform.
   useEffect(() => {
-    if (isDesktop && phase === 'questions') {
+    if (phase === 'questions') {
       setPhase('calendar');
       track('booking_page_viewed', leadId);
     }
-  }, [isDesktop, phase]);
+  }, [phase]);
 
   // Capture the soonest slot as the "Recommended for you" suggestion.
   useEffect(() => {
@@ -574,43 +576,6 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
     );
   }
 
-  if (phase === 'questions' || (phase === 'questions' && editMode)) {
-    const q = QUESTIONS[step];
-    const currentVal = inputVal || answers[q.key] || '';
-    return (
-      <>
-        <Head><title>{cfg.brandName} — Book a Call</title></Head>
-        <div style={ss.page}>
-          <div style={ss.card}>
-            <div style={{ padding: '32px 28px' }}>
-              {cfg.headline && <h1 style={{ fontSize: 20, fontWeight: 700, color: '#0F172A', marginBottom: 6 }}>{cfg.headline}</h1>}
-              {cfg.subtitle && <p style={{ fontSize: 14, color: '#64748B', marginBottom: 24 }}>{cfg.subtitle}</p>}
-              <div style={{ fontSize: 17, fontWeight: 600, color: '#0F172A', marginBottom: 16 }}>
-                {q.q(answers)}
-              </div>
-              <input
-                ref={inputRef}
-                type={q.type}
-                value={currentVal}
-                onChange={e => setInputVal(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && advanceQuestion()}
-                placeholder={q.ph}
-                style={ss.input}
-              />
-              <button
-                onClick={advanceQuestion}
-                disabled={!canAdvance(step, { ...answers, [q.key]: currentVal }, QUESTIONS)}
-                style={{ ...ss.btn, opacity: canAdvance(step, { ...answers, [q.key]: currentVal }, QUESTIONS) ? 1 : 0.4 }}
-              >
-                {step < QUESTIONS.length - 1 ? 'Next →' : 'See Available Times →'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  }
-
   if (phase === 'calendar' || phase === 'confirm') {
     return (
       <>
@@ -695,17 +660,38 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
               {/* Confirm panel */}
               {phase === 'confirm' && selSlot && selDate && (
                 <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px 18px', marginTop: 8 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 12 }}>
                     {getDayLabel(selDate.dateStr)} · {selSlot.label} {cfg.tz}
                   </div>
-                  <div style={{ fontSize: 13, color: '#475569', marginBottom: 14 }}>
-                    {answers.firstName} {answers.lastName} · {formatPhone(answers.phone)}
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  {(() => {
+                    const mLabel = { display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', margin: '10px 0 4px' };
+                    const mInput = { width: '100%', boxSizing: 'border-box', padding: '11px 12px', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: 16, fontFamily: 'inherit', color: '#0F172A', background: '#fff' };
+                    return (
+                      <>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                          <div>
+                            <label style={mLabel}>First name</label>
+                            <input style={mInput} value={answers.firstName} onChange={e => setField('firstName', e.target.value)} placeholder="First name" />
+                          </div>
+                          <div>
+                            <label style={mLabel}>Last name</label>
+                            <input style={mInput} value={answers.lastName} onChange={e => setField('lastName', e.target.value)} placeholder="Last name" />
+                          </div>
+                        </div>
+                        <label style={mLabel}>Email</label>
+                        <input style={mInput} type="email" inputMode="email" value={answers.email} onChange={e => setField('email', e.target.value)} placeholder="you@example.com" />
+                        <label style={mLabel}>Phone</label>
+                        <input style={mInput} type="tel" inputMode="tel" value={answers.phone} onChange={e => setField('phone', e.target.value)} placeholder="(555) 123-4567" />
+                        <label style={mLabel}>Goals or questions <span style={{ color: '#94A3B8', fontWeight: 400 }}>(optional)</span></label>
+                        <textarea style={{ ...mInput, minHeight: 72, resize: 'vertical' }} maxLength={250} value={answers.goals} onChange={e => setField('goals', e.target.value)} placeholder="What would you like to achieve in this call?" />
+                      </>
+                    );
+                  })()}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
                     <button
                       onClick={confirmBooking}
-                      disabled={booking}
-                      style={{ flex: 1, padding: '11px 0', background: '#0057FF', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: booking ? 'wait' : 'pointer', fontFamily: 'inherit' }}
+                      disabled={!canBook || booking}
+                      style={{ flex: 1, padding: '11px 0', background: '#0057FF', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: (!canBook || booking) ? 'not-allowed' : 'pointer', opacity: (!canBook || booking) ? 0.5 : 1, fontFamily: 'inherit' }}
                     >
                       {booking ? 'Booking…' : 'Confirm Booking →'}
                     </button>
@@ -714,9 +700,6 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
                     </button>
                   </div>
                   {bookErr && <div style={{ marginTop: 8, fontSize: 12, color: '#DC2626' }}>{bookErr}</div>}
-                  <button onClick={() => setPhase('questions')} style={{ marginTop: 10, fontSize: 12, color: '#94A3B8', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline', fontFamily: 'inherit' }}>
-                    Edit contact info
-                  </button>
                 </div>
               )}
             </div>

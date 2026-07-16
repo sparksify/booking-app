@@ -1,229 +1,174 @@
-export const config = { maxDuration: 290 };
+export const config = { maxDuration: 300 };
 
-const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+const SMARTLEAD_API_KEY = process.env.SMARTLEAD_API_KEY;
+const SMARTLEAD_CAMPAIGN_ID = process.env.SMARTLEAD_CAMPAIGN_ID;
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
-// ── Style presets ──
-// Each preset is a distinct voice/approach, not just a tone adjective. The prompt
-// fragments below are deliberately different in structure (not just "sound friendlier")
-// so the actual emails read differently, not just softer/harder versions of the same email.
-
-const STYLE_PRESETS = {
-  hormozi: {
-    label: "Hormozi (Direct Offer)",
-    instructions: `Write in Alex Hormozi's direct-response style: short punchy sentences, a clear
-value-forward hook in the first line, no throat-clearing. Lead with a specific, concrete observation
-about the business (not a generic compliment). Make the ask low-friction and specific ("worth a
-15-minute call?" not "let me know your thoughts"). Avoid superlatives and hype language.`,
-  },
-  consultative: {
-    label: "Consultative (Advisory)",
-    instructions: `Write like an experienced advisor reaching out because you noticed something
-relevant to their specific situation, not because you're selling something. Tone is measured,
-credible, low-pressure. Reference one specific, real detail about their business that shows you
-looked at it. No urgency language, no exclamation points. The ask is an open question, not a pitch.`,
-  },
-  direct: {
-    label: "Direct & Blunt",
-    instructions: `Write short, plain, no-fluff. Get to the point in the first sentence. No
-compliments, no scene-setting, no rapport-building preamble. State what this is about and what
-you're asking, then stop. Under 60 words for the first email.`,
-  },
-  warm: {
-    label: "Warm & Relational",
-    instructions: `Write like a genuine, friendly note from someone who respects what they've built.
-Warmer tone, slightly more conversational, but still concise. Reference something specific and
-genuinely complimentary about the business without being flattering or generic. The ask is soft
-and low-pressure ("open to a quick chat sometime?").`,
-  },
-};
-
-const DEFAULT_STYLE = "consultative";
-
-// ── Guardrails, unchanged from prior version ──
-const GUARDRAILS = `
-CRITICAL RULES — never violate these:
-- Do NOT introduce yourself by name or title in the email body.
-- Do NOT mention being a broker, consultant, or any commission/fee structure.
-- Do NOT use the words "franchise broker," "commission," or "fee" anywhere.
-- Do NOT fabricate facts about the business that weren't provided to you.
-- Keep the email under 150 words total.
-- Subject line under 8 words, no clickbait, no ALL CAPS, no excessive punctuation.
-- Sign off with just a first name — use "Steve" as the sender's name.
-`;
-
-// ── Business detail signals ──
-// Previously the model defaulted to star rating / review count almost every time because
-// it's the easiest structured field to grab. This gives it a menu of signal types and
-// explicitly tells it to rotate — not lean on ratings as the default move.
-
-function buildSignalMenu(biz) {
-  const signals = [];
-  if (biz.rating && biz.review_count) signals.push(`rating: ${biz.rating} stars across ${biz.review_count} reviews`);
-  if (biz.description) signals.push(`business description: "${biz.description}"`);
-  if (biz.category) signals.push(`category/niche: ${biz.category}`);
-  if (biz.address) signals.push(`location: ${biz.address}`);
-  if (biz.website) signals.push(`has an active website (${biz.website})`);
-  if (biz.duplicate_owner === false && biz.primary_business) signals.push(`owner also runs another location`);
-  return signals;
+function getFirstName(fullName) {
+  if (!fullName) return null;
+  return fullName.trim().split(' ')[0];
 }
 
-async function generateStyledEmail(biz, styleKey, customPrompt) {
-  const style = STYLE_PRESETS[styleKey] || STYLE_PRESETS[DEFAULT_STYLE];
-  const styleInstructions = customPrompt && customPrompt.trim().length > 0
-    ? customPrompt.trim()
-    : style.instructions;
+async function writeSequence(biz) {
+  const { business_name, email_owner, industry, signal, rating, review_count } = biz;
+  const firstName = getFirstName(email_owner);
 
-  const signals = buildSignalMenu(biz);
-  const signalText = signals.length
-    ? `Available real signals about this business (use ONE, pick whichever is most interesting — do NOT default to rating/reviews just because it's listed first):\n- ${signals.join("\n- ")}`
-    : `No specific business signals available — write a general but still personalized-feeling outreach email using just the business name and owner name.`;
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1000,
+      messages: [{
+        role: 'user',
+        content: `Write two cold outreach emails for Steve Sparks at Halloway (halloway.co).
 
-  const prompt = `You are writing a short cold outreach email sequence (2 emails) to the owner of an
-independent local business, on behalf of a franchise growth consultancy exploring whether they'd
-be a good fit to eventually franchise their concept.
+FRAMEWORK — every email must follow this exact structure:
+1. Personalized proof — one specific thing about this business
+2. Strategic question — raise the real tension (is it repeatable? owner-dependent? can it be taught?)
+3. Risk reversal — this is about finding out IF it makes sense, not pitching franchising
+4. CTA — always end with "Should I send it?" — nothing else
 
-Business: ${biz.business_name}
-Owner: ${biz.owner_name || biz.email_owner || "the owner"}
-${signalText}
+LENGTH — keep it tight:
+- Email 1: 4-5 short paragraphs maximum. Each paragraph 1-2 sentences.
+- Email 2: 3 short paragraphs maximum.
 
-STYLE FOR THIS EMAIL:
-${styleInstructions}
+HARD RULES — these are absolute, no exceptions:
+- NEVER introduce Steve by name. Do not say "My name is Steve" or "I'm Steve" or any variation.
+- NEVER use the words: broker, advisor, consultant, commission, fee, paid, earn
+- NEVER say "I only get paid if" or any version of that
+- NEVER say "no fluff" or "no pitch decks" or "no pressure"
+- NEVER be generic — every email must reference something specific to THIS business
+- The follow-up must return to the specific strategic question from email 1, not a generic bump
+- CTA is ALWAYS and ONLY "Should I send it?" — never "Want me to send it over?" or any other variation
 
-${GUARDRAILS}
+GOOD EXAMPLE — match this style and length:
+Subject: Whiskey Bird + Little Bird
 
-Write TWO emails:
-1. Initial outreach email
-2. A short follow-up (assume no reply to email 1), sent ~4 days later — shorter than email 1,
-   different angle or a simple bump, not a repeat of the same content.
+Anthony — Whiskey Bird plus Little Bird caught my eye.
 
-Return ONLY valid JSON in this exact shape, nothing else, no markdown fences:
-{"email1_subject":"...","email1_body":"...","email2_subject":"...","email2_body":"..."}`;
+Most restaurants struggle to make one model run cleanly. You have a dine-in concept, a takeout concept, brunch, dinner, cocktails, and online ordering under one roof.
 
+That usually means one of two things: either the operation is too complex to scale, or you have a model that could be more valuable than a single-location restaurant.
+
+I have a 5-minute video that shows how we evaluate whether a concept is actually franchise-ready.
+
+Should I send it?
+
+---
+
+GOOD FOLLOW-UP EXAMPLE — match this style and length:
+Subject: Re: Whiskey Bird + Little Bird
+
+Anthony — quick bump.
+
+The reason I reached out: Whiskey Bird/Little Bird already has something franchise buyers look for — more than one revenue path inside the same operating system.
+
+The video will show you whether that is an asset for scaling, or just added complexity.
+
+Should I send it?
+
+---
+
+Business details:
+Owner first name: ${firstName || 'there'}
+Business: ${business_name}
+Industry: ${industry || 'independent business'}
+Signal: ${signal || `${business_name} caught my attention`}
+${rating ? `Google: ${rating} stars${review_count ? ` across ${review_count} reviews` : ''}` : ''}
+
+Return ONLY valid JSON, no markdown:
+{
+  "email1": { "subject": "...", "body": "..." },
+  "email2": { "subject": "...", "body": "..." }
+}`,
+      }],
+    }),
+  });
+
+  const d = await r.json();
+  const text = d.content?.[0]?.text?.trim();
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 800,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
-    const d = await r.json();
-    const text = d.content?.[0]?.text?.trim();
-    if (!text) return null;
-    const cleaned = text.replace(/```json|```/g, '').trim();
-    return JSON.parse(cleaned);
+    return JSON.parse(text);
   } catch (e) {
-    console.error('generateStyledEmail error:', e.message);
-    return null;
+    const clean = text.replace(/```json|```/g, '').trim();
+    return JSON.parse(clean);
   }
 }
 
-// ── Custom template mode ──
-// Fully user-authored copy. No AI call — direct placeholder substitution. This is what
-// lets Steve split-test his own hand-written message against AI-generated variants.
+async function addLeadToSmartlead(biz, sequence) {
+  const { email, email_owner, business_name } = biz;
+  const firstName = getFirstName(email_owner) || 'there';
+  const lastName = email_owner ? email_owner.trim().split(' ').slice(1).join(' ') : '';
 
-function fillTemplate(template, biz) {
-  const owner = biz.owner_name || biz.email_owner || "";
-  const firstName = owner.split(/\s+/)[0] || "there";
-  const vars = {
-    '{business_name}': biz.business_name || '',
-    '{owner_name}': owner,
-    '{owner_first_name}': firstName,
-    '{city}': biz.city || '',
-    '{category}': biz.category || '',
-    '{rating}': biz.rating || '',
-    '{review_count}': biz.review_count || '',
-  };
-  let filled = template;
-  for (const [key, val] of Object.entries(vars)) {
-    filled = filled.split(key).join(val);
-  }
-  return filled;
+  const r = await fetch(
+    `https://server.smartlead.ai/api/v1/campaigns/${SMARTLEAD_CAMPAIGN_ID}/leads?api_key=${SMARTLEAD_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        lead_list: [{
+          email,
+          first_name: firstName,
+          last_name: lastName,
+          company_name: business_name,
+          custom_fields: {
+            email1_subject: sequence.email1.subject,
+            email1_body:    sequence.email1.body,
+            email2_subject: sequence.email2.subject,
+            email2_body:    sequence.email2.body,
+          },
+        }],
+      }),
+    }
+  );
+  return r.ok;
 }
 
-// ── Variant generation ──
-// Generates N labeled variants per prospect so Steve can compare and pick, or load
-// multiple into Smartlead as an A/B test.
-
-async function generateVariants(biz, variantConfigs) {
-  const results = [];
-  for (const cfg of variantConfigs) {
-    const label = cfg.label || cfg.style || 'variant';
-
-    if (cfg.mode === 'custom_template') {
-      if (!cfg.template) continue;
-      results.push({
-        variant_label: label,
-        mode: 'custom_template',
-        email1_subject: fillTemplate(cfg.subject1 || '', biz),
-        email1_body: fillTemplate(cfg.template, biz),
-        email2_subject: cfg.subject2 ? fillTemplate(cfg.subject2, biz) : null,
-        email2_body: cfg.template2 ? fillTemplate(cfg.template2, biz) : null,
-      });
-      continue;
-    }
-
-    // AI-generated styled variant
-    const styleKey = cfg.style || DEFAULT_STYLE;
-    const generated = await generateStyledEmail(biz, styleKey, cfg.custom_prompt);
-    if (generated) {
-      results.push({
-        variant_label: label,
-        mode: 'ai_styled',
-        style: styleKey,
-        email1_subject: generated.email1_subject,
-        email1_body: generated.email1_body,
-        email2_subject: generated.email2_subject,
-        email2_body: generated.email2_body,
-      });
-    }
+async function isDuplicate(email) {
+  try {
+    const r = await fetch(
+      `https://server.smartlead.ai/api/v1/leads?api_key=${SMARTLEAD_API_KEY}&email=${encodeURIComponent(email)}`
+    );
+    const d = await r.json();
+    return Array.isArray(d) && d.length > 0;
+  } catch (e) {
+    return false;
   }
-  return results;
+}
+
+async function outreachOne(biz) {
+  const { email } = biz;
+  if (!email) return { ...biz, outreach_status: 'skipped_no_email' };
+  const duplicate = await isDuplicate(email);
+  if (duplicate) return { ...biz, outreach_status: 'skipped_duplicate' };
+  let sequence;
+  try {
+    sequence = await writeSequence(biz);
+  } catch (e) {
+    return { ...biz, outreach_status: 'failed_sequence_write', error: e.message };
+  }
+  const loaded = await addLeadToSmartlead(biz, sequence);
+  return { ...biz, outreach_status: loaded ? 'loaded' : 'failed_smartlead', sequence };
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
-  const { businesses, variants } = req.body;
-  if (!businesses || !Array.isArray(businesses)) {
-    return res.status(400).json({ error: 'businesses array required' });
-  }
-  if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'Missing ANTHROPIC_API_KEY' });
-
-  // variants: array of variant configs, e.g.
-  // [{ label: "A - Hormozi", style: "hormozi" }, { label: "B - My Message", mode: "custom_template", template: "Hey {owner_first_name}, ..." }]
-  // Defaults to a single consultative-style variant if none provided (backward compatible).
-  const variantConfigs = (variants && Array.isArray(variants) && variants.length > 0)
-    ? variants
-    : [{ label: DEFAULT_STYLE, style: DEFAULT_STYLE }];
-
-  const loadable = businesses.filter(b => b.loadable && b.email);
+  const { businesses } = req.body;
+  if (!businesses || !Array.isArray(businesses)) return res.status(400).json({ error: 'businesses array required' });
+  if (!SMARTLEAD_API_KEY || !SMARTLEAD_CAMPAIGN_ID) return res.status(500).json({ error: 'Missing Smartlead config' });
 
   try {
-    const results = [];
-    for (const biz of loadable) {
-      const bizVariants = await generateVariants(biz, variantConfigs);
-      results.push({
-        ...biz,
-        outreach_variants: bizVariants,
-      });
-    }
-
-    return res.status(200).json({
-      total: businesses.length,
-      loadable_count: loadable.length,
-      variants_per_prospect: variantConfigs.length,
-      variant_labels: variantConfigs.map(v => v.label || v.style || 'variant'),
-      results,
-    });
+    const results = await Promise.all(businesses.map(biz => outreachOne(biz)));
+    const loaded  = results.filter(r => r.outreach_status === 'loaded');
+    const skipped = results.filter(r => r.outreach_status?.startsWith('skipped'));
+    const failed  = results.filter(r => r.outreach_status?.startsWith('failed'));
+    return res.status(200).json({ total: results.length, loaded: loaded.length, skipped: skipped.length, failed: failed.length, results });
   } catch (err) {
-    console.error('Outreach handler error:', err);
-    return res.status(500).json({ error: err.message || String(err) });
+    return res.status(500).json({ error: err.message });
   }
 }

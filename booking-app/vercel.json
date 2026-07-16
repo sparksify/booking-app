@@ -5,12 +5,17 @@
     "pages/api/pipeline/outreach.js": { "maxDuration": 300 },
     "pages/api/pipeline/runs.js": { "maxDuration": 300 },
     "pages/api/webhooks/pipeline-reply.js": { "maxDuration": 300 },
-    "pages/api/sync-granola.js": { "maxDuration": 60 }
+    "pages/api/sync-granola.js": { "maxDuration": 60 },
+    "pages/api/cron/fb-ads-tick.js": { "maxDuration": 120 }
   },
   "crons": [
     {
       "path": "/api/sync-granola",
       "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/cron/fb-ads-tick",
+      "schedule": "0 */2 * * *"
     }
   ]
 }
