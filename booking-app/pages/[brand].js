@@ -375,7 +375,13 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
   // and the page itself is the ONLY scroller (the body is locked below) so the
   // whole thing can't be dragged around like loose content.
   const pageStyle = isMobile
-    ? { ...ss.page, padding: '10px', background: '#E9EDF2', height: '100vh', overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }
+    ? {
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        overflowY: 'auto', overflowX: 'hidden',
+        WebkitOverflowScrolling: 'touch', touchAction: 'pan-y',
+        padding: '10px', background: '#E9EDF2',
+        fontFamily: ss.page.fontFamily,
+      }
     : ss.page;
   const cardStyle = isMobile
     ? { ...ss.card, width: '100%', maxWidth: 'none', borderRadius: 16, boxShadow: '0 2px 16px rgba(15,23,42,.10)', minHeight: 'calc(100vh - 20px)' }
@@ -604,10 +610,18 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
         <style>{`
           html, body { margin: 0; padding: 0; background: #E9EDF2; }
           * { box-sizing: border-box; }
-          /* On phones, lock the body so only the card's page scroller moves —
-             prevents dragging the whole app around in any direction. */
+          /* On phones: pin the body completely so it cannot be dragged in any
+             direction. iOS Safari ignores overflow:hidden alone, so we fix its
+             position; the page div above is the single vertical-only scroller. */
           @media (max-width: 640px) {
-            html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+            html { height: 100%; }
+            body {
+              position: fixed;
+              top: 0; left: 0; right: 0; bottom: 0;
+              width: 100%; height: 100%;
+              overflow: hidden;
+              overscroll-behavior: none;
+            }
           }
         `}</style>
         <div style={pageStyle}>
