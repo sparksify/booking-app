@@ -493,7 +493,6 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
                     : <div style={{ ...d.avatar, background: 'var(--ac, #15803D)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{(cfg.brandName || 'A')[0]}</div>}
                   <div>
                     <div style={{ fontWeight: 700, color: '#0F172A' }}>{cfg.brandName}</div>
-                    <div style={{ fontSize: 12.5, color: '#64748B' }}>Top consultant</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
                       <span style={{ color: 'var(--ac, #16A34A)', letterSpacing: 1, fontSize: 13 }}>★★★★★</span>
                       <span style={{ fontSize: 12, color: '#64748B', fontWeight: 600 }}>4.9</span>
