@@ -5,6 +5,7 @@ import { upsertGHLContact } from '@/lib/ghl';
 import { logLeadEvent } from '@/lib/leadEvents';
 import { normalizeLocation } from '@/lib/normalizeLocation';
 import { runCompanyIntel, isBusinessEmail } from '@/lib/companyIntel';
+import { buildWatchUrl } from '@/lib/watchUrl';
 
 /**
  * /api/webhooks/facebook
@@ -216,9 +217,16 @@ async function handleWebhook(req, res) {
               phone:      parsed.phone,
               tags:       formTags,
               source:     'Facebook Lead Ad',
-              customFields: parsed.investmentLevel
-                ? [{ key: 'investment_level', field_value: parsed.investmentLevel }]
-                : [],
+              customFields: [
+                ...(parsed.investmentLevel
+                  ? [{ key: 'investment_level', field_value: parsed.investmentLevel }]
+                  : []),
+                // The lead's own unique video-lander URL — a GHL workflow can
+                // SMS/email this for deterministic (no recency-match) delivery.
+                ...(brandSlug && lead?.token
+                  ? [{ key: 'watch_url', field_value: buildWatchUrl(brandSlug, lead.token) }]
+                  : []),
+              ],
             });
 
             if (ghlContact?.id) {

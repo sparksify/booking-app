@@ -1,6 +1,8 @@
 import crypto from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { sendLeadAlert } from '@/lib/resend';
+import { upsertGHLContact } from '@/lib/ghl';
+import { buildWatchUrl } from '@/lib/watchUrl';
 
 /**
  * POST /api/webhooks/pabbly
@@ -130,6 +132,36 @@ export default async function handler(req, res) {
   }
 
   console.log(`[pabbly-webhook] lead stored id=${lead.id} email=${email}`);
+
+  // ── Brand lookup + unique watch link → GHL ─────────────────────────────────
+  // Resolve the brand from the FB form ID, stamp it on the lead, and push the
+  // lead's unique video-lander URL to GHL as a custom field so a workflow can
+  // SMS/email it — deterministic delivery, no recency matching needed.
+  try {
+    let brandSlug = null;
+    if (fbFormId) {
+      const { data: brand } = await supabase
+        .from('brands')
+        .select('slug')
+        .contains('fb_form_ids', [String(fbFormId)])
+        .eq('active', true)
+        .maybeSingle();
+      brandSlug = brand?.slug || null;
+      if (brandSlug) {
+        await supabase.from('leads').update({ brand_slug: brandSlug }).eq('id', lead.id);
+      }
+    }
+
+    if (brandSlug && email && process.env.GHL_LOCATION_ID && process.env.GHL_API_KEY) {
+      await upsertGHLContact({
+        locationId: process.env.GHL_LOCATION_ID,
+        firstName, lastName, email, phone,
+        customFields: [{ key: 'watch_url', field_value: buildWatchUrl(brandSlug, lead.token) }],
+      });
+    }
+  } catch (err) {
+    console.error('[pabbly-webhook] watch_url/GHL error:', err.message);
+  }
 
   // ── Notify the team (if enabled in settings) ────────────────────────────────
   try {
