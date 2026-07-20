@@ -1,65 +1,113 @@
 /**
- * /r/watch/[brand]  —  instant prefill redirect to the video (VSL) lander
+ * /r/watch/[brand]  —  branded interstitial between the FB Lead Ad button
+ * and the lead's unique video page.
  *
- * Identical mechanics to /r/[brand]: Facebook's completion button cannot
- * carry the lead's answers in the URL, so Pabbly/the FB webhook saves the
- * lead first, and when the lead taps the button we claim the freshest
- * unclaimed lead and 302 them — here, to their own unique page
- * /watch/[brand]/[token] instead of the booking page.
+ * Facebook's completion button can't carry the lead's answers, and the
+ * webhook (Pabbly / native FB) that delivers them can lag a few seconds
+ * behind the click. Instead of blocking server-side with a blank screen,
+ * this page renders INSTANTLY with a "locating your territory" loader and
+ * polls /api/watch-match until the lead's data lands. The server claims the
+ * lead and mints their unique page, and we redirect to
+ * /watch/[brand]/[token] — fully prepopulated, video identified to them.
  *
- * Matching is by recency and is best-effort. The deterministic channel is
- * the watch_url the webhooks push to GHL (custom field) the instant the
- * lead lands — a GHL workflow can SMS/email that unique link, which needs
- * no matching at all.
+ * Timeout budget ~25s (far beyond normal webhook lag); after that we fall
+ * through to the plain lander so nobody dead-ends.
  */
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
+import Head from 'next/head';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const POLL_MS = 1000;
+const MAX_POLLS = 25;
+
+const STAGES = [
+  'Confirming your submission…',
+  'Locating your territory…',
+  'Pulling up your information…',
+  'Preparing your page…',
+];
 
 export async function getServerSideProps({ params }) {
   const slug = (params?.brand || '').toString().toLowerCase();
-  const fallbackDest = `/watch/${encodeURIComponent(slug)}`;
   const supabase = getSupabaseAdmin();
 
-  // Wait up to ~8s for the lead to arrive from Pabbly (see /r/[brand]).
-  let lead = null;
-  for (let attempt = 0; attempt < 11 && !lead; attempt++) {
-    if (attempt > 0) await sleep(800);
+  const { data: brand } = await supabase
+    .from('brands')
+    .select('slug, name')
+    .eq('slug', slug)
+    .eq('active', true)
+    .maybeSingle();
 
-    const sinceIso = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    const { data: candidate } = await supabase
-      .from('leads')
-      .select('id, token')
-      .is('claimed_at', null)
-      .gte('created_at', sinceIso)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (candidate) {
-      const { data: claimed } = await supabase
-        .from('leads')
-        .update({ claimed_at: new Date().toISOString() })
-        .eq('id', candidate.id)
-        .is('claimed_at', null)
-        .select('id, token')
-        .maybeSingle();
-      if (claimed) lead = claimed;
-    }
-  }
-
-  if (!lead?.token) {
-    return { redirect: { destination: fallbackDest, permanent: false } };
-  }
-
-  return {
-    redirect: {
-      destination: `/watch/${encodeURIComponent(slug)}/${encodeURIComponent(lead.token)}`,
-      permanent: false,
-    },
-  };
+  return { props: { slug, brandName: brand?.name || '' } };
 }
 
-export default function VideoPrefillRedirect() {
-  return null;
+export default function WatchInterstitial({ slug, brandName }) {
+  const router = useRouter();
+  const [stage, setStage] = useState(0);
+
+  useEffect(() => {
+    let polls = 0;
+    let stopped = false;
+
+    // Rotate the status line every few seconds so the wait feels purposeful.
+    const stageTimer = setInterval(
+      () => setStage(s => Math.min(s + 1, STAGES.length - 1)),
+      3500
+    );
+
+    const poll = async () => {
+      if (stopped) return;
+      polls += 1;
+      try {
+        const r = await fetch(`/api/watch-match?brand=${encodeURIComponent(slug)}`);
+        const data = await r.json();
+        if (data?.url) {
+          stopped = true;
+          clearInterval(stageTimer);
+          router.replace(data.url);
+          return;
+        }
+      } catch {
+        // transient network blip — keep polling
+      }
+      if (polls >= MAX_POLLS) {
+        stopped = true;
+        clearInterval(stageTimer);
+        router.replace(`/watch/${encodeURIComponent(slug)}`);
+        return;
+      }
+      setTimeout(poll, POLL_MS);
+    };
+
+    poll();
+    return () => { stopped = true; clearInterval(stageTimer); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
+
+  return (
+    <>
+      <Head>
+        <title>{brandName ? `${brandName} — One moment` : 'One moment…'}</title>
+        <meta name="robots" content="noindex" />
+      </Head>
+      <main style={{
+        minHeight: '100vh', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: 20,
+        background: '#0b0d12', color: '#fff', padding: 24, textAlign: 'center',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: '50%',
+          border: '3px solid rgba(255,255,255,.15)', borderTopColor: '#4f7cff',
+          animation: 'spin 0.9s linear infinite',
+        }} />
+        <style>{'@keyframes spin { to { transform: rotate(360deg); } }'}</style>
+        <h1 style={{ fontSize: 'clamp(20px, 4vw, 28px)', margin: 0 }}>
+          {brandName ? `Thanks for your interest in ${brandName}!` : 'Thanks for your submission!'}
+        </h1>
+        <p style={{ opacity: 0.75, margin: 0, minHeight: '1.4em' }}>{STAGES[stage]}</p>
+      </main>
+    </>
+  );
 }
