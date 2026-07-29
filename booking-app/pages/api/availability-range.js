@@ -64,9 +64,7 @@ export default async function handler(req, res) {
     members = filterByInvestmentLevel(allMembers || [], investment_level);
   }
 
-  const todayStr = new Date().toISOString().slice(0, 10);
   const stripPast = (slots, d) => {
-    if (d !== todayStr) return slots;
     const cutoffMs = Date.now() + 30 * 60_000;
     const off = getOffsetMinutes(d, settings.timezone || 'America/Chicago');
     return slots.filter(sl => {

@@ -89,8 +89,7 @@ export default async function handler(req, res) {
   // No connected / matching calendars → return demo slots
   if (!members.length) {
     let demoSlots = mockSlots(settings, date);
-    const todayStr = new Date().toISOString().slice(0, 10);
-    if (date === todayStr) {
+    {
       const cutoffMs  = Date.now() + 30 * 60_000;
       const offsetMins = getOffsetMinutes(date, settings.timezone || 'America/Chicago');
       demoSlots = demoSlots.filter(sl => {
@@ -140,9 +139,8 @@ export default async function handler(req, res) {
     }
     let slots = [...slotByKey.values()].sort((a, b) => (a.h * 60 + a.m) - (b.h * 60 + b.m));
 
-    // 4. For today: strip slots that have already passed (+ 30-min booking buffer)
-    const todayStr = new Date().toISOString().slice(0, 10);
-    if (date === todayStr) {
+    // 4. Strip slots that have already passed (+ 30-min booking buffer)
+    {
       const cutoffMs = Date.now() + 30 * 60_000; // must be at least 30 min from now
       const offsetMins = getOffsetMinutes(date, settings.timezone || 'America/Chicago');
       slots = slots.filter(sl => {
