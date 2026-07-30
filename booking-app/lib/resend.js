@@ -14,7 +14,7 @@ export async function sendConfirmationEmail({
   firstName,
   dateLabel,   // e.g. "Thu, May 28"
   timeLabel,   // e.g. "10:00 AM"
-  meetLink,
+  phone,       // client's phone — this is a phone call, not a video meeting
   hostName,
   duration,
 }) {
@@ -56,15 +56,14 @@ export async function sendConfirmationEmail({
       <p style="margin:0 0 10px;font-size:15px;color:#111827">
         🕐 <strong>${timeLabel}</strong> · ${duration} min
       </p>
-      ${meetLink
-        ? `<p style="margin:0;font-size:15px;color:#111827">
-             📹 <a href="${meetLink}" style="color:#1d4ed8;font-weight:500">Join video call</a>
-           </p>`
-        : `<p style="margin:0;font-size:15px;color:#111827">
-             📹 Video link will be in your calendar invite
-           </p>`
-      }
+      <p style="margin:0;font-size:15px;color:#111827">
+        📞 We'll call you${phone ? ` at <strong>${phone}</strong>` : ''}
+      </p>
     </div>
+
+    <p style="font-size:14px;color:#6b7280;margin:0 0 24px">
+      No video link needed — your consultant will call you by phone at the time above.
+    </p>
 
     <p style="font-size:13px;color:#9ca3af;margin:0">
       Looking forward to speaking with you!<br/>

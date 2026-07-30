@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { createCalendarEvent, isMemberFreeAt } from '@/lib/googleCalendar';
 import { sendConfirmationEmail, sendBookingAlert } from '@/lib/resend';
 import { sendCapiEvents, buildCapiEvent } from '@/lib/fbConversionsApi';
-import { upsertGHLContact, createGHLOpportunity, addGHLTags } from '@/lib/ghl';
+import { upsertGHLContact, createGHLOpportunity, addGHLTags, createGHLAppointment, removeContactFromWorkflow } from '@/lib/ghl';
 import { computeLeadScore, computeShowProbability } from '@/lib/scoring';
 import { logLeadEvent } from '@/lib/leadEvents';
 import { wasEngagedByCloseBot } from '@/lib/closebot';
@@ -12,6 +12,15 @@ import { getBrandBySlug, getTierKey, getNextRep } from '@/lib/routing';
 // Appointment Scheduling pipeline
 const GHL_PIPELINE_ID  = 'tOlnnAijaReLJ30AZaSL';
 const GHL_STAGE_BOOKED = '34c03355-1c6a-4532-b2e5-f080f4263807';
+
+// Map a rep's email → their GHL calendar + user id (for creating GHL appointments).
+function ghlCalendarForRep(email) {
+  const e = (email || '').toLowerCase();
+  const isJohn = e.includes('jdoty') || e.startsWith('john@');
+  return isJohn
+    ? { calendarId: process.env.GHL_CALENDAR_ID_2 || 'h35V7plFqYf6DyY4zsdV', userId: process.env.GHL_USER_ID_JOHN  || null }
+    : { calendarId: process.env.GHL_CALENDAR_ID   || 'Zd3fg5KnNbH5FEIHhq8R', userId: process.env.GHL_USER_ID_STEVE || null };
+}
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -326,7 +335,7 @@ export default async function handler(req, res) {
         firstName,
         dateLabel,
         timeLabel: label,
-        meetLink,
+        phone,
         hostName:  assignedName || process.env.NEXT_PUBLIC_HOST_NAME || 'Your Consultant',
         duration:  settings.meetingDuration,
       });
@@ -413,6 +422,43 @@ export default async function handler(req, res) {
               status:         'booked',
               updated_at:     new Date().toISOString(),
             }).eq('id', resolvedLeadDbId);
+          }
+
+          // Create the appointment ON the GHL calendar so it shows in the GHL
+          // dashboard and GHL's own appointment workflow (confirmation + reminders)
+          // fires — the way CloseBot bookings do.
+          try {
+            const { calendarId, userId } = ghlCalendarForRep(assignedEmail);
+            const appt = await createGHLAppointment({
+              calendarId,
+              contactId:      ghlContactId,
+              startTime:      slotStartIso,
+              endTime:        slotEndIso,
+              assignedUserId: userId,
+              title:          settings.meetingTitle || 'Discovery Call',
+              appointmentStatus: 'confirmed',
+              toNotify:       true,
+            });
+            if (appt?.id && bookingId) {
+              await supabase.from('bookings').update({ ghl_appointment_id: appt.id }).eq('id', bookingId);
+            }
+          } catch (e) {
+            console.error('[book] GHL appointment error:', e.message);
+          }
+
+          // Stop the "you haven't booked yet" nurture workflow(s) now that they
+          // HAVE booked. Add a 'appointment-booked' tag as a backup signal, then
+          // remove the contact from each configured nurture workflow via the API.
+          try {
+            await addGHLTags(ghlContactId, ['appointment-booked']).catch(() => {});
+            const wfIds = (process.env.GHL_NURTURE_WORKFLOW_IDS || '')
+              .split(',').map(s => s.trim()).filter(Boolean);
+            for (const wf of wfIds) {
+              await removeContactFromWorkflow(ghlContactId, wf)
+                .catch(err => console.error('[book] removeFromWorkflow', wf, err.message));
+            }
+          } catch (e) {
+            console.error('[book] GHL nurture-stop error:', e.message);
           }
         }
       } catch (err) {

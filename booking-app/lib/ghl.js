@@ -386,3 +386,72 @@ export async function updateGHLAppointmentStatus(eventId, appointmentStatus) {
   }
   return res.json();
 }
+
+/**
+ * Create a calendar appointment in GoHighLevel. This is what makes a KANSO
+ * booking show up on the GHL calendar/dashboard and lets GHL's own appointment
+ * workflows (confirmations, reminders) fire — the same way CloseBot bookings do.
+ *
+ * @param {object} p
+ * @param {string} p.calendarId       GHL calendar id to book into
+ * @param {string} p.contactId        GHL contact id
+ * @param {string} p.startTime        ISO start
+ * @param {string} p.endTime          ISO end
+ * @param {string} [p.assignedUserId] GHL user id (owner of the appointment)
+ * @param {string} [p.title]          appointment title
+ * @param {string} [p.appointmentStatus] default 'confirmed'
+ * @param {boolean} [p.toNotify]      let GHL send its own notifications (default true)
+ * @returns {Promise<{id: string, ...} | null>}
+ */
+export async function createGHLAppointment({
+  calendarId, contactId, startTime, endTime,
+  assignedUserId = null, title = 'Discovery Call',
+  appointmentStatus = 'confirmed', toNotify = true,
+}) {
+  const apiKey     = process.env.GHL_API_KEY;
+  const locationId = process.env.GHL_LOCATION_ID;
+  if (!apiKey || !locationId || !calendarId || !contactId || !startTime || !endTime) return null;
+
+  const body = {
+    calendarId, locationId, contactId,
+    startTime, endTime, title,
+    appointmentStatus,
+    toNotify,
+    ignoreDateRange: true,   // KANSO already validated availability; don't re-check GHL slots
+    ignoreFreeSlotValidation: true,
+  };
+  if (assignedUserId) body.assignedUserId = assignedUserId;
+
+  const res = await fetch(`${GHL_API}/calendars/events/appointments`, {
+    method:  'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'Version': GHL_VERSION },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`GHL createAppointment failed ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+/**
+ * Remove a contact from a GHL workflow — used to stop the "you haven't booked"
+ * nurture sequence the moment a call is actually booked through KANSO.
+ *
+ * @param {string} contactId
+ * @param {string} workflowId
+ */
+export async function removeContactFromWorkflow(contactId, workflowId) {
+  const apiKey = process.env.GHL_API_KEY;
+  if (!apiKey || !contactId || !workflowId) return null;
+
+  const res = await fetch(`${GHL_API}/contacts/${contactId}/workflow/${workflowId}`, {
+    method:  'DELETE',
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'Version': GHL_VERSION },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`GHL removeFromWorkflow failed ${res.status}: ${text}`);
+  }
+  return res.json().catch(() => ({ ok: true }));
+}

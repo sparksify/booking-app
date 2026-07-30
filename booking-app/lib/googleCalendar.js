@@ -309,7 +309,8 @@ export function generateSlots(settings, busyTimes, dateStr) {
 // ─── Event creation ───────────────────────────────────────────────────────────
 
 /**
- * Creates a Google Calendar event with a Meet link and invites the lead.
+ * Creates a Google Calendar event and invites the lead. Phone-based call — no
+ * Google Meet / video link is attached.
  */
 export async function createCalendarEvent(member, booking, settings) {
   const auth = makeOAuthClient({
@@ -347,29 +348,20 @@ export async function createCalendarEvent(member, booking, settings) {
       { email: member.email,  displayName: member.name, organizer: true },
     ],
     reminders,
-    conferenceData: {
-      createRequest: {
-        requestId: `booking-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        conferenceSolutionKey: { type: 'hangoutsMeet' },
-      },
-    },
   };
 
-  // Optional fields
-  if (settings.eventLocation) requestBody.location = settings.eventLocation;
-  if (settings.eventColor)    requestBody.colorId  = String(settings.eventColor);
+  // Optional fields. These are phone-based discovery calls — no Google Meet /
+  // video link is attached. Location defaults to "Phone call" unless overridden.
+  requestBody.location = settings.eventLocation || 'Phone call';
+  if (settings.eventColor) requestBody.colorId = String(settings.eventColor);
 
   const event = await calendar.events.insert({
     calendarId: member.calendar_id || 'primary',
-    conferenceDataVersion: 1,
     sendUpdates: 'all',
     requestBody,
   });
 
-  const meetLink =
-    event.data.conferenceData?.entryPoints?.find(e => e.entryPointType === 'video')?.uri || null;
-
-  return { eventId: event.data.id, meetLink };
+  return { eventId: event.data.id, meetLink: null };
 }
 
 // ─── Transfer helpers ─────────────────────────────────────────────────────────
