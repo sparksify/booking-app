@@ -430,29 +430,32 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
         <Head><title>Booked! — {cfg.brandName}</title></Head>
         <div style={pageStyle}>
           <div style={cardStyle}>
-            <div style={{ textAlign: 'center', padding: '40px 24px' }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
-              <h1 style={{ fontSize: 22, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>
-                You're booked!
+            <div style={{ textAlign: 'center', padding: '40px 28px' }}>
+              <h1 style={{ fontSize: 26, fontWeight: 800, color: 'var(--ac, #15803D)', marginBottom: 10, lineHeight: 1.2 }}>
+                🎉 Thank You for Scheduling!
               </h1>
-              <p style={{ fontSize: 15, color: '#475569', marginBottom: 4 }}>
-                {cfg.meetingTitle}
+              <p style={{ fontSize: 15, color: '#475569', marginBottom: 24 }}>
+                We're excited to share more about this opportunity with you.
               </p>
-              <p style={{ fontSize: 14, color: '#64748B', marginBottom: 24 }}>
-                {getDayLabel(bd.dateStr)} · {bs.label} {cfg.tz}
-              </p>
-              {meetLink && (
-                <a href={meetLink} target="_blank" rel="noreferrer" style={{ display: 'inline-block', padding: '10px 24px', background: '#0057FF', color: '#fff', borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: 'none', marginBottom: 16 }}>
-                  Join Call →
-                </a>
-              )}
-              <div style={{ marginTop: 12 }}>
-                <a href={makeGcalUrl(bd, bs, cfg)} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: '#0057FF', textDecoration: 'none' }}>
-                  + Add to Google Calendar
-                </a>
+
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '18px 20px', marginBottom: 24, textAlign: 'left' }}>
+                <div style={{ fontSize: 15, color: '#0F172A', marginBottom: 10 }}>
+                  <span aria-hidden style={{ marginRight: 8 }}>📅</span>
+                  <strong style={{ color: 'var(--ac, #15803D)' }}>Date &amp; Time:</strong>{' '}
+                  {getDayLabel(bd.dateStr)} · {bs.label} {cfg.tz}
+                </div>
+                <div style={{ fontSize: 15, color: '#0F172A' }}>
+                  <span aria-hidden style={{ marginRight: 8 }}>📞</span>
+                  <strong style={{ color: 'var(--ac, #15803D)' }}>We'll call you at:</strong>{' '}
+                  {formatPhone(answers.phone) || 'the number you provided'}
+                </div>
               </div>
-              <p style={{ fontSize: 12, color: '#94A3B8', marginTop: 24 }}>
-                A confirmation email is on its way to {answers.email}
+
+              <p style={{ fontSize: 14, color: '#64748B', marginBottom: 8 }}>
+                No video link needed — your consultant will call you by phone at the time above.
+              </p>
+              <p style={{ fontSize: 13, color: '#94A3B8' }}>
+                A confirmation is on its way to {answers.email}.
               </p>
             </div>
           </div>
