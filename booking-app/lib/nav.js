@@ -8,6 +8,7 @@ export const NAV_ITEMS = [
   { href: '/dashboard/leads',       label: 'Leads',          icon: 'leads',     perm: 'page_leads' },
   { href: '/dashboard/prospects',   label: 'Prospecting',    icon: 'clients',   perm: 'page_prospecting' },
   { href: '/dashboard/bookings',    label: 'Meetings',       icon: 'meetings',  perm: 'page_meetings' },
+  { href: '/dashboard/inbox',       label: 'Inbox',          icon: 'inbox',     perm: 'page_inbox' },
   { href: '/dashboard/pipeline',    label: 'Genesis Agent', icon: 'pipeline',  perm: 'page_pipeline' },
   { href: '/dashboard/cq-recovery', label: 'CQ Recovery',   icon: 'cq',        perm: 'page_cq' },
   { href: '/dashboard/ad-stats',    label: 'Ad Stats',       icon: 'ads',       perm: 'page_ad_stats' },

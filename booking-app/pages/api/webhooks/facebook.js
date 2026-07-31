@@ -205,6 +205,11 @@ async function handleWebhook(req, res) {
           supabase.from('leads').update({ brand_slug: brandSlug }).eq('id', lead.id).then(() => {}).catch(() => {});
         }
 
+        // Personalized "watch funnel" URL — GHL redirects the lead here after the
+        // ad so KANSO already has their info (opaque per-lead token, no PII in URL).
+        const APP_URL   = process.env.NEXT_PUBLIC_APP_URL || 'https://www.bookkanso.co';
+        const watchUrl  = `${APP_URL}/watch/${brandSlug || 'general'}/${lead.token}`;
+
         // 5. Sync to GoHighLevel
         if (process.env.GHL_LOCATION_ID && process.env.GHL_API_KEY) {
           try {
@@ -216,9 +221,10 @@ async function handleWebhook(req, res) {
               phone:      parsed.phone,
               tags:       formTags,
               source:     'Facebook Lead Ad',
-              customFields: parsed.investmentLevel
-                ? [{ key: 'investment_level', field_value: parsed.investmentLevel }]
-                : [],
+              customFields: [
+                ...(parsed.investmentLevel ? [{ key: 'investment_level', field_value: parsed.investmentLevel }] : []),
+                ...(process.env.GHL_FIELD_WATCH_URL ? [{ key: process.env.GHL_FIELD_WATCH_URL, field_value: watchUrl }] : []),
+              ],
             });
 
             if (ghlContact?.id) {
