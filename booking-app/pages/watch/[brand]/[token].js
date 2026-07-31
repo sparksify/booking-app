@@ -151,11 +151,12 @@ function FunnelForm({ token, brand, tz, daysAhead, prefill, watchPct = 0 }) {
 
   return (
     <div style={st.formCard}>
-      <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', margin: '0 0 4px' }}>Take the next step</h2>
-      <p style={{ fontSize: 14, color: '#64748B', margin: '0 0 18px' }}>Answer a few quick questions and grab a time to talk — see what's possible in your area.</p>
+      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.14em', color: '#7A5A00', textTransform: 'uppercase', marginBottom: 8 }}>Territory Availability</div>
+      <h2 style={{ fontSize: 24, fontWeight: 800, color: '#0F172A', margin: '0 0 6px', lineHeight: 1.1 }}>See if your market is still available.</h2>
+      <p style={{ fontSize: 14.5, color: '#64748B', margin: '0 0 18px' }}>Answer a few quick questions below. If your market is open and there appears to be a fit, we'll show you the next step.</p>
       {watchPct >= 50 && !complete && (
         <div style={{ background: '#F0FDF4', border: `1px solid ${ac}`, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 14, color: '#166534', fontWeight: 600 }}>
-          👏 You've seen the opportunity — finish the quick questions below to see what's available in your area.
+          👏 You've seen the opportunity — finish the quick questions to check your market.
         </div>
       )}
 
@@ -205,7 +206,7 @@ function FunnelForm({ token, brand, tz, daysAhead, prefill, watchPct = 0 }) {
               })}
             </div>
           )}
-          {selSlot && <button onClick={book} disabled={!canBook || booking} style={{ ...st.book, background: ac, opacity: (!canBook || booking) ? 0.6 : 1 }}>{booking ? 'Booking…' : `Book my call — ${selSlot.label}`}</button>}
+          {selSlot && <button onClick={book} disabled={!canBook || booking} style={{ ...st.book, background: ac, opacity: (!canBook || booking) ? 0.6 : 1 }}>{booking ? 'Checking…' : 'Check My Territory →'}</button>}
           {bookErr && <div style={{ color: '#DC2626', fontSize: 13, marginTop: 10 }}>{bookErr}</div>}
         </div>
       )}
@@ -231,8 +232,8 @@ export default function Watch(props) {
   // Sticky "next step" bar — appears once they scroll past the video or hit 40% watched.
   const sticky = (scrolled || watchPct >= 40) ? (
     <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 60, background: '#0F151C', padding: '11px 16px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 12, boxShadow: '0 -4px 22px rgba(0,0,0,.22)' }}>
-      <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>See what's possible in your area</span>
-      <button onClick={scrollToForm} style={{ background: ac, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>Take the Next Step →</button>
+      <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>Is your market still available?</span>
+      <button onClick={scrollToForm} style={{ background: ac, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>Check My Territory →</button>
     </div>
   ) : null;
 
@@ -251,8 +252,8 @@ export default function Watch(props) {
         <style dangerouslySetInnerHTML={{ __html: landing.css }} />
         <div style={{ paddingBottom: 68 }}>
           <div dangerouslySetInnerHTML={{ __html: before || '' }} />
-          <section className="band on-white" id="territory">
-            <div className="wrap" style={{ maxWidth: 620 }}>
+          <section className="band on-tint close-tight" id="territory">
+            <div className="wrap" style={{ maxWidth: 640 }}>
               <FunnelForm {...props} watchPct={watchPct} />
             </div>
           </section>

@@ -25,7 +25,7 @@ export const css = `
 
   --wrap:1120px;
   --gut:20px;
-  --band:clamp(56px,11vw,116px);
+  --band:clamp(36px,6vw,66px);
   --bar-h:76px;
 }
 
@@ -487,17 +487,22 @@ footer{background:var(--white);border-top:1px solid var(--line);padding:40px 0 5
 .faq p{font-family:var(--body);font-size:14.5px;line-height:1.6;color:var(--muted);margin:12px 0 0;max-width:70ch}
 .vid-intro{font-family:var(--display);font-weight:800;text-transform:uppercase;letter-spacing:-.015em;font-size:clamp(1.35rem,5.2vw,2rem);margin-top:clamp(34px,6vw,52px);color:var(--ink)}
 .foot{padding:clamp(40px,8vw,72px) var(--gut);text-align:center;color:var(--muted-2);font-family:var(--mono);font-size:11.5px;letter-spacing:.06em}
+
+.marquee-track span{font-family:var(--display);font-weight:800;font-size:clamp(1.6rem,6vw,3rem);color:var(--ink);text-transform:uppercase;letter-spacing:-.01em;opacity:1}
+.marquee{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:22px 0;margin-top:26px}
+.hero .video{box-shadow:6px 6px 0 0 var(--ink)}
+.close-tight{padding-top:clamp(22px,4vw,40px)}
 `;
 
 export const html = `<div class="tape" aria-hidden="true"></div>
 
 <header class="hero wrap">
-  <p class="eyebrow">Franchise Opportunity · Limited Territories Available</p>
-  <h1><span class="lo">The <span class="mark-hi">$961K</span> B2B Business You Probably Never Knew You Could Own.</span></h1>
-  <p class="deck">Build a mobile business around recurring workplace testing needs — without a traditional storefront — while becoming part of a nationwide testing network serving some of America's largest employers.</p>
-  <p class="deck" style="margin-top:14px"><strong>See how franchisees can tap into a nationwide testing network serving some of America's largest employers.</strong></p>
+  <p class="eyebrow">Franchise Opportunity · Limited Territories</p>
+  <h1>Own the B2B Business Local Employers Need — <span class="mark-hi">Without the Overhead</span> Most Franchises Require.</h1>
+  <p class="deck" style="margin-top:22px"><strong>Recurring workplace testing. Mobile operations. National network opportunities. 13+ years of operating history. Starting around $72K.</strong></p>
+  <p class="deck" style="margin-top:12px">See how one corporate operation generated $961K in 2024 at a 42% net profit margin — and why CMDT is now opening select franchise territories.</p>
 
-  <div class="plate" style="margin-top:28px">
+  <div class="plate" style="margin-top:26px">
     <div class="plate-grid">
       <div class="cell"><div class="fig">$961K</div><div class="cap">2024 Corporate<br>Revenue</div></div>
       <div class="cell"><div class="fig">42%</div><div class="cap">Net Profit<br>Margin</div></div>
@@ -507,9 +512,8 @@ export const html = `<div class="tape" aria-hidden="true"></div>
     <div class="plate-foot">Financial performance and investment information should be evaluated against the current FDD. Individual results vary.</div>
   </div>
 
-  <h2 class="vid-intro">See How This Overlooked Business Model Actually Works.</h2>
-  <p class="lede" style="margin-top:10px">Watch the breakdown to see the model, economics, network advantage, and franchise opportunity.</p>
-  <div class="hero-video" style="margin-top:20px">
+  <p class="lede" style="margin-top:clamp(26px,5vw,40px)">Watch the 15-minute breakdown to see how CMDT makes money, why employers repeatedly need the service, and how franchisees tap into a nationwide testing network.</p>
+  <div class="hero-video" style="margin-top:16px">
     <div class="video" style="cursor:default"><wistia-player media-id="__WISTIA_ID__" aspect="1.7777777777777777" style="width:100%;height:100%;display:block"></wistia-player></div>
   </div>
 </header>
@@ -517,14 +521,14 @@ export const html = `<div class="tape" aria-hidden="true"></div>
 <section class="band on-white">
   <div class="wrap">
     <p class="eyebrow">The Network Advantage</p>
-    <h2>You're Not Starting<br><span class="thin">From Zero.</span></h2>
-    <p class="lede" style="margin-top:20px">As a CMDT franchisee, you don't just open a local mobile drug-testing business. You become part of a nationwide drug-testing network serving businesses such as Amazon, Walmart, Costco, and Home Depot.</p>
-    <p class="lede" style="margin-top:14px">When eligible mobile-testing opportunities arise within your territory, CMDT franchisees can be positioned to provide the local mobile service — so you build your own book of local employer relationships while participating in opportunities generated through a much larger network.</p>
+    <h2>Build Locally.<br><span class="thin">Tap Into National Demand.</span></h2>
+    <p class="lede" style="margin-top:20px">As a CMDT franchisee, you're not limited to the employer relationships you build yourself. You become part of a nationwide drug-testing network serving businesses such as Amazon, Walmart, Costco, and Home Depot.</p>
+    <p class="lede" style="margin-top:14px">When eligible mobile-testing opportunities arise in your territory, franchisees can be positioned to provide the service locally — so you build your own local book of business while tapping into opportunities generated by a much larger network.</p>
     <div class="marquee" aria-label="Businesses served by the network include Amazon, Walmart, Costco, and Home Depot">
-      <div class="marquee-track" aria-hidden="true"><span>Amazon</span><span>·</span><span>Walmart</span><span>·</span><span>Costco</span><span>·</span><span>Home Depot</span><span>·</span><span>Amazon</span><span>·</span><span>Walmart</span><span>·</span><span>Costco</span><span>·</span><span>Home Depot</span><span>·</span></div>
+      <div class="marquee-track" aria-hidden="true"><span>Amazon</span><span>Walmart</span><span>Costco</span><span>Home Depot</span><span>Amazon</span><span>Walmart</span><span>Costco</span><span>Home Depot</span></div>
     </div>
     <p class="marq-cap">The network provides testing services for businesses such as the above. Eligible opportunities may be made available to franchisees within their territory.</p>
-    <div class="tag-line">National reach. Local fulfillment. Your territory.</div>
+    <div class="tag-line">National Reach. Local Fulfillment. Your Territory.</div>
   </div>
 </section>
 
@@ -532,9 +536,9 @@ export const html = `<div class="tape" aria-hidden="true"></div>
   <div class="wrap">
     <p class="eyebrow">Why This Business Model Is Different</p>
     <div class="triggers" style="grid-template-columns:repeat(3,1fr)">
-      <div class="trig"><div class="n">01</div><div class="t">Repeat B2B Demand</div><p class="tdesc">Pre-employment, random, post-accident, and other workplace testing needs mean one employer relationship can create multiple service opportunities.</p></div>
-      <div class="trig"><div class="n">02</div><div class="t">Mobile By Design</div><p class="tdesc">Bring testing to employers instead of building around a traditional clinic or retail storefront.</p></div>
-      <div class="trig"><div class="n">03</div><div class="t">An Existing Business Need</div><p class="tdesc">You're solving a workplace testing problem businesses already have — not trying to manufacture consumer demand.</p></div>
+      <div class="trig"><div class="n">01</div><div class="t">One Client. Multiple Reasons To Call.</div><p class="tdesc">Pre-employment. Random. Post-accident. Reasonable suspicion. One employer relationship can create testing needs again and again.</p></div>
+      <div class="trig"><div class="n">02</div><div class="t">The Business Goes To Them.</div><p class="tdesc">No traditional storefront required. CMDT brings testing directly to workplaces and jobsites.</p></div>
+      <div class="trig"><div class="n">03</div><div class="t">You're Not Inventing Demand.</div><p class="tdesc">Employers already need workplace testing. CMDT gives them a faster, more convenient way to get it handled.</p></div>
     </div>
     <p class="lede center" style="margin-top:26px">The opportunity isn't selling drug tests. It's becoming the company local employers call when testing needs to get handled.</p>
   </div>
@@ -542,9 +546,10 @@ export const html = `<div class="tape" aria-hidden="true"></div>
 
 <section class="band on-white">
   <div class="wrap center">
-    <p class="eyebrow">Track Record</p>
+    <p class="eyebrow">13+ Years In The Making</p>
     <h2>Built First.<br><span class="thin">Franchised Second.</span></h2>
-    <p class="lede" style="margin-top:18px;margin-left:auto;margin-right:auto">CMDT spent 13+ years operating and refining the model before expanding through franchising. Now select territories are available to entrepreneurs who want to build the model in their market.</p>
+    <p class="lede" style="margin-top:18px;margin-left:auto;margin-right:auto">CMDT didn't create a franchise and then figure out the business. The business operated for 13+ years before the model was opened to franchise owners. Now select territories are available.</p>
+    <p class="lede" style="margin-top:14px;margin-left:auto;margin-right:auto">You don't need drug-testing experience. You don't need a traditional clinic. And you don't need to build the model from scratch. You need a market, the ability to execute, and a territory that's still available. Find out if yours is.</p>
     <a class="btn" href="#territory" style="margin-top:24px"><span class="tri">▶</span> See If My Territory Is Available</a>
   </div>
 </section>
@@ -567,9 +572,9 @@ export const html = `<div class="tape" aria-hidden="true"></div>
     <div style="margin-top:22px">
       <details class="faq"><summary>Do I need prior drug-testing or medical experience?</summary><p>No. You don't need to come from the industry — the model is built to be followed. What matters is executing the system and building employer relationships in your territory.</p></details>
       <details class="faq"><summary>Is this a storefront business?</summary><p>No. It's mobile by design. You bring testing to employers rather than building around a traditional clinic or retail location.</p></details>
-      <details class="faq"><summary>Why is there repeat demand?</summary><p>Workplace testing is ongoing — pre-employment, random, and post-accident needs mean a single employer relationship can generate multiple service opportunities over time.</p></details>
+      <details class="faq"><summary>Why is there repeat demand?</summary><p>Workplace testing is ongoing — pre-employment, random, post-accident, and reasonable-suspicion needs mean a single employer relationship can generate multiple service opportunities over time.</p></details>
       <details class="faq"><summary>How does the nationwide testing network work?</summary><p>CMDT participates in a nationwide network. When eligible mobile-testing opportunities arise within your territory, franchisees can be positioned to provide the local service — alongside the local employer relationships you build yourself.</p></details>
-      <details class="faq"><summary>What support does CMDT provide?</summary><p>Training, systems, and ongoing operational support. The full breakdown of training, support, and day-to-day operation is covered in the video and on your intro call.</p></details>
+      <details class="faq"><summary>What support does CMDT provide?</summary><p>Training, systems, and ongoing operational support. The full breakdown is covered in the video and on your intro call.</p></details>
       <details class="faq"><summary>Who is the ideal franchisee?</summary><p>Someone who can follow a proven system, build B2B relationships, execute consistently, and develop a territory — not necessarily someone with a testing background.</p></details>
       <details class="faq"><summary>What is the estimated investment?</summary><p>Entry investment is approximately $72K. Full financial detail should be evaluated against the current FDD.</p></details>
       <details class="faq"><summary>Is my territory available?</summary><p>Territories are limited and awarded selectively. Answer a few quick questions above and book a call to check availability in your market.</p></details>
