@@ -222,7 +222,7 @@ p:last-child{margin-bottom:0}
    ============================================================ */
 .hero{padding-top:clamp(30px,8vw,62px);padding-bottom:clamp(44px,9vw,84px)}
 .hero-grid{display:grid;gap:clamp(30px,6vw,54px)}
-@media(min-width:960px){ .hero-grid{grid-template-columns:1.02fr .98fr;align-items:center;gap:60px} }
+@media(min-width:960px){ .hero-grid{grid-template-columns:1fr;gap:28px}.hero-video{order:-1} }
 .hero-copy p.deck{color:var(--ink-2);font-size:clamp(1rem,3.9vw,1.12rem);margin-top:26px;max-width:46ch}
 .hero-copy p.deck strong{color:var(--ink);font-weight:600}
 
@@ -521,7 +521,7 @@ export const html = `
            Optional poster: style="background-image:url('poster.jpg');background-size:cover"
            ============================================ -->
       <div class="video" style="cursor:default"><wistia-player media-id="__WISTIA_ID__" aspect="1.7777777777777777" style="width:100%;height:100%;display:block"></wistia-player></div><div style="margin-top:24px">
-        <a class="btn" href="#territory"><span class="tri">▶</span> Check Your Territory</a>
+        <a class="btn" href="#territory"><span class="tri">▶</span> Take the Next Step</a>
         <p class="cta-sub">
           See how the model works, where the demand comes from,<br>
           and what an available territory could look like.
@@ -714,7 +714,7 @@ export const html = `
      ========================================================== -->
 <div class="sticky" id="sticky">
   <div class="tape" aria-hidden="true"></div>
-  <a class="btn" href="#territory"><span class="tri">▶</span> Watch &amp; Check Territory</a>
+  <a class="btn" href="#territory"><span class="tri">▶</span> Watch, Then Take the Next Step</a>
 </div>
 
 

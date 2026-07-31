@@ -46,7 +46,7 @@ function workdays(n) {
 }
 
 /* ── Load Wistia player + wire identity tag & watch tracking ── */
-function useWistia(videoId, email, token) {
+function useWistia(videoId, email, token, onProgress) {
   useEffect(() => {
     if (!videoId) return;
     if (!document.getElementById('wistia-player-js')) {
@@ -63,6 +63,7 @@ function useWistia(videoId, email, token) {
       try {
         video.bind('percentwatchedchanged', (pct) => {
           const p = Math.round((pct || 0) * 100);
+          try { onProgress && onProgress(p); } catch {}
           if (p - lastSent >= 5 || p >= 95) {
             lastSent = p;
             fetch('/api/watch/track', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -75,7 +76,7 @@ function useWistia(videoId, email, token) {
 }
 
 /* ── The interactive conversion block: details + questionnaire + gated calendar ── */
-function FunnelForm({ token, brand, tz, daysAhead, prefill }) {
+function FunnelForm({ token, brand, tz, daysAhead, prefill, watchPct = 0 }) {
   const ac = brand.accent || '#15803D';
   const [info, setInfo] = useState({ firstName: prefill.firstName, lastName: prefill.lastName, email: prefill.email, phone: prefill.phone });
   const [a, setA] = useState({ city: prefill.city, state: prefill.state, operated: prefill.operated, liquid: prefill.liquid, networth: prefill.networth });
@@ -150,8 +151,13 @@ function FunnelForm({ token, brand, tz, daysAhead, prefill }) {
 
   return (
     <div style={st.formCard}>
-      <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', margin: '0 0 4px' }}>Check your territory</h2>
-      <p style={{ fontSize: 14, color: '#64748B', margin: '0 0 18px' }}>A few quick questions, then pick a time to talk.</p>
+      <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', margin: '0 0 4px' }}>Take the next step</h2>
+      <p style={{ fontSize: 14, color: '#64748B', margin: '0 0 18px' }}>Answer a few quick questions and grab a time to talk — see what's possible in your area.</p>
+      {watchPct >= 50 && !complete && (
+        <div style={{ background: '#F0FDF4', border: `1px solid ${ac}`, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 14, color: '#166534', fontWeight: 600 }}>
+          👏 You've seen the opportunity — finish the quick questions below to see what's available in your area.
+        </div>
+      )}
 
       <div style={st.known}>
         <div style={st.knownLabel}>YOUR DETAILS</div>
@@ -209,8 +215,26 @@ function FunnelForm({ token, brand, tz, daysAhead, prefill }) {
 
 export default function Watch(props) {
   const { brand, token, prefill } = props;
+  const ac = brand.accent || '#15803D';
   const landing = getLanding(brand.slug);
-  useWistia(brand.wistiaVideoId, prefill.email, token);
+  const [watchPct, setWatchPct] = useState(0);
+  const [scrolled, setScrolled] = useState(false);
+  useWistia(brand.wistiaVideoId, prefill.email, token, setWatchPct);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 480);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+  const scrollToForm = () => document.getElementById('territory')?.scrollIntoView({ behavior: 'smooth' });
+
+  // Sticky "next step" bar — appears once they scroll past the video or hit 40% watched.
+  const sticky = (scrolled || watchPct >= 40) ? (
+    <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 60, background: '#0F151C', padding: '11px 16px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 12, boxShadow: '0 -4px 22px rgba(0,0,0,.22)' }}>
+      <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>See what's possible in your area</span>
+      <button onClick={scrollToForm} style={{ background: ac, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>Take the Next Step →</button>
+    </div>
+  ) : null;
 
   if (landing) {
     const html = landing.html.replace(/__WISTIA_ID__/g, brand.wistiaVideoId || '');
@@ -225,13 +249,16 @@ export default function Watch(props) {
           <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
         </Head>
         <style dangerouslySetInnerHTML={{ __html: landing.css }} />
-        <div dangerouslySetInnerHTML={{ __html: before || '' }} />
-        <section className="band on-white" id="territory">
-          <div className="wrap" style={{ maxWidth: 620 }}>
-            <FunnelForm {...props} />
-          </div>
-        </section>
-        <div dangerouslySetInnerHTML={{ __html: after || '' }} />
+        <div style={{ paddingBottom: 68 }}>
+          <div dangerouslySetInnerHTML={{ __html: before || '' }} />
+          <section className="band on-white" id="territory">
+            <div className="wrap" style={{ maxWidth: 620 }}>
+              <FunnelForm {...props} watchPct={watchPct} />
+            </div>
+          </section>
+          <div dangerouslySetInnerHTML={{ __html: after || '' }} />
+        </div>
+        {sticky}
       </>
     );
   }
@@ -248,9 +275,10 @@ export default function Watch(props) {
           ) : (
             <div style={{ ...st.videoWrap, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8', fontSize: 14 }}>Video coming soon</div>
           )}
-          <div style={{ padding: '22px 22px 30px' }}><FunnelForm {...props} /></div>
+          <div style={{ padding: '22px 22px 30px' }} id="territory"><FunnelForm {...props} watchPct={watchPct} /></div>
         </div>
       </div>
+      {sticky}
     </>
   );
 }
