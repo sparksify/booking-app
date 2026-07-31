@@ -75,24 +75,36 @@ export default function Watch({ token, brand, tz, daysAhead, prefill }) {
     return () => clearTimeout(saveTimer.current);
   }, [a, token]);
 
-  /* ── Wistia video: identity tag + watch tracking ── */
+  /* ── Wistia (new web-component player): identity tag + watch tracking ── */
   useEffect(() => {
-    if (!brand.wistiaVideoId) return;
-    const s1 = document.createElement('script'); s1.src = `https://fast.wistia.com/embed/medias/${brand.wistiaVideoId}.jsonp`; s1.async = true;
-    const s2 = document.createElement('script'); s2.src = 'https://fast.wistia.com/assets/external/E-v1.js'; s2.async = true;
-    document.body.appendChild(s1); document.body.appendChild(s2);
+    const id = brand.wistiaVideoId;
+    if (!id) return;
+    // player.js runtime (once) + this media's module script.
+    if (!document.getElementById('wistia-player-js')) {
+      const p = document.createElement('script'); p.id = 'wistia-player-js'; p.src = 'https://fast.wistia.com/player.js'; p.async = true;
+      document.body.appendChild(p);
+    }
+    const mid = `wistia-media-${id}`;
+    if (!document.getElementById(mid)) {
+      const m = document.createElement('script'); m.id = mid; m.src = `https://fast.wistia.com/embed/${id}.js`; m.async = true; m.type = 'module';
+      document.body.appendChild(m);
+    }
+    // The JS Player API (_wq) still works with player.js — use it for email
+    // identity tagging + watch-progress tracking.
     window._wq = window._wq || [];
     let lastSent = 0;
-    window._wq.push({ id: brand.wistiaVideoId, onReady: (video) => {
+    window._wq.push({ id, onReady: (video) => {
       try { if (info.email) video.email(info.email); } catch {}
-      video.bind('percentwatchedchanged', (pct) => {
-        const p = Math.round(pct * 100);
-        if (p - lastSent >= 5 || p >= 95) {
-          lastSent = p;
-          fetch('/api/watch/track', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token, pct: p, seconds: Math.round(video.secondsWatched?.() || 0) }) }).catch(() => {});
-        }
-      });
+      try {
+        video.bind('percentwatchedchanged', (pct) => {
+          const p = Math.round((pct || 0) * 100);
+          if (p - lastSent >= 5 || p >= 95) {
+            lastSent = p;
+            fetch('/api/watch/track', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token, pct: p, seconds: Math.round(video.secondsWatched?.() || 0) }) }).catch(() => {});
+          }
+        });
+      } catch {}
     }});
   }, [brand.wistiaVideoId]); // eslint-disable-line
 
@@ -172,11 +184,10 @@ export default function Watch({ token, brand, tz, daysAhead, prefill }) {
       <style>{`* { box-sizing: border-box } body { margin:0; background:#EEF1F5 }`}</style>
       <div style={{ ...st.page, '--ac': ac }}>
         <div style={st.card}>
-          {/* Video */}
+          {/* Video (Wistia web-component player) */}
           {brand.wistiaVideoId ? (
-            <div style={st.videoWrap}>
-              <div className={`wistia_embed wistia_async_${brand.wistiaVideoId} videoFoam=true`} style={{ height: '100%', width: '100%', position: 'relative' }}>&nbsp;</div>
-            </div>
+            <div style={st.videoWrap}
+              dangerouslySetInnerHTML={{ __html: `<wistia-player media-id="${brand.wistiaVideoId}" aspect="1.7777777777777777" style="width:100%;height:100%;display:block"></wistia-player>` }} />
           ) : (
             <div style={{ ...st.videoWrap, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8', fontSize: 14 }}>Video coming soon</div>
           )}
