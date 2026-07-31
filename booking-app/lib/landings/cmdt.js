@@ -492,6 +492,8 @@ footer{background:var(--white);border-top:1px solid var(--line);padding:40px 0 5
 .marquee{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:22px 0;margin-top:26px}
 .hero .video{box-shadow:6px 6px 0 0 var(--ink)}
 .close-tight{padding-top:clamp(22px,4vw,40px)}
+.watch-note{display:flex;gap:8px;align-items:flex-start;background:#FFF7DB;border:1.5px solid var(--ink);border-radius:3px;padding:14px 16px;margin-top:20px;font-family:var(--body);font-size:14.5px;line-height:1.5;color:var(--ink-2);box-shadow:3px 3px 0 0 var(--ink)}
+.watch-note strong{color:var(--ink)}
 `;
 
 export const html = `<div class="tape" aria-hidden="true"></div>
@@ -513,6 +515,7 @@ export const html = `<div class="tape" aria-hidden="true"></div>
   </div>
 
   <p class="lede" style="margin-top:clamp(26px,5vw,40px)">Watch the 15-minute breakdown to see how CMDT makes money, why employers repeatedly need the service, and how franchisees tap into a nationwide testing network.</p>
+  <div class="watch-note">⚠️&nbsp; <span><strong>Please watch the video before requesting a territory review.</strong> Territory booking unlocks once you've watched enough to understand the business — we only speak with people who've taken the time to learn how it works.</span></div>
   <div class="hero-video" style="margin-top:16px">
     <div class="video" style="cursor:default"><wistia-player media-id="__WISTIA_ID__" aspect="1.7777777777777777" style="width:100%;height:100%;display:block"></wistia-player></div>
   </div>

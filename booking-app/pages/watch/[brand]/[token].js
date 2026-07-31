@@ -1,7 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getLanding } from '@/lib/landings';
+
+// Booking unlocks once they've watched this % of the video, OR after a time
+// fallback (so a Wistia tracking hiccup never dead-ends a serious lead).
+const UNLOCK_PCT = 40;
+const UNLOCK_FALLBACK_SEC = 8 * 60;
 
 const LIQUID = ['Under $50k', '$50k – $100k', '$100k – $250k', '$250k – $500k', '$500k+'];
 const NETWORTH = ['Under $100k', '$100k – $250k', '$250k – $500k', '$500k – $1M', '$1M+'];
@@ -79,13 +85,22 @@ function useWistia(videoId, email, token, onProgress) {
 function FunnelForm({ token, brand, tz, daysAhead, prefill, watchPct = 0 }) {
   const ac = brand.accent || '#15803D';
   const [info, setInfo] = useState({ firstName: prefill.firstName, lastName: prefill.lastName, email: prefill.email, phone: prefill.phone });
-  const [a, setA] = useState({ city: prefill.city, state: prefill.state, operated: prefill.operated, liquid: prefill.liquid, networth: prefill.networth });
+  const [a, setA] = useState({ watched: '', city: prefill.city, state: prefill.state, operated: prefill.operated, liquid: prefill.liquid, networth: prefill.networth });
   const setField = (k, v) => setA(s => ({ ...s, [k]: v }));
+  const router = useRouter();
 
-  const showOperated = a.city.trim() && a.state.trim();
+  // Booking is gated on watching enough of the video (with a time fallback so a
+  // tracking hiccup never dead-ends a serious lead).
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => { const t = setInterval(() => setElapsed(e => e + 1), 1000); return () => clearInterval(t); }, []);
+  // Add ?preview=1 to the URL to bypass the watch gate (for testing).
+  const unlocked = watchPct >= UNLOCK_PCT || elapsed >= UNLOCK_FALLBACK_SEC || router.query?.preview === '1';
+
+  const showCity     = a.watched === 'yes';
+  const showOperated = showCity && a.city.trim() && a.state.trim();
   const showLiquid   = showOperated && a.operated;
   const showNet      = showLiquid && a.liquid;
-  const complete     = !!(a.city.trim() && a.state.trim() && a.operated && a.liquid && a.networth);
+  const complete     = !!(a.watched === 'yes' && a.city.trim() && a.state.trim() && a.operated && a.liquid && a.networth);
 
   const saveTimer = useRef(null);
   useEffect(() => {
@@ -105,7 +120,6 @@ function FunnelForm({ token, brand, tz, daysAhead, prefill, watchPct = 0 }) {
   const [selSlot, setSelSlot] = useState(null);
   const [booking, setBooking] = useState(false);
   const [bookErr, setBookErr] = useState('');
-  const [booked, setBooked] = useState(null);
   const calRef = useRef(null);
 
   const fetchSlots = useCallback(async (dateStr) => {
@@ -129,22 +143,29 @@ function FunnelForm({ token, brand, tz, daysAhead, prefill, watchPct = 0 }) {
           date: selDate.dateStr, h: selSlot.h, m: selSlot.m, label: selSlot.label, brand: brand.slug, lead_id: token,
           source: 'watch_funnel', liquid_capital: a.liquid, investment_level: a.liquid }) });
       const d = await r.json();
-      if (d.success) setBooked({ date: selDate, slot: selSlot });
-      else setBookErr(d.error || 'Could not book. Please try another time.');
+      if (d.success) {
+        const dayLabel = `${DOW[new Date(selDate.dateStr + 'T12:00').getDay()]}, ${selDate.mon} ${selDate.day}`;
+        router.push({ pathname: '/watch/booked', query: { when: `${dayLabel} · ${selSlot.label} ${tz}`, phone: info.phone, ac: ac.replace('#', ''), brand: brand.name } });
+        return;
+      }
+      setBookErr(d.error || 'Could not book. Please try another time.');
     } catch { setBookErr('Could not book. Please try again.'); }
     setBooking(false);
   }
 
-  if (booked) {
+  // Locked until they've watched enough of the video.
+  if (!unlocked) {
     return (
       <div style={st.formCard}>
-        <h2 style={{ fontSize: 24, fontWeight: 800, color: ac, margin: '0 0 8px' }}>🎉 You're all set!</h2>
-        <p style={{ fontSize: 15, color: '#475569', margin: '0 0 16px' }}>We're excited to talk with you.</p>
-        <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 18px' }}>
-          <div style={{ fontSize: 15, marginBottom: 8 }}>📅 <strong style={{ color: ac }}>{DOW[new Date(booked.date.dateStr + 'T12:00').getDay()]}, {booked.date.mon} {booked.date.day}</strong> · {booked.slot.label} {tz}</div>
-          <div style={{ fontSize: 15 }}>📞 <strong style={{ color: ac }}>We'll call you at:</strong> {info.phone}</div>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.14em', color: '#7A5A00', textTransform: 'uppercase', marginBottom: 8 }}>Territory Availability</div>
+        <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', margin: '0 0 8px', lineHeight: 1.1 }}>🔒 Keep watching to unlock</h2>
+        <p style={{ fontSize: 14.5, color: '#64748B', margin: 0 }}>
+          Territory booking opens once you've watched enough of the video above to understand the business. We reserve calls for people who've taken the time to learn how it works.
+        </p>
+        <div style={{ marginTop: 16, height: 8, borderRadius: 20, background: '#E2E8F0', overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${Math.min(100, Math.round((watchPct / UNLOCK_PCT) * 100))}%`, background: ac, transition: 'width .4s ease' }} />
         </div>
-        <p style={{ fontSize: 13, color: '#94A3B8', marginTop: 14 }}>No video link needed — your consultant will call you by phone.</p>
+        <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 8 }}>{watchPct}% watched — keep going and this will open automatically.</div>
       </div>
     );
   }
@@ -154,11 +175,6 @@ function FunnelForm({ token, brand, tz, daysAhead, prefill, watchPct = 0 }) {
       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.14em', color: '#7A5A00', textTransform: 'uppercase', marginBottom: 8 }}>Territory Availability</div>
       <h2 style={{ fontSize: 24, fontWeight: 800, color: '#0F172A', margin: '0 0 6px', lineHeight: 1.1 }}>See if your market is still available.</h2>
       <p style={{ fontSize: 14.5, color: '#64748B', margin: '0 0 18px' }}>Answer a few quick questions below. If your market is open and there appears to be a fit, we'll show you the next step.</p>
-      {watchPct >= 50 && !complete && (
-        <div style={{ background: '#F0FDF4', border: `1px solid ${ac}`, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 14, color: '#166534', fontWeight: 600 }}>
-          👏 You've seen the opportunity — finish the quick questions to check your market.
-        </div>
-      )}
 
       <div style={st.known}>
         <div style={st.knownLabel}>YOUR DETAILS</div>
@@ -172,15 +188,21 @@ function FunnelForm({ token, brand, tz, daysAhead, prefill, watchPct = 0 }) {
         </div>
       </div>
 
-      <Q n={1} label="Where do you want to open your franchise?">
-        <div style={st.g2}>
-          <Field label="City"  value={a.city}  onChange={v => setField('city', v)} />
-          <Field label="State" value={a.state} onChange={v => setField('state', v)} />
-        </div>
+      <Q n={1} label="Have you watched the video and feel you understand the CMDT opportunity?">
+        <Choices options={['yes', 'no']} labels={['Yes, I watched it', 'Not yet']} value={a.watched} onPick={v => setField('watched', v)} ac={ac} />
+        {a.watched === 'no' && <p style={{ fontSize: 13, color: '#B45309', marginTop: 10 }}>No problem — please finish the video above first, then come back and continue.</p>}
       </Q>
-      {showOperated && <Q n={2} label="Have you ever owned or operated a business before?"><Choices options={['yes', 'no']} labels={['Yes', 'No']} value={a.operated} onPick={v => setField('operated', v)} ac={ac} /></Q>}
-      {showLiquid   && <Q n={3} label="How much liquid capital do you have to invest?"><Choices options={LIQUID} value={a.liquid} onPick={v => setField('liquid', v)} ac={ac} wrap /></Q>}
-      {showNet      && <Q n={4} label="What's your estimated net worth?"><Choices options={NETWORTH} value={a.networth} onPick={v => setField('networth', v)} ac={ac} wrap /></Q>}
+      {showCity && (
+        <Q n={2} label="Where do you want to open your franchise?">
+          <div style={st.g2}>
+            <Field label="City"  value={a.city}  onChange={v => setField('city', v)} />
+            <Field label="State" value={a.state} onChange={v => setField('state', v)} />
+          </div>
+        </Q>
+      )}
+      {showOperated && <Q n={3} label="Have you ever owned or operated a business before?"><Choices options={['yes', 'no']} labels={['Yes', 'No']} value={a.operated} onPick={v => setField('operated', v)} ac={ac} /></Q>}
+      {showLiquid   && <Q n={4} label="How much liquid capital do you have to invest?"><Choices options={LIQUID} value={a.liquid} onPick={v => setField('liquid', v)} ac={ac} wrap /></Q>}
+      {showNet      && <Q n={5} label="What's your estimated net worth?"><Choices options={NETWORTH} value={a.networth} onPick={v => setField('networth', v)} ac={ac} wrap /></Q>}
 
       {complete && (
         <div ref={calRef} style={{ marginTop: 24, paddingTop: 20, borderTop: '2px solid #F1F5F9' }}>
@@ -219,23 +241,7 @@ export default function Watch(props) {
   const ac = brand.accent || '#15803D';
   const landing = getLanding(brand.slug);
   const [watchPct, setWatchPct] = useState(0);
-  const [scrolled, setScrolled] = useState(false);
   useWistia(brand.wistiaVideoId, prefill.email, token, setWatchPct);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 480);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-  const scrollToForm = () => document.getElementById('territory')?.scrollIntoView({ behavior: 'smooth' });
-
-  // Sticky "next step" bar — appears once they scroll past the video or hit 40% watched.
-  const sticky = (scrolled || watchPct >= 40) ? (
-    <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 60, background: '#0F151C', padding: '11px 16px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 12, boxShadow: '0 -4px 22px rgba(0,0,0,.22)' }}>
-      <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>Is your market still available?</span>
-      <button onClick={scrollToForm} style={{ background: ac, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>Check My Territory →</button>
-    </div>
-  ) : null;
 
   if (landing) {
     const html = landing.html.replace(/__WISTIA_ID__/g, brand.wistiaVideoId || '');
@@ -259,7 +265,6 @@ export default function Watch(props) {
           </section>
           <div dangerouslySetInnerHTML={{ __html: after || '' }} />
         </div>
-        {sticky}
       </>
     );
   }
@@ -276,10 +281,14 @@ export default function Watch(props) {
           ) : (
             <div style={{ ...st.videoWrap, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8', fontSize: 14 }}>Video coming soon</div>
           )}
-          <div style={{ padding: '22px 22px 30px' }} id="territory"><FunnelForm {...props} watchPct={watchPct} /></div>
+          <div style={{ padding: '14px 22px 0' }}>
+            <div style={{ background: '#FFF7DB', border: '1px solid #E5C97B', borderRadius: 10, padding: '11px 14px', fontSize: 13.5, color: '#3F3212', lineHeight: 1.5 }}>
+              <strong>Please watch the video first.</strong> Booking opens once you've watched enough to understand the opportunity.
+            </div>
+          </div>
+          <div style={{ padding: '18px 22px 30px' }} id="territory"><FunnelForm {...props} watchPct={watchPct} /></div>
         </div>
       </div>
-      {sticky}
     </>
   );
 }
