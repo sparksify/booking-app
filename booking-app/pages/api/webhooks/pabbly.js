@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { sendLeadAlert } from '@/lib/resend';
+import { upsertGHLContact } from '@/lib/ghl';
 
 /**
  * POST /api/webhooks/pabbly
@@ -130,6 +131,34 @@ export default async function handler(req, res) {
   }
 
   console.log(`[pabbly-webhook] lead stored id=${lead.id} email=${email}`);
+
+  // ── Personalized "watch funnel" URL → GHL custom field ──────────────────────
+  // Resolve the brand from the Facebook form id, build the per-lead token URL,
+  // and write it onto the GHL contact so nurture workflows can link straight to
+  // a pre-filled page. No PII in the URL — just the opaque token.
+  try {
+    let brandSlug = null;
+    if (fbFormId) {
+      const { data: br } = await supabase
+        .from('brands').select('slug').contains('fb_form_ids', [String(fbFormId)]).eq('active', true).maybeSingle();
+      brandSlug = br?.slug || null;
+    }
+    if (brandSlug) await supabase.from('leads').update({ brand_slug: brandSlug }).eq('id', lead.id);
+
+    const APP_URL  = process.env.NEXT_PUBLIC_APP_URL || 'https://www.bookkanso.co';
+    const watchUrl = `${APP_URL}/watch/${brandSlug || 'general'}/${lead.token}`;
+
+    if (email && process.env.GHL_FIELD_WATCH_URL && process.env.GHL_API_KEY && process.env.GHL_LOCATION_ID) {
+      await upsertGHLContact({
+        locationId: process.env.GHL_LOCATION_ID,
+        email,
+        customFields: [{ key: process.env.GHL_FIELD_WATCH_URL, field_value: watchUrl }],
+      });
+      console.log(`[pabbly-webhook] wrote watch url to GHL: ${watchUrl}`);
+    }
+  } catch (e) {
+    console.error('[pabbly-webhook] watch-url/GHL error:', e.message);
+  }
 
   // ── Notify the team (if enabled in settings) ────────────────────────────────
   try {
