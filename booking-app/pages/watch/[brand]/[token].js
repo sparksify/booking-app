@@ -148,6 +148,7 @@ function FunnelForm({ token, brand, tz, daysAhead, prefill, watchPct = 0 }) {
   const [selSlot, setSelSlot] = useState(null);
   const [booking, setBooking] = useState(false);
   const [bookErr, setBookErr] = useState('');
+  const [recommended, setRecommended] = useState(null);
   const calRef = useRef(null);
 
   const fetchSlots = useCallback(async (dateStr) => {
@@ -159,6 +160,22 @@ function FunnelForm({ token, brand, tz, daysAhead, prefill, watchPct = 0 }) {
 
   useEffect(() => { if (complete && !selDate && days.length) { setSelDate(days[0]); fetchSlots(days[0].dateStr); } }, [complete, days, selDate, fetchSlots]);
   useEffect(() => { if (complete) setTimeout(() => calRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80); }, [complete]);
+
+  // The soonest open slot on the first available day = the one-tap suggestion.
+  useEffect(() => {
+    if (!recommended && selDate && days.length && selDate.dateStr === days[0].dateStr && slots.length) {
+      setRecommended({ date: selDate, slot: slots[0] });
+    }
+  }, [slots, selDate, days, recommended]);
+
+  function reserveRecommended() {
+    if (!recommended) return;
+    if (selDate?.dateStr !== recommended.date.dateStr) {
+      setSelDate(recommended.date);
+      fetchSlots(recommended.date.dateStr);
+    }
+    setSelSlot(recommended.slot);
+  }
 
   const canBook = info.firstName.trim() && info.email.trim() && (info.phone || '').trim() && selSlot && selDate;
 
@@ -253,6 +270,15 @@ function FunnelForm({ token, brand, tz, daysAhead, prefill, watchPct = 0 }) {
         <div ref={calRef} style={{ marginTop: 24, paddingTop: 20, borderTop: '2px solid #F1F5F9' }}>
           <h3 style={{ fontSize: 17, fontWeight: 800, color: '#0F172A', margin: '0 0 4px' }}>Pick a time to talk</h3>
           <p style={{ fontSize: 13, color: '#64748B', margin: '0 0 12px' }}>{brand.meetingTitle} · we'll call you by phone.</p>
+          {recommended && (
+            <div style={{ border: `1.5px solid ${ac}`, background: '#F0FDF4', borderRadius: 12, padding: '12px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 auto', minWidth: 150 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.06em', color: ac, textTransform: 'uppercase' }}>⚡ Next available</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginTop: 3 }}>{recommended.date.dow}, {recommended.date.mon} {recommended.date.day} at {recommended.slot.label}</div>
+              </div>
+              <button onClick={reserveRecommended} style={{ background: ac, color: '#fff', border: 'none', borderRadius: 9, padding: '10px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>Reserve this time →</button>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8 }}>
             {days.map(d => {
               const on = selDate?.dateStr === d.dateStr;
