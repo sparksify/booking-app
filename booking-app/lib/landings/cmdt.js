@@ -502,20 +502,8 @@ export const html = `<div class="tape" aria-hidden="true"></div>
   <p class="eyebrow">Franchise Opportunity · Limited Territories</p>
   <h1>Own the B2B Business Local Employers Need — <span class="mark-hi">Without the Overhead</span> Most Franchises Require.</h1>
   <p class="deck" style="margin-top:22px"><strong>Recurring workplace testing. Mobile operations. National network opportunities. 13+ years of operating history. Starting around $72K.</strong></p>
-  <p class="deck" style="margin-top:12px">See how one corporate operation generated $961K in 2024 at a 42% net profit margin — and why CMDT is now opening select franchise territories.</p>
-
-  <div class="plate" style="margin-top:26px">
-    <div class="plate-grid">
-      <div class="cell"><div class="fig">$961K</div><div class="cap">2024 Corporate<br>Revenue</div></div>
-      <div class="cell"><div class="fig">42%</div><div class="cap">Net Profit<br>Margin</div></div>
-      <div class="cell"><div class="fig">13+ Yrs</div><div class="cap">Operating<br>History</div></div>
-      <div class="cell"><div class="fig">~$72K</div><div class="cap">Entry<br>Investment</div></div>
-    </div>
-    <div class="plate-foot">Financial performance and investment information should be evaluated against the current FDD. Individual results vary.</div>
-  </div>
-
-  <p class="lede" style="margin-top:clamp(26px,5vw,40px)">Watch the 15-minute breakdown to see how CMDT makes money, why employers repeatedly need the service, and how franchisees tap into a nationwide testing network.</p>
-  <div class="watch-note">⚠️&nbsp; <span><strong>Please watch the video before requesting a territory review.</strong> Territory booking unlocks once you've watched enough to understand the business — we only speak with people who've taken the time to learn how it works.</span></div>
+  <p class="deck" style="margin-top:12px">See how one corporate operation generated <strong>$961K in 2024 at a 42% net profit margin</strong> — and why CMDT is now opening select franchise territories.</p>
+  <div class="watch-note" style="margin-top:20px">⚠️&nbsp; <span><strong>Please watch the video before requesting a territory review.</strong> We only speak with people who've taken the time to understand how the business works.</span></div>
   <div class="hero-video" style="margin-top:16px">
     <div class="video" style="cursor:default"><wistia-player media-id="__WISTIA_ID__" aspect="1.7777777777777777" style="width:100%;height:100%;display:block"></wistia-player></div>
   </div>
@@ -524,6 +512,22 @@ export const html = `<div class="tape" aria-hidden="true"></div>
 <!--KANSO_FORM-->
 
 <section class="band on-white">
+  <div class="wrap">
+    <p class="eyebrow">Corporate Performance</p>
+    <h2>The Numbers Behind<br><span class="thin">The Opportunity.</span></h2>
+    <div class="plate" style="margin-top:26px">
+      <div class="plate-grid">
+        <div class="cell"><div class="fig">$961K</div><div class="cap">2024 Corporate<br>Revenue</div></div>
+        <div class="cell"><div class="fig">42%</div><div class="cap">Net Profit<br>Margin</div></div>
+        <div class="cell"><div class="fig">13+ Yrs</div><div class="cap">Operating<br>History</div></div>
+        <div class="cell"><div class="fig">~$72K</div><div class="cap">Entry<br>Investment</div></div>
+      </div>
+      <div class="plate-foot">Financial performance and investment information should be evaluated against the current FDD. Individual results vary.</div>
+    </div>
+  </div>
+</section>
+
+<section class="band on-tint">
   <div class="wrap">
     <p class="eyebrow">The Network Advantage</p>
     <h2>Build Locally.<br><span class="thin">Tap Into National Demand.</span></h2>
