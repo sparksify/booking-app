@@ -9,6 +9,7 @@ import { visibleNav } from '@/lib/nav';
 import BrandLogo from '@/components/BrandLogo';
 import SidebarUser from '@/components/SidebarUser';
 import CallIntel from '@/components/CallIntel';
+import WatchIntel from '@/components/WatchIntel';
 import CompanyIntel from '@/components/CompanyIntel';
 
 export async function getServerSideProps(context) {
@@ -1573,6 +1574,7 @@ function QueueCard({ lead, index, total, bucketConfig, isDemo, onDisposition, on
 
         {/* Call Intelligence (Granola) */}
         <CallIntel ghlContactId={lead.ghl_contact_id} leadId={lead.id} email={lead.email} isDemo={isDemo} />
+        <WatchIntel ghlContactId={lead.ghl_contact_id} leadId={lead.id} email={lead.email} isDemo={isDemo} />
 
         {/* Why this lead + GHL signals */}
         <div style={{ display: 'grid', gridTemplateColumns: (ghlLoading || ghlSignals?.signals?.length) ? '1fr 1fr' : '1fr', gap: 16, marginBottom: 20 }}>

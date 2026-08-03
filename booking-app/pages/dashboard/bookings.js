@@ -10,6 +10,7 @@ import { repIdentitySet, repInSet } from '@/lib/repName';
 import BrandLogo from '@/components/BrandLogo';
 import SidebarUser from '@/components/SidebarUser';
 import CallIntel from '@/components/CallIntel';
+import WatchIntel from '@/components/WatchIntel';
 import CompanyIntel from '@/components/CompanyIntel';
 
 export async function getServerSideProps(context) {
@@ -1865,6 +1866,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
 
               {/* Call Intelligence (Granola) */}
               <CallIntel ghlContactId={booking.ghl_contact_id} leadId={lead?.id} email={booking.email} isDemo={isDemo} />
+              <WatchIntel ghlContactId={booking.ghl_contact_id} leadId={lead?.id} email={booking.email} isDemo={isDemo} />
 
               {/* Contact / Booking Details */}
               <PanelSection title="Contact / Booking Details">
