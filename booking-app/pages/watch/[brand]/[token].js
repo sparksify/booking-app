@@ -117,13 +117,8 @@ function FunnelForm({ token, brand, tz, daysAhead, prefill, watchPct = 0 }) {
   const setField = (k, v) => setA(s => ({ ...s, [k]: v }));
   const router = useRouter();
 
-  // Booking is gated on watching enough of the video (with a time fallback so a
-  // tracking hiccup never dead-ends a serious lead).
-  const [elapsed, setElapsed] = useState(0);
-  useEffect(() => { const t = setInterval(() => setElapsed(e => e + 1), 1000); return () => clearInterval(t); }, []);
-  // Add ?preview=1 to the URL to bypass the watch gate (for testing).
-  const unlocked = watchPct >= UNLOCK_PCT || elapsed >= UNLOCK_FALLBACK_SEC || router.query?.preview === '1';
-
+  // The form is always visible — the "Did you watch the video?" question below
+  // is the qualifier, so a flaky video-tracking event never hides the form.
   const showCity     = a.watched === 'yes';
   const showOperated = showCity && a.city.trim() && a.state.trim();
   const showLiquid   = showOperated && a.operated;
@@ -208,19 +203,6 @@ function FunnelForm({ token, brand, tz, daysAhead, prefill, watchPct = 0 }) {
         body: JSON.stringify({ token, brand: brand.slug }) });
     } catch {}
     router.push({ pathname: '/watch/keep-watching', query: { brand: brand.name, brandSlug: brand.slug, token, ac: ac.replace('#', '') } });
-  }
-
-  // Shown only until they press play — a gentle nudge, not a hard gate.
-  if (!unlocked) {
-    return (
-      <div style={st.formCard}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.14em', color: '#7A5A00', textTransform: 'uppercase', marginBottom: 8 }}>Territory Availability</div>
-        <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', margin: '0 0 8px', lineHeight: 1.1 }}>Press play to get started</h2>
-        <p style={{ fontSize: 14.5, color: '#64748B', margin: 0 }}>
-          Start the video above and this section opens automatically so you can check your territory and grab a time.
-        </p>
-      </div>
-    );
   }
 
   return (
