@@ -273,7 +273,7 @@ function FunnelForm({ token, brand, tz, daysAhead, prefill, watchPct = 0 }) {
           {recommended && (
             <div style={{ border: `1.5px solid ${ac}`, background: '#F0FDF4', borderRadius: 12, padding: '12px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 auto', minWidth: 150 }}>
-                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.06em', color: ac, textTransform: 'uppercase' }}>⚡ Next available</div>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.06em', color: ac, textTransform: 'uppercase' }}>⚡ Suggested time</div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginTop: 3 }}>{recommended.date.dow}, {recommended.date.mon} {recommended.date.day} at {recommended.slot.label}</div>
               </div>
               <button onClick={reserveRecommended} style={{ background: ac, color: '#fff', border: 'none', borderRadius: 9, padding: '10px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>Reserve this time →</button>
