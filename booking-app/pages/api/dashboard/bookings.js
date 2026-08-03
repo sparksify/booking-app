@@ -260,7 +260,7 @@ export default async function handler(req, res) {
         // their dashboard and leaves the original rep's. Store as the rep's
         // normalized NAME so it matches the dashboard's rep chips/filter
         // (which use names for Calendly/GHL meetings, not emails).
-        assigned_to_email: tr.to_email ? normalizeRepName(tr.to_email) : b.assigned_to_email,
+        assigned_to_email: normalizeRepName(tr.to_email || b.assigned_to_email),
         // Manual override wins over the source's status (e.g. Calendly always
         // reports 'scheduled'; a rep marking no-show must take precedence).
         status:           ovr.status         || b.status,
