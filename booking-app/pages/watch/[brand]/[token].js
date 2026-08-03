@@ -4,29 +4,57 @@ import { useRouter } from 'next/router';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getLanding } from '@/lib/landings';
 
-// Booking unlocks once they've watched this % of the video, OR after a time
-// fallback (so a Wistia tracking hiccup never dead-ends a serious lead).
-const UNLOCK_PCT = 40;
-const UNLOCK_FALLBACK_SEC = 8 * 60;
+// The form appears the moment they start the video (we never want someone to
+// feel they can't book). A short time fallback covers a Wistia tracking hiccup.
+// The real qualifier is the "Did you watch the video?" question inside the form.
+const UNLOCK_PCT = 1;
+const UNLOCK_FALLBACK_SEC = 45;
 
 const LIQUID = ['Under $50k', '$50k – $100k', '$100k – $250k', '$250k – $500k', '$500k+'];
 const NETWORTH = ['Under $100k', '$100k – $250k', '$250k – $500k', '$500k – $1M', '$1M+'];
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+// Facebook's post-submit URL is static, so the ad points at one sentinel URL
+// per brand (e.g. /watch/cmdt/latest). Because leads arrive one at a time, we
+// resolve that to the most-recent lead for the brand and prefill from it. The
+// personalized /watch/<brand>/<token> link (sent in follow-up) still resolves
+// that exact lead by token.
+const LATEST_TOKENS = new Set(['latest', 'new', 'go', 'start']);
+// Only auto-attach a lead who arrived within this window, so a stale visitor
+// hitting the sentinel URL later never inherits someone else's info.
+const LATEST_WINDOW_MIN = 45;
+
+const LEAD_COLS = 'token, first_name, last_name, email, phone, franchise_city, franchise_state, operated_business, net_worth, investment_level';
+
 export async function getServerSideProps({ params }) {
   const slug  = (params?.brand || '').toLowerCase();
   const token = params?.token || '';
   const supabase = getSupabaseAdmin();
-  const [{ data: brand }, { data: settings }, { data: lead }] = await Promise.all([
+
+  const [{ data: brand }, { data: settings }] = await Promise.all([
     supabase.from('brands').select('slug, name, wistia_video_id, meeting_title, accent_color').eq('slug', slug).maybeSingle(),
     supabase.from('settings').select('timezone, days_ahead').eq('id', 1).maybeSingle(),
-    supabase.from('leads').select('first_name, last_name, email, phone, franchise_city, franchise_state, operated_business, net_worth, investment_level').eq('token', token).maybeSingle(),
   ]);
   if (!brand) return { notFound: true };
+
+  let lead = null;
+  if (LATEST_TOKENS.has(token.toLowerCase())) {
+    // Newest lead for this brand within the window = the person who just submitted.
+    const since = new Date(Date.now() - LATEST_WINDOW_MIN * 60 * 1000).toISOString();
+    ({ data: lead } = await supabase.from('leads').select(LEAD_COLS)
+      .eq('brand_slug', slug).gte('created_at', since)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle());
+  } else if (token) {
+    ({ data: lead } = await supabase.from('leads').select(LEAD_COLS).eq('token', token).maybeSingle());
+  }
+
+  // Downstream saves (watch tracking, questionnaire) key off the real lead token.
+  const resolvedToken = lead?.token || token;
+
   return {
     props: {
-      token,
+      token: resolvedToken,
       brand: { slug: brand.slug, name: brand.name || brand.slug, wistiaVideoId: brand.wistia_video_id || null, meetingTitle: brand.meeting_title || 'Discovery Call', accent: brand.accent_color || '#15803D' },
       tz: settings?.timezone || 'America/Chicago',
       daysAhead: settings?.days_ahead || 14,
@@ -153,19 +181,27 @@ function FunnelForm({ token, brand, tz, daysAhead, prefill, watchPct = 0 }) {
     setBooking(false);
   }
 
-  // Locked until they've watched enough of the video.
+  // "Not yet" path: tag them for the watch-nurture and send them to a separate
+  // thank-you page (rather than letting them book without watching).
+  const [leaving, setLeaving] = useState(false);
+  async function notWatched() {
+    setLeaving(true);
+    try {
+      await fetch('/api/watch/not-watched', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, brand: brand.slug }) });
+    } catch {}
+    router.push({ pathname: '/watch/keep-watching', query: { brand: brand.name, brandSlug: brand.slug, token, ac: ac.replace('#', '') } });
+  }
+
+  // Shown only until they press play — a gentle nudge, not a hard gate.
   if (!unlocked) {
     return (
       <div style={st.formCard}>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.14em', color: '#7A5A00', textTransform: 'uppercase', marginBottom: 8 }}>Territory Availability</div>
-        <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', margin: '0 0 8px', lineHeight: 1.1 }}>🔒 Keep watching to unlock</h2>
+        <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', margin: '0 0 8px', lineHeight: 1.1 }}>Press play to get started</h2>
         <p style={{ fontSize: 14.5, color: '#64748B', margin: 0 }}>
-          Territory booking opens once you've watched enough of the video above to understand the business. We reserve calls for people who've taken the time to learn how it works.
+          Start the video above and this section opens automatically so you can check your territory and grab a time.
         </p>
-        <div style={{ marginTop: 16, height: 8, borderRadius: 20, background: '#E2E8F0', overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${Math.min(100, Math.round((watchPct / UNLOCK_PCT) * 100))}%`, background: ac, transition: 'width .4s ease' }} />
-        </div>
-        <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 8 }}>{watchPct}% watched — keep going and this will open automatically.</div>
       </div>
     );
   }
@@ -188,9 +224,18 @@ function FunnelForm({ token, brand, tz, daysAhead, prefill, watchPct = 0 }) {
         </div>
       </div>
 
-      <Q n={1} label="Have you watched the video and feel you understand the CMDT opportunity?">
+      <Q n={1} label="Did you have a chance to watch the video?">
         <Choices options={['yes', 'no']} labels={['Yes, I watched it', 'Not yet']} value={a.watched} onPick={v => setField('watched', v)} ac={ac} />
-        {a.watched === 'no' && <p style={{ fontSize: 13, color: '#B45309', marginTop: 10 }}>No problem — please finish the video above first, then come back and continue.</p>}
+        {a.watched === 'no' && (
+          <div style={{ marginTop: 12, background: '#FFF7DB', border: '1px solid #E5C97B', borderRadius: 10, padding: '12px 14px' }}>
+            <p style={{ fontSize: 13.5, color: '#3F3212', margin: '0 0 10px', lineHeight: 1.5 }}>
+              No problem — the video walks through everything you'll want to know before we talk. Give it a watch and we'll be ready to find your territory when you are.
+            </p>
+            <button onClick={notWatched} disabled={leaving} style={{ ...st.book, marginTop: 0, background: ac, opacity: leaving ? 0.6 : 1 }}>
+              {leaving ? 'One moment…' : 'Continue →'}
+            </button>
+          </div>
+        )}
       </Q>
       {showCity && (
         <Q n={2} label="Where do you want to open your franchise?">

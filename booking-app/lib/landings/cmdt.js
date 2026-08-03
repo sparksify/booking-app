@@ -521,6 +521,8 @@ export const html = `<div class="tape" aria-hidden="true"></div>
   </div>
 </header>
 
+<!--KANSO_FORM-->
+
 <section class="band on-white">
   <div class="wrap">
     <p class="eyebrow">The Network Advantage</p>
@@ -556,8 +558,6 @@ export const html = `<div class="tape" aria-hidden="true"></div>
     <a class="btn" href="#territory" style="margin-top:24px"><span class="tri">▶</span> See If My Territory Is Available</a>
   </div>
 </section>
-
-<!--KANSO_FORM-->
 
 <section class="band on-tint">
   <div class="wrap">
