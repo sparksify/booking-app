@@ -18,7 +18,7 @@ export const PERMISSION_GROUPS = [
       { key: 'page_meetings',    label: 'Meetings' },
       { key: 'page_inbox',       label: 'Inbox',       desc: 'Unread messages needing a reply' },
       { key: 'page_cq',          label: 'CQ Recovery' },
-      { key: 'page_nurture',     label: 'Nurture' },
+      { key: 'page_nurture',     label: 'DealOS' },
       { key: 'page_ad_stats',    label: 'Ad Stats',    desc: 'Facebook Ads dashboard (admin)' },
       { key: 'page_settings',    label: 'Settings' },
     ],
