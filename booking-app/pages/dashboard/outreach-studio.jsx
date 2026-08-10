@@ -257,7 +257,7 @@ export default function OutreachStudio() {
           <span style={{fontWeight:700,fontSize:15,color:T.gray900}}>kanso</span>
         </div>
         <nav style={{padding:"4px 8px",flex:1}}>
-          {["Dashboard","Meetings","CQ Recovery","Nurture","Prospecting","Leads","Settings"].map(l=>(
+          {["Dashboard","Meetings","CQ Recovery","DealOS","Prospecting","Leads","Settings"].map(l=>(
             <div key={l} style={{padding:"7px 10px",borderRadius:7,cursor:"pointer",color:T.gray500,fontSize:13,marginBottom:1}}>{l}</div>
           ))}
           <div style={{margin:"12px 10px 6px",fontSize:10,fontWeight:700,color:T.gray400,letterSpacing:"0.08em",textTransform:"uppercase"}}>AI Workflows</div>

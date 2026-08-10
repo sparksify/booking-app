@@ -133,6 +133,7 @@ export default async function handler(req, res) {
             nurture_client_id: nurtureClient.id,
             brand_name:        f.brand,
             stage:             1,
+            deal_status:       'new', // CQ received, not yet submitted — surfaces in DealOS Today
           }));
         if (brandRows.length) {
           await supabase.from('nurture_brands').insert(brandRows);

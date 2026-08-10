@@ -12,13 +12,15 @@ export const NAV_ITEMS = [
   { href: '/dashboard/pipeline',    label: 'Genesis Agent', icon: 'pipeline',  perm: 'page_pipeline' },
   { href: '/dashboard/cq-recovery', label: 'CQ Recovery',   icon: 'cq',        perm: 'page_cq' },
   { href: '/dashboard/ad-stats',    label: 'Ad Stats',       icon: 'ads',       perm: 'page_ad_stats' },
-  { href: '/dashboard/nurture',     label: 'Nurture',        icon: 'nurture',   perm: 'page_nurture' },
+  { href: '/dashboard/dealos',      label: 'DealOS',         icon: 'nurture',   perm: 'page_nurture' },
   { href: '/dashboard/settings',    label: 'Settings',       icon: 'settings',  perm: 'page_settings' },
 ];
 
 /** NAV_ITEMS sorted by a stored order of hrefs (unknown items keep default order at the end). */
 export function orderedNavItems(order) {
   if (!Array.isArray(order) || order.length === 0) return NAV_ITEMS;
+  // Stored orders may predate the Nurture → DealOS rename.
+  order = order.map(h => h === '/dashboard/nurture' ? '/dashboard/dealos' : h);
   const rank = href => {
     const i = order.indexOf(href);
     return i === -1 ? NAV_ITEMS.length + NAV_ITEMS.findIndex(n => n.href === href) : i;
