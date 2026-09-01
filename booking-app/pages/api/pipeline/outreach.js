@@ -4,14 +4,57 @@ const SMARTLEAD_API_KEY = process.env.SMARTLEAD_API_KEY;
 const SMARTLEAD_CAMPAIGN_ID = process.env.SMARTLEAD_CAMPAIGN_ID;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
+// ═══════════════════════════════════════════════════════════════════
+// EDIT THIS BLOCK to change how your emails sound.
+// Can also be overridden per-run by passing "style_instructions"
+// in the request body, no redeploy needed.
+// ═══════════════════════════════════════════════════════════════════
+const DEFAULT_STYLE_INSTRUCTIONS = `
+APPROACH — position this as research we have already done on their business:
+The email should feel like: "We've been researching your business. We like what
+you're doing — specifically [real detail], [real detail]. Would you like us to
+send over a white paper on your business and your current competition in the area?"
+
+FRAMEWORK — every email must follow this structure:
+1. Open with evidence we researched THEM specifically — reference 1-2 real,
+   specific things about their business from the data provided (what they offer,
+   their concept, their standing in the market). Genuine and specific, not flattery.
+2. One sentence connecting what we noticed to why it stands out in their market.
+3. CTA — offer the white paper. Always phrase the ask as offering to send over
+   a white paper on their business and their current competition in the area.
+   Frame it as already prepared, zero obligation.
+
+LENGTH — keep it tight:
+- Email 1: 3-4 short paragraphs maximum. Each paragraph 1-2 sentences.
+- Email 2 (follow-up): 2-3 short paragraphs. Reference the white paper offer
+  again with a different angle — e.g. mention one thing the competition analysis
+  covers. Not a generic bump.
+
+TONE: professional, researched, understated. Like an analyst who did homework,
+not a salesperson with a template.
+`;
+// ═══════════════════════════════════════════════════════════════════
+
+const HARD_RULES = `
+HARD RULES — these are absolute, no exceptions:
+- NEVER introduce Steve by name. Do not say "My name is Steve" or "I'm Steve" or any variation.
+- NEVER use the words: broker, advisor, consultant, commission, fee, paid, earn
+- NEVER say "I only get paid if" or any version of that
+- NEVER say "no fluff" or "no pitch decks" or "no pressure"
+- NEVER be generic — every email must reference something specific to THIS business
+- NEVER fabricate facts about the business or its competition — only use details provided
+
+Return ONLY valid JSON in this exact shape, no markdown fences:
+{"email1":{"subject":"...","body":"..."},"email2":{"subject":"...","body":"..."}}
+`;
+
 function getFirstName(fullName) {
   if (!fullName) return null;
   return fullName.trim().split(' ')[0];
 }
 
-async function writeSequence(biz) {
-  const { business_name, email_owner, industry, signal, rating, review_count } = biz;
-  const firstName = getFirstName(email_owner);
+async function writeSequence(biz, styleInstructions) {
+  const { business_name, email_owner, industry, signal, rating, review_count, city } = biz;
 
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -25,79 +68,26 @@ async function writeSequence(biz) {
       max_tokens: 1000,
       messages: [{
         role: 'user',
-        content: `Write two cold outreach emails for Steve Sparks at Halloway (halloway.co).
+        content: `Write two cold outreach emails for Steve Sparks at Halloway (halloway.co), reaching out to the owner of an independent local business.
 
-FRAMEWORK — every email must follow this exact structure:
-1. Personalized proof — one specific thing about this business
-2. Strategic question — raise the real tension (is it repeatable? owner-dependent? can it be taught?)
-3. Risk reversal — this is about finding out IF it makes sense, not pitching franchising
-4. CTA — always end with "Should I send it?" — nothing else
-
-LENGTH — keep it tight:
-- Email 1: 4-5 short paragraphs maximum. Each paragraph 1-2 sentences.
-- Email 2: 3 short paragraphs maximum.
-
-HARD RULES — these are absolute, no exceptions:
-- NEVER introduce Steve by name. Do not say "My name is Steve" or "I'm Steve" or any variation.
-- NEVER use the words: broker, advisor, consultant, commission, fee, paid, earn
-- NEVER say "I only get paid if" or any version of that
-- NEVER say "no fluff" or "no pitch decks" or "no pressure"
-- NEVER be generic — every email must reference something specific to THIS business
-- The follow-up must return to the specific strategic question from email 1, not a generic bump
-- CTA is ALWAYS and ONLY "Should I send it?" — never "Want me to send it over?" or any other variation
-
-GOOD EXAMPLE — match this style and length:
-Subject: Whiskey Bird + Little Bird
-
-Anthony — Whiskey Bird plus Little Bird caught my eye.
-
-Most restaurants struggle to make one model run cleanly. You have a dine-in concept, a takeout concept, brunch, dinner, cocktails, and online ordering under one roof.
-
-That usually means one of two things: either the operation is too complex to scale, or you have a model that could be more valuable than a single-location restaurant.
-
-I have a 5-minute video that shows how we evaluate whether a concept is actually franchise-ready.
-
-Should I send it?
-
----
-
-GOOD FOLLOW-UP EXAMPLE — match this style and length:
-Subject: Re: Whiskey Bird + Little Bird
-
-Anthony — quick bump.
-
-The reason I reached out: Whiskey Bird/Little Bird already has something franchise buyers look for — more than one revenue path inside the same operating system.
-
-The video will show you whether that is an asset for scaling, or just added complexity.
-
-Should I send it?
-
----
-
-Business details:
-Owner first name: ${firstName || 'there'}
 Business: ${business_name}
-Industry: ${industry || 'independent business'}
-Signal: ${signal || `${business_name} caught my attention`}
-${rating ? `Google: ${rating} stars${review_count ? ` across ${review_count} reviews` : ''}` : ''}
+Owner: ${email_owner || 'unknown'}
+Industry: ${industry || 'unknown'}
+City: ${city || 'unknown'}
+${signal ? `What we noticed: ${signal}` : ''}
+${rating ? `Rating: ${rating} stars across ${review_count || '?'} reviews` : ''}
 
-Return ONLY valid JSON, no markdown:
-{
-  "email1": { "subject": "...", "body": "..." },
-  "email2": { "subject": "...", "body": "..." }
-}`,
+${styleInstructions}
+
+${HARD_RULES}`,
       }],
     }),
   });
-
   const d = await r.json();
   const text = d.content?.[0]?.text?.trim();
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    const clean = text.replace(/```json|```/g, '').trim();
-    return JSON.parse(clean);
-  }
+  if (!text) throw new Error('Empty response from Claude');
+  const clean = text.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
 }
 
 async function addLeadToSmartlead(biz, sequence) {
@@ -141,14 +131,14 @@ async function isDuplicate(email) {
   }
 }
 
-async function outreachOne(biz) {
+async function outreachOne(biz, styleInstructions) {
   const { email } = biz;
   if (!email) return { ...biz, outreach_status: 'skipped_no_email' };
   const duplicate = await isDuplicate(email);
   if (duplicate) return { ...biz, outreach_status: 'skipped_duplicate' };
   let sequence;
   try {
-    sequence = await writeSequence(biz);
+    sequence = await writeSequence(biz, styleInstructions);
   } catch (e) {
     return { ...biz, outreach_status: 'failed_sequence_write', error: e.message };
   }
@@ -158,12 +148,16 @@ async function outreachOne(biz) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-  const { businesses } = req.body;
+  const { businesses, style_instructions } = req.body;
   if (!businesses || !Array.isArray(businesses)) return res.status(400).json({ error: 'businesses array required' });
   if (!SMARTLEAD_API_KEY || !SMARTLEAD_CAMPAIGN_ID) return res.status(500).json({ error: 'Missing Smartlead config' });
 
+  const styleInstructions = (style_instructions && style_instructions.trim().length > 0)
+    ? style_instructions.trim()
+    : DEFAULT_STYLE_INSTRUCTIONS;
+
   try {
-    const results = await Promise.all(businesses.map(biz => outreachOne(biz)));
+    const results = await Promise.all(businesses.map(biz => outreachOne(biz, styleInstructions)));
     const loaded  = results.filter(r => r.outreach_status === 'loaded');
     const skipped = results.filter(r => r.outreach_status?.startsWith('skipped'));
     const failed  = results.filter(r => r.outreach_status?.startsWith('failed'));
