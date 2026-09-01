@@ -6,46 +6,82 @@ const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 // ═══════════════════════════════════════════════════════════════════
 // EDIT THIS BLOCK to change how your emails sound.
-// Can also be overridden per-run by passing "style_instructions"
-// in the request body, no redeploy needed.
+// Can be overridden per-run by passing "style_instructions" in the
+// request body, no redeploy needed.
 // ═══════════════════════════════════════════════════════════════════
 const DEFAULT_STYLE_INSTRUCTIONS = `
-APPROACH — position this as research we have already done on their business:
-The email should feel like: "We've been researching your business. We like what
-you're doing — specifically [real detail], [real detail]. Would you like us to
-send over a white paper on your business and your current competition in the area?"
+VOICE AND FORMAT — match these example emails exactly in tone, rhythm, and structure.
+Short lines. One idea per line. Generous line breaks. Understated confidence.
 
-FRAMEWORK — every email must follow this structure:
-1. Open with evidence we researched THEM specifically — reference 1-2 real,
-   specific things about their business from the data provided (what they offer,
-   their concept, their standing in the market). Genuine and specific, not flattery.
-2. One sentence connecting what we noticed to why it stands out in their market.
-3. CTA — offer the white paper. Always phrase the ask as offering to send over
-   a white paper on their business and their current competition in the area.
-   Frame it as already prepared, zero obligation.
+=== EXAMPLE EMAIL 1 (written for a restaurant called Whiskey Bird, owner Anthony) ===
+Anthony,
 
-LENGTH — keep it tight:
-- Email 1: 3-4 short paragraphs maximum. Each paragraph 1-2 sentences.
-- Email 2 (follow-up): 2-3 short paragraphs. Reference the white paper offer
-  again with a different angle — e.g. mention one thing the competition analysis
-  covers. Not a generic bump.
+We've been studying restaurant concepts in Atlanta that look like they could work beyond a single location.
 
-TONE: professional, researched, understated. Like an analyst who did homework,
-not a salesperson with a template.
+Whiskey Bird kept coming up.
+
+Nearly 3,000 reviews, a 4.8-star rating, a strong brunch/cocktail program, and the dine-in + takeout model all stood out.
+
+So we did something a little unusual:
+
+We put together a white paper on Whiskey Bird.
+
+It breaks down your positioning, the competitive landscape around you, and a few opportunities we noticed that competitors don't seem to be taking advantage of.
+
+No pitch attached. We already did the work.
+
+Want me to send it over?
+
+— Steve
+Halloway
+=== END EXAMPLE 1 ===
+
+=== EXAMPLE EMAIL 2 (follow-up, same business) ===
+Anthony,
+
+Following up because there was one part of the Whiskey Bird research I thought you might find particularly interesting.
+
+We mapped the nearby concepts competing for the same brunch, cocktail, and casual dining customer.
+
+Most of them are competing in roughly the same way.
+
+Whiskey Bird isn't.
+
+There are a few advantages in your current model that become especially interesting when you look at the business through the lens of expansion.
+
+We included the full breakdown in the white paper.
+
+Happy to send you a copy — want it?
+
+— Steve
+Halloway
+=== END EXAMPLE 2 ===
+
+STRUCTURAL RULES derived from the examples:
+- Email 1 opens: "We've been studying [industry-appropriate phrase] concepts in [city] that look like they could work beyond a single location." Adapt naturally per industry (fitness concepts, wellness concepts, etc.)
+- "[Business name] kept coming up." as its own line.
+- Then weave in 2-4 REAL specifics from the data provided (review count, rating, signal details) in one natural sentence.
+- "So we did something a little unusual:" pivot, then the white paper reveal.
+- White paper covers: their positioning, the competitive landscape around them, and opportunities competitors are not taking advantage of.
+- "No pitch attached. We already did the work." — keep this reciprocity line or a very close variant.
+- Email 1 CTA: "Want me to send it over?"
+- Email 2: reference ONE specific angle from the research (competitive mapping), contrast them against nearby competitors, use the phrase "through the lens of expansion" or a close variant. CTA: "Happy to send you a copy — want it?"
+- CRITICAL: The word "franchise" must NEVER appear in email 1. Email 2 may reference expansion but must NOT pitch franchising.
+- Sign every email: "— Steve" on one line, "Halloway" on the next.
 `;
 // ═══════════════════════════════════════════════════════════════════
 
 const HARD_RULES = `
 HARD RULES — these are absolute, no exceptions:
-- NEVER introduce Steve by name. Do not say "My name is Steve" or "I'm Steve" or any variation.
+- NEVER introduce Steve in the body text ("My name is Steve", "I'm Steve"). The sign-off "— Steve / Halloway" is the ONLY place his name appears.
 - NEVER use the words: broker, advisor, consultant, commission, fee, paid, earn
-- NEVER say "I only get paid if" or any version of that
-- NEVER say "no fluff" or "no pitch decks" or "no pressure"
-- NEVER be generic — every email must reference something specific to THIS business
-- NEVER fabricate facts about the business or its competition — only use details provided
+- NEVER use the word "franchise" in email 1 under any circumstances.
+- NEVER fabricate facts about the business or its competition — only use details provided. If a detail was not provided, do not invent it.
+- NEVER be generic — every email must be visibly about THIS business.
 
 Return ONLY valid JSON in this exact shape, no markdown fences:
 {"email1":{"subject":"...","body":"..."},"email2":{"subject":"...","body":"..."}}
+Subject lines: lowercase-leaning, curiosity-driven, under 6 words, no clickbait. Examples of the right feel: "a white paper on Whiskey Bird", "the Whiskey Bird research", "what we noticed about Whiskey Bird"
 `;
 
 function getFirstName(fullName) {
@@ -65,16 +101,16 @@ async function writeSequence(biz, styleInstructions) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1000,
+      max_tokens: 1200,
       messages: [{
         role: 'user',
-        content: `Write two cold outreach emails for Steve Sparks at Halloway (halloway.co), reaching out to the owner of an independent local business.
+        content: `Write two cold outreach emails from Steve at Halloway (halloway.co) to the owner of an independent local business, following the style guide below precisely.
 
 Business: ${business_name}
-Owner: ${email_owner || 'unknown'}
+Owner first name to address: ${getFirstName(email_owner) || 'there'}
 Industry: ${industry || 'unknown'}
 City: ${city || 'unknown'}
-${signal ? `What we noticed: ${signal}` : ''}
+${signal ? `What we noticed about them: ${signal}` : ''}
 ${rating ? `Rating: ${rating} stars across ${review_count || '?'} reviews` : ''}
 
 ${styleInstructions}
