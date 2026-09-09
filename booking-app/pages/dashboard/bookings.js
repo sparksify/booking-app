@@ -6,7 +6,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { authOptions } from '../api/auth/[...nextauth]';
 import { visibleNav } from '@/lib/nav';
-import { repIdentitySet, repInSet } from '@/lib/repName';
+import { repIdentitySet, repInSet, normalizeRepName } from '@/lib/repName';
 import BrandLogo from '@/components/BrandLogo';
 import SidebarUser from '@/components/SidebarUser';
 import CallIntel from '@/components/CallIntel';
@@ -254,7 +254,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
         const sf  = localStorage.getItem('mtg_statusFilter');
         const src = localStorage.getItem('mtg_sourceFilter');
         if (f)             setFilter(f);
-        if (r)             setRepFilter(JSON.parse(r));
+        if (r)             setRepFilter(JSON.parse(r).map(normalizeRepName));
         if (sf  !== null)  setStatusFilter(sf  || '');
         if (src !== null)  setSourceFilter(src || '');
       } catch {}
@@ -422,14 +422,18 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
     a.click(); URL.revokeObjectURL(url);
   }
 
-  const allReps = [...new Set(bookings.map(b => b.assigned_to_email).filter(Boolean))];
-  // Only show active team members as filter chips (paused reps are dropped).
-  // While the active list is still loading (null), show everyone.
-  const activeIdent = activeReps ? repIdentitySet(activeReps) : null;
-  const filterReps = activeIdent ? allReps.filter(r => repInSet(r, activeIdent)) : allReps;
+  // Rep toggle chips come from the active team-member list, so every rep always
+  // shows — even when the current view only contains one rep's meetings. Falls
+  // back to reps present in the loaded bookings while the team list loads.
+  // Everything is keyed by a normalized display name so a rep matches whether a
+  // record stored their email or a display name.
+  const bookingRepNames = [...new Set(bookings.map(b => normalizeRepName(b.assigned_to_email)).filter(Boolean))];
+  const filterReps = activeReps && activeReps.length
+    ? [...new Set(activeReps.map(r => normalizeRepName(r.name || r.email)).filter(Boolean))]
+    : bookingRepNames;
 
   const filteredBookings = bookings
-    .filter(b => !isAdmin || repFilter.length === 0 || repFilter.includes(b.assigned_to_email))
+    .filter(b => !isAdmin || repFilter.length === 0 || repFilter.includes(normalizeRepName(b.assigned_to_email)))
     .filter(b => !sourceFilter || (b._source_display || 'KANSO') === sourceFilter)
     .filter(b => !statusFilter || b.status === statusFilter);
 
@@ -692,14 +696,14 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
               {isAdmin && filterReps.length > 1 && (
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                   <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600 }}>Rep:</span>
-                  {filterReps.map(email => {
-                    const name = email.split('@')[0];
-                    const active = repFilter.includes(email);
+                  {filterReps.map(name => {
+                    const label  = name.split(' ')[0];
+                    const active = repFilter.includes(name);
                     return (
-                      <button key={email}
-                        onClick={() => setRepFilter(prev => prev.includes(email) ? prev.filter(r => r !== email) : [...prev, email])}
+                      <button key={name}
+                        onClick={() => setRepFilter(prev => prev.includes(name) ? prev.filter(r => r !== name) : [...prev, name])}
                         style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6, border: `1.5px solid ${active ? '#2563EB' : '#E5E7EB'}`, background: active ? '#EFF6FF' : '#fff', color: active ? '#2563EB' : '#6B7280', cursor: 'pointer', fontFamily: 'inherit' }}>
-                        {name}
+                        {label}
                       </button>
                     );
                   })}
