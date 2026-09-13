@@ -12,6 +12,7 @@ import SidebarUser from '@/components/SidebarUser';
 import CallIntel from '@/components/CallIntel';
 import WatchIntel from '@/components/WatchIntel';
 import CompanyIntel from '@/components/CompanyIntel';
+import { DealFollowupRow, EnterDealDeskButton } from '@/components/DealDesk';
 
 export async function getServerSideProps(context) {
   const { guardDashboardPage } = await import('@/lib/pageAccess');
@@ -180,6 +181,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
   const canPersistRef = useRef(false);
   const [filter,       setFilter]       = useState('today');
   const [bookings,     setBookings]     = useState([]);
+  const [dealFollowups, setDealFollowups] = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [updating,     setUpdating]     = useState({});
   const [isDemo,       setIsDemo]       = useState(false);
@@ -314,10 +316,13 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
 
   const load = useCallback(() => {
     setLoading(true);
-    fetch(`/api/dashboard/bookings?filter=${filter}`)
-      .then(r => r.json())
-      .then(d => {
+    Promise.all([
+      fetch(`/api/dashboard/bookings?filter=${filter}`).then(r => r.json()),
+      fetch(`/api/dashboard/deal-desk?filter=${filter}`).then(r => r.ok ? r.json() : ({ followups: [] })),
+    ])
+      .then(([d, dealData]) => {
         const real = d.bookings || [];
+        setDealFollowups(dealData.followups || []);
         const viewAll = !!d.viewAll;
         setIsAdmin(viewAll);
         setCanTransfer(d.canTransfer !== false);
@@ -327,7 +332,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
         if (d.rep_avatars) setRepAvatars(d.rep_avatars);
         setLoading(false);
       })
-      .catch(() => { setBookings(DEMO); setIsDemo(true); setLoading(false); });
+      .catch(() => { setBookings(DEMO); setDealFollowups([]); setIsDemo(true); setLoading(false); });
   }, [filter]);
 
   useEffect(() => { load(); }, [load]);
@@ -442,6 +447,15 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
     const q = search.toLowerCase();
     return `${b.first_name} ${b.last_name}`.toLowerCase().includes(q) || (b.email || '').toLowerCase().includes(q);
   });
+
+  const displayFollowups = dealFollowups
+    .filter(f => !isAdmin || repFilter.length === 0 || repFilter.includes(normalizeRepName(f.assigned_to_email)))
+    .filter(f => !search || `${f.deal?.first_name || ''} ${f.deal?.last_name || ''} ${f.deal?.email || ''} ${f.deal?.brand || ''}`.toLowerCase().includes(search.toLowerCase()));
+  const displayFeed = [
+    ...displayBookings.map(booking => ({ type: 'meeting', at: booking.slot_start, booking })),
+    ...displayFollowups.map(followup => ({ type: 'deal_followup', at: followup.due_at, followup })),
+  ].sort((a, b) => new Date(a.at) - new Date(b.at));
+  const overdueCount = displayFollowups.filter(f => new Date(f.due_at) < new Date()).length;
 
   const counts = filteredBookings.reduce((acc, b) => { acc[b.status] = (acc[b.status] || 0) + 1; return acc; }, {});
   const cqSentCount = filteredBookings.filter(b => b.cq_sent_at).length;
@@ -627,6 +641,8 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
               );
             })()}
 
+            <div style={{ margin: '10px 0', padding: '10px 14px', border: '1px solid #E5E7EB', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 700, color: '#475569' }}>{displayBookings.length} Meetings · <span style={{ color: '#B45309' }}>{displayFollowups.length} Deal Follow-Ups</span> · <span style={{ color: overdueCount ? '#DC2626' : '#64748B' }}>{overdueCount} Overdue</span></div>
+
             {/* Filter bar */}
             <div style={s.filterBar}>
               {/* Pills */}
@@ -721,8 +737,8 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
             <div style={s.tableCard}>
               {loading ? (
                 <div style={s.tableEmpty}>Loading…</div>
-              ) : displayBookings.length === 0 ? (
-                <div style={s.tableEmpty}>No meetings for this period.</div>
+              ) : displayFeed.length === 0 ? (
+                <div style={s.tableEmpty}>No meetings or Deal Desk follow-ups for this period.</div>
               ) : (
                 <table style={s.table}>
                   <thead>
@@ -744,8 +760,9 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
                         return cands.reduce((a, b) => new Date(b.slot_start) > new Date(a.slot_start) ? b : a).id;
                       })();
                       let nowInserted = false;
-                      const rendered = displayBookings.flatMap((b, i) => {
-                        const slotMs = b.slot_start ? new Date(b.slot_start).getTime() : 0;
+                      const rendered = displayFeed.flatMap((item, i) => {
+                        const b = item.booking;
+                        const slotMs = item.at ? new Date(item.at).getTime() : 0;
                         const rows = [];
                         if (!nowInserted && slotMs > nowMs) {
                           nowInserted = true;
@@ -761,20 +778,16 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
                             </tr>
                           );
                         }
-                        rows.push(
+                        rows.push(item.type === 'deal_followup' ? (
+                          <DealFollowupRow key={`deal-${item.followup.id}`} followup={item.followup} onChanged={load} />
+                        ) : (
                           <BookingRow
-                            key={b.id}
-                            booking={b}
-                            striped={i % 2 === 1}
-                            busy={!!updating[b.id]}
-                            selected={panelBooking?.id === b.id}
-                            onRowClick={() => openPanel(b)}
-                            onStatus={status => updateStatus(b, status)}
-                            inProgress={b.id === inProgressId}
-                            repAvatars={repAvatars}
-                            confirmation={smsConfirmations[b.id]}
+                            key={b.id} booking={b} striped={i % 2 === 1} busy={!!updating[b.id]}
+                            selected={panelBooking?.id === b.id} onRowClick={() => openPanel(b)}
+                            onStatus={status => updateStatus(b, status)} inProgress={b.id === inProgressId}
+                            repAvatars={repAvatars} confirmation={smsConfirmations[b.id]}
                           />
-                        );
+                        ));
                         return rows;
                       });
                       // No upcoming meetings left in this view → show a clear
@@ -825,6 +838,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
               setBookings(bs => bs.map(b => b.id === panelBooking.id ? { ...b, cq_sent_at: ts } : b));
               setPanelBooking(b => b ? { ...b, cq_sent_at: ts } : b);
             }}
+            onDealCreated={() => load()}
             onAssign={(id, assignedEmail) => {
               setBookings(bs => bs.map(b => b.id === id ? { ...b, assigned_to_email: assignedEmail } : b));
               setPanelBooking(b => b ? { ...b, assigned_to_email: assignedEmail } : b);
@@ -1417,7 +1431,7 @@ function PIc({ name, size = 16 }) {
 const GHL_LOCATION = 'tsIW5P8nYSjx55tuMI43';
 
 // ─── CRM Side Panel ───────────────────────────────────────────────────────────
-function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, confirmation, initialNotes = '', onClose, onStatusChange, onCQSent, onAssign }) {
+function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, confirmation, initialNotes = '', onClose, onStatusChange, onCQSent, onAssign, onDealCreated }) {
   const [notes,         setNotes]         = useState('');
   const [interests,     setInterests]     = useState([]);
   const [selectedIdx,   setSelectedIdx]   = useState(null);
@@ -1837,6 +1851,8 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
             <div style={p.loadingMsg}>Loading…</div>
           ) : (
             <>
+              {cqReceived && !isDemo && <div style={{ marginBottom: 12 }}><EnterDealDeskButton booking={booking} lead={lead} interests={interests} onCreated={onDealCreated} /></div>}
+
               {/* Lead Score */}
               {(() => {
                 const emailOpened = (ghlTags || []).some(t => String(t).toLowerCase().includes('emailopen'));
