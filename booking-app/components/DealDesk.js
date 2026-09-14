@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { addBusinessDays, addDaysAtWorkTime, DEFAULT_DEAL_TIMEZONE, overdueLabel, parseWallClock, wallClockValue } from '@/lib/dealDesk';
 
 const ui = {
@@ -31,7 +32,9 @@ function DealEntryModal({ booking, form, setForm, duplicate, error, saving, time
     return () => document.removeEventListener('keydown', closeOnEscape);
   }, [onClose]);
 
-  return <>
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(<>
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(15,23,42,.58)', backdropFilter: 'blur(2px)' }} />
     <section role="dialog" aria-modal="true" aria-labelledby="deal-entry-title" style={{ position: 'fixed', zIndex: 301, left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 'min(94vw, 560px)', maxHeight: 'min(92dvh, 760px)', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff', borderRadius: 18, boxShadow: '0 28px 80px rgba(15,23,42,.28)' }}>
       <header style={{ padding: '17px 18px 13px', borderBottom: '1px solid #E2E8F0', background: '#fff' }}>
@@ -99,7 +102,7 @@ function DealEntryModal({ booking, form, setForm, duplicate, error, saving, time
           : <button type="button" disabled={saving || !form.brand.trim() || !form.next_action.trim() || !form.due.iso || duplicate} onClick={onSave} style={{ ...ui.button, minWidth: 150, padding: '9px 13px', background: '#D97706', borderColor: '#D97706', color: '#fff', opacity: saving || !form.brand.trim() || !form.next_action.trim() || !form.due.iso || duplicate ? .5 : 1 }}>{saving ? 'Creating…' : 'Create deal & follow-up'}</button>}
       </footer>
     </section>
-  </>;
+  </>, document.body);
 }
 
 function DateChooser({ value, onChange, timezone, options, suggestions = [] }) {
