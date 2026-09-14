@@ -137,14 +137,18 @@ export default async function handler(req, res) {
   // Fallback: infer the brand from the calendar event name (e.g. a Calendly/GHL
   // event type named "Green Team Discovery Call"). Longest brand name wins so
   // e.g. "Green Team Pro" beats "Green Team".
+  // Compare with spaces/punctuation stripped so "Green Team Discovery Call"
+  // matches the slug "greenteam" as well as the brand's display name.
+  const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
   const brandEntries = Object.entries(brandName)
-    .map(([slug, name]) => ({ slug, name, needle: String(name).toLowerCase() }))
-    .sort((a, b) => b.needle.length - a.needle.length);
+    .map(([slug, name]) => ({ name, slugNorm: norm(slug), nameNorm: norm(name) }))
+    .sort((a, b) => b.slugNorm.length - a.slugNorm.length);
   const brandFromEvent = (eventName) => {
     if (!eventName) return null;
-    const hay = String(eventName).toLowerCase();
+    const hay = norm(eventName);
     const hit = brandEntries.find(e =>
-      e.needle.length >= 3 && (hay.includes(e.needle) || hay.includes(e.slug.replace(/-/g, ' ')))
+      (e.slugNorm.length >= 4 && hay.includes(e.slugNorm)) ||
+      (e.nameNorm.length >= 4 && hay.includes(e.nameNorm))
     );
     return hit ? hit.name : null;
   };
