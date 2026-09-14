@@ -66,6 +66,17 @@ test('entry resets by candidate, carries source-agnostic CQ evidence, and refres
   assert.match(api, /Candidate record does not match this meeting/);
 });
 
+test('entry uses a compact stepped modal and removes blocker jargon from the UI', () => {
+  const component = source('components/DealDesk.js');
+  assert.match(component, /ENTRY_STEPS = \['Deal', 'Contacts', 'Follow-up'\]/);
+  assert.match(component, /role="dialog" aria-modal="true"/);
+  assert.match(component, /maxHeight: 'min\(92dvh, 760px\)'/);
+  assert.match(component, /overflowY: 'auto'/);
+  assert.match(component, /Create deal & follow-up/);
+  assert.doesNotMatch(component, /Current blocker/);
+  assert.doesNotMatch(component, /current_blocker/);
+});
+
 test('database contracts enforce one pending action and retry-safe transactional lifecycle', () => {
   const hardening = source('supabase/migrations/034_deal_desk_hardening.sql');
   const workflow = source('supabase/migrations/035_deal_desk_workflow.sql');
