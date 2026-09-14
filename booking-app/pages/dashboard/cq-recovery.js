@@ -62,7 +62,7 @@ const NAV = [
   { href: '/dashboard/prospects',   label: 'Prospecting', icon: 'clients' },
   { href: '/dashboard/bookings',    label: 'Meetings',    icon: 'meetings' },
   { href: '/dashboard/cq-recovery', label: 'CQ Recovery', icon: 'cq', active: true },
-  { href: '/dashboard/nurture',     label: 'Nurture',     icon: 'nurture' },
+  { href: '/dashboard/dealos',      label: 'DealOS',      icon: 'nurture' },
   { href: '/dashboard/settings',    label: 'Settings',    icon: 'settings' },
 ];
 
