@@ -6,13 +6,14 @@
 export const NAV_ITEMS = [
   { href: '/dashboard/analytics',   label: 'Dashboard',      icon: 'dashboard', perm: 'page_dashboard' },
   { href: '/dashboard/leads',       label: 'Leads',          icon: 'leads',     perm: 'page_leads' },
-  { href: '/dashboard/prospects',   label: 'Prospecting',    icon: 'clients',   perm: 'page_prospecting' },
   { href: '/dashboard/bookings',    label: 'Meetings',       icon: 'meetings',  perm: 'page_meetings' },
   { href: '/dashboard/inbox',       label: 'Inbox',          icon: 'inbox',     perm: 'page_inbox' },
   { href: '/dashboard/pipeline',    label: 'Genesis Agent', icon: 'pipeline',  perm: 'page_pipeline' },
-  { href: '/dashboard/cq-recovery', label: 'CQ Recovery',   icon: 'cq',        perm: 'page_cq' },
   { href: '/dashboard/ad-stats',    label: 'Ad Stats',       icon: 'ads',       perm: 'page_ad_stats' },
-  { href: '/dashboard/nurture',     label: 'Nurture',        icon: 'nurture',   perm: 'page_nurture' },
+  // Hidden from the sidebar for now (pages remain reachable by direct URL):
+  // { href: '/dashboard/prospects',   label: 'Prospecting', icon: 'clients', perm: 'page_prospecting' },
+  // { href: '/dashboard/cq-recovery', label: 'CQ Recovery', icon: 'cq',      perm: 'page_cq' },
+  // { href: '/dashboard/nurture',     label: 'Nurture',     icon: 'nurture', perm: 'page_nurture' },
   { href: '/dashboard/settings',    label: 'Settings',       icon: 'settings',  perm: 'page_settings' },
 ];
 

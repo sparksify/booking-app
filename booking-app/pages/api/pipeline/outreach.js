@@ -32,7 +32,7 @@ No pitch attached. We already did the work.
 
 Want me to send it over?
 
-— Steve
+— %sender-firstname%
 Halloway
 === END EXAMPLE 1 ===
 
@@ -53,7 +53,7 @@ We included the full breakdown in the white paper.
 
 Happy to send you a copy — want it?
 
-— Steve
+— %sender-firstname%
 Halloway
 === END EXAMPLE 2 ===
 
@@ -67,13 +67,13 @@ STRUCTURAL RULES derived from the examples:
 - Email 1 CTA: "Want me to send it over?"
 - Email 2: reference ONE specific angle from the research (competitive mapping), contrast them against nearby competitors, use the phrase "through the lens of expansion" or a close variant. CTA: "Happy to send you a copy — want it?"
 - CRITICAL: The word "franchise" must NEVER appear in email 1. Email 2 may reference expansion but must NOT pitch franchising.
-- Sign every email: "— Steve" on one line, "Halloway" on the next.
+- Sign every email: "— %sender-firstname%" on one line (write this EXACT literal text including the percent signs — it is a mail-merge variable, do NOT replace it with an actual name), "Halloway" on the next.
 `;
 // ═══════════════════════════════════════════════════════════════════
 
 const HARD_RULES = `
 HARD RULES — these are absolute, no exceptions:
-- NEVER introduce Steve in the body text ("My name is Steve", "I'm Steve"). The sign-off "— Steve / Halloway" is the ONLY place his name appears.
+- NEVER introduce the sender by name in the body text. The sign-off "— %sender-firstname% / Halloway" is the ONLY place a name appears, and it must use the literal variable %sender-firstname%, never a real name.
 - NEVER use the words: broker, advisor, consultant, commission, fee, paid, earn
 - NEVER use the word "franchise" in email 1 under any circumstances.
 - NEVER fabricate facts about the business or its competition — only use details provided. If a detail was not provided, do not invent it.
@@ -104,7 +104,7 @@ async function writeSequence(biz, styleInstructions) {
       max_tokens: 1200,
       messages: [{
         role: 'user',
-        content: `Write two cold outreach emails from Steve at Halloway (halloway.co) to the owner of an independent local business, following the style guide below precisely.
+        content: `Write two cold outreach emails from the Halloway team (halloway.co) to the owner of an independent local business, following the style guide below precisely.
 
 Business: ${business_name}
 Owner first name to address: ${getFirstName(email_owner) || 'there'}

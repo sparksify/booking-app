@@ -59,10 +59,7 @@ function Ic({ name, size = 20 }) {
 const NAV = [
   { href: '/dashboard/analytics',   label: 'Dashboard',   icon: 'dashboard' },
   { href: '/dashboard/leads',       label: 'Leads',       icon: 'leads' },
-  { href: '/dashboard/prospects',   label: 'Prospecting', icon: 'clients' },
   { href: '/dashboard/bookings',    label: 'Meetings',    icon: 'meetings' },
-  { href: '/dashboard/cq-recovery', label: 'CQ Recovery', icon: 'cq', active: true },
-  { href: '/dashboard/nurture',     label: 'Nurture',     icon: 'nurture' },
   { href: '/dashboard/settings',    label: 'Settings',    icon: 'settings' },
 ];
 
