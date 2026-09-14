@@ -139,7 +139,7 @@ export function EnterDealDeskButton({ booking, lead, interests = [], onCreated, 
   async function save() {
     if (saving || duplicate || !form.due.iso) return; setSaving(true); setError('');
     try {
-      const r = await fetch('/api/dashboard/deal-desk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, note: form.next_action, due_at: form.due.iso, lead_id: lead?.id, email: booking.email, phone: booking.phone || lead?.phone, first_name: booking.first_name, last_name: booking.last_name, assigned_to_email: booking.assigned_to_email, slot_start: booking.slot_start }) });
+      const r = await fetch('/api/dashboard/deal-desk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, note: form.next_action, due_at: form.due.iso, lead_id: lead?.id, email: booking.email, phone: booking.phone || lead?.phone, first_name: booking.first_name, last_name: booking.last_name, assigned_to_email: booking.assigned_to_email, assigned_rep_email: booking.assigned_rep_email, assigned_user_id: booking.assigned_user_id, slot_start: booking.slot_start }) });
       const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Could not create deal.');
       await loadBrands(); onCreated?.(d.followup); setOpen(false);
     } catch (e) { setError(e.message); } finally { setSaving(false); }

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { addBusinessDays, addDaysAtWorkTime, overdueLabel, parseWallClock, suggestFollowupGaps, wallClockValue } from '../lib/dealDesk.mjs';
+import { addBusinessDays, addDaysAtWorkTime, overdueLabel, parseWallClock, suggestFollowupGaps, uniqueActiveAssignee, wallClockValue } from '../lib/dealDesk.mjs';
 
 const source = relativePath => readFileSync(new URL(`../${relativePath}`, import.meta.url), 'utf8');
 
@@ -40,6 +40,18 @@ test('gap helper avoids meetings and allocated follow-ups', () => {
   assert.equal(gaps.length, 3);
 });
 
+test('consultant resolution tolerates duplicate rows but rejects ambiguous names', () => {
+  assert.deepEqual(uniqueActiveAssignee([
+    { email: 'John@Example.com' },
+    { email: 'john@example.com' },
+  ]), { email: 'john@example.com', ambiguous: false });
+  assert.deepEqual(uniqueActiveAssignee([
+    { email: 'first@example.com' },
+    { email: 'second@example.com' },
+  ]), { email: null, ambiguous: true });
+  assert.deepEqual(uniqueActiveAssignee([]), { email: null, ambiguous: false });
+});
+
 test('resolved Deal Desk sources are conflict-free and browser/server helpers match', () => {
   const files = [
     'components/DealDesk.js',
@@ -57,13 +69,20 @@ test('resolved Deal Desk sources are conflict-free and browser/server helpers ma
 test('entry resets by candidate, carries source-agnostic CQ evidence, and refreshes after creation', () => {
   const component = source('components/DealDesk.js');
   const api = source('pages/api/dashboard/deal-desk.js');
+  const bookingsApi = source('pages/api/dashboard/bookings.js');
   assert.match(component, /candidateKey/);
   assert.match(component, /setForm\(initialForm\(booking, interests, timezone\)\)/);
   assert.match(component, /slot_start: booking\.slot_start/);
+  assert.match(component, /assigned_rep_email: booking\.assigned_rep_email/);
+  assert.match(component, /assigned_user_id: booking\.assigned_user_id/);
   assert.match(component, /await loadBrands\(\)/);
+  assert.match(bookingsApi, /assigned_rep_email/);
   assert.match(api, /meeting_status_overrides/);
   assert.match(api, /updated_by.*ctx\.email/);
   assert.match(api, /Candidate record does not match this meeting/);
+  assert.match(api, /resolveActiveAssignee/);
+  assert.match(api, /assigned consultant is ambiguous/);
+  assert.doesNotMatch(api, /eq\('name', clean\(b\.assigned_to_email\)\)\.maybeSingle/);
 });
 
 test('entry uses a compact stepped modal and removes blocker jargon from the UI', () => {

@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getPermissions, getRepIdentity } from '@/lib/role';
-import { addDaysAtWorkTime, DEAL_STAGES, DEAL_STATUSES, FOLLOWUP_TARGETS } from '@/lib/dealDesk';
+import { addDaysAtWorkTime, DEAL_STAGES, DEAL_STATUSES, FOLLOWUP_TARGETS, uniqueActiveAssignee } from '@/lib/dealDesk';
 import { getDayBoundsUTC, BOOKING_TZ } from './bookings';
 
 const OUTCOMES = ['connected','left_voicemail','texted','waiting_on_developer','validation_scheduled','discovery_day_scheduled','decision_pending','other'];
@@ -45,6 +45,28 @@ function scope(query, ctx, column = 'assigned_to_email') {
 
 async function ownedDeal(db, id, ctx) {
   return scope(db.from('deals').select('*').eq('id', id), ctx).maybeSingle();
+}
+
+async function resolveActiveAssignee(db, body) {
+  const requested = clean(body.assigned_to_email);
+  const candidates = [];
+  const repEmail = clean(body.assigned_rep_email).toLowerCase();
+  if (repEmail && validEmail(repEmail)) candidates.push(['email', repEmail]);
+  if (requested && validEmail(requested)) candidates.push(['email', requested.toLowerCase()]);
+  if (clean(body.assigned_user_id)) candidates.push(['ghl_user_id', clean(body.assigned_user_id)]);
+
+  for (const [column, value] of candidates) {
+    const query = db.from('team_members').select('email').eq('active', true).limit(10);
+    const result = column === 'email' ? await query.ilike(column, value) : await query.eq(column, value);
+    if (result.error) return { error: result.error };
+    const resolved = uniqueActiveAssignee(result.data);
+    if (resolved.email || resolved.ambiguous) return resolved;
+  }
+
+  if (!requested) return { email: null };
+  const result = await db.from('team_members').select('email').eq('active', true).eq('name', requested).limit(10);
+  if (result.error) return { error: result.error };
+  return uniqueActiveAssignee(result.data);
 }
 
 export default async function handler(req, res) {
@@ -120,11 +142,11 @@ export default async function handler(req, res) {
       if (!ctx.assignees.includes(assigned)) return res.status(403).json({ error: 'You cannot assign this deal to another consultant.' });
       assigned = ctx.email;
     } else {
-      let member = await db.from('team_members').select('email,active').eq('email', assigned).maybeSingle();
-      if (!member.data) member = await db.from('team_members').select('email,active').eq('name', clean(b.assigned_to_email)).maybeSingle();
-      if (member.error) return res.status(500).json({ error: member.error.message });
-      if (!member.data?.active) return res.status(400).json({ error: 'Deals must be assigned to an active consultant.' });
-      assigned = member.data.email.toLowerCase();
+      const member = await resolveActiveAssignee(db, b);
+      if (member.error) return res.status(500).json({ error: 'Could not verify the assigned consultant.' });
+      if (member.ambiguous) return res.status(409).json({ error: 'This meeting’s assigned consultant is ambiguous. Reassign the meeting to an active consultant and try again.' });
+      if (!member.email) return res.status(400).json({ error: 'Deals must be assigned to an active consultant.' });
+      assigned = member.email;
     }
     const requestKey = UUID_RE.test(clean(b.request_key)) ? clean(b.request_key) : crypto.randomUUID();
     const result = await db.rpc('create_deal_with_followup', {
