@@ -12,7 +12,8 @@ import SidebarUser from '@/components/SidebarUser';
 import CallIntel from '@/components/CallIntel';
 import WatchIntel from '@/components/WatchIntel';
 import CompanyIntel from '@/components/CompanyIntel';
-import { DealFollowupRow, EnterDealDeskButton } from '@/components/DealDesk';
+import { DealDetailDrawer, DealFollowupRow, EnterDealDeskButton, InactiveDealRow } from '@/components/DealDesk';
+import { DEFAULT_DEAL_TIMEZONE, suggestFollowupGaps } from '@/lib/dealDesk';
 
 export async function getServerSideProps(context) {
   const { guardDashboardPage } = await import('@/lib/pageAccess');
@@ -182,6 +183,11 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
   const [filter,       setFilter]       = useState('today');
   const [bookings,     setBookings]     = useState([]);
   const [dealFollowups, setDealFollowups] = useState([]);
+  const [dealError, setDealError] = useState('');
+  const [inactiveDeals, setInactiveDeals] = useState([]);
+  const [dealSettings, setDealSettings] = useState({ timezone: DEFAULT_DEAL_TIMEZONE, work_start: 9, work_end: 18 });
+  const [feedFilter, setFeedFilter] = useState('everything');
+  const [openDealId, setOpenDealId] = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [updating,     setUpdating]     = useState({});
   const [isDemo,       setIsDemo]       = useState(false);
@@ -215,6 +221,12 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
     let cancelled = false;
     const scrollToNow = () => {
       if (cancelled) return;
+      // Overdue Deal Desk work is higher priority than auto-positioning at Now.
+      // Keep it on screen until the consultant completes or reschedules it.
+      if (filter === 'today' && dealFollowups.some(f => new Date(f.due_at) < new Date())) {
+        sc.scrollTo({ top: 0, behavior: 'auto' });
+        return;
+      }
       const el = nowLineRef.current;
       // Offset by the sticky header's height so the target row lands just
       // below it instead of hiding behind it.
@@ -244,7 +256,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
       sc.removeEventListener('touchstart', stop);
       window.removeEventListener('keydown', stop);
     };
-  }, [loading, bookings.length, filter, repFilter, statusFilter, sourceFilter]);
+  }, [loading, bookings.length, dealFollowups, filter, repFilter, statusFilter, sourceFilter]);
 
   // Remember the last-used filters (default: Today + Steve Sparks).
   useEffect(() => {
@@ -314,27 +326,36 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
     })();
   }, [loading, isDemo]);
 
-  const load = useCallback(() => {
-    setLoading(true);
-    Promise.all([
-      fetch(`/api/dashboard/bookings?filter=${filter}`).then(r => r.json()),
-      fetch(`/api/dashboard/deal-desk?filter=${filter}`).then(r => r.ok ? r.json() : ({ followups: [] })),
-    ])
-      .then(([d, dealData]) => {
-        const real = d.bookings || [];
-        setDealFollowups(dealData.followups || []);
-        const viewAll = !!d.viewAll;
-        setIsAdmin(viewAll);
-        setCanTransfer(d.canTransfer !== false);
-        if (!viewAll) setRepFilter([]);   // members are already scoped server-side
-        if (real.length === 0) { setBookings(DEMO); setIsDemo(true); }
-        else                   { setBookings(real); setIsDemo(false); }
-        if (d.rep_avatars) setRepAvatars(d.rep_avatars);
-        setLoading(false);
-      })
-      .catch(() => { setBookings(DEMO); setDealFollowups([]); setIsDemo(true); setLoading(false); });
+  const loadDeals = useCallback(async () => {
+    setDealError('');
+    try {
+      const response = await fetch(`/api/dashboard/deal-desk?filter=${filter}`);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `Deal Desk failed (${response.status})`);
+      setDealFollowups(data.followups || []);
+      setInactiveDeals(data.inactive_deals || []);
+      if (data.settings) setDealSettings({ timezone: data.settings.timezone || DEFAULT_DEAL_TIMEZONE, work_start: data.settings.work_start ?? 9, work_end: data.settings.work_end ?? 18 });
+    } catch (error) {
+      setDealError(error.message || 'Deal Desk is temporarily unavailable. Meetings are still available.');
+    }
   }, [filter]);
 
+  const loadBookings = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/dashboard/bookings?filter=${filter}`);
+      const d = await response.json();
+      const real = d.bookings || [];
+      const viewAll = !!d.viewAll;
+      setIsAdmin(viewAll); setCanTransfer(d.canTransfer !== false);
+      if (!viewAll) setRepFilter([]);
+      if (real.length === 0) { setBookings(DEMO); setIsDemo(true); } else { setBookings(real); setIsDemo(false); }
+      if (d.rep_avatars) setRepAvatars(d.rep_avatars);
+    } catch { setBookings(DEMO); setIsDemo(true); }
+    finally { setLoading(false); }
+  }, [filter]);
+
+  const load = useCallback(() => { loadBookings(); loadDeals(); }, [loadBookings, loadDeals]);
   useEffect(() => { load(); }, [load]);
 
   // After a manual call is added, jump to the filter window that contains its
@@ -451,10 +472,15 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
   const displayFollowups = dealFollowups
     .filter(f => !isAdmin || repFilter.length === 0 || repFilter.includes(normalizeRepName(f.assigned_to_email)))
     .filter(f => !search || `${f.deal?.first_name || ''} ${f.deal?.last_name || ''} ${f.deal?.email || ''} ${f.deal?.brand || ''}`.toLowerCase().includes(search.toLowerCase()));
-  const displayFeed = [
-    ...displayBookings.map(booking => ({ type: 'meeting', at: booking.slot_start, booking })),
-    ...displayFollowups.map(followup => ({ type: 'deal_followup', at: followup.due_at, followup })),
-  ].sort((a, b) => new Date(a.at) - new Date(b.at));
+  const displayInactiveDeals = inactiveDeals
+    .filter(d => !isAdmin || repFilter.length === 0 || repFilter.includes(normalizeRepName(d.assigned_to_email)))
+    .filter(d => !search || `${d.first_name || ''} ${d.last_name || ''} ${d.email || ''} ${d.brand || ''}`.toLowerCase().includes(search.toLowerCase()));
+  const displayFeed = feedFilter === 'inactive'
+    ? displayInactiveDeals.map(deal => ({ type: 'inactive_deal', at: deal.updated_at, deal }))
+    : [
+        ...(feedFilter === 'everything' ? displayBookings.map(booking => ({ type: 'meeting', at: booking.slot_start, booking })) : []),
+        ...displayFollowups.filter(f => feedFilter !== 'overdue' || new Date(f.due_at) < new Date()).map(followup => ({ type: 'deal_followup', at: followup.due_at, followup })),
+      ].sort((a, b) => new Date(a.at) - new Date(b.at));
   const overdueCount = displayFollowups.filter(f => new Date(f.due_at) < new Date()).length;
 
   const counts = filteredBookings.reduce((acc, b) => { acc[b.status] = (acc[b.status] || 0) + 1; return acc; }, {});
@@ -643,6 +669,9 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
 
             <div style={{ margin: '10px 0', padding: '10px 14px', border: '1px solid #E5E7EB', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 700, color: '#475569' }}>{displayBookings.length} Meetings · <span style={{ color: '#B45309' }}>{displayFollowups.length} Deal Follow-Ups</span> · <span style={{ color: overdueCount ? '#DC2626' : '#64748B' }}>{overdueCount} Overdue</span></div>
 
+            {dealError && <div role="alert" style={{ margin: '10px 0', padding: '10px 14px', border: '1px solid #FCA5A5', borderRadius: 8, background: '#FEF2F2', color: '#B91C1C', fontSize: 13 }}><strong>Deal Desk could not load.</strong> {dealError} Scheduled meetings are unaffected. <button onClick={loadDeals} style={{ marginLeft: 8, border: 0, background: 'none', color: '#B91C1C', textDecoration: 'underline', cursor: 'pointer' }}>Retry</button></div>}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>{[['everything','Everything'],['deals','Deal follow-ups'],['overdue','Overdue'],['inactive','Paused / closed']].map(([key,label]) => <button key={key} onClick={() => setFeedFilter(key)} style={feedFilter === key ? s.filterPillActive : s.filterPillOutline}>{label}</button>)}</div>
+
             {/* Filter bar */}
             <div style={s.filterBar}>
               {/* Pills */}
@@ -735,10 +764,10 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
           <div style={s.tableScroll} ref={scrollBodyRef}>
             {/* Table */}
             <div style={s.tableCard}>
-              {loading ? (
-                <div style={s.tableEmpty}>Loading…</div>
+              {loading && dealFollowups.length === 0 && feedFilter !== 'inactive' ? (
+                <div style={s.tableEmpty}>Loading meetings…</div>
               ) : displayFeed.length === 0 ? (
-                <div style={s.tableEmpty}>No meetings or Deal Desk follow-ups for this period.</div>
+                <div style={s.tableEmpty}>{feedFilter === 'inactive' ? 'No paused or closed deals.' : 'No meetings or Deal Desk follow-ups for this period.'}</div>
               ) : (
                 <table style={s.table}>
                   <thead>
@@ -778,8 +807,10 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
                             </tr>
                           );
                         }
-                        rows.push(item.type === 'deal_followup' ? (
-                          <DealFollowupRow key={`deal-${item.followup.id}`} followup={item.followup} onChanged={load} />
+                        rows.push(item.type === 'inactive_deal' ? (
+                          <InactiveDealRow key={`inactive-${item.deal.id}`} deal={item.deal} onOpen={setOpenDealId} />
+                        ) : item.type === 'deal_followup' ? (
+                          <DealFollowupRow key={`deal-${item.followup.id}`} followup={item.followup} timezone={dealSettings.timezone} onOpen={setOpenDealId} onChanged={loadDeals} suggestions={!isDemo && !loading ? suggestFollowupGaps({ day: new Date(item.followup.due_at) < new Date() ? new Date() : item.followup.due_at, meetings: bookings, followups: dealFollowups.filter(f => f.id !== item.followup.id), workStart: dealSettings.work_start, workEnd: dealSettings.work_end, timeZone: dealSettings.timezone }) : []} />
                         ) : (
                           <BookingRow
                             key={b.id} booking={b} striped={i % 2 === 1} busy={!!updating[b.id]}
@@ -838,7 +869,8 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
               setBookings(bs => bs.map(b => b.id === panelBooking.id ? { ...b, cq_sent_at: ts } : b));
               setPanelBooking(b => b ? { ...b, cq_sent_at: ts } : b);
             }}
-            onDealCreated={() => load()}
+            onDealCreated={loadDeals}
+            dealTimezone={dealSettings.timezone}
             onAssign={(id, assignedEmail) => {
               setBookings(bs => bs.map(b => b.id === id ? { ...b, assigned_to_email: assignedEmail } : b));
               setPanelBooking(b => b ? { ...b, assigned_to_email: assignedEmail } : b);
@@ -846,6 +878,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
           />
         )}
 
+        {openDealId && <DealDetailDrawer dealId={openDealId} timezone={dealSettings.timezone} onClose={() => setOpenDealId(null)} onChanged={loadDeals} />}
         {transferOpen && <TransferModal onClose={() => setTransferOpen(false)} onDone={load} />}
         {addOpen && <AddCallModal onClose={() => setAddOpen(false)} onCreated={refreshAfterAdd} defaultRepEmail={session?.user?.email || null} />}
       </div>
@@ -1431,7 +1464,7 @@ function PIc({ name, size = 16 }) {
 const GHL_LOCATION = 'tsIW5P8nYSjx55tuMI43';
 
 // ─── CRM Side Panel ───────────────────────────────────────────────────────────
-function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, confirmation, initialNotes = '', onClose, onStatusChange, onCQSent, onAssign, onDealCreated }) {
+function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, confirmation, initialNotes = '', onClose, onStatusChange, onCQSent, onAssign, onDealCreated, dealTimezone }) {
   const [notes,         setNotes]         = useState('');
   const [interests,     setInterests]     = useState([]);
   const [selectedIdx,   setSelectedIdx]   = useState(null);
@@ -1851,7 +1884,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
             <div style={p.loadingMsg}>Loading…</div>
           ) : (
             <>
-              {cqReceived && !isDemo && <div style={{ marginBottom: 12 }}><EnterDealDeskButton booking={booking} lead={lead} interests={interests} onCreated={onDealCreated} /></div>}
+              {cqReceived && !isDemo && <div style={{ marginBottom: 12 }}><EnterDealDeskButton booking={booking} lead={lead} interests={interests} onCreated={onDealCreated} timezone={dealTimezone} /></div>}
 
               {/* Lead Score */}
               {(() => {
