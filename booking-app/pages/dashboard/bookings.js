@@ -475,11 +475,12 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
   const displayInactiveDeals = inactiveDeals
     .filter(d => !isAdmin || repFilter.length === 0 || repFilter.includes(normalizeRepName(d.assigned_to_email)))
     .filter(d => !search || `${d.first_name || ''} ${d.last_name || ''} ${d.email || ''} ${d.brand || ''}`.toLowerCase().includes(search.toLowerCase()));
+  const activeFilterCount = (sourceFilter ? 1 : 0) + (statusFilter ? 1 : 0) + (repFilter.length > 0 ? 1 : 0);
   const displayFeed = feedFilter === 'inactive'
     ? displayInactiveDeals.map(deal => ({ type: 'inactive_deal', at: deal.updated_at, deal }))
     : [
-        ...(feedFilter === 'everything' ? displayBookings.map(booking => ({ type: 'meeting', at: booking.slot_start, booking })) : []),
-        ...displayFollowups.filter(f => feedFilter !== 'overdue' || new Date(f.due_at) < new Date()).map(followup => ({ type: 'deal_followup', at: followup.due_at, followup })),
+        ...(feedFilter === 'everything' || feedFilter === 'meetings' ? displayBookings.map(booking => ({ type: 'meeting', at: booking.slot_start, booking })) : []),
+        ...(feedFilter === 'everything' || feedFilter === 'deals' ? displayFollowups.map(followup => ({ type: 'deal_followup', at: followup.due_at, followup })) : []),
       ].sort((a, b) => new Date(a.at) - new Date(b.at));
   const overdueCount = displayFollowups.filter(f => new Date(f.due_at) < new Date()).length;
 
@@ -667,96 +668,128 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
               );
             })()}
 
-            <div style={{ margin: '10px 0', padding: '10px 14px', border: '1px solid #E5E7EB', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 700, color: '#475569' }}>{displayBookings.length} Meetings · <span style={{ color: '#B45309' }}>{displayFollowups.length} Deal Follow-Ups</span> · <span style={{ color: overdueCount ? '#DC2626' : '#64748B' }}>{overdueCount} Overdue</span></div>
-
             {dealError && <div role="alert" style={{ margin: '10px 0', padding: '10px 14px', border: '1px solid #FCA5A5', borderRadius: 8, background: '#FEF2F2', color: '#B91C1C', fontSize: 13 }}><strong>Deal Desk could not load.</strong> {dealError} Scheduled meetings are unaffected. <button onClick={loadDeals} style={{ marginLeft: 8, border: 0, background: 'none', color: '#B91C1C', textDecoration: 'underline', cursor: 'pointer' }}>Retry</button></div>}
-            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>{[['everything','Everything'],['deals','Deal follow-ups'],['overdue','Overdue'],['inactive','Paused / closed']].map(([key,label]) => <button key={key} onClick={() => setFeedFilter(key)} style={feedFilter === key ? s.filterPillActive : s.filterPillOutline}>{label}</button>)}</div>
 
-            {/* Filter bar */}
-            <div style={s.filterBar}>
-              {/* Pills */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                {/* All Meetings */}
-                <button
-                  onClick={() => setFilter('all')}
-                  style={filter === 'all' ? s.filterPillActive : s.filterPillOutline}
-                >
-                  All Meetings
-                  {filter === 'all' && (
-                    <span style={s.filterPillBadge}>{displayBookings.length}</span>
-                  )}
-                </button>
-
-                {/* Date filters */}
-                {[
-                  { key: 'today',    label: 'Today' },
-                  { key: 'tomorrow', label: 'Tomorrow' },
-                  { key: 'week',     label: 'Next 2 Weeks' },
-                ].map(f => (
-                  <button key={f.key} onClick={() => setFilter(f.key)}
-                    style={filter === f.key ? s.filterPillActive : s.filterPillOutline}>
-                    {f.label}
-                  </button>
-                ))}
-
-                {/* Source dropdown */}
-                <div style={{ position: 'relative', display: 'inline-block' }}>
-                  <select
-                    value={sourceFilter}
-                    onChange={e => setSourceFilter(e.target.value)}
-                    style={s.filterSelect}
-                  >
-                    <option value="">All Sources</option>
-                    <option value="Calendly">Calendly</option>
-                    <option value="GoHighLevel">GoHighLevel</option>
-                    <option value="KANSO">KANSO</option>
-                  </select>
-                  <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6B7280', fontSize: 10 }}>▼</span>
-                </div>
-
-                {/* Status dropdown */}
-                <div style={{ position: 'relative', display: 'inline-block' }}>
-                  <select
-                    value={statusFilter}
-                    onChange={e => setStatusFilter(e.target.value)}
-                    style={s.filterSelect}
-                  >
-                    <option value="">All Statuses</option>
-                    <option value="scheduled">Scheduled</option>
-                    <option value="showed">Showed</option>
-                    <option value="no-show">No Show</option>
-                    <option value="reschedule-needed">Reschedule Needed</option>
-                    <option value="rescheduled">Rescheduled</option>
-                    <option value="closed">Closed Won</option>
-                    <option value="not-interested">Not Interested</option>
-                    <option value="not-a-fit">Not a Good Fit</option>
-                  </select>
-                  <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6B7280', fontSize: 10 }}>▼</span>
-                </div>
-
-                <button style={s.filterMoreBtn}>≡ More Filters</button>
+            {/* Header card: counts + view tabs + filter row */}
+            <div style={s.headerCard}>
+              <div style={s.headerCounts}>
+                {displayBookings.length} Meetings
+                <span style={s.headerCountsDot}>·</span>
+                <span style={{ color: '#111827' }}>{displayFollowups.length} Deal Follow-Ups</span>
+                <span style={s.headerCountsDot}>·</span>
+                <span style={{ color: '#EA580C' }}>{overdueCount} Overdue</span>
               </div>
 
-              {/* Rep chips (right side) — admin only, active reps only */}
-              {isAdmin && filterReps.length > 1 && (
-                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                  <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600 }}>Rep:</span>
-                  {filterReps.map(name => {
-                    const label  = name.split(' ')[0];
-                    const active = repFilter.includes(name);
-                    return (
-                      <button key={name}
-                        onClick={() => setRepFilter(prev => prev.includes(name) ? prev.filter(r => r !== name) : [...prev, name])}
-                        style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6, border: `1.5px solid ${active ? '#2563EB' : '#E5E7EB'}`, background: active ? '#EFF6FF' : '#fff', color: active ? '#2563EB' : '#6B7280', cursor: 'pointer', fontFamily: 'inherit' }}>
-                        {label}
-                      </button>
-                    );
-                  })}
-                  {repFilter.length > 0 && (
-                    <button onClick={() => setRepFilter([])} style={{ fontSize: 11, color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Clear</button>
-                  )}
+              {/* View tabs + rep dropdown */}
+              <div style={s.headerTabsRow}>
+                <div style={s.segGroup}>
+                  {[
+                    { key: 'everything', label: 'Everything' },
+                    { key: 'meetings',   label: 'Meetings' },
+                    { key: 'deals',      label: 'Deal Follow-Ups' },
+                    { key: 'inactive',   label: 'Paused / Closed' },
+                  ].map((t, i, arr) => (
+                    <button key={t.key} onClick={() => setFeedFilter(t.key)}
+                      style={{
+                        ...(feedFilter === t.key ? s.segBtnActive : s.segBtn),
+                        ...(i === 0 ? {} : { borderLeft: feedFilter === t.key ? 'none' : '1px solid #E5E7EB' }),
+                        ...(i === 0 ? { borderTopLeftRadius: 8, borderBottomLeftRadius: 8 } : {}),
+                        ...(i === arr.length - 1 ? { borderTopRightRadius: 8, borderBottomRightRadius: 8 } : {}),
+                      }}>
+                      {t.label}
+                    </button>
+                  ))}
                 </div>
-              )}
+
+                {/* Rep dropdown (right side) — admin only, active reps only */}
+                {isAdmin && filterReps.length > 1 && (
+                  <div style={s.repSelectWrap}>
+                    <span style={{ fontSize: 13, color: '#9CA3AF', fontWeight: 500 }}>Rep:</span>
+                    <div style={{ position: 'relative', display: 'inline-block' }}>
+                      <select
+                        value={repFilter[0] || ''}
+                        onChange={e => setRepFilter(e.target.value ? [e.target.value] : [])}
+                        style={s.repSelect}
+                      >
+                        <option value="">All Reps</option>
+                        {filterReps.map(name => (
+                          <option key={name} value={name}>{name.split(' ')[0]}</option>
+                        ))}
+                      </select>
+                      <span style={s.selectCaret}>▾</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div style={s.headerDivider} />
+
+              {/* Filter row: date pills + dropdowns + filters */}
+              <div style={s.filterBar}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={s.segGroup}>
+                    {[
+                      { key: 'today',    label: 'Today' },
+                      { key: 'tomorrow', label: 'Tomorrow' },
+                      { key: 'week',     label: 'Next 2 Weeks' },
+                      { key: 'all',      label: 'All Dates' },
+                    ].map((f, i, arr) => (
+                      <button key={f.key} onClick={() => setFilter(f.key)}
+                        style={{
+                          ...(filter === f.key ? s.segBtnActive : s.segBtn),
+                          ...(i === 0 ? {} : { borderLeft: filter === f.key ? 'none' : '1px solid #E5E7EB' }),
+                          ...(i === 0 ? { borderTopLeftRadius: 8, borderBottomLeftRadius: 8 } : {}),
+                          ...(i === arr.length - 1 ? { borderTopRightRadius: 8, borderBottomRightRadius: 8 } : {}),
+                        }}>
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={s.filterRowDivider} />
+
+                  {/* Source dropdown */}
+                  <div style={{ position: 'relative', display: 'inline-block' }}>
+                    <select
+                      value={sourceFilter}
+                      onChange={e => setSourceFilter(e.target.value)}
+                      style={s.filterSelect}
+                    >
+                      <option value="">Source</option>
+                      <option value="Calendly">Calendly</option>
+                      <option value="GoHighLevel">GoHighLevel</option>
+                      <option value="KANSO">KANSO</option>
+                    </select>
+                    <span style={s.selectCaret}>▾</span>
+                  </div>
+
+                  {/* Status dropdown */}
+                  <div style={{ position: 'relative', display: 'inline-block' }}>
+                    <select
+                      value={statusFilter}
+                      onChange={e => setStatusFilter(e.target.value)}
+                      style={s.filterSelect}
+                    >
+                      <option value="">Status</option>
+                      <option value="scheduled">Scheduled</option>
+                      <option value="showed">Showed</option>
+                      <option value="no-show">No Show</option>
+                      <option value="reschedule-needed">Reschedule Needed</option>
+                      <option value="rescheduled">Rescheduled</option>
+                      <option value="closed">Closed Won</option>
+                      <option value="not-interested">Not Interested</option>
+                      <option value="not-a-fit">Not a Good Fit</option>
+                    </select>
+                    <span style={s.selectCaret}>▾</span>
+                  </div>
+
+                  <button style={s.filterMoreBtn}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                    Filters
+                    {activeFilterCount > 0 && <span style={s.filterCountBadge}>{activeFilterCount}</span>}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -2449,12 +2482,22 @@ const s = {
   nextUpBtnFill:   { padding: '9px 18px', fontSize: 13, fontWeight: 600, borderRadius: 6, border: 'none', background: '#2563EB', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
 
   // Filters
-  filterBar:         { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 },
-  filterPillActive:  { padding: '7px 16px', borderRadius: 6, background: '#2563EB', color: '#fff', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' },
-  filterPillOutline: { padding: '7px 16px', borderRadius: 6, background: '#fff', color: '#374151', border: '1px solid #E5E7EB', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
-  filterPillBadge:   { background: 'rgba(255,255,255,.3)', borderRadius: 4, padding: '1px 7px', fontSize: 11, fontWeight: 700 },
-  filterSelect:      { appearance: 'none', WebkitAppearance: 'none', padding: '7px 28px 7px 12px', border: '1px solid #E5E7EB', borderRadius: 6, background: '#fff', fontSize: 13, color: '#374151', cursor: 'pointer', fontFamily: 'inherit', outline: 'none' },
-  filterMoreBtn:     { padding: '7px 12px', background: 'none', border: 'none', fontSize: 13, color: '#6B7280', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  headerCard:        { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '18px 20px 14px', margin: '10px 0 12px', boxShadow: '0 1px 2px rgba(16,24,40,.04)' },
+  headerCounts:      { display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 14 },
+  headerCountsDot:   { color: '#D1D5DB', fontWeight: 400 },
+  headerTabsRow:     { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
+  headerDivider:     { height: 1, background: '#F1F3F5', margin: '14px -20px' },
+  segGroup:          { display: 'inline-flex', alignItems: 'stretch', border: '1px solid #E5E7EB', borderRadius: 9, background: '#fff', overflow: 'hidden' },
+  segBtn:            { padding: '9px 18px', background: '#fff', color: '#374151', border: 'none', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  segBtnActive:      { padding: '9px 18px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', margin: -1, position: 'relative', zIndex: 1 },
+  filterRowDivider:  { width: 1, alignSelf: 'stretch', background: '#E5E7EB', margin: '2px 2px' },
+  repSelectWrap:     { display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px', border: '1px solid #E5E7EB', borderRadius: 9, background: '#F8F9FB' },
+  repSelect:         { appearance: 'none', WebkitAppearance: 'none', padding: '4px 22px 4px 2px', border: 'none', background: 'transparent', fontSize: 14, fontWeight: 700, color: '#111827', cursor: 'pointer', fontFamily: 'inherit', outline: 'none' },
+  selectCaret:       { position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6B7280', fontSize: 11 },
+  filterBar:         { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
+  filterSelect:      { appearance: 'none', WebkitAppearance: 'none', padding: '9px 30px 9px 16px', border: '1px solid #E5E7EB', borderRadius: 9, background: '#fff', fontSize: 13.5, fontWeight: 600, color: '#374151', cursor: 'pointer', fontFamily: 'inherit', outline: 'none' },
+  filterMoreBtn:     { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 16px', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 9, fontSize: 13.5, fontWeight: 600, color: '#374151', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  filterCountBadge:  { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 20, height: 20, padding: '0 5px', borderRadius: 10, background: '#2563EB', color: '#fff', fontSize: 11.5, fontWeight: 700 },
 
   // Table
   tableCard:  { background: '#fff', borderRadius: 10, border: '1px solid #E5E7EB', marginTop: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)' },
