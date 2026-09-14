@@ -133,7 +133,15 @@ export default async function handler(req, res) {
     const { data: brands } = await supabase.from('brands').select('slug, name');
     (brands || []).forEach(br => { if (br.slug) brandName[String(br.slug).toLowerCase()] = br.name || br.slug; });
   }
-  const resolveBrand = (slug) => (slug ? (brandName[String(slug).toLowerCase()] || slug) : null);
+  // Internal display overrides — what reps see on the Meetings page, without
+  // touching the brand's public name (used on its booking page).
+  const INTERNAL_BRAND_LABELS = { greenteam: 'Green Team' };
+  const internalLabel = (slug, name) => INTERNAL_BRAND_LABELS[slug] || name;
+  const resolveBrand = (slug) => {
+    if (!slug) return null;
+    const key = String(slug).toLowerCase();
+    return internalLabel(key, brandName[key] || slug);
+  };
   // Fallback: infer the brand from the calendar event name (e.g. a Calendly/GHL
   // event type named "Green Team Discovery Call"). Longest brand name wins so
   // e.g. "Green Team Pro" beats "Green Team".
@@ -141,7 +149,7 @@ export default async function handler(req, res) {
   // matches the slug "greenteam" as well as the brand's display name.
   const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
   const brandEntries = Object.entries(brandName)
-    .map(([slug, name]) => ({ name, slugNorm: norm(slug), nameNorm: norm(name) }))
+    .map(([slug, name]) => ({ name: internalLabel(slug, name), slugNorm: norm(slug), nameNorm: norm(name) }))
     .sort((a, b) => b.slugNorm.length - a.slugNorm.length);
   const brandFromEvent = (eventName) => {
     if (!eventName) return null;
