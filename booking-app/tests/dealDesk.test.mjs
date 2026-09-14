@@ -68,8 +68,12 @@ test('entry resets by candidate, carries source-agnostic CQ evidence, and refres
 
 test('entry uses a compact stepped modal and removes blocker jargon from the UI', () => {
   const component = source('components/DealDesk.js');
+  const entryModal = component.slice(component.indexOf('function DealEntryModal'), component.indexOf('function DateChooser'));
   assert.match(component, /ENTRY_STEPS = \['Deal', 'Contacts', 'Follow-up'\]/);
   assert.match(component, /role="dialog" aria-modal="true"/);
+  assert.match(component, /import \{ createPortal \} from 'react-dom'/);
+  assert.match(entryModal, /return createPortal\(/);
+  assert.match(entryModal, /document\.body/);
   assert.match(component, /maxHeight: 'min\(92dvh, 760px\)'/);
   assert.match(component, /overflowY: 'auto'/);
   assert.match(component, /Create deal & follow-up/);
