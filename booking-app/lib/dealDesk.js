@@ -89,3 +89,10 @@ export function overdueLabel(dueAt, now = new Date()) {
   const days = Math.floor(hours / 24);
   return `OVERDUE ${days} DAY${days === 1 ? '' : 'S'}`;
 }
+
+export function uniqueActiveAssignee(members = []) {
+  const emails = [...new Set(members
+    .map(member => String(member?.email || '').trim().toLowerCase())
+    .filter(email => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)))];
+  return { email: emails.length === 1 ? emails[0] : null, ambiguous: emails.length > 1 };
+}

@@ -182,6 +182,7 @@ export default async function handler(req, res) {
       show_probability: showProb,
       health,
       booking_source:   b.booking_source ?? 'direct',
+      assigned_rep_email: b.assigned_to_email?.includes('@') ? b.assigned_to_email.toLowerCase() : null,
       _source_display:  'KANSO',
     };
   });
@@ -309,6 +310,7 @@ export default async function handler(req, res) {
         // normalized NAME so it matches the dashboard's rep chips/filter
         // (which use names for Calendly/GHL meetings, not emails).
         assigned_to_email: normalizeRepName(tr.to_email || b.assigned_to_email),
+        assigned_rep_email: (tr.to_email || b.assigned_rep_email || (b.assigned_to_email?.includes('@') ? b.assigned_to_email : null))?.toLowerCase() || null,
         // Manual override wins over the source's status (e.g. Calendly always
         // reports 'scheduled'; a rep marking no-show must take precedence).
         status:           ovr.status         || b.status,
@@ -453,6 +455,7 @@ export async function fetchCalendly(from, to) {
       status:           'scheduled',
       investment_level: null,
       assigned_to_email: normalizeRepName(ev.event_memberships?.[0]?.user_email || null),
+      assigned_rep_email: ev.event_memberships?.[0]?.user_email?.toLowerCase() || null,
       meet_link:        ev.location?.join_url || null,
       created_at:       ev.created_at,
       event_name:       ev.name || '',
@@ -571,7 +574,7 @@ export async function fetchGHL(from, to) {
       if (d) {
         const u = d.user || d; // handle both { user: {...} } and flat response
         const name = u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email;
-        if (name) userMap[uid] = name;
+        if (name) userMap[uid] = { name, email: u.email?.toLowerCase() || null };
       }
     });
   }
@@ -601,8 +604,9 @@ export async function fetchGHL(from, to) {
 
     // Resolve assigned rep name — normalize variants to canonical names
     const assignedUserId   = ev.assignedUserId || null;
+    const assignedUser     = assignedUserId ? userMap[assignedUserId] : null;
     const assignedUserName = assignedUserId
-      ? normalizeRepName(userMap[assignedUserId] || null)
+      ? normalizeRepName(assignedUser?.name || null)
       : null;
 
     // Pull liquid capital from GHL custom fields
@@ -619,6 +623,7 @@ export async function fetchGHL(from, to) {
       status:            GHL_STATUS[rawStatus] || 'scheduled',
       investment_level:  liquidCapital,
       assigned_to_email: assignedUserName,
+      assigned_rep_email: assignedUser?.email || null,
       assigned_user_id:  ev.assignedUserId || null,
       meet_link:         null,
       created_at:        ev.dateAdded || ev.createdAt || null,
