@@ -160,6 +160,14 @@ export default async function handler(req, res) {
     );
     return hit ? hit.name : null;
   };
+  // Same matching, applied per GHL contact tag (e.g. tag 'green team' → greenteam)
+  const brandFromTags = (tags) => {
+    for (const t of tags || []) {
+      const hit = brandFromEvent(t);
+      if (hit) return hit;
+    }
+    return null;
+  };
 
   const sbBks = rawSB.map(b => {
     const lead           = leadsByEmail[b.email] ?? null;
@@ -198,9 +206,13 @@ export default async function handler(req, res) {
   const apiKey = process.env.GHL_API_KEY;
   const locationId = process.env.GHL_LOCATION_ID;
   if (apiKey && locationId) {
+    // Also fetch contacts for bookings that can't resolve a brand from their own
+    // row or lead — the GHL contact's tags (e.g. 'green team') are the fallback.
+    const needsBrand = (b) =>
+      !b.brand_slug && !leadsByEmail[(b.email || '').toLowerCase()]?.brand_slug;
     const emailsNeedingContact = [...new Set(
       [...ghlBks, ...sbBks, ...calBks]
-        .filter(b => !b.ghl_contact_id && b.email)
+        .filter(b => b.email && (!b.ghl_contact_id || needsBrand(b)))
         .map(b => b.email.toLowerCase())
     )];
     if (emailsNeedingContact.length) {
@@ -219,6 +231,7 @@ export default async function handler(req, res) {
           ghlContactByEmail[email] = {
             id:            contact.id || null,
             liquidCapital: getGHLLiquidCapital(contact),
+            tags:          Array.isArray(contact.tags) ? contact.tags : [],
           };
         }
       });
@@ -306,7 +319,7 @@ export default async function handler(req, res) {
         investment_level: b.investment_level || ghlC.liquidCapital  || lead.investment_level || null,
         // Franchise brand the lead came in for (native booking's own slug first,
         // else the matched lead's slug), resolved to a display name.
-        brand:            resolveBrand(b.brand_slug || lead.brand_slug) || brandFromEvent(b.event_name),
+        brand:            resolveBrand(b.brand_slug || lead.brand_slug) || brandFromEvent(b.event_name) || brandFromTags(ghlC.tags),
       });
     }
   }
