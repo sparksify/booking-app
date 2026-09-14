@@ -606,7 +606,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
                   <div style={s.nextUpAvatar}>{initials}</div>
                   <div style={s.nextUpInfo}>
                     <div style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <SourceBadge source={nextUp._source_display || 'KANSO'} />
+                      <SourceBadge source={nextUp.brand || nextUp._source_display || 'KANSO'} />
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 700, color: nextTier.color, background: nextTier.bg, border: `1px solid ${nextTier.border}` }}>Score {nextScore}</span>
                       {nextConf && !nextConf.loading && (() => {
                         const CONF = { confirmed: { l: '✓ Confirmed', c: '#15803D', b: '#DCFCE7', br: '#BBF7D0' }, declined: { l: '✗ Declined', c: '#DC2626', b: '#FEE2E2', br: '#FECACA' }, uncertain: { l: '? Maybe', c: '#B45309', b: '#FEF3C7', br: '#FDE68A' } };
@@ -1285,7 +1285,7 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus,
 
       {/* Source / Type */}
       <td style={s.td}>
-        <SourceBadge source={b._source_display || 'KANSO'} />
+        <SourceBadge source={b.brand || b._source_display || 'KANSO'} />
         {b.event_name && <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>{b.event_name}</div>}
       </td>
 
@@ -1771,7 +1771,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 9, flexWrap: 'wrap' }}>
-                <SourceBadge source={booking._source_display || 'KANSO'} />
+                <SourceBadge source={booking.brand || booking._source_display || 'KANSO'} />
                 {booking.event_name && (
                   <span title={booking.event_name} style={{ padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: '#475569', background: '#F1F5F9', border: '1px solid #E2E8F0', whiteSpace: 'nowrap', maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block' }}>{booking.event_name}</span>
                 )}

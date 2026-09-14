@@ -121,10 +121,33 @@ export default async function handler(req, res) {
   if (allEmails.length) {
     const { data: leads } = await supabase
       .from('leads')
-      .select('email, status, ghl_contact_id, investment_level')
+      .select('email, status, ghl_contact_id, investment_level, brand_slug')
       .in('email', allEmails);
     (leads || []).forEach(l => { leadsByEmail[l.email?.toLowerCase()] = l; });
   }
+
+  // Brand display names (slug → name) so each row can show the franchise brand a
+  // lead came in for, instead of only the platform source (KANSO/Calendly/GHL).
+  const brandName = {};
+  {
+    const { data: brands } = await supabase.from('brands').select('slug, name');
+    (brands || []).forEach(br => { if (br.slug) brandName[String(br.slug).toLowerCase()] = br.name || br.slug; });
+  }
+  const resolveBrand = (slug) => (slug ? (brandName[String(slug).toLowerCase()] || slug) : null);
+  // Fallback: infer the brand from the calendar event name (e.g. a Calendly/GHL
+  // event type named "Green Team Discovery Call"). Longest brand name wins so
+  // e.g. "Green Team Pro" beats "Green Team".
+  const brandEntries = Object.entries(brandName)
+    .map(([slug, name]) => ({ slug, name, needle: String(name).toLowerCase() }))
+    .sort((a, b) => b.needle.length - a.needle.length);
+  const brandFromEvent = (eventName) => {
+    if (!eventName) return null;
+    const hay = String(eventName).toLowerCase();
+    const hit = brandEntries.find(e =>
+      e.needle.length >= 3 && (hay.includes(e.needle) || hay.includes(e.slug.replace(/-/g, ' ')))
+    );
+    return hit ? hit.name : null;
+  };
 
   const sbBks = rawSB.map(b => {
     const lead           = leadsByEmail[b.email] ?? null;
@@ -269,6 +292,9 @@ export default async function handler(req, res) {
         cq_received_at:   ovr.cq_received_at  || b.cq_received_at || cq.cq_received_at || null,
         ghl_contact_id:   b.ghl_contact_id   || ghlC.id             || null,
         investment_level: b.investment_level || ghlC.liquidCapital  || lead.investment_level || null,
+        // Franchise brand the lead came in for (native booking's own slug first,
+        // else the matched lead's slug), resolved to a display name.
+        brand:            resolveBrand(b.brand_slug || lead.brand_slug) || brandFromEvent(b.event_name),
       });
     }
   }
@@ -304,7 +330,7 @@ export default async function handler(req, res) {
 export async function fetchSupabase(supabase, from, to) {
   let q = supabase
     .from('bookings')
-    .select('id, first_name, last_name, email, phone, slot_start, slot_end, status, investment_level, assigned_to_email, meet_link, created_at, lead_score, show_probability, fb_attribution, booking_source, cq_sent_at, cq_received_at')
+    .select('id, first_name, last_name, email, phone, slot_start, slot_end, status, investment_level, assigned_to_email, meet_link, created_at, lead_score, show_probability, fb_attribution, booking_source, cq_sent_at, cq_received_at, brand_slug')
     .order('slot_start', { ascending: true });
   if (from && to) q = q.gte('slot_start', from.toISOString()).lte('slot_start', to.toISOString());
   const { data, error } = await q;
