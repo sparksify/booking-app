@@ -736,7 +736,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
                 {/* Rep dropdown (right side) — admin only, active reps only */}
                 {isAdmin && filterReps.length > 1 && (
                   <div style={s.repSelectWrap}>
-                    <span style={{ fontSize: 13, color: '#9CA3AF', fontWeight: 500 }}>Rep:</span>
+                    <span style={{ fontSize: 11.5, color: '#9CA3AF', fontWeight: 500 }}>Rep:</span>
                     <div style={{ position: 'relative', display: 'inline-block' }}>
                       <select
                         value={repFilter[0] || ''}
@@ -816,7 +816,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
                   </div>
 
                   <button style={s.filterMoreBtn}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
                     Filters
                     {activeFilterCount > 0 && <span style={s.filterCountBadge}>{activeFilterCount}</span>}
                   </button>
@@ -2516,22 +2516,22 @@ const s = {
   nextUpBtnFill:   { padding: '9px 18px', fontSize: 13, fontWeight: 600, borderRadius: 6, border: 'none', background: '#2563EB', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
 
   // Filters
-  headerCard:        { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '18px 20px 14px', margin: '10px 0 12px', boxShadow: '0 1px 2px rgba(16,24,40,.04)' },
-  headerCounts:      { display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 14 },
+  headerCard:        { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: '13px 16px 10px', margin: '10px 0 12px', boxShadow: '0 1px 2px rgba(16,24,40,.04)' },
+  headerCounts:      { display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 10 },
   headerCountsDot:   { color: '#D1D5DB', fontWeight: 400 },
   headerTabsRow:     { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
-  headerDivider:     { height: 1, background: '#F1F3F5', margin: '14px -20px' },
-  segGroup:          { display: 'inline-flex', alignItems: 'stretch', border: '1px solid #E5E7EB', borderRadius: 9, background: '#fff', overflow: 'hidden' },
-  segBtn:            { padding: '9px 18px', background: '#fff', color: '#374151', border: 'none', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
-  segBtnActive:      { padding: '9px 18px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', margin: -1, position: 'relative', zIndex: 1 },
-  filterRowDivider:  { width: 1, alignSelf: 'stretch', background: '#E5E7EB', margin: '2px 2px' },
-  repSelectWrap:     { display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px', border: '1px solid #E5E7EB', borderRadius: 9, background: '#F8F9FB' },
-  repSelect:         { appearance: 'none', WebkitAppearance: 'none', padding: '4px 22px 4px 2px', border: 'none', background: 'transparent', fontSize: 14, fontWeight: 700, color: '#111827', cursor: 'pointer', fontFamily: 'inherit', outline: 'none' },
-  selectCaret:       { position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6B7280', fontSize: 11 },
+  headerDivider:     { height: 1, background: '#F1F3F5', margin: '10px -16px' },
+  segGroup:          { display: 'inline-flex', alignItems: 'stretch', border: '1px solid #E5E7EB', borderRadius: 7, background: '#fff', overflow: 'hidden' },
+  segBtn:            { padding: '6px 13px', background: '#fff', color: '#374151', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  segBtnActive:      { padding: '6px 13px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', margin: -1, position: 'relative', zIndex: 1 },
+  filterRowDivider:  { width: 1, alignSelf: 'stretch', background: '#E5E7EB', margin: '2px 0' },
+  repSelectWrap:     { display: 'flex', alignItems: 'center', gap: 6, padding: '2px 8px', border: '1px solid #E5E7EB', borderRadius: 7, background: '#F8F9FB' },
+  repSelect:         { appearance: 'none', WebkitAppearance: 'none', padding: '3px 20px 3px 2px', border: 'none', background: 'transparent', fontSize: 12.5, fontWeight: 700, color: '#111827', cursor: 'pointer', fontFamily: 'inherit', outline: 'none' },
+  selectCaret:       { position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6B7280', fontSize: 10 },
   filterBar:         { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
-  filterSelect:      { appearance: 'none', WebkitAppearance: 'none', padding: '9px 30px 9px 16px', border: '1px solid #E5E7EB', borderRadius: 9, background: '#fff', fontSize: 13.5, fontWeight: 600, color: '#374151', cursor: 'pointer', fontFamily: 'inherit', outline: 'none' },
-  filterMoreBtn:     { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 16px', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 9, fontSize: 13.5, fontWeight: 600, color: '#374151', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
-  filterCountBadge:  { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 20, height: 20, padding: '0 5px', borderRadius: 10, background: '#2563EB', color: '#fff', fontSize: 11.5, fontWeight: 700 },
+  filterSelect:      { appearance: 'none', WebkitAppearance: 'none', padding: '6px 26px 6px 12px', border: '1px solid #E5E7EB', borderRadius: 7, background: '#fff', fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer', fontFamily: 'inherit', outline: 'none' },
+  filterMoreBtn:     { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 7, fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  filterCountBadge:  { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 17, height: 17, padding: '0 4px', borderRadius: 9, background: '#2563EB', color: '#fff', fontSize: 10.5, fontWeight: 700 },
 
   // Table
   tableCard:  { background: '#fff', borderRadius: 10, border: '1px solid #E5E7EB', marginTop: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)' },
