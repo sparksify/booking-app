@@ -191,7 +191,9 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
   const fccRequestRef = useRef(0);
   const [inactiveDeals, setInactiveDeals] = useState([]);
   const [dealSettings, setDealSettings] = useState({ timezone: DEFAULT_DEAL_TIMEZONE, work_start: 9, work_end: 18 });
-  const [feedFilter, setFeedFilter] = useState('everything');
+  const [openDealTab, setOpenDealTab] = useState('followup');
+  const openDeal = (id, tab = 'followup') => { setOpenDealTab(tab); setOpenDealId(id); };
+  const [feedFilter, setFeedFilter] = useState('meetings');
   const [openDealId, setOpenDealId] = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [updating,     setUpdating]     = useState({});
@@ -228,7 +230,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
       if (cancelled) return;
       // Overdue Deal Desk work is higher priority than auto-positioning at Now.
       // Keep it on screen until the consultant completes or reschedules it.
-      if (filter === 'today' && [...dealFollowups, ...fccRows].some(f => new Date(f.due_at) < new Date())) {
+      if (feedFilter !== 'meetings' && (feedFilter !== 'everything' || (filter === 'today' && [...dealFollowups, ...fccRows].some(f => new Date(f.due_at) < new Date())))) {
         sc.scrollTo({ top: 0, behavior: 'auto' });
         return;
       }
@@ -261,7 +263,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
       sc.removeEventListener('touchstart', stop);
       window.removeEventListener('keydown', stop);
     };
-  }, [loading, bookings.length, dealFollowups, fccRows, filter, repFilter, statusFilter, sourceFilter]);
+  }, [loading, bookings.length, dealFollowups, fccRows, filter, repFilter, statusFilter, sourceFilter, feedFilter]);
 
   // Remember the last-used filters (default: Today + Steve Sparks).
   useEffect(() => {
@@ -707,19 +709,19 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
                 <span style={s.headerCountsDot}>·</span>
                 <span style={{ color: '#111827' }}>{displayFollowups.length + displayFccRows.length} Deal Follow-Ups{fccError ? ' · FCC unavailable' : ''}</span>
                 <span style={s.headerCountsDot}>·</span>
-                <span style={{ color: '#EA580C' }}>{overdueCount} Overdue</span>
-                <FccSettings onChanged={() => { loadFcc(); loadDeals(); }} reviewCount={fccReviewCount} />
+                <button onClick={() => setFeedFilter('overdue')} style={{border:0,borderRadius:6,padding:'4px 8px',background:'#F8FAFC',color:overdueCount?'#92400E':'#64748B',fontSize:12,cursor:'pointer'}}>{overdueCount} overdue</button>
+                {feedFilter !== 'meetings' && <FccSettings onChanged={() => { loadFcc(); loadDeals(); }} reviewCount={fccReviewCount} />}
               </div>
 
               {/* View tabs + rep dropdown */}
               <div style={s.headerTabsRow}>
                 <div style={s.segGroup}>
                   {[
-                    { key: 'everything', label: 'Everything' },
                     { key: 'meetings',   label: 'Meetings' },
                     { key: 'deals',      label: 'Deal Follow-Ups' },
                     { key: 'overdue',    label: 'Overdue' },
                     { key: 'inactive',   label: 'Paused / Closed' },
+                    { key: 'everything', label: 'Everything' },
                   ].map((t, i, arr) => (
                     <button key={t.key} onClick={() => setFeedFilter(t.key)}
                       style={{
@@ -829,19 +831,19 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
           <div style={s.tableScroll} ref={scrollBodyRef}>
             {/* Table */}
             <div style={s.tableCard}>
-              {loading && dealFollowups.length === 0 && fccRows.length === 0 && feedFilter !== 'inactive' ? (
+              {loading && (feedFilter === 'meetings' || (feedFilter === 'everything' && dealFollowups.length === 0 && fccRows.length === 0)) ? (
                 <div style={s.tableEmpty}>Loading meetings…</div>
               ) : displayFeed.length === 0 ? (
-                <div style={s.tableEmpty}>{feedFilter === 'inactive' ? 'No paused or closed deals.' : 'No meetings or Deal Desk follow-ups for this period.'}</div>
+                <div style={s.tableEmpty}>{feedFilter === 'inactive' ? 'No paused or closed deals.' : feedFilter === 'meetings' ? 'No meetings for this period.' : 'No follow-ups for this period.'}</div>
               ) : (
                 <table style={s.table}>
-                  <thead>
+                  {['meetings','everything'].includes(feedFilter) && <thead>
                     <tr>
                       {['Time', 'Client', 'Score', 'Source / Type', 'Rep', 'Liquid Capital', 'Confirmed', 'CQ Sent', 'Status', 'Actions'].map((h, idx, arr) => (
                         <th key={h} style={{ ...s.th, ...(idx === 0 ? { borderTopLeftRadius: 10 } : {}), ...(idx === arr.length - 1 ? { borderTopRightRadius: 10 } : {}) }}>{h}</th>
                       ))}
                     </tr>
-                  </thead>
+                  </thead>}
                   <tbody>
                     {(() => {
                       const nowMs = Date.now();
@@ -858,7 +860,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
                         const b = item.booking;
                         const slotMs = item.at ? new Date(item.at).getTime() : 0;
                         const rows = [];
-                        if (!nowInserted && slotMs > nowMs) {
+                        if (['meetings','everything'].includes(feedFilter) && !nowInserted && slotMs > nowMs) {
                           nowInserted = true;
                           rows.push(
                             <tr key="now-divider" ref={nowLineRef} style={{ pointerEvents: 'none' }}>
@@ -873,11 +875,11 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
                           );
                         }
                         rows.push(item.type === 'inactive_deal' ? (
-                          <InactiveDealRow key={`inactive-${item.deal.id}`} deal={item.deal} onOpen={setOpenDealId} />
+                          <InactiveDealRow key={`inactive-${item.deal.id}`} deal={item.deal} onOpen={id => openDeal(id, 'details')} />
                         ) : item.type === 'fcc_reminder' ? (
-                          <FccReminderRow key={`fcc-${item.row.id}`} row={item.row} onOpen={setOpenDealId} onChanged={loadFcc} />
+                          <FccReminderRow key={`fcc-${item.row.id}`} row={item.row} onOpen={id => openDeal(id, 'developer')} />
                         ) : item.type === 'deal_followup' ? (
-                          <DealFollowupRow key={`deal-${item.followup.id}`} followup={item.followup} timezone={dealSettings.timezone} onOpen={setOpenDealId} onChanged={loadDeals} suggestions={!isDemo && !loading ? suggestFollowupGaps({ day: new Date(item.followup.due_at) < new Date() ? new Date() : item.followup.due_at, meetings: bookings, followups: dealFollowups.filter(f => f.id !== item.followup.id), workStart: dealSettings.work_start, workEnd: dealSettings.work_end, timeZone: dealSettings.timezone }) : []} />
+                          <DealFollowupRow key={`deal-${item.followup.id}`} followup={item.followup} timezone={dealSettings.timezone} onOpen={openDeal} />
                         ) : (
                           <BookingRow
                             key={b.id} booking={b} striped={i % 2 === 1} busy={!!updating[b.id]}
@@ -890,7 +892,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
                       });
                       // No upcoming meetings left in this view → show a clear
                       // "caught up" marker instead of scrolling into blank space.
-                      if (!nowInserted) {
+                      if (!nowInserted && feedFilter === 'meetings') {
                         rendered.push(
                           <tr key="all-done" style={{ pointerEvents: 'none' }}>
                             <td colSpan={10} style={{ padding: '18px 16px' }}>
@@ -905,7 +907,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
                       // Tail spacer INSIDE the table so the header stays pinned
                       // over it — lets the last meeting scroll up without the
                       // sticky header ever scrolling out of view.
-                      rendered.push(
+                      if (['meetings','everything'].includes(feedFilter)) rendered.push(
                         <tr key="tail-spacer" aria-hidden="true" style={{ pointerEvents: 'none' }}>
                           <td colSpan={10} style={{ height: '55vh', border: 'none', padding: 0 }} />
                         </tr>
@@ -945,7 +947,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
           />
         )}
 
-        {openDealId && <DealDetailDrawer dealId={openDealId} timezone={dealSettings.timezone} onClose={() => setOpenDealId(null)} onChanged={() => { loadDeals(); loadFcc(); }} />}
+        {openDealId && <DealDetailDrawer key={`${openDealId}-${openDealTab}`} dealId={openDealId} initialTab={openDealTab} getSuggestions={pending => !isDemo && !loading ? suggestFollowupGaps({ day: new Date(pending.due_at) < new Date() ? new Date() : pending.due_at, meetings: bookings, followups: dealFollowups.filter(f => f.id !== pending.id), workStart: dealSettings.work_start, workEnd: dealSettings.work_end, timeZone: dealSettings.timezone }) : []} timezone={dealSettings.timezone} onClose={() => setOpenDealId(null)} onChanged={() => Promise.all([loadDeals(), loadFcc()])} />}
         {transferOpen && <TransferModal onClose={() => setTransferOpen(false)} onDone={load} />}
         {addOpen && <AddCallModal onClose={() => setAddOpen(false)} onCreated={refreshAfterAdd} defaultRepEmail={session?.user?.email || null} />}
       </div>
@@ -2517,7 +2519,7 @@ const s = {
 
   // Filters
   headerCard:        { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: '13px 16px 10px', margin: '10px 0 12px', boxShadow: '0 1px 2px rgba(16,24,40,.04)' },
-  headerCounts:      { display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 10 },
+  headerCounts:      { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 7, fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 10 },
   headerCountsDot:   { color: '#D1D5DB', fontWeight: 400 },
   headerTabsRow:     { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
   headerDivider:     { height: 1, background: '#F1F3F5', margin: '10px -16px' },
