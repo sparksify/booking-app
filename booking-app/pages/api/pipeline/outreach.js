@@ -32,8 +32,6 @@ No pitch attached. We already did the work.
 
 Want me to send it over?
 
-— %sender-firstname%
-Halloway
 === END EXAMPLE 1 ===
 
 === EXAMPLE EMAIL 2 (follow-up, same business) ===
@@ -53,8 +51,6 @@ We included the full breakdown in the white paper.
 
 Happy to send you a copy — want it?
 
-— %sender-firstname%
-Halloway
 === END EXAMPLE 2 ===
 
 STRUCTURAL RULES derived from the examples:
@@ -73,6 +69,8 @@ STRUCTURAL RULES derived from the examples:
 
 const HARD_RULES = `
 HARD RULES — these are absolute, no exceptions:
+- GREETING: If an owner first name is provided, open with "FirstName," on its own line. If the owner name is "(NO NAME KNOWN - see greeting rule)", write NO greeting line at all — start the email directly with the first sentence. NEVER write "there," or "Hi there" or "Owner" or any placeholder greeting.
+- NO SIGN-OFF: Do not end with any name, signature, dash-name, or company name. End email 1 with "Want me to send it over?" and email 2 with its final CTA question. The sending system appends the signature automatically.
 - NEVER introduce the sender by name in the body text. The sign-off "— %sender-firstname% / Halloway" is the ONLY place a name appears, and it must use the literal variable %sender-firstname%, never a real name.
 - NEVER use the words: broker, advisor, consultant, commission, fee, paid, earn
 - NEVER use the word "franchise" in email 1 under any circumstances.
@@ -107,7 +105,7 @@ async function writeSequence(biz, styleInstructions) {
         content: `Write two cold outreach emails from the Halloway team (halloway.co) to the owner of an independent local business, following the style guide below precisely.
 
 Business: ${business_name}
-Owner first name to address: ${getFirstName(email_owner) || 'there'}
+Owner first name to address: ${getFirstName(email_owner) || '(NO NAME KNOWN - see greeting rule)'}
 Industry: ${industry || 'unknown'}
 City: ${city || 'unknown'}
 ${signal ? `What we noticed about them: ${signal}` : ''}
