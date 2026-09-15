@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { CompactFollowupRow } from './CompactFollowupRow';
 import { createPortal } from 'react-dom';
 import { nextCheck, sourceLink } from '@/lib/fcc.mjs';
 import { parseWallClock, wallClockValue, overdueLabel } from '@/lib/dealDesk';
@@ -42,6 +43,10 @@ export function FccModal({title,onClose,children}) {
   </div>,document.body);
 }
 
+function InlineFccAction({title,onClose,children}) {
+  return <section aria-label={title} style={{marginTop:14,borderTop:'1px solid #E2E8F0',paddingTop:14}}><div style={{...actions,justifyContent:'space-between',marginBottom:14}}><strong>{title}</strong><button style={button} onClick={onClose}>Cancel</button></div>{children}</section>;
+}
+
 export function FccAction({row,mode,onClose,onChanged}) {
   const tz=row.mailbox?.timezone || 'America/Chicago',d=row.deal || {};
   const [outcome,setOutcome]=useState(mode==='snooze'?'snooze':mode==='reopen'?'reopen':'attempt');
@@ -59,7 +64,7 @@ export function FccAction({row,mode,onClose,onChanged}) {
     try{await request({action:'reminder',id:row.id,request_key:key.current,outcome,note,due_at:selectedDate?.toISOString()});await onChanged?.();onClose();}
     catch(err){setError(err.message);}finally{lock.current=false;setBusy(false);}
   }
-  return <FccModal title={mode==='draft'?'Draft developer email':mode==='snooze'?'Snooze developer reminder':mode==='reopen'?'Correct acknowledgment':'Record developer follow-up'} onClose={()=>!busy && onClose()}>
+  return <InlineFccAction title={mode==='draft'?'Draft developer email':mode==='snooze'?'Snooze developer reminder':mode==='reopen'?'Correct acknowledgment':'Record developer follow-up'} onClose={()=>!busy && onClose()}>
     <p style={{marginTop:0}}><strong>{row.candidate_name} · {d.brand || row.brand_label}</strong></p>
     {mode==='draft'?<><p>This opens an editable draft in your email app. Nothing is sent or recorded automatically.</p><label>Email draft<textarea rows={7} value={draft} onChange={e=>setDraft(e.target.value)} style={input}/></label>{d.developer_email?<a style={primary} href={`mailto:${encodeURIComponent(d.developer_email)}?subject=${encodeURIComponent(`${row.candidate_name} — registration follow-up`)}&body=${encodeURIComponent(draft)}`}>Open email draft</a>:<p>Add the developer’s email in Deal details first.</p>}</>:<form onSubmit={save}>
       {!['snooze','reopen'].includes(mode) && <label>What happened?<select style={input} value={outcome} onChange={e=>setOutcome(e.target.value)}>
@@ -71,39 +76,33 @@ export function FccAction({row,mode,onClose,onChanged}) {
       {error && <p role="alert" style={{color:'#B91C1C'}}>{error}</p>}
       <footer style={{...actions,position:'sticky',bottom:-18,background:'#fff',padding:'12px 0',justifyContent:'space-between'}}><button type="button" disabled={busy} style={button} onClick={onClose}>Cancel</button><button disabled={busy || (needsDate && (!date || +date<=Date.now())) || (['dismissed','reopen'].includes(outcome) && !note.trim())} style={primary}>{busy?'Saving…':mode==='snooze'?'Snooze reminder':'Save outcome'}</button></footer>
     </form>}
-  </FccModal>;
+  </InlineFccAction>;
 }
 
-export function FccReminderRow({row,onOpen,onChanged}) {
-  const [mode,setMode]=useState(null),tz=row.mailbox?.timezone || 'America/Chicago';
-  const overdue=new Date(row.due_at)<new Date(),d=row.deal || {};
-  return <tr><td colSpan={10} style={{padding:14,background:overdue?'#FEF2F2':'#FFFBEB',borderLeft:`4px solid ${overdue?'#DC2626':'#D97706'}`,borderBottom:'1px solid #E2E8F0'}}>
-    <div style={{...actions,justifyContent:'space-between'}}><div style={{minWidth:220,flex:'1 1 300px'}}>
-      <strong style={{fontSize:11,color:overdue?'#B91C1C':'#92400E'}}>DEVELOPER FOLLOW-UP {overdue && `· ${overdueLabel(row.due_at)}`}</strong>
-      <div><button onClick={()=>onOpen(row.deal_id)} style={{...button,border:0,padding:'5px 0',background:'none',fontSize:15,textAlign:'left'}}>{row.candidate_name} · {d.brand || row.brand_label}</button></div>
-      <div style={{fontSize:12,color:'#64748B'}}>{(d.stage || 'submitted').replaceAll('_',' ')} · Submitted {time(row.submitted_at,tz)}</div>
-      <p style={{margin:'6px 0',fontSize:13}}><strong>{row.check_label}</strong><br/>Confirm receipt and ask whether the developer has contacted the candidate.</p>
-      <div style={{fontSize:12}}>Due {time(row.due_at,tz)} · {d.developer_name || d.developer_email || 'Developer details missing — add them in Deal details'}</div>
-    </div><div style={{...actions,flex:'0 1 330px'}}>
-      <a href={row.source_link} target="_blank" rel="noreferrer" style={button}>FCC receipt</a>
-      {d.developer_phone && <a href={`tel:${d.developer_phone.replace(/[^+\d]/g,'')}`} style={button}>Call developer</a>}
-      <button style={button} onClick={()=>setMode('draft')}>Draft email</button>
-      {row.can_edit && <><button style={primary} onClick={()=>setMode('done')}>Done</button><button style={button} onClick={()=>setMode('snooze')}>Snooze</button></>}
-    </div></div>
-    {mode && <FccAction row={row} mode={mode} onClose={()=>setMode(null)} onChanged={onChanged}/>}
-  </td></tr>;
+export function FccReminderRow({row,onOpen}) {
+  return <CompactFollowupRow name={row.candidate_name} brand={row.deal?.brand || row.brand_label} dueAt={row.due_at} timezone={row.mailbox?.timezone || 'America/Chicago'} kind="Developer acknowledgment" onOpen={()=>onOpen(row.deal_id)} />;
 }
 
 export function FccDealEvidence({dealId,onChanged}) {
   const [data,setData]=useState(null),[error,setError]=useState(''),[selected,setSelected]=useState(null);
   async function load(){try{setData(await getData(`?deal_id=${encodeURIComponent(dealId)}`));setError('');}catch(e){setError(e.message);}}
   useEffect(()=>{load();},[dealId]);
-  return <section style={{border:'1px solid #FCD34D',borderRadius:10,padding:12}}><strong>FCC submission & developer acknowledgment</strong>
+  return <section style={{border:'1px solid #E2E8F0',borderRadius:10,padding:12}}><strong>Developer acknowledgment</strong>
     {error?<p role="alert">{error} <button onClick={load} style={button}>Retry</button></p>:!data?<p>Loading FCC evidence…</p>:!data.rows.length?<p style={{fontSize:12}}>No FCC receipt recorded for this deal.</p>:data.rows.map(row=><div key={row.id} style={{marginTop:12,fontSize:12,borderTop:'1px solid #E2E8F0',paddingTop:10}}>
       <a href={row.source_link} target="_blank" rel="noreferrer">Submitted {time(row.submitted_at,row.mailbox.timezone)}</a> · {row.timestamp_source==='email_received'?'email received time':'receipt timestamp'}
       <p>{row.status==='dismissed'?'Obligation dismissed':row.check_label}<br/>Contact planned: {row.outreach_planned_at?'Yes':'Not recorded'}<br/>Developer reports contact: {row.contact_reported_at?'Yes':'Not recorded'}<br/>Candidate confirms contact: {row.candidate_confirmed_at?'Yes':'Not recorded'}</p>
-      {row.can_edit && <div style={actions}><button style={button} onClick={()=>setSelected({row,mode:'done'})}>Record confirmation / review</button>{['acknowledged','dismissed'].includes(row.status) && row.deal.status==='active' && <button style={button} onClick={()=>setSelected({row,mode:'reopen'})}>Correct & reopen reminder</button>}</div>}
+      <p style={{color:'#64748B'}}>{row.deal?.developer_name || 'Developer'}{row.due_at ? ` · Due ${time(row.due_at,row.mailbox.timezone)}` : ''}</p>
+      {!selected && <div style={actions}>
+        {row.deal?.developer_phone && <><a href={`tel:${row.deal.developer_phone}`} style={button}>Call</a><a href={`sms:${row.deal.developer_phone}`} style={button}>Text</a></>}
+        <button style={button} onClick={()=>setSelected({row,mode:'draft'})}>Draft email</button>
+        {row.can_edit && <><button style={{...button,background:'#2563EB',color:'#fff',borderColor:'#2563EB'}} onClick={()=>setSelected({row,mode:'done'})}>Done</button>
+          {!['acknowledged','dismissed'].includes(row.status) && <button style={button} onClick={()=>setSelected({row,mode:'snooze'})}>Snooze</button>}
+          {['acknowledged','dismissed'].includes(row.status) && row.deal.status==='active' && <button style={button} onClick={()=>setSelected({row,mode:'reopen'})}>Correct & reopen reminder</button>}
+        </>}
+      </div>}
+      <details style={{marginTop:14}}><summary style={{cursor:'pointer',color:'#64748B'}}>Evidence & history</summary>
       {data.evidence.filter(e=>e.submission_id===row.id).map(e=><div key={e.id} style={{paddingTop:8}}><strong>{e.classification.replaceAll('_',' ')}</strong> · {e.manual?'Manual':'Detected'} · {time(e.occurred_at,row.mailbox.timezone)}{e.source_message_id && <> · <a href={sourceLink(row.mailbox.mailbox_email,e.source_message_id)} target="_blank" rel="noreferrer">Evidence email</a></>}{e.excerpt && <div style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{e.excerpt}</div>}</div>)}
+      </details>
     </div>)}
     {selected && <FccAction {...selected} onClose={()=>setSelected(null)} onChanged={async()=>{await load();await onChanged?.();}}/>}
   </section>;

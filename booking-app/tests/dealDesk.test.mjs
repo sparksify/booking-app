@@ -117,7 +117,7 @@ test('daily feed keeps meetings independent and uses lightweight Deal Desk refre
   const page = source('pages/dashboard/bookings.js');
   assert.match(page, /loadBookings\(\); loadDeals\(\)/);
   assert.match(page, /Scheduled meetings are unaffected/);
-  assert.match(page, /onChanged=\{loadDeals\}/);
+  assert.match(page, /onChanged=\{\(\) => Promise\.all\(\[loadDeals\(\), loadFcc\(\)\]\)\}/);
   assert.match(page, /Paused \/ closed/i);
   assert.match(page, /suggestFollowupGaps/);
 });

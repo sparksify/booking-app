@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { CompactFollowupRow } from './CompactFollowupRow';
 import { FccDealEvidence } from './FccReminders';
 import { addBusinessDays, addDaysAtWorkTime, DEFAULT_DEAL_TIMEZONE, overdueLabel, parseWallClock, wallClockValue } from '@/lib/dealDesk';
 
@@ -12,14 +13,11 @@ const freshKey = () => globalThis.crypto?.randomUUID?.() || 'xxxxxxxx-xxxx-4xxx-
 const ENTRY_STEPS = ['Deal', 'Contacts', 'Follow-up'];
 const stageLabel = stage => stage === 'cq_received' ? 'CQ Received' : stage.replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase());
 
-function Modal({ title, children, onClose, wide = false }) {
-  return <>
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(15,23,42,.45)' }} />
-    <div role="dialog" aria-modal="true" aria-label={title} style={{ position: 'fixed', zIndex: 201, left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: `min(94vw, ${wide ? 680 : 480}px)`, maxHeight: '90vh', overflowY: 'auto', background: '#fff', borderRadius: 12, boxShadow: '0 24px 60px rgba(0,0,0,.2)', padding: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}><strong style={{ fontSize: 18 }}>{title}</strong><button aria-label="Close" onClick={onClose} style={{ ...ui.button, border: 0 }}>✕</button></div>
-      {children}
-    </div>
-  </>;
+function ActionPanel({ title, children, onClose }) {
+  return <section aria-label={title} style={{ borderTop: '1px solid #E2E8F0', marginTop: 14, paddingTop: 14 }}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}><strong>{title}</strong><button onClick={onClose} style={ui.button}>Cancel</button></div>
+    {children}
+  </section>;
 }
 
 function DealEntryModal({ booking, form, setForm, duplicate, error, saving, timezone, onClose, onSave }) {
@@ -153,34 +151,37 @@ export function EnterDealDeskButton({ booking, lead, interests = [], onCreated, 
   </div>;
 }
 
-export function DealFollowupRow({ followup, onChanged, onOpen, timezone = DEFAULT_DEAL_TIMEZONE, suggestions = [] }) {
+export function DealFollowupActions({ followup, onChanged, timezone = DEFAULT_DEAL_TIMEZONE, suggestions = [] }) {
   const [mode, setMode] = useState(null); const [saving, setSaving] = useState(false); const [error, setError] = useState('');
-  const [outcome, setOutcome] = useState('connected'); const [note, setNote] = useState(''); const [nextNote, setNextNote] = useState(''); const [nextTarget, setNextTarget] = useState('candidate'); const [closeReason, setCloseReason] = useState('');
+  const [outcome, setOutcome] = useState('connected'); const [note, setNote] = useState(''); const [nextNote, setNextNote] = useState(''); const [nextTarget, setNextTarget] = useState('candidate');
   const [nextDue, setNextDue] = useState({ iso: addDaysAtWorkTime(2, new Date(), timezone).toISOString(), choice: '2 days' }); const [requestKey, setRequestKey] = useState(freshKey());
   const due = new Date(followup.due_at); const overdue = due < new Date(); const deal = followup.deal || {}; const target = followup.contact_target === 'developer' ? 'developer' : 'candidate';
   const person = target === 'developer' ? deal.developer_name || 'Developer' : `${deal.first_name || ''} ${deal.last_name || ''}`.trim(); const phone = target === 'developer' ? deal.developer_phone : deal.phone; const email = target === 'developer' ? deal.developer_email : deal.email;
   const overdueText = overdueLabel(due);
   async function patch(body) { if (saving) return; setSaving(true); setError(''); try { const r = await fetch('/api/dashboard/deal-desk', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ followup_id: followup.id, request_key: requestKey, ...body }) }); const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Could not save.'); await onChanged?.(); setMode(null); setRequestKey(freshKey()); } catch (e) { setError(e.message); } finally { setSaving(false); } }
   return <>
-    <tr onClick={() => onOpen?.(deal.id)} style={{ background: overdue ? '#FEF2F2' : '#FFFBEB', borderLeft: `4px solid ${overdue ? '#DC2626' : '#F59E0B'}`, cursor: 'pointer' }}>
-      <td style={{ padding: 12, whiteSpace: 'nowrap' }}><strong>{new Intl.DateTimeFormat('en-US',{timeZone:timezone,hour:'numeric',minute:'2-digit'}).format(due)}</strong>{overdue && <div style={{ color:'#DC2626',fontSize:10,fontWeight:800 }}>{overdueText}</div>}</td>
-      <td style={{ padding: 12 }}><div style={{ color: overdue ? '#B91C1C' : '#B45309', fontSize:10,fontWeight:800,letterSpacing:'.06em' }}>DEAL FOLLOW-UP · {target.toUpperCase()}</div><strong>{person}</strong><div style={{fontSize:12,color:'#64748B'}}>{deal.brand}</div></td>
-      <td style={{padding:12,textTransform:'capitalize',fontSize:11}}>{(deal.stage || 'submitted').replaceAll('_',' ')}</td>
-      <td colSpan={4} style={{padding:12,fontSize:12,color:'#475569'}}>{followup.note || 'Franchise check-in'}{deal.last_touch_at && <div style={{fontSize:10,color:'#94A3B8'}}>Last touch {new Intl.DateTimeFormat('en-US',{timeZone:timezone,dateStyle:'medium'}).format(new Date(deal.last_touch_at))}</div>}</td>
-      <td style={{padding:12,fontSize:12}}>{followup.assigned_to_email?.split('@')[0]}</td><td style={{padding:12,color:overdue?'#DC2626':'#B45309',fontWeight:700}}>Pending</td>
-      <td onClick={e => e.stopPropagation()} style={{padding:12}}><div style={{display:'flex',gap:4,flexWrap:'wrap'}}>{phone && <a href={`tel:${phone}`} style={ui.button}>Call</a>}{email && <a href={`mailto:${email}`} style={ui.button}>Email</a>}{phone && <a href={`sms:${phone}`} style={ui.button}>Text</a>}<button onClick={() => setMode('done')} style={{...ui.button,background:'#15803D',color:'#fff'}}>Done</button><button onClick={() => setMode('snooze')} style={ui.button}>Snooze</button></div></td>
-    </tr>
-    {mode && <Modal title={mode === 'done' ? 'Complete follow-up' : 'Snooze follow-up'} onClose={() => setMode(null)}>{mode === 'done' ? <div style={{display:'grid',gap:12}}>
-      <div style={{display:'flex',flexWrap:'wrap',gap:6}}>{[['Connected','connected'],['Left voicemail','left_voicemail'],['Texted','texted'],['Waiting on developer','waiting_on_developer'],['Validation scheduled','validation_scheduled'],['Discovery Day scheduled','discovery_day_scheduled'],['Decision pending','decision_pending'],['Other','other']].map(([label,value])=><button key={value} onClick={()=>setOutcome(value)} style={{...ui.button,background:outcome===value?'#FEF3C7':'#fff',borderColor:outcome===value?'#F59E0B':'#D1D5DB'}}>{label}</button>)}</div>
+    <div style={{fontSize:13,lineHeight:1.5}}>
+      <strong>{followup.note || 'Franchise check-in'}</strong>
+      <div style={{color:'#64748B',marginTop:6}}>With {person || target} · {target}</div>
+      <div style={{color:overdue?'#92400E':'#64748B',marginTop:4}}>{new Intl.DateTimeFormat('en-US',{timeZone:timezone,dateStyle:'medium',timeStyle:'short'}).format(due)}{overdue ? ` · ${overdueText.toLowerCase()}` : ''}</div>
+      {deal.last_touch_at && <div style={{color:'#64748B',fontSize:12}}>Last touch {new Intl.DateTimeFormat('en-US',{timeZone:timezone,dateStyle:'medium'}).format(new Date(deal.last_touch_at))}</div>}
+      {!mode && <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:16}}>{phone && <a href={`tel:${phone}`} style={ui.button}>Call</a>}{phone && <a href={`sms:${phone}`} style={ui.button}>Text</a>}{email && <a href={`mailto:${email}`} style={ui.button}>Email</a>}<button onClick={()=>setMode('done')} style={{...ui.button,background:'#2563EB',borderColor:'#2563EB',color:'#fff'}}>Done</button><button onClick={()=>setMode('snooze')} style={ui.button}>Snooze</button></div>}
+    </div>
+    {mode && <ActionPanel title={mode === 'done' ? 'Complete follow-up' : 'Snooze follow-up'} onClose={() => setMode(null)}>{mode === 'done' ? <div style={{display:'grid',gap:12}}>
+      <label style={ui.label}>Outcome<select value={outcome} onChange={e=>setOutcome(e.target.value)} style={ui.input}>{[['Connected','connected'],['Left voicemail','left_voicemail'],['Texted','texted'],['Waiting on developer','waiting_on_developer'],['Validation scheduled','validation_scheduled'],['Discovery Day scheduled','discovery_day_scheduled'],['Decision pending','decision_pending'],['Other','other']].map(([label,value])=><option key={value} value={value}>{label}</option>)}</select></label>
       <label style={ui.label}>What happened? (optional)<textarea value={note} onChange={e=>setNote(e.target.value)} style={ui.input}/></label>
       <label style={ui.label}>What should I do next? *<input value={nextNote} onChange={e=>setNextNote(e.target.value)} placeholder="e.g. Ask how the validation call went" style={ui.input}/></label>
       <label style={ui.label}>Who should I contact?<select value={nextTarget} onChange={e=>setNextTarget(e.target.value)} style={ui.input}><option value="candidate">Candidate</option><option value="developer">Developer</option></select></label>
       <DateChooser timezone={timezone} value={nextDue} onChange={(iso,choice)=>setNextDue({iso,choice})} suggestions={suggestions} options={[1,2,3,5,7].map(days=>({label:days===1?'Tomorrow':`${days} days`,days}))}/>
       <button disabled={saving || !nextNote.trim() || !nextDue.iso} onClick={()=>patch({action:'complete',outcome,note,next_note:nextNote,next_due_at:nextDue.iso,next_contact_target:nextTarget})} style={{...ui.button,background:'#15803D',color:'#fff',opacity:saving||!nextNote.trim()||!nextDue.iso?.5:1}}>{saving?'Saving…':'Save & schedule next'}</button>
-      <label style={ui.label}>Optional reason for Won / Lost / Pause<input value={closeReason} onChange={e=>setCloseReason(e.target.value)} style={ui.input}/></label>
-      <div style={{display:'flex',gap:6}}>{['won','lost','paused'].map(status=><button key={status} disabled={saving} onClick={()=>patch({action:'lifecycle',deal_id:deal.id,status,reason:closeReason})} style={{...ui.button,textTransform:'capitalize',color:status==='won'?'#15803D':status==='lost'?'#B91C1C':'#B45309'}}>{status}</button>)}</div>
-    </div> : <div style={{display:'grid',gap:12}}><DateChooser timezone={timezone} value={nextDue} onChange={(iso,choice)=>setNextDue({iso,choice})} suggestions={suggestions} options={[{label:'Later today',hours:2},{label:'Tomorrow',days:1},{label:'2 days',days:2},{label:'3 days',days:3},{label:'Next week',days:7}]}/><button disabled={saving||!nextDue.iso} onClick={()=>patch({action:'snooze',due_at:nextDue.iso})} style={ui.button}>{saving?'Saving…':'Snooze'}</button></div>}{error&&<div role="alert" style={{color:'#B91C1C',marginTop:10}}>{error}</div>}</Modal>}
+
+    </div> : <div style={{display:'grid',gap:12}}><DateChooser timezone={timezone} value={nextDue} onChange={(iso,choice)=>setNextDue({iso,choice})} suggestions={suggestions} options={[{label:'Later today',hours:2},{label:'Tomorrow',days:1},{label:'2 days',days:2},{label:'3 days',days:3},{label:'Next week',days:7}]}/><button disabled={saving||!nextDue.iso} onClick={()=>patch({action:'snooze',due_at:nextDue.iso})} style={ui.button}>{saving?'Saving…':'Snooze'}</button></div>}{error&&<div role="alert" style={{color:'#B91C1C',marginTop:10}}>{error}</div>}</ActionPanel>}
   </>;
+}
+
+export function DealFollowupRow({ followup, onOpen, timezone = DEFAULT_DEAL_TIMEZONE }) {
+  const deal = followup.deal || {};
+  return <CompactFollowupRow name={`${deal.first_name || ''} ${deal.last_name || ''}`.trim() || deal.email} brand={deal.brand} dueAt={followup.due_at} timezone={timezone} kind={followup.contact_target === 'developer' ? 'Developer check-in' : 'Candidate check-in'} onOpen={()=>onOpen?.(deal.id)} />;
 }
 
 export function InactiveDealRow({ deal, onOpen }) {
@@ -192,22 +193,45 @@ export function InactiveDealRow({ deal, onOpen }) {
   </tr>;
 }
 
-export function DealDetailDrawer({ dealId, onClose, onChanged, timezone = DEFAULT_DEAL_TIMEZONE }) {
+export function DealDetailDrawer({ dealId, onClose, onChanged, initialTab = 'followup', getSuggestions = () => [], timezone = DEFAULT_DEAL_TIMEZONE }) {
+  const [tab, setTab] = useState(initialTab);
+  const drawerRef=useRef(null),closeRef=useRef(onClose);closeRef.current=onClose;
+  useEffect(()=>{
+    const old=document.activeElement,overflow=document.body.style.overflow;
+    document.body.style.overflow='hidden';drawerRef.current?.focus();
+    const key=e=>{
+      if(e.key==='Escape')closeRef.current();
+      if(e.key==='Tab'){
+        const list=[...drawerRef.current.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href]')].filter(el=>el.getClientRects().length);
+        const first=list[0],last=list.at(-1);
+        if(e.shiftKey && (document.activeElement===first || document.activeElement===drawerRef.current)){e.preventDefault();last?.focus();}
+        else if(!e.shiftKey && document.activeElement===last){e.preventDefault();first?.focus();}
+      }
+    };
+    document.addEventListener('keydown',key);
+    return()=>{document.body.style.overflow=overflow;document.removeEventListener('keydown',key);old?.focus();};
+  },[]);
   const [deal, setDeal] = useState(null); const [history, setHistory] = useState([]); const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [error, setError] = useState('');
   const [reason, setReason] = useState(''); const [resumeDue, setResumeDue] = useState({ iso: addDaysAtWorkTime(1,new Date(),timezone).toISOString(), choice:'Tomorrow' });
-  async function load() { setLoading(true); const r=await fetch(`/api/dashboard/deal-desk?deal_id=${encodeURIComponent(dealId)}`); const d=await r.json(); if(!r.ok) throw new Error(d.error); setDeal(d.deal); setHistory(d.history||[]); setLoading(false); }
+  async function load() { setError(''); const r=await fetch(`/api/dashboard/deal-desk?deal_id=${encodeURIComponent(dealId)}`); const d=await r.json(); if(!r.ok) throw new Error(d.error); setDeal(d.deal); setHistory(d.history||[]); setLoading(false); }
   useEffect(()=>{ load().catch(e=>{setError(e.message);setLoading(false);}); },[dealId]);
   async function save(action) { if(saving)return;setSaving(true);setError('');try{const r=await fetch('/api/dashboard/deal-desk',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(action)});const d=await r.json();if(!r.ok)throw new Error(d.error);await load();await onChanged?.();}catch(e){setError(e.message);}finally{setSaving(false);}}
   const pending=history.find(f=>f.status==='pending');
-  return <><div onClick={onClose} style={{position:'fixed',inset:0,zIndex:150,background:'rgba(15,23,42,.3)'}}/><aside aria-label="Deal details" style={{position:'fixed',zIndex:151,right:0,top:0,bottom:0,width:'min(94vw,520px)',background:'#fff',boxShadow:'-8px 0 30px rgba(0,0,0,.16)',overflowY:'auto',padding:20}}><div style={{display:'flex',justifyContent:'space-between'}}><strong style={{fontSize:19}}>Deal details</strong><button onClick={onClose} style={{...ui.button,border:0}}>✕</button></div>{loading?<p>Loading…</p>:error&&!deal?<p role="alert" style={{color:'#B91C1C'}}>{error}</p>:deal&&<div style={{display:'grid',gap:14,marginTop:16}}>
+  return <><div onClick={onClose} style={{position:'fixed',inset:0,zIndex:150,background:'rgba(15,23,42,.3)'}}/><aside ref={drawerRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Deal details" style={{position:'fixed',zIndex:151,right:0,top:0,bottom:0,width:'min(100vw,520px)',boxSizing:'border-box',background:'#fff',boxShadow:'-8px 0 30px rgba(0,0,0,.16)',overflowY:'auto',padding:20}}><div style={{display:'flex',justifyContent:'space-between'}}><strong style={{fontSize:19}}>Deal details</strong><button aria-label="Close deal details" onClick={onClose} style={{...ui.button,border:0}}>✕</button></div>{loading?<p>Loading…</p>:error&&!deal?<p role="alert" style={{color:'#B91C1C'}}>{error}</p>:deal&&<div style={{display:'grid',gap:14,marginTop:16}}>
     <div><strong>{deal.first_name} {deal.last_name}</strong><div style={{fontSize:13,color:'#64748B'}}>{deal.phone||'No phone'} · {deal.email}</div></div>
+    <div style={{fontSize:13,color:'#64748B'}}>{deal.brand} · {stageLabel(deal.stage)} · {deal.status}</div>
+    <div role="tablist" aria-label="Deal sections" style={{display:'flex',gap:4,borderBottom:'1px solid #E2E8F0',paddingBottom:8}}>
+      {[['followup','Follow-up'],['developer','Developer'],['details','Details'],['history','History']].map(([value,label])=><button key={value} role="tab" aria-selected={tab===value} onClick={()=>setTab(value)} style={{...ui.button,border:0,background:tab===value?'#EFF6FF':'#fff',color:tab===value?'#2563EB':'#64748B'}}>{label}</button>)}
+    </div>
+    {tab==='followup' && (pending ? <DealFollowupActions key={pending.id} followup={{...pending,deal}} timezone={timezone} suggestions={getSuggestions(pending)} onChanged={async()=>{await load();await onChanged?.();}}/> : <p style={{fontSize:13,color:'#64748B'}}>No pending follow-up. {deal.status==='paused'?'Open Details to resume this deal.':''}</p>)}
+    {tab==='developer' && <FccDealEvidence key={deal.id} dealId={deal.id} onChanged={onChanged}/>}
+    {tab==='details' && <>
     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:10}}>{[['Brand','brand'],['Developer name','developer_name'],['Developer email','developer_email'],['Developer phone','developer_phone'],['Units / territories','units'],['Estimated commission','estimated_deal_value']].map(([label,key])=><label key={key} style={ui.label}>{label}<input type={key==='estimated_deal_value'?'number':'text'} value={deal[key]??''} onChange={e=>setDeal(d=>({...d,[key]:e.target.value}))} style={ui.input}/></label>)}<label style={ui.label}>Stage<select value={deal.stage} disabled={deal.status!=='active'} onChange={e=>setDeal(d=>({...d,stage:e.target.value}))} style={ui.input}>{['cq_received','submitted','brand_contact','education','validation','discovery_day','decision',...(deal.stage==='closed'?['closed']:[])].map(x=><option key={x} value={x}>{x.replaceAll('_',' ')}</option>)}</select></label><div style={{fontSize:13}}>Status<br/><strong style={{textTransform:'capitalize'}}>{deal.status}</strong></div></div>
     <div style={{padding:10,background:'#F8FAFC',borderRadius:8,fontSize:12}}><strong>Milestones</strong><div>CQ received: {deal.cq_received_at ? new Intl.DateTimeFormat('en-US',{timeZone:timezone,dateStyle:'medium'}).format(new Date(deal.cq_received_at)) : 'Not recorded'}</div><label><input type="checkbox" checked={!!deal.submitted_at} disabled={!!deal.submitted_at} onChange={e=>setDeal(d=>({...d,submitted:e.target.checked}))}/> Submitted to brand {deal.submitted_at ? `· ${new Intl.DateTimeFormat('en-US',{timeZone:timezone,dateStyle:'medium'}).format(new Date(deal.submitted_at))}` : ''}</label><br/><label><input type="checkbox" checked={!!deal.introduction_at} disabled={!!deal.introduction_at} onChange={e=>setDeal(d=>({...d,introduced:e.target.checked}))}/> Introduced to developer {deal.introduction_at ? `· ${new Intl.DateTimeFormat('en-US',{timeZone:timezone,dateStyle:'medium'}).format(new Date(deal.introduction_at))}` : ''}</label></div>
     <button onClick={()=>save({action:'edit',deal_id:deal.id,...deal})} disabled={saving} style={{...ui.button,background:'#2563EB',color:'#fff'}}>Save deal details</button>
-    <FccDealEvidence key={`${deal.id}-${deal.status}`} dealId={deal.id} onChanged={onChanged}/>
-    {pending&&<div style={{padding:10,background:'#FFFBEB',borderRadius:8,fontSize:13}}><strong>Next action:</strong> {pending.note}<br/>{new Intl.DateTimeFormat('en-US',{timeZone:timezone,dateStyle:'medium',timeStyle:'short'}).format(new Date(pending.due_at))}</div>}
     {deal.status==='active'?<div><label style={ui.label}>Optional pause/loss reason<input value={reason} onChange={e=>setReason(e.target.value)} style={ui.input}/></label><div style={{display:'flex',gap:6,marginTop:8}}>{['won','lost','paused'].map(status=><button key={status} disabled={saving} onClick={()=>save({action:'lifecycle',deal_id:deal.id,status,reason,request_key:freshKey()})} style={{...ui.button,color:status==='won'?'#15803D':status==='lost'?'#B91C1C':'#B45309',textTransform:'capitalize'}}>{status}</button>)}</div></div>:deal.status==='paused'&&<div><DateChooser timezone={timezone} value={resumeDue} onChange={(iso,choice)=>setResumeDue({iso,choice})} options={[{label:'Tomorrow',days:1},{label:'2 days',days:2},{label:'3 days',days:3}]}/><button disabled={saving||!resumeDue.iso} onClick={()=>save({action:'lifecycle',deal_id:deal.id,status:'active',due_at:resumeDue.iso,request_key:freshKey()})} style={{...ui.button,background:'#15803D',color:'#fff',marginTop:8}}>Resume deal</button></div>}
+    </>}
     {error&&<div role="alert" style={{color:'#B91C1C'}}>{error}</div>}
-    <div><strong>Follow-up history</strong>{history.map(item=><div key={item.id} style={{padding:'10px 0',borderBottom:'1px solid #E2E8F0',fontSize:12}}><div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}><strong style={{textTransform:'capitalize'}}>{item.status} · {(item.contact_target||'candidate')}</strong><span>{new Intl.DateTimeFormat('en-US',{timeZone:timezone,dateStyle:'medium',timeStyle:'short'}).format(new Date(item.due_at))}</span></div><div>Action: {item.note||'—'}</div>{item.outcome&&<div style={{color:'#64748B'}}>Outcome: {item.outcome.replaceAll('_',' ')}{item.outcome_note?` — ${item.outcome_note}`:''}</div>}</div>)}</div>
+    {tab==='history' && <div><strong>Follow-up history</strong>{history.map(item=><div key={item.id} style={{padding:'10px 0',borderBottom:'1px solid #E2E8F0',fontSize:12}}><div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}><strong style={{textTransform:'capitalize'}}>{item.status} · {(item.contact_target||'candidate')}</strong><span>{new Intl.DateTimeFormat('en-US',{timeZone:timezone,dateStyle:'medium',timeStyle:'short'}).format(new Date(item.due_at))}</span></div><div>Action: {item.note||'—'}</div>{item.outcome&&<div style={{color:'#64748B'}}>Outcome: {item.outcome.replaceAll('_',' ')}{item.outcome_note?` — ${item.outcome_note}`:''}</div>}</div>)}</div>}
   </div>}</aside></>;
 }
