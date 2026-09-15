@@ -13,6 +13,7 @@ import CallIntel from '@/components/CallIntel';
 import WatchIntel from '@/components/WatchIntel';
 import CompanyIntel from '@/components/CompanyIntel';
 import { DealDetailDrawer, DealFollowupRow, EnterDealDeskButton, InactiveDealRow } from '@/components/DealDesk';
+import { FccReminderRow, FccSettings } from '@/components/FccReminders';
 import { DEFAULT_DEAL_TIMEZONE, suggestFollowupGaps } from '@/lib/dealDesk';
 
 export async function getServerSideProps(context) {
@@ -184,6 +185,9 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
   const [bookings,     setBookings]     = useState([]);
   const [dealFollowups, setDealFollowups] = useState([]);
   const [dealError, setDealError] = useState('');
+  const [fccRows, setFccRows] = useState([]);
+  const [fccError, setFccError] = useState('');
+  const [fccReviewCount, setFccReviewCount] = useState(0);
   const [inactiveDeals, setInactiveDeals] = useState([]);
   const [dealSettings, setDealSettings] = useState({ timezone: DEFAULT_DEAL_TIMEZONE, work_start: 9, work_end: 18 });
   const [feedFilter, setFeedFilter] = useState('everything');
@@ -223,7 +227,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
       if (cancelled) return;
       // Overdue Deal Desk work is higher priority than auto-positioning at Now.
       // Keep it on screen until the consultant completes or reschedules it.
-      if (filter === 'today' && dealFollowups.some(f => new Date(f.due_at) < new Date())) {
+      if (filter === 'today' && [...dealFollowups, ...fccRows].some(f => new Date(f.due_at) < new Date())) {
         sc.scrollTo({ top: 0, behavior: 'auto' });
         return;
       }
@@ -256,7 +260,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
       sc.removeEventListener('touchstart', stop);
       window.removeEventListener('keydown', stop);
     };
-  }, [loading, bookings.length, dealFollowups, filter, repFilter, statusFilter, sourceFilter]);
+  }, [loading, bookings.length, dealFollowups, fccRows, filter, repFilter, statusFilter, sourceFilter]);
 
   // Remember the last-used filters (default: Today + Steve Sparks).
   useEffect(() => {
@@ -339,6 +343,20 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
       setDealError(error.message || 'Deal Desk is temporarily unavailable. Meetings are still available.');
     }
   }, [filter]);
+
+  const loadFcc = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/dashboard/fcc?filter=${filter}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'FCC reminders could not load.');
+      setFccRows(data.rows || []); setFccReviewCount(data.review?.length || 0); setFccError('');
+    } catch (error) { setFccError(error.message); }
+  }, [filter]);
+  useEffect(() => {
+    loadFcc();
+    const timer = setInterval(() => { if (!document.hidden) loadFcc(); }, 60000);
+    return () => clearInterval(timer);
+  }, [loadFcc]);
 
   const loadBookings = useCallback(async () => {
     setLoading(true);
@@ -475,14 +493,18 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
   const displayInactiveDeals = inactiveDeals
     .filter(d => !isAdmin || repFilter.length === 0 || repFilter.includes(normalizeRepName(d.assigned_to_email)))
     .filter(d => !search || `${d.first_name || ''} ${d.last_name || ''} ${d.email || ''} ${d.brand || ''}`.toLowerCase().includes(search.toLowerCase()));
+  const displayFccRows = fccRows
+    .filter(f => !isAdmin || repFilter.length === 0 || repFilter.includes(normalizeRepName(f.deal?.assigned_to_email)))
+    .filter(f => !search || `${f.candidate_name} ${f.candidate_email} ${f.deal?.brand || f.brand_label}`.toLowerCase().includes(search.toLowerCase()));
   const activeFilterCount = (sourceFilter ? 1 : 0) + (statusFilter ? 1 : 0) + (repFilter.length > 0 ? 1 : 0);
   const displayFeed = feedFilter === 'inactive'
     ? displayInactiveDeals.map(deal => ({ type: 'inactive_deal', at: deal.updated_at, deal }))
     : [
         ...(feedFilter === 'everything' || feedFilter === 'meetings' ? displayBookings.map(booking => ({ type: 'meeting', at: booking.slot_start, booking })) : []),
-        ...(feedFilter === 'everything' || feedFilter === 'deals' ? displayFollowups.map(followup => ({ type: 'deal_followup', at: followup.due_at, followup })) : []),
-      ].sort((a, b) => new Date(a.at) - new Date(b.at));
-  const overdueCount = displayFollowups.filter(f => new Date(f.due_at) < new Date()).length;
+        ...(['everything','deals','overdue'].includes(feedFilter) ? displayFollowups.map(followup => ({ type: 'deal_followup', at: followup.due_at, followup })) : []),
+        ...(['everything','deals','overdue'].includes(feedFilter) ? displayFccRows.map(row => ({ type: 'fcc_reminder', at: row.due_at, row })) : []),
+      ].filter(item => feedFilter !== 'overdue' || new Date(item.at) < new Date()).sort((a, b) => new Date(a.at) - new Date(b.at));
+  const overdueCount = [...displayFollowups, ...displayFccRows].filter(f => new Date(f.due_at) < new Date()).length;
 
   const counts = filteredBookings.reduce((acc, b) => { acc[b.status] = (acc[b.status] || 0) + 1; return acc; }, {});
   const cqSentCount = filteredBookings.filter(b => b.cq_sent_at).length;
@@ -670,14 +692,16 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
 
             {dealError && <div role="alert" style={{ margin: '10px 0', padding: '10px 14px', border: '1px solid #FCA5A5', borderRadius: 8, background: '#FEF2F2', color: '#B91C1C', fontSize: 13 }}><strong>Deal Desk could not load.</strong> {dealError} Scheduled meetings are unaffected. <button onClick={loadDeals} style={{ marginLeft: 8, border: 0, background: 'none', color: '#B91C1C', textDecoration: 'underline', cursor: 'pointer' }}>Retry</button></div>}
 
+            {fccError && <div role="alert" style={{ padding: 10, color: '#B91C1C', background: '#FEF2F2' }}>FCC acknowledgment reminders could not load. {fccError} Meetings and regular follow-ups are unaffected. <button onClick={loadFcc}>Retry FCC reminders</button></div>}
             {/* Header card: counts + view tabs + filter row */}
             <div style={s.headerCard}>
               <div style={s.headerCounts}>
                 {displayBookings.length} Meetings
                 <span style={s.headerCountsDot}>·</span>
-                <span style={{ color: '#111827' }}>{displayFollowups.length} Deal Follow-Ups</span>
+                <span style={{ color: '#111827' }}>{displayFollowups.length + displayFccRows.length} Deal Follow-Ups{fccError ? ' · FCC unavailable' : ''}</span>
                 <span style={s.headerCountsDot}>·</span>
                 <span style={{ color: '#EA580C' }}>{overdueCount} Overdue</span>
+                <FccSettings onChanged={() => { loadFcc(); loadDeals(); }} reviewCount={fccReviewCount} />
               </div>
 
               {/* View tabs + rep dropdown */}
@@ -687,6 +711,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
                     { key: 'everything', label: 'Everything' },
                     { key: 'meetings',   label: 'Meetings' },
                     { key: 'deals',      label: 'Deal Follow-Ups' },
+                    { key: 'overdue',    label: 'Overdue' },
                     { key: 'inactive',   label: 'Paused / Closed' },
                   ].map((t, i, arr) => (
                     <button key={t.key} onClick={() => setFeedFilter(t.key)}
@@ -797,7 +822,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
           <div style={s.tableScroll} ref={scrollBodyRef}>
             {/* Table */}
             <div style={s.tableCard}>
-              {loading && dealFollowups.length === 0 && feedFilter !== 'inactive' ? (
+              {loading && dealFollowups.length === 0 && fccRows.length === 0 && feedFilter !== 'inactive' ? (
                 <div style={s.tableEmpty}>Loading meetings…</div>
               ) : displayFeed.length === 0 ? (
                 <div style={s.tableEmpty}>{feedFilter === 'inactive' ? 'No paused or closed deals.' : 'No meetings or Deal Desk follow-ups for this period.'}</div>
@@ -842,6 +867,8 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
                         }
                         rows.push(item.type === 'inactive_deal' ? (
                           <InactiveDealRow key={`inactive-${item.deal.id}`} deal={item.deal} onOpen={setOpenDealId} />
+                        ) : item.type === 'fcc_reminder' ? (
+                          <FccReminderRow key={`fcc-${item.row.id}`} row={item.row} onOpen={setOpenDealId} onChanged={loadFcc} />
                         ) : item.type === 'deal_followup' ? (
                           <DealFollowupRow key={`deal-${item.followup.id}`} followup={item.followup} timezone={dealSettings.timezone} onOpen={setOpenDealId} onChanged={loadDeals} suggestions={!isDemo && !loading ? suggestFollowupGaps({ day: new Date(item.followup.due_at) < new Date() ? new Date() : item.followup.due_at, meetings: bookings, followups: dealFollowups.filter(f => f.id !== item.followup.id), workStart: dealSettings.work_start, workEnd: dealSettings.work_end, timeZone: dealSettings.timezone }) : []} />
                         ) : (
@@ -911,7 +938,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
           />
         )}
 
-        {openDealId && <DealDetailDrawer dealId={openDealId} timezone={dealSettings.timezone} onClose={() => setOpenDealId(null)} onChanged={loadDeals} />}
+        {openDealId && <DealDetailDrawer dealId={openDealId} timezone={dealSettings.timezone} onClose={() => setOpenDealId(null)} onChanged={() => { loadDeals(); loadFcc(); }} />}
         {transferOpen && <TransferModal onClose={() => setTransferOpen(false)} onDone={load} />}
         {addOpen && <AddCallModal onClose={() => setAddOpen(false)} onCreated={refreshAfterAdd} defaultRepEmail={session?.user?.email || null} />}
       </div>

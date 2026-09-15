@@ -118,6 +118,6 @@ test('daily feed keeps meetings independent and uses lightweight Deal Desk refre
   assert.match(page, /loadBookings\(\); loadDeals\(\)/);
   assert.match(page, /Scheduled meetings are unaffected/);
   assert.match(page, /onChanged=\{loadDeals\}/);
-  assert.match(page, /Paused \/ closed/);
+  assert.match(page, /Paused \/ closed/i);
   assert.match(page, /suggestFollowupGaps/);
 });

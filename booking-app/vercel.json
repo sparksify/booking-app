@@ -6,9 +6,15 @@
     "pages/api/pipeline/runs.js": { "maxDuration": 300 },
     "pages/api/webhooks/pipeline-reply.js": { "maxDuration": 300 },
     "pages/api/sync-granola.js": { "maxDuration": 60 },
-    "pages/api/cron/fb-ads-tick.js": { "maxDuration": 120 }
+    "pages/api/cron/fb-ads-tick.js": { "maxDuration": 120 },
+    "pages/api/cron/fcc-reminders.js": { "maxDuration": 120 },
+    "pages/api/dashboard/fcc/index.js": { "maxDuration": 120 }
   },
   "crons": [
+    {
+      "path": "/api/cron/fcc-reminders",
+      "schedule": "*/5 * * * *"
+    },
     {
       "path": "/api/sync-granola",
       "schedule": "*/2 * * * *"
