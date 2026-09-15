@@ -188,6 +188,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
   const [fccRows, setFccRows] = useState([]);
   const [fccError, setFccError] = useState('');
   const [fccReviewCount, setFccReviewCount] = useState(0);
+  const fccRequestRef = useRef(0);
   const [inactiveDeals, setInactiveDeals] = useState([]);
   const [dealSettings, setDealSettings] = useState({ timezone: DEFAULT_DEAL_TIMEZONE, work_start: 9, work_end: 18 });
   const [feedFilter, setFeedFilter] = useState('everything');
@@ -345,12 +346,18 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
   }, [filter]);
 
   const loadFcc = useCallback(async () => {
+    const requestId = ++fccRequestRef.current;
     try {
       const response = await fetch(`/api/dashboard/fcc?filter=${filter}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'FCC reminders could not load.');
+      if (requestId !== fccRequestRef.current) return;
       setFccRows(data.rows || []); setFccReviewCount(data.review?.length || 0); setFccError('');
-    } catch (error) { setFccError(error.message); }
+    } catch (error) {
+      if (requestId !== fccRequestRef.current) return;
+      setFccError(error.message);
+      setFccRows(rows => rows.map(row => ({ ...row, check_label: 'Acknowledgment check unavailable' })));
+    }
   }, [filter]);
   useEffect(() => {
     loadFcc();
