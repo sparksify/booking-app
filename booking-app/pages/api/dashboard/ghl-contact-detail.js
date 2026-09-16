@@ -1,3 +1,4 @@
+import { phoneAreaCode } from '@/lib/clientTerritory';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 import { lookupAreaCode } from '@/lib/normalizeLocation';
@@ -98,9 +99,7 @@ export default async function handler(req, res) {
   });
 
   // Extract 3-digit area code from phone
-  const rawPhone = (contact.phone || '').replace(/\D/g, '');
-  const digits   = rawPhone.startsWith('1') ? rawPhone.slice(1) : rawPhone;
-  const areaCode = digits.length >= 3 ? digits.slice(0, 3) : null;
+  const areaCode = phoneAreaCode(contact.phone);
 
   // Derive city/state from area code if GHL contact doesn't have them
   const ghlCity  = contact.city  || null;
@@ -141,6 +140,7 @@ export default async function handler(req, res) {
       state:         derivedState,
       zip:           contact.postalCode || null,
       area_code:     areaCode,
+      location_source: !ghlCity && derivedCity ? 'area_code' : 'territory',
       source:        contact.source     || null,
       date_added:    contact.dateAdded  || null,
       custom_fields: customFields,

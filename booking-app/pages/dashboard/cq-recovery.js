@@ -411,7 +411,7 @@ export default function CQRecovery({ perms = {}, platformLogo = null, navOrder =
 
       {/* Full slide-out CRM panel */}
       {panelBooking && (
-        <CRMPanel booking={panelBooking} lead={panelLead} loading={panelLoading} open={panelOpen} isDemo={false}
+        <CRMPanel key={panelBooking.id || panelBooking.email} booking={panelBooking} lead={panelLead} loading={panelLoading} open={panelOpen} isDemo={false}
           brandPitches={{}} confirmation={panelConf} initialNotes={panelNotes} recovery={panelRecovery}
           onClose={closePanel} onStatusChange={panelStatusChange}
           onCQSent={ts => setPanelBooking(b => b ? { ...b, cq_sent_at: ts } : b)} />

@@ -1,3 +1,5 @@
+import GreenTeamExpressCard from '@/components/GreenTeamExpressCard';
+import { resolveClientTerritory } from '@/lib/clientTerritory';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
@@ -924,6 +926,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
         {/* ── CRM Panel ── */}
         {panelBooking && (
           <CRMPanel
+            key={panelBooking.id || panelBooking.email}
             booking={panelBooking}
             lead={lead}
             loading={panelLoading}
@@ -1824,16 +1827,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
   const cf = ghlContact?.custom_fields || {};
   const liquidCapital = getField(raw, 'liquid_capital', 'liquid capital') || cf['Liquid Cash'] || cf['Cash Available'] || null;
   const ownedBusiness = getField(raw, 'owned_business', 'owned or managed', 'managed a business', 'business before') || cf['Owned Business'] || null;
-  const territory = (() => {
-    const city = lead?.location_city || ghlContact?.city;
-    const state = lead?.location_state || ghlContact?.state;
-    const zip = lead?.location_zip || ghlContact?.zip;
-    const areaCode = lead?.location_area_code || ghlContact?.area_code;
-    const locRaw = lead?.location_raw;
-    const fbRaw = getField(raw, 'territory', 'area_of_interest', 'interested_area') || cf['Areas of Interest'] || cf['Territory Interest'];
-    if (city || state) { const primary = [city, state].filter(Boolean).join(', '); const sub = zip || (areaCode ? `Area code ${areaCode}` : null); return { primary, sub }; }
-    const fallback = locRaw || fbRaw; return fallback ? { primary: fallback, sub: null } : null;
-  })();
+  const territory = resolveClientTerritory({ lead, booking, contact: ghlContact });
 
   const meta = STATUS_META[booking.status] || STATUS_META.scheduled;
   const initials = `${booking.first_name?.[0] || ''}${booking.last_name?.[0] || ''}`.toUpperCase();
@@ -2048,6 +2042,9 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                   </div>
                 )}
               </PanelSection>
+
+              <GreenTeamExpressCard booking={booking} lead={lead} contact={ghlContact} tags={ghlTags}
+                interests={interests} territory={territory} active={open && !loading && !ghlContactLoading} demo={isDemo} />
 
               {/* GHL Tags */}
               <PanelSection title="GHL Tags">

@@ -1,3 +1,5 @@
+import GreenTeamExpressCard from '@/components/GreenTeamExpressCard';
+import { resolveClientTerritory } from '@/lib/clientTerritory';
 import { useState, useMemo } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { getServerSession } from 'next-auth/next';
@@ -64,7 +66,8 @@ export async function getServerSideProps(context) {
       .from('leads')
       .select(`
         id, token, first_name, last_name, email, phone,
-        investment_level, raw_fields, status,
+        investment_level, raw_fields, status, brand_slug, franchise_brand,
+        location_raw, location_city, location_state, location_zip, location_area_code,
         fb_form_id, fb_ad_id, fb_campaign_id,
         ghl_contact_id, created_at,
         bookings (id, slot_start, assigned_to_email, meet_link, status, booking_source)
@@ -88,7 +91,7 @@ export async function getServerSideProps(context) {
 
   const leads    = (leadsRaw || []).map(l => ({
     ...l,
-    brand: l.fb_form_id ? (brandByForm[String(l.fb_form_id)] || null) : null,
+    brand: (l.fb_form_id && brandByForm[String(l.fb_form_id)]) || l.franchise_brand || l.brand_slug || null,
     rep:   l.bookings?.[0]?.assigned_to_email || null,
   }));
   const bookings = bookingsRaw || [];
@@ -531,6 +534,8 @@ function ContactRow({ lead, selected, onSelect, expanded, onToggle, onStatusChan
               </a>
             )}
           </div>
+
+          <GreenTeamExpressCard lead={lead} territory={resolveClientTerritory({ lead })} />
 
           {/* Form answers */}
           {extraFields.length > 0 && (
