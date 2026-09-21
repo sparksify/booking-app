@@ -8,6 +8,8 @@ import { computeLeadScore, computeShowProbability } from '@/lib/scoring';
 import { logLeadEvent } from '@/lib/leadEvents';
 import { wasEngagedByCloseBot } from '@/lib/closebot';
 import { getBrandBySlug, getTierKey, getNextRep } from '@/lib/routing';
+import { getExternalBusyByRep, overlapsBusy } from '@/lib/externalBusy';
+import { normalizeRepName } from '@/lib/repName';
 
 // Appointment Scheduling pipeline
 const GHL_PIPELINE_ID  = 'tOlnnAijaReLJ30AZaSL';
@@ -107,6 +109,13 @@ export default async function handler(req, res) {
   const slotStartIso = new Date(_slotStartMs).toISOString();
   const slotEndIso   = new Date(_slotStartMs + (settings.meetingDuration || 15) * 60_000).toISOString();
 
+  // External (GHL/Calendly) bookings for this slot window — checked alongside
+  // Google free/busy so an externally-booked rep can't be double-booked here.
+  const externalBusyByRep = await getExternalBusyByRep(
+    new Date(_slotStartMs - 60 * 60_000),
+    new Date(_slotStartMs + 2 * 60 * 60_000)
+  );
+
   // ── Rep selection ────────────────────────────────────────────────────────────
   // Brand routing: use weighted round-robin engine
   // Legacy routing: investment_ranges-based filtering with fewest-bookings tiebreak
@@ -132,6 +141,14 @@ export default async function handler(req, res) {
         // the booking lands on an available rep instead of double-booking.
         const isFree = await isMemberFreeAt(member, slotStartIso, slotEndIso, settings.timezone);
         if (!isFree) { skippedEmail = member.email; attempts++; continue; }
+
+        // Also skip if a GHL/Calendly booking holds this slot — those often
+        // never reach the rep's Google Calendar, so free/busy alone misses them.
+        const extBusy = [
+          ...(externalBusyByRep[normalizeRepName(member.name || member.email)] || []),
+          ...(externalBusyByRep[normalizeRepName(member.email)] || []),
+        ];
+        if (overlapsBusy(extBusy, slotStartIso, slotEndIso)) { skippedEmail = member.email; attempts++; continue; }
 
         // Try to create the calendar event; if it fails (busy), skip to next rep
         try {

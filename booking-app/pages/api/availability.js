@@ -1,6 +1,8 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getBusyByMemberRange, generateSlots } from '@/lib/googleCalendar';
 import { getBrandBySlug } from '@/lib/routing';
+import { getExternalBusyByRep } from '@/lib/externalBusy';
+import { normalizeRepName } from '@/lib/repName';
 
 const DEFAULTS = {
   workStart: 9,
@@ -126,12 +128,19 @@ export default async function handler(req, res) {
       (bookingsByEmail[em] = bookingsByEmail[em] || []).push({ start: b.slot_start, end: b.slot_end });
     }
 
+    // 2b. Busy times from GHL + Calendly. These bookings often never reach the
+    // rep's Google Calendar, so without this a rep can be double-booked: GHL
+    // takes 10:45, Google free/busy still shows 10:45 open, KANSO sells it too.
+    const externalBusyByRep = await getExternalBusyByRep(new Date(timeMin), new Date(timeMax));
+
     // 3. Union each rep's free slots — a time is offered if any rep can take it.
     const slotByKey = new Map();
     for (const mem of members) {
       const memberBusy = [
         ...(busyByMember[mem.email] || []),
         ...(bookingsByEmail[(mem.email || '').toLowerCase()] || []),
+        ...(externalBusyByRep[normalizeRepName(mem.name || mem.email)] || []),
+        ...(externalBusyByRep[normalizeRepName(mem.email)] || []),
       ];
       for (const sl of generateSlots(settings, memberBusy, date)) {
         slotByKey.set(`${sl.h}:${sl.m}`, sl);

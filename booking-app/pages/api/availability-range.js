@@ -1,6 +1,8 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getBusyByMemberRange, generateSlots } from '@/lib/googleCalendar';
 import { getBrandBySlug } from '@/lib/routing';
+import { getExternalBusyByRep } from '@/lib/externalBusy';
+import { normalizeRepName } from '@/lib/repName';
 
 const DEFAULTS = { workStart: 9, workEnd: 18, timezone: 'America/Chicago', meetingDuration: 15, bufferMinutes: 15 };
 
@@ -99,6 +101,10 @@ export default async function handler(req, res) {
       (bookingsByEmail[em] = bookingsByEmail[em] || []).push({ start: b.slot_start, end: b.slot_end });
     }
 
+    // GHL/Calendly bookings often never reach the rep's Google Calendar, so
+    // free/busy alone misses them — block those slots per rep as well.
+    const externalBusyByRep = await getExternalBusyByRep(new Date(timeMin), new Date(timeMax));
+
     const days = {};
     for (const d of workDates) {
       // Union each rep's free slots — a time is available if any rep can take it.
@@ -107,6 +113,8 @@ export default async function handler(req, res) {
         const memberBusy = [
           ...(busyByMember[mem.email] || []),
           ...(bookingsByEmail[(mem.email || '').toLowerCase()] || []),
+          ...(externalBusyByRep[normalizeRepName(mem.name || mem.email)] || []),
+          ...(externalBusyByRep[normalizeRepName(mem.email)] || []),
         ];
         for (const sl of generateSlots(settings, memberBusy, d)) {
           slotByKey.set(`${sl.h}:${sl.m}`, sl);
