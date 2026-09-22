@@ -42,11 +42,18 @@ export default async function handler(req, res) {
   }
 
   const payload = req.body;
+  console.log('pipeline-reply payload keys:', Object.keys(payload || {}));
   const supabase = getSupabaseAdmin();
 
   try {
-    const email = payload?.lead_email || payload?.email || payload?.from_email;
-    const replyText = payload?.reply_message || payload?.message || payload?.email_body || '';
+    const email = payload?.sl_lead_email || payload?.to_email || payload?.lead_email || payload?.email || payload?.from_email || '';
+    const rm = payload?.reply_message;
+    let replyText = '';
+    if (typeof rm === 'string') replyText = rm;
+    else if (rm && rm.text) replyText = rm.text;
+    else if (rm && rm.html) replyText = String(rm.html);
+    if (!replyText) replyText = payload?.preview_text || payload?.reply_body || payload?.message || payload?.email_body || '';
+    if (/<[a-z][\s\S]*>/i.test(replyText)) replyText = replyText.replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 
     if (!email || !replyText) return res.status(200).json({ message: 'No reply data found' });
 
@@ -67,7 +74,7 @@ export default async function handler(req, res) {
       prospect?.ownership_candidate || false
     );
 
-    await supabase.from('pipeline_replies').insert({
+    const { error: insertErr } = await supabase.from('pipeline_replies').insert({
       prospect_id: prospect?.id || null,
       business_name: prospect?.business_name || payload?.company_name || 'Unknown',
       email,
@@ -81,6 +88,8 @@ export default async function handler(req, res) {
       raw_payload: payload,
       reviewed: false,
     });
+
+    if (insertErr) console.error('pipeline_replies insert error:', insertErr);
 
     const slackWebhook = process.env.SLACK_WEBHOOK_URL;
     if (slackWebhook && ['INTERESTED', 'QUESTION'].includes(classification.classification)) {
