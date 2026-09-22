@@ -4,6 +4,7 @@
     "pages/api/pipeline/enrich.js": { "maxDuration": 300 },
     "pages/api/pipeline/outreach.js": { "maxDuration": 300 },
     "pages/api/pipeline/runs.js": { "maxDuration": 300 },
+    "pages/api/scout/tick.js": { "maxDuration": 300 },
     "pages/api/webhooks/pipeline-reply.js": { "maxDuration": 300 },
     "pages/api/sync-granola.js": { "maxDuration": 60 },
     "pages/api/cron/fb-ads-tick.js": { "maxDuration": 120 },
@@ -11,6 +12,10 @@
     "pages/api/dashboard/fcc/index.js": { "maxDuration": 120 }
   },
   "crons": [
+    {
+      "path": "/api/scout/tick",
+      "schedule": "*/10 * * * *"
+    },
     {
       "path": "/api/cron/fcc-reminders",
       "schedule": "*/5 * * * *"
