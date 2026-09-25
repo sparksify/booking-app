@@ -9,6 +9,7 @@ export const NAV_ITEMS = [
   { href: '/dashboard/bookings',    label: 'Meetings',       icon: 'meetings',  perm: 'page_meetings' },
   { href: '/dashboard/inbox',       label: 'Inbox',          icon: 'inbox',     perm: 'page_inbox' },
   { href: '/dashboard/pipeline',    label: 'Genesis Agent', icon: 'pipeline',  perm: 'page_pipeline' },
+  { href: '/dashboard/scout',       label: 'Scout',         icon: 'pipeline',  perm: 'page_pipeline' },
   { href: '/dashboard/ad-stats',    label: 'Ad Stats',       icon: 'ads',       perm: 'page_ad_stats' },
   // Hidden from the sidebar for now (pages remain reachable by direct URL):
   // { href: '/dashboard/prospects',   label: 'Prospecting', icon: 'clients', perm: 'page_prospecting' },

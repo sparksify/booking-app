@@ -1,5 +1,20 @@
 # Kanso Mobile PWA
 
+## Scout autonomous discovery
+
+Apply `supabase/migrations/036_scout.sql`, then configure the existing
+`SERP_API_KEY`, `ANTHROPIC_API_KEY`, Supabase service credentials, and
+`CRON_SECRET`. Vercel invokes `/api/scout/tick` every ten minutes; the bounded
+worker persists each transition and resumes on the next invocation.
+
+Scout is safe by default: `SCOUT_OUTREACH_ENABLED` must be the literal `true`
+before qualified, enriched contacts can enter the existing Smartlead outreach
+stage. Optional settings are `SCOUT_SEARCH_PROVIDER` (currently `serpapi`),
+`SCOUT_CLASSIFIER_PROVIDER` (`heuristic` by default),
+`SCOUT_CLASSIFIER_MODEL`, and `SCOUT_EXTRACTOR_MODEL`.
+
+---
+
 Drop these files into your existing `booking-app` repo. No new dependencies needed
 (you already have Next.js, Supabase, next-auth).
 
