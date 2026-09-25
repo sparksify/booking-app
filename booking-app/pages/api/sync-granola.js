@@ -18,6 +18,7 @@
  */
 
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { upsertCallTasks } from '@/lib/notion';
 
 const GRANOLA_BASE = 'https://public-api.granola.ai';
 const GHL_BASE     = 'https://services.leadconnectorhq.com';
@@ -171,6 +172,23 @@ async function findGhlContactByEmail(email) {
   if (!res.ok) return null;
   const data = await res.json();
   return data?.contacts?.[0]?.id ?? null;
+}
+
+// Full display name for a GHL contact — prefers the properly-cased raw
+// first/last name, falls back to contactName. Used for the Notion row title.
+async function getGhlContactName(contactId) {
+  if (!contactId) return null;
+  const res = await fetch(`${GHL_BASE}/contacts/${contactId}`, {
+    headers: { Authorization: `Bearer ${process.env.GHL_API_KEY}`, Version: GHL_VERSION },
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const c = data?.contact ?? data;
+  const full = [c?.firstNameRaw ?? c?.firstName, c?.lastNameRaw ?? c?.lastName]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+  return full || c?.contactName || null;
 }
 
 async function findGhlContactByPhone(phone) {
@@ -399,6 +417,29 @@ export default async function handler(req, res) {
             .from('call_logs')
             .update({ synced_to_ghl: true })
             .eq('granola_note_id', note.id);
+        }
+
+        // Create Notion task rows for Steve's action items (deduped by
+        // Granola Doc ID + Description; no-ops if NOTION_* env vars unset).
+        if (extraction?.action_items_steve?.length) {
+          try {
+            const clientName = (await getGhlContactName(ghlContactId)) || extraction.prospect_name;
+            const r = await upsertCallTasks({
+              granola_note_id:  note.id,
+              granola_note_url: note.web_url,
+              client_name:      clientName,
+              prospect_name:    extraction.prospect_name,
+              ghl_contact_id:   ghlContactId,
+              interest_level:   extraction.interest_level,
+              franchise:        extraction.recommended_brands?.[0] ?? '',
+              follow_up_date:   extraction.follow_up_date ?? null,
+              action_items_steve: extraction.action_items_steve,
+            });
+            if (r.created) console.log(`[sync-granola] Notion: +${r.created} tasks for "${note.title}"`);
+          } catch (nerr) {
+            // Don't fail the whole note over a Notion hiccup — log and continue.
+            errors.push(`${summary.id} (notion): ${nerr.message}`);
+          }
         }
 
         if (!leadId && !ghlContactId) {
