@@ -75,7 +75,7 @@ function scoreTier(score) {
 }
 
 const DEMO = [
-  { id: 'd1', first_name: 'Marcus',   last_name: 'Thompson', email: 'marcus.t@email.com',     phone: '(512) 555-0192', slot_start: (() => { const d = new Date(); d.setHours(9,  0); return d.toISOString(); })(), status: 'scheduled', investment_level: '$100k–$200k', assigned_to_email: 'steve@sparksify.com', meet_link: 'https://meet.google.com/abc-defg-hij', _source_display: 'Calendly',      event_name: 'Franchise Intro Call' },
+  { id: 'd1', first_name: 'Marcus',   last_name: 'Thompson', email: 'marcus.t@email.com',     phone: '(512) 555-0192', slot_start: (() => { const d = new Date(); d.setHours(9,  0); return d.toISOString(); })(), status: 'scheduled', investment_level: '$100k–$200k', assigned_to_email: 'steve@sparksify.com', meet_link: 'https://meet.google.com/abc-defg-hij', _source_display: 'Calendly',      event_name: 'Franchise Intro Call', brand: 'WetFuel' },
   { id: 'd2', first_name: 'Jennifer', last_name: 'Caldwell',  email: 'jcaldwell@gmail.com',    phone: '(214) 555-0847', slot_start: (() => { const d = new Date(); d.setHours(10,30); return d.toISOString(); })(), status: 'showed',    investment_level: '$50k–$100k',  assigned_to_email: 'steve@sparksify.com', meet_link: null,                                                 _source_display: 'Calendly',      event_name: 'Franchise Intro Call' },
   { id: 'd3', first_name: 'Robert',   last_name: 'Kim',       email: 'rob.kim@outlook.com',    phone: '(713) 555-0334', slot_start: (() => { const d = new Date(); d.setHours(11,45); return d.toISOString(); })(), status: 'no-show',  investment_level: '$200k+',      assigned_to_email: 'steve@sparksify.com', meet_link: null,                                                 _source_display: 'GoHighLevel',   event_name: 'Franchise Intro Call' },
   { id: 'd4', first_name: 'Angela',   last_name: 'Rivera',    email: 'angela.r@company.com',   phone: '(469) 555-0561', slot_start: (() => { const d = new Date(); d.setHours(13, 0); return d.toISOString(); })(), status: 'closed',   investment_level: '$100k–$200k', assigned_to_email: 'steve@sparksify.com', meet_link: 'https://meet.google.com/xyz-uvwx-rst', _source_display: 'KANSO', event_name: 'Franchise Discovery Call' },
@@ -1265,6 +1265,7 @@ function BookingRow({ booking: b, striped, busy, selected, onRowClick, onStatus,
       {/* Source / Type */}
       <td style={s.td}>
         <SourceBadge source={b._source_display || 'KANSO'} />
+        {b.brand && <div style={{ fontSize: 11, fontWeight: 700, color: '#5B21B6', marginTop: 4 }}>{b.brand}</div>}
         {b.event_name && <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>{b.event_name}</div>}
       </td>
 
@@ -1751,6 +1752,9 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 9, flexWrap: 'wrap' }}>
                 <SourceBadge source={booking._source_display || 'KANSO'} />
+                {booking.brand && (
+                  <span title={`Brand: ${booking.brand}`} style={{ padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 700, color: '#5B21B6', background: '#F5F3FF', border: '1px solid #DDD6FE', whiteSpace: 'nowrap', maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block' }}>{booking.brand}</span>
+                )}
                 {booking.event_name && (
                   <span title={booking.event_name} style={{ padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: '#475569', background: '#F1F5F9', border: '1px solid #E2E8F0', whiteSpace: 'nowrap', maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block' }}>{booking.event_name}</span>
                 )}
