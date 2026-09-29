@@ -19,47 +19,57 @@ const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
 // Pull any explicit email addresses out of free text (for a stray fallback).
 function firstLine(s) { return String(s || '').split('\n')[0].trim(); }
 
-function buildPrompt({ name, email, phone, company, location }) {
+function buildPrompt({ name, email, phone, company, location, brand }) {
   const domain = extractDomain(email);
   const knowns = [
     name    && `Name: ${name}`,
+    phone   && `Phone: ${phone}   ← STRONGEST identifier — reverse-look this up first`,
     email   && `Email: ${email}`,
-    phone   && `Phone: ${phone}`,
     company && `Company/website: ${company}`,
     domain && isBusinessDomain(domain) && `Email domain: ${domain}`,
     location && `Location: ${location}`,
   ].filter(Boolean).join('\n');
 
-  return `You are a research assistant for a franchise-consulting firm. Build a factual dossier on the PERSON below, who is a sales prospect (they submitted an inquiry about buying a franchise). Search the open web — LinkedIn, company sites, news, business filings, directories, press, podcasts, social profiles — and report only what you can actually find on real pages.
+  const brandLine = brand
+    ? `The person submitted an inquiry about the franchise brand "${brand}". Judge how strong a fit they are for THAT specific brand, given their real background.`
+    : `The person submitted a franchise inquiry. Judge how strong a fit they are as a franchise buyer, given their real background.`;
 
-Known details:
+  return `You are an elite research analyst for a franchise-consulting firm. Your job: figure out who this PERSON REALLY is, then how good a lead they are. Search the open web — reverse phone/number lookups, business listings, LinkedIn, company sites, state business filings, news, directories, press.
+
+Known details (use ALL of them together to triangulate — never rely on the name alone, names are ambiguous):
 ${knowns || '(only a name is known)'}
 
-Rules:
-- Use the known details together to disambiguate the right person (same email domain, company, city). If you are not confident it's the same individual, say so and keep confidence low. Never merge two different people.
-- Report only facts stated on real, findable pages. Do NOT guess, invent, or infer. If you don't find something, leave it empty.
-- Do not report sensitive personal matters (health, religion, sexual orientation, political affiliation, family details, anything about minors). Keep it to professional and business-relevant public information.
-- "capital_signal" is your read of likely buying power / liquid capital based on career level, business ownership, and public signals — not a hard number.
+Identification method — follow this order:
+1. The PHONE NUMBER is the single strongest unique identifier. Reverse-look it up: what business, listing, or person is this exact number publicly tied to? This usually resolves their actual company — start here.
+2. Then the email domain (if it's a company domain), then name + location. Cross-connect these signals.
+3. Connecting entities across different pages is valid and expected: if the phone number publicly belongs to "Acme Co" and a person by this name is publicly tied to "Acme Co" in the same metro, treat that as a STRONG (not certain) match — and say exactly which page tied what to what. A phone→company link plus a name→company link is strong evidence even when no single page states all of it.
+4. Never merge two clearly different people. If several candidates exist, choose the one the phone/company/location points to, and note the discarded ones in one line.
 
-Return ONLY valid JSON — no markdown, no code fences, no commentary. Use exactly this structure:
+Report only facts found on real, findable pages — do not invent. Skip sensitive personal matters (health, religion, politics, family, minors). Keep it professional and business-relevant.
+
+${brandLine}
+
+Return ONLY valid JSON — no markdown, no code fences, no commentary. Exactly this structure:
 {
   "full_name": "the person's full name, or empty string",
-  "headline": "one short line: who they are (e.g. 'Owner of a 3-location HVAC company in Dallas')",
-  "summary": "2-4 plain sentences summarizing who this person is, professionally",
-  "current_role": "current title, or empty string",
-  "employer": "current company/employer, or empty string",
+  "headline": "one line: who they really are, e.g. 'Owner of Green Pine Recycling, an Atlanta waste-brokerage firm'",
+  "summary": "3-5 sentences: who they are AND the connective evidence for the identity match (name the phone→company link if that's how you found them)",
+  "current_role": "current title/role, or empty string",
+  "employer": "current company, or empty string",
   "location": "city, state or empty string",
-  "background": ["notable past roles, companies, or career history — one item each"],
-  "business_interests": ["businesses they own, invest in, or are involved with"],
-  "capital_signal": "low | medium | high | unknown",
+  "background": ["notable roles / companies / career history — one per item"],
+  "business_interests": ["businesses they own, run, or are tied to"],
+  "capital_signal": "low | medium | high | unknown  (likely buying power)",
+  "relevance": "high | medium | low  (how strong a fit for the brand above)",
+  "relevance_reason": "1-2 sentences: WHY they are or aren't a fit for that brand, given their background and industry",
   "online_presence": [{"type": "LinkedIn | Company | News | Social | Other", "label": "short label", "url": "https://..."}],
-  "notable_facts": ["concrete, verifiable facts relevant to a franchise sales rep"],
-  "franchise_read": "2-3 sentences: how a franchise-consulting rep should read and approach this person",
-  "confidence": "low | medium | high",
+  "notable_facts": ["concrete facts a rep should know, each ideally tied to a source"],
+  "franchise_read": "2-4 sentences: how the rep should approach THIS person for THIS brand — the angle, what they already understand, what to open with",
+  "confidence": "low | medium | high  (identity-match confidence)",
   "sources": ["https://... URLs you actually used"]
 }
 
-If you can find almost nothing about this specific person, return the structure with empty strings/arrays, capital_signal "unknown", and confidence "low".`;
+If you genuinely cannot identify the person, return empty strings/arrays with capital_signal "unknown", relevance "low", confidence "low".`;
 }
 
 // Call Perplexity Sonar via OpenRouter. Returns { parsed, citations } or throws.
@@ -72,9 +82,11 @@ async function callPerplexity(prompt) {
       'X-Title': 'KANSO Person Intel',
     },
     body: JSON.stringify({
-      model: 'perplexity/sonar',
+      // sonar-pro is a much stronger search+synthesis model than base sonar —
+      // it does the multi-hop "phone → company → person → fit" reasoning.
+      model: process.env.PERSON_INTEL_MODEL || 'perplexity/sonar-pro',
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 1200,
+      max_tokens: 2200,
       temperature: 0.2,
     }),
   });
@@ -109,7 +121,7 @@ async function callPerplexity(prompt) {
  *           supabase:object, force?:boolean }} args
  */
 export async function runPersonIntel({
-  email = null, name = null, phone = null, company = null, location = null,
+  email = null, name = null, phone = null, company = null, location = null, brand = null,
   ghlContactId = null, leadId = null, supabase, force = false,
 }) {
   try {
@@ -126,7 +138,7 @@ export async function runPersonIntel({
 
     let dossier = null, citations = [], status = 'ok', errorMsg = null;
     try {
-      const out = await callPerplexity(buildPrompt({ name, email, phone, company, location }));
+      const out = await callPerplexity(buildPrompt({ name, email, phone, company, location, brand }));
       dossier   = out.parsed;
       citations = out.citations;
     } catch (e) {
@@ -149,6 +161,8 @@ export async function runPersonIntel({
       summary:            dossier?.summary || null,
       current_title:      dossier?.current_role || null,
       employer:           dossier?.employer || null,
+      relevance:          dossier?.relevance || null,
+      relevance_reason:   dossier?.relevance_reason || null,
       location:           dossier?.location || location || null,
       background:         dossier?.background || null,
       business_interests: dossier?.business_interests || null,

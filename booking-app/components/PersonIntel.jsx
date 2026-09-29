@@ -19,8 +19,14 @@ function confColor(c) {
   if (c === 'medium') return { c: '#B45309', bg: '#FEF3C7' };
   return { c: '#64748B', bg: '#F1F5F9' };
 }
+function relColor(r) {
+  if (r === 'high')   return { c: '#15803D', bg: '#DCFCE7', b: '#BBF7D0', label: 'High fit' };
+  if (r === 'medium') return { c: '#B45309', bg: '#FEF3C7', b: '#FDE68A', label: 'Medium fit' };
+  if (r === 'low')    return { c: '#B91C1C', bg: '#FEE2E2', b: '#FECACA', label: 'Low fit' };
+  return null;
+}
 
-export default function PersonIntel({ email, name, phone, company, location, ghlContactId, leadId, isDemo }) {
+export default function PersonIntel({ email, name, phone, company, location, brand, ghlContactId, leadId, isDemo }) {
   const [intel, setIntel] = useState(null);
   const [state, setState] = useState('loading'); // loading | ready | researchable | running | none
   const [showSources, setShowSources] = useState(false);
@@ -51,7 +57,7 @@ export default function PersonIntel({ email, name, phone, company, location, ghl
       const r = await fetch('/api/dashboard/person-intel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name, phone, company, location, lead_id: leadId, ghl_contact_id: ghlContactId, force }),
+        body: JSON.stringify({ email, name, phone, company, location, brand, lead_id: leadId, ghl_contact_id: ghlContactId, force }),
       });
       const d = await r.json();
       if (d.intel) { setIntel(d.intel); setState('ready'); }
@@ -97,6 +103,7 @@ export default function PersonIntel({ email, name, phone, company, location, ghl
   // state === 'ready'
   const cap  = capitalColor(intel.capital_signal);
   const conf = confColor(intel.confidence);
+  const rel  = relColor(intel.relevance);
   const background = Array.isArray(intel.background) ? intel.background : [];
   const interests  = Array.isArray(intel.business_interests) ? intel.business_interests : [];
   const facts      = Array.isArray(intel.notable_facts) ? intel.notable_facts : [];
@@ -118,10 +125,18 @@ export default function PersonIntel({ email, name, phone, company, location, ghl
       {intel.headline && <div style={{ fontSize: 13, color: '#475569', marginBottom: 10 }}>{intel.headline}</div>}
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+        {rel && <span style={{ ...pill, color: rel.c, background: rel.bg, border: `1px solid ${rel.b}` }}>{rel.label}</span>}
         {cap && <span style={{ ...pill, color: cap.c, background: cap.bg, border: `1px solid ${cap.b}` }}>{cap.label}</span>}
         {(intel.current_title || intel.employer) && <span style={{ ...pill, color: '#0369A1', background: '#E0F2FE' }}>{[intel.current_title, intel.employer].filter(Boolean).join(' @ ')}</span>}
         {intel.location && <span style={{ ...pill, color: '#475569', background: '#F1F5F9' }}>📍 {intel.location}</span>}
       </div>
+
+      {intel.relevance_reason && (
+        <div style={{ marginBottom: 10, background: rel ? rel.bg : '#F1F5F9', border: `1px solid ${rel ? rel.b : '#E2E8F0'}`, borderRadius: 8, padding: '8px 10px' }}>
+          <div style={{ ...label, color: rel ? rel.c : '#64748B' }}>FIT FOR THIS BRAND</div>
+          <div style={{ fontSize: 13, color: '#0F172A', marginTop: 2, lineHeight: 1.55 }}>{intel.relevance_reason}</div>
+        </div>
+      )}
 
       {emptyish ? (
         <div style={{ fontSize: 13, color: '#64748B', lineHeight: 1.55 }}>

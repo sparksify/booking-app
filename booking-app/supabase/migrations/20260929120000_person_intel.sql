@@ -12,6 +12,8 @@ create table if not exists public.person_intel (
   current_title       text,
   employer            text,
   location            text,
+  relevance           text,
+  relevance_reason    text,
   background          jsonb,
   business_interests  jsonb,
   capital_signal      text,

@@ -49,13 +49,13 @@ export default async function handler(req, res) {
 
   if (req.method === 'POST') {
     const {
-      email = null, name = null, phone = null, company = null, location = null,
+      email = null, name = null, phone = null, company = null, location = null, brand = null,
       lead_id = null, ghl_contact_id = null, force = false,
     } = req.body || {};
     if (!email && !name) return res.status(400).json({ error: 'email or name is required' });
 
     const result = await runPersonIntel({
-      email, name, phone, company, location,
+      email, name, phone, company, location, brand,
       leadId: lead_id, ghlContactId: ghl_contact_id, supabase, force: !!force,
     });
 

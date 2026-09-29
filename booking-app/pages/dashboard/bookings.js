@@ -1988,6 +1988,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                 email={booking.email}
                 name={[booking.first_name, booking.last_name].filter(Boolean).join(' ')}
                 phone={booking.phone}
+                brand={booking.brand}
                 ghlContactId={booking.ghl_contact_id}
                 leadId={lead?.id}
                 isDemo={isDemo}
