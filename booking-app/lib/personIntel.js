@@ -15,11 +15,59 @@
 import { extractDomain, isBusinessDomain } from './companyIntel';
 
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
+const SERP_API_KEY   = process.env.SERP_API_KEY;
 
 // Pull any explicit email addresses out of free text (for a stray fallback).
 function firstLine(s) { return String(s || '').split('\n')[0].trim(); }
 
-function buildPrompt({ name, email, phone, company, location, brand }) {
+// Phone → the common written formats, so an exact-match Google query hits the
+// page (business listing, site footer) where the number actually appears.
+function phoneVariants(phone) {
+  const d = String(phone || '').replace(/\D/g, '');
+  const ten = d.length > 10 ? d.slice(-10) : d;
+  if (ten.length !== 10) return [];
+  const a = ten.slice(0, 3), b = ten.slice(3, 6), c = ten.slice(6);
+  return [`${a}-${b}-${c}`, `(${a}) ${b}-${c}`, ten];
+}
+
+// One SerpAPI Google query → [{title, link, snippet}] (never throws).
+async function serpSearch(query) {
+  if (!SERP_API_KEY) return [];
+  try {
+    const params = new URLSearchParams({ engine: 'google', q: query, num: '10', api_key: SERP_API_KEY });
+    const r = await fetch(`https://serpapi.com/search?${params}`);
+    if (!r.ok) return [];
+    const data = await r.json();
+    return (data.organic_results || [])
+      .filter(o => o.link)
+      .map(o => ({ title: o.title || '', link: o.link, snippet: o.snippet || '' }));
+  } catch { return []; }
+}
+
+// Reverse-look-up the phone number and name on real Google. The phone-number
+// hit is the key that usually names the person's actual company.
+async function gatherSearchContext({ name, phone, email, company, location }) {
+  if (!SERP_API_KEY) return [];
+  const domain = extractDomain(email);
+  const queries = [];
+  for (const v of phoneVariants(phone)) queries.push(`"${v}"`);
+  if (name && location) queries.push(`"${name}" ${location}`);
+  if (name)             queries.push(`"${name}" (owner OR founder OR president OR CEO OR LinkedIn)`);
+  if (name && domain && isBusinessDomain(domain)) queries.push(`"${name}" ${domain}`);
+  if (company)          queries.push(`"${company}" "${name || ''}"`.trim());
+
+  const results = await Promise.all(queries.map(serpSearch));
+  const seen = new Set();
+  const findings = [];
+  for (const f of results.flat()) {
+    if (!f.link || seen.has(f.link)) continue;
+    seen.add(f.link);
+    findings.push(f);
+  }
+  return findings.slice(0, 18);
+}
+
+function buildPrompt({ name, email, phone, company, location, brand, findings = [] }) {
   const domain = extractDomain(email);
   const knowns = [
     name    && `Name: ${name}`,
@@ -34,11 +82,15 @@ function buildPrompt({ name, email, phone, company, location, brand }) {
     ? `The person submitted an inquiry about the franchise brand "${brand}". Judge how strong a fit they are for THAT specific brand, given their real background.`
     : `The person submitted a franchise inquiry. Judge how strong a fit they are as a franchise buyer, given their real background.`;
 
+  const searchBlock = findings.length
+    ? `\nREAL GOOGLE RESULTS — from reverse-looking-up the phone number and name (use these as PRIMARY evidence; the phone-number hit usually names their company). Read the snippets and connect them:\n${findings.map((f, i) => `[${i + 1}] ${f.title}\n${f.link}\n${f.snippet}`).join('\n\n')}\n`
+    : '';
+
   return `You are an elite research analyst for a franchise-consulting firm. Your job: figure out who this PERSON REALLY is, then how good a lead they are. Search the open web — reverse phone/number lookups, business listings, LinkedIn, company sites, state business filings, news, directories, press.
 
 Known details (use ALL of them together to triangulate — never rely on the name alone, names are ambiguous):
 ${knowns || '(only a name is known)'}
-
+${searchBlock}
 Identification method — follow this order:
 1. The PHONE NUMBER is the single strongest unique identifier. Reverse-look it up: what business, listing, or person is this exact number publicly tied to? This usually resolves their actual company — start here.
 2. Then the email domain (if it's a company domain), then name + location. Cross-connect these signals.
@@ -136,9 +188,13 @@ export async function runPersonIntel({
       if (existing && existing.status === 'ok') return { status: 'cached', row: existing };
     }
 
+    // Reverse-look-up the phone + name on real Google first, so the model starts
+    // from the page that actually names their company instead of guessing.
+    const findings = await gatherSearchContext({ name, phone, email, company, location });
+
     let dossier = null, citations = [], status = 'ok', errorMsg = null;
     try {
-      const out = await callPerplexity(buildPrompt({ name, email, phone, company, location, brand }));
+      const out = await callPerplexity(buildPrompt({ name, email, phone, company, location, brand, findings }));
       dossier   = out.parsed;
       citations = out.citations;
     } catch (e) {
