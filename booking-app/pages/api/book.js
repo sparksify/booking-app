@@ -78,6 +78,14 @@ export default async function handler(req, res) {
     eventReminderMins:  brand?.event_reminder_mins  ?? settingsRow?.event_reminder_mins  ?? 15,
   };
 
+  // Display label for the brand. Personal/rep calendars render as "First's Calendar"
+  // rather than the person's name, so they don't look like a franchise brand.
+  const brandLabel = brand
+    ? (brand.is_personal
+        ? `${String(brand.name || brandSlug).trim().split(/\s+/)[0]}'s Calendar`
+        : (brand.name || null))
+    : null;
+
   // ── Load team members ────────────────────────────────────────────────────────
   const { data: allMembers } = await supabase
     .from('team_members')
@@ -185,6 +193,13 @@ export default async function handler(req, res) {
 
     if (existing) {
       resolvedLeadDbId = existing.id;
+      // Backfill brand on the existing lead if it wasn't captured before.
+      if (brandSlug) {
+        await supabase.from('leads')
+          .update({ franchise_brand: brandLabel, brand_slug: brandSlug })
+          .eq('id', existing.id)
+          .is('brand_slug', null);
+      }
     } else {
       const newToken = crypto.randomBytes(12).toString('hex');
       const { data: newLead } = await supabase
@@ -196,7 +211,9 @@ export default async function handler(req, res) {
           email:            email     || null,
           phone:            phone     || null,
           investment_level: investment_level || null,
-          raw_fields:       { source: 'booking_page_direct' },
+          franchise_brand:  brandLabel,
+          brand_slug:       brandSlug || null,
+          raw_fields:       { source: 'booking_page_direct', brand_slug: brandSlug || null },
           status:           'new',
           updated_at:       new Date().toISOString(),
         })
