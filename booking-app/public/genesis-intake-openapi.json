@@ -1,0 +1,156 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Kanso Genesis Intake",
+    "version": "1.0.0",
+    "description": "Submit prequalified independent businesses. Email supplied: verification only. No email: owner discovery and enrichment. No scouting or franchise screening. Verified leads wait for campaign review."
+  },
+  "servers": [
+    {
+      "url": "https://app.trykanso.co"
+    }
+  ],
+  "security": [
+    {
+      "GenesisToken": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "GenesisToken": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "paths": {
+    "/api/genesis/intake": {
+      "post": {
+        "operationId": "submitGenesisLead",
+        "summary": "Submit one researched independent business",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "business_name"
+                ],
+                "properties": {
+                  "business_name": {
+                    "type": "string",
+                    "maxLength": 250
+                  },
+                  "owner_name": {
+                    "type": "string",
+                    "maxLength": 250
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "maxLength": 254
+                  },
+                  "phone": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "website": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "city": {
+                    "type": "string",
+                    "maxLength": 250
+                  },
+                  "industry": {
+                    "type": "string",
+                    "maxLength": 250
+                  },
+                  "research_notes": {
+                    "type": "string",
+                    "maxLength": 12000
+                  },
+                  "franchise_information": {
+                    "type": "string",
+                    "maxLength": 12000
+                  },
+                  "signal": {
+                    "type": "string",
+                    "maxLength": 4000
+                  },
+                  "is_franchise": {
+                    "type": "boolean",
+                    "enum": [
+                      false
+                    ]
+                  }
+                },
+                "description": "Also supply at least one of email, website, owner_name, phone, or city. Omit email if it is not known."
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Saved and queued; poll status_url with the same bearer token."
+          },
+          "200": {
+            "description": "Existing receipt for an identical retry."
+          },
+          "400": {
+            "description": "Invalid lead data or missing idempotency key."
+          },
+          "401": {
+            "description": "Missing or invalid token."
+          },
+          "409": {
+            "description": "Idempotency key already used for different data."
+          },
+          "503": {
+            "description": "Intake unavailable; retry with the same key."
+          }
+        }
+      },
+      "get": {
+        "operationId": "getGenesisLeadStatus",
+        "summary": "Check a submission receipt",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Receipt with status, stage, outcome and verification."
+          },
+          "401": {
+            "description": "Missing or invalid token."
+          },
+          "404": {
+            "description": "Receipt not found."
+          }
+        }
+      }
+    }
+  }
+}

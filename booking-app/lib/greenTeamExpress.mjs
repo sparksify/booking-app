@@ -1,3 +1,5 @@
+import { resolveFacebookSource } from './facebookAttribution.mjs';
+
 export const EXPRESS_LIMIT_SECONDS = 5.5 * 60 * 60;
 
 // Supplied processing locations. Route to the physical address, not the market label.
@@ -24,6 +26,7 @@ export const GREEN_TEAM_WAREHOUSES = [
 ].map(([id, market, address]) => ({ id, market, address }));
 
 export function isGreenTeamLead({ booking, lead, contact, tags = [], interests = [] } = {}) {
+  if (resolveFacebookSource({ booking, lead })?.isGreenTeam) return true;
   if (booking?.email && lead?.email && booking.email.toLowerCase() !== lead.email.toLowerCase()) {
     lead = null;
     interests = [];

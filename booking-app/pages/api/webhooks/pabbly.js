@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { sendLeadAlert } from '@/lib/resend';
 import { upsertGHLContact } from '@/lib/ghl';
+import { facebookAttribution, facebookAttributionColumns, rawLeadFields } from '@/lib/facebookAttribution.mjs';
 
 /**
  * POST /api/webhooks/pabbly
@@ -30,8 +31,14 @@ import { upsertGHLContact } from '@/lib/ghl';
  *   "ghl_contact_id": "{{2.contact.id}}",               // from LeadConnector V2 step
  *   "fb_lead_id":     "{{1.id}}",
  *   "fb_form_id":     "{{1.form_id}}",
- *   "fb_ad_name":     "{{1.ad_name}}"
+ *   "fb_ad_id":       "{{1.ad_id}}",
+ *   "fb_ad_name":     "{{1.ad_name}}",
+ *   "fb_adset_id":    "{{1.adset_id}}",
+ *   "fb_adset_name":  "{{1.adset_name}}",
+ *   "fb_campaign_id": "{{1.campaign_id}}",
+ *   "fb_campaign_name": "{{1.campaign_name}}"
  * }
+ * Map all Facebook IDs as JSON strings to avoid numeric precision loss.
  */
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -82,6 +89,7 @@ export default async function handler(req, res) {
   // ── Facebook metadata (Pabbly passes these through) ─────────────────────────
   const fbLeadId   = body.fb_lead_id  || null;
   const fbFormId   = body.fb_form_id  || null;
+  const attribution = facebookAttribution(body);
 
   // ── Duplicate check by fb_lead_id (handles Pabbly retries) ─────────────────
   const supabase = getSupabaseAdmin();
@@ -89,15 +97,26 @@ export default async function handler(req, res) {
   if (fbLeadId) {
     const { data: existing } = await supabase
       .from('leads')
-      .select('id, token')
+      .select('id, token, ghl_contact_id, fb_ad_id, fb_adset_id, fb_campaign_id, raw_fields')
       .eq('fb_lead_id', fbLeadId)
       .maybeSingle();
 
     if (existing) {
       console.log(`[pabbly-webhook] duplicate fb_lead_id ${fbLeadId}, returning existing`);
-      // Update GHL contact ID if we now have it
+      // Retries can supply missing attribution, without resetting the lead's stage,
+      // token, answers or previously captured source.
+      const update = {};
       if (ghlContactId && !existing.ghl_contact_id) {
-        await supabase.from('leads').update({ ghl_contact_id: ghlContactId }).eq('id', existing.id);
+        update.ghl_contact_id = ghlContactId;
+      }
+      if (Object.keys(attribution).length) {
+        const merged = { ...attribution, ...facebookAttribution(existing) };
+        Object.assign(update, facebookAttributionColumns(merged));
+        update.raw_fields = { ...rawLeadFields(existing.raw_fields), ...merged };
+      }
+      if (Object.keys(update).length) {
+        const { error: updateError } = await supabase.from('leads').update(update).eq('id', existing.id);
+        if (updateError) return res.status(500).json({ error: updateError.message });
       }
       return res.json({ ok: true, id: existing.id, token: existing.token, duplicate: true });
     }
@@ -112,13 +131,14 @@ export default async function handler(req, res) {
       token,
       fb_lead_id:      fbLeadId,
       fb_form_id:      fbFormId,
+      ...facebookAttributionColumns(attribution),
       first_name:      firstName   || null,
       last_name:       lastName    || null,
       email,
       phone,
       investment_level: investmentLevel || null,
       ghl_contact_id:  ghlContactId,
-      raw_fields:      body,        // store full payload for debugging
+      raw_fields:      { ...body, ...attribution },
       status:          'new',
       updated_at:      new Date().toISOString(),
     })

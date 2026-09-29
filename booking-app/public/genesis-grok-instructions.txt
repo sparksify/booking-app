@@ -1,0 +1,57 @@
+Send researched independent businesses to Kanso's Genesis agent.
+
+Base URL: https://app.trykanso.co
+Endpoint: POST /api/genesis/intake
+Schema: /genesis-intake-openapi.json
+
+Use the Genesis token supplied privately by the Kanso administrator:
+Authorization: Bearer YOUR_GENESIS_TOKEN
+Content-Type: application/json
+Idempotency-Key: a unique stable identifier for this submission (8–200 characters)
+
+Send one JSON object per request. Example (fictional data):
+{
+  "business_name": "Example Coffee",
+  "owner_name": "Jamie Morgan",
+  "email": "jamie@example.com",
+  "phone": "+1 312 555 0100",
+  "website": "https://example.com",
+  "city": "Chicago, IL",
+  "industry": "Food & Beverage",
+  "is_franchise": false,
+  "research_notes": "Include evidence, source URLs, and why the business could expand.",
+  "franchise_information": "Describe the concept and franchise potential."
+}
+
+Only submit businesses already researched and confirmed not to be franchises.
+Find the business owner's full name when possible. Never invent contact information.
+business_name is required. Also include at least one of email, website, owner_name,
+phone, or city. Include website and city whenever available to reduce ambiguity.
+
+If you have an email, include it. Genesis skips discovery and only verifies the email.
+If email is missing, omit the field (or send null). Genesis runs owner discovery and
+email enrichment, preserving the name, phone, and research you supplied.
+Do not submit placeholders such as "unknown" as an email.
+An invalid email format returns 400; correct it or omit it, then use a new request key.
+
+A 202 response means the lead is saved and queued, not that the email is verified.
+Keep the returned id. Poll GET /api/genesis/intake?id=RECEIPT_ID with the same
+Authorization header about once per minute until status is complete or failed.
+Processing usually spans several queue ticks. Do not resubmit just because it is slow.
+
+After a timeout or network error, repeat exactly the same payload and Idempotency-Key.
+An identical retry returns the existing receipt. A changed payload with the same key
+returns 409. A corrected submission needs a new key.
+
+Outcomes:
+- ready_for_review: email passed verification; waits in Genesis Incoming Leads.
+- held_catch_all: email domain accepts arbitrary recipients; held for review.
+- held_invalid_email: supplied email failed verification; held for correction.
+- held_unverified: verification was unavailable or inconclusive; held for review.
+- no_email: discovery/enrichment finished without finding an email.
+- loaded: a Kanso user loaded the prospect into the existing outreach campaign.
+- skipped_duplicate: the contact already exists in the campaign system.
+
+Genesis skips scouting and franchise screening for these prequalified submissions.
+Submission itself does not send email. A Kanso user controls campaign loading.
+Keep the bearer token out of URLs, research notes, and public documents.

@@ -18,7 +18,7 @@ export async function getLeadData(leadId) {
   const token = process.env.FB_PAGE_ACCESS_TOKEN;
   if (!token) throw new Error('FB_PAGE_ACCESS_TOKEN not set');
 
-  const url = `${FB_API}/${leadId}?fields=id,created_time,field_data,ad_id,adset_id,campaign_id,form_id&access_token=${token}`;
+  const url = `${FB_API}/${leadId}?fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id&access_token=${token}`;
   const res = await fetch(url);
 
   if (!res.ok) {

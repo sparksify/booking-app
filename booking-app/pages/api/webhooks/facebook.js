@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getLeadData, parseLeadFields, generateToken } from '@/lib/facebookLeads';
+import { facebookAttribution, facebookAttributionColumns } from '@/lib/facebookAttribution.mjs';
 import { upsertGHLContact } from '@/lib/ghl';
 import { logLeadEvent } from '@/lib/leadEvents';
 import { normalizeLocation } from '@/lib/normalizeLocation';
@@ -93,6 +94,7 @@ async function handleWebhook(req, res) {
         // 1. Pull full lead answers from Facebook
         const fbLead = await getLeadData(leadgen_id);
         const parsed = parseLeadFields(fbLead.field_data || []);
+        const attribution = { ...facebookAttribution(change.value), ...facebookAttribution(fbLead) };
 
         // 2. Normalize territory / area of interest (async, no API key needed)
         let locationData = null;
@@ -111,17 +113,15 @@ async function handleWebhook(req, res) {
           .upsert({
             token,
             fb_lead_id:      leadgen_id,
-            fb_form_id:      form_id    || null,
+            fb_form_id:      fbLead.form_id || form_id || null,
             fb_page_id:      page_id    || null,
-            fb_ad_id:        ad_id      || null,
-            fb_adset_id:     adset_id   || null,
-            fb_campaign_id:  campaign_id || null,
+            ...facebookAttributionColumns(attribution),
             first_name:      parsed.firstName       || null,
             last_name:       parsed.lastName        || null,
             email:           parsed.email           || null,
             phone:           parsed.phone           || null,
             investment_level: parsed.investmentLevel || null,
-            raw_fields:      parsed.raw,
+            raw_fields:      { ...parsed.raw, ...attribution },
             location_raw:       locationData?.raw        || parsed.territory || null,
             location_city:      locationData?.city       || null,
             location_state:     locationData?.state      || null,
@@ -160,8 +160,7 @@ async function handleWebhook(req, res) {
           logLeadEvent(parsed.email, 'lead_submitted', {
             source:      'facebook_lead_ad',
             fb_form_id:  form_id      || null,
-            fb_ad_id:    ad_id        || null,
-            fb_campaign_id: campaign_id || null,
+            ...attribution,
             investment_level: parsed.investmentLevel || null,
           }, { leadId: lead.token }).catch(() => {});
         }

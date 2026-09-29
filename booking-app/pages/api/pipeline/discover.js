@@ -83,7 +83,7 @@ Return ONLY valid JSON, no markdown:
   } catch (e) { return { owner: null, signal: null }; }
 }
 
-async function findOwnerOnWebsite(businessName, website, domain) {
+async function findOwnerOnWebsite(businessName, website, domain, readPage = fetchPage) {
   if (!website) return { owner: null, signal: null, emails: [] };
   let base;
   try {
@@ -98,7 +98,7 @@ async function findOwnerOnWebsite(businessName, website, domain) {
 
   for (const url of urls) {
     if (pagesChecked >= 6) break;
-    const html = await fetchPage(url);
+    const html = await readPage(url);
     if (!html) continue;
     pagesChecked++;
 
@@ -250,18 +250,19 @@ Reply with ONLY the name(s) or NOT_FOUND:`,
   } catch (e) { return null; }
 }
 
-async function discoverOne(biz) {
-  const { business_name, city, website, rating, review_count, owner: existingOwner, domain } = biz;
+export async function discoverOne(biz, { readPage = fetchPage } = {}) {
+  const { business_name, city, website, rating, review_count, domain } = biz;
+  const existingOwner = biz.owner_name || biz.owner;
 
   const signalBase = rating && review_count ? `${rating} stars across ${review_count} reviews on Google` : null;
 
   const websiteResult = website
-    ? await findOwnerOnWebsite(business_name, website, domain)
+    ? await findOwnerOnWebsite(business_name, website, domain, readPage)
     : { owner: null, signal: null, emails: [] };
 
   const website_emails = websiteResult.emails || [];
   const website_email  = website_emails[0] || null;
-  const signal = websiteResult.signal || signalBase;
+  const signal = biz.signal || websiteResult.signal || signalBase;
 
   if (existingOwner && existingOwner.trim().split(/\s+/).length >= 2) {
     return { ...biz, owner_name: existingOwner, owner_source: 'google_maps_field', signal, website_email, website_emails };

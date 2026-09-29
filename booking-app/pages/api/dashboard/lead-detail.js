@@ -24,7 +24,7 @@ export default async function handler(req, res) {
       investment_level, status, ghl_contact_id,
       brand_slug, franchise_brand, developer_name, developer_phone, developer_email, notes,
       franchise_interests,
-      fb_form_id, fb_ad_id, fb_campaign_id,
+      fb_lead_id, fb_form_id, fb_ad_id, fb_adset_id, fb_campaign_id,
       raw_fields, created_at,
       location_raw, location_city, location_state, location_zip, location_area_code,
       bookings (

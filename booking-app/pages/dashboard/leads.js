@@ -1,4 +1,5 @@
 import GreenTeamExpressCard from '@/components/GreenTeamExpressCard';
+import CampaignTag from '@/components/CampaignTag';
 import { resolveClientTerritory } from '@/lib/clientTerritory';
 import { useState, useMemo } from 'react';
 import { useSession, signOut } from 'next-auth/react';
@@ -44,7 +45,7 @@ const AVATAR_COLORS = {
 const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 function getSourceBadge(lead) {
-  if (lead.fb_form_id)          return { label: 'Facebook',     color: '#1877F2', bg: '#EBF5FF' };
+  if (lead.fb_form_id || lead.fb_lead_id || /^facebook/i.test(lead.source || '')) return null;
   const src = lead.source || '';
   if (src === 'calendly')       return { label: 'Calendly',     color: '#0F766E', bg: '#CCFBF1' };
   if (src === 'gohighlevel')    return { label: 'GoHighLevel',  color: '#7C3AED', bg: '#EDE9FE' };
@@ -68,7 +69,7 @@ export async function getServerSideProps(context) {
         id, token, first_name, last_name, email, phone,
         investment_level, raw_fields, status, brand_slug, franchise_brand,
         location_raw, location_city, location_state, location_zip, location_area_code,
-        fb_form_id, fb_ad_id, fb_campaign_id,
+        fb_lead_id, fb_form_id, fb_ad_id, fb_adset_id, fb_campaign_id,
         ghl_contact_id, created_at,
         bookings (id, slot_start, assigned_to_email, meet_link, status, booking_source)
       `)
@@ -461,7 +462,8 @@ function ContactRow({ lead, selected, onSelect, expanded, onToggle, onStatusChan
   const initials = [lead.first_name?.[0], lead.last_name?.[0]].filter(Boolean).join('').toUpperCase() || '?';
 
   const extraFields = Object.entries(lead.raw_fields || {}).filter(([k]) =>
-    !['first_name','last_name','email','phone_number','phone'].includes(k)
+    !['first_name','last_name','email','phone_number','phone','fb_form_id','fb_lead_id'].includes(k) &&
+    !/^(fb_)?(ad_?set|ad|campaign)_(id|name)$/.test(k)
   );
 
   return (
@@ -493,6 +495,7 @@ function ContactRow({ lead, selected, onSelect, expanded, onToggle, onStatusChan
             {lead.phone && <span>{formatPhone(lead.phone)}</span>}
           </div>
           <div style={s.contactMeta}>
+            <CampaignTag lead={lead} />
             <span style={s.metaDate}>{formatDate(lead.created_at)}</span>
             {booking?.slot_start && (
               <span style={s.bookingPill}>Booked · {formatSlot(booking.slot_start)}</span>
@@ -503,7 +506,7 @@ function ContactRow({ lead, selected, onSelect, expanded, onToggle, onStatusChan
         {/* Badges */}
         <div style={s.rowRight}>
           {lead.brand && <span style={{ ...s.badge, color: '#6D28D9', background: '#F5F3FF', fontWeight: 700 }}>{lead.brand}</span>}
-          <span style={{ ...s.srcBadge, color: source.color, background: source.bg }}>{source.label}</span>
+          {source && <span style={{ ...s.srcBadge, color: source.color, background: source.bg }}>{source.label}</span>}
           {inv && <span style={{ ...s.badge, color: inv.color, background: inv.bg }}>{inv.label}</span>}
           <span style={{ ...s.badge, color: status.color, background: status.bg }}>{status.label}</span>
           <span style={{ ...s.chevron, transform: expanded ? 'rotate(90deg)' : 'none' }}>›</span>

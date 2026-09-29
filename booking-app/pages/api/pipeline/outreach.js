@@ -165,7 +165,7 @@ async function isDuplicate(email) {
   }
 }
 
-async function outreachOne(biz, styleInstructions) {
+export async function outreachOne(biz, styleInstructions = DEFAULT_STYLE_INSTRUCTIONS) {
   const { email } = biz;
   if (!email) return { ...biz, outreach_status: 'skipped_no_email' };
   const duplicate = await isDuplicate(email);

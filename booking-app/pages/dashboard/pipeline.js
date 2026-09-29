@@ -5,6 +5,7 @@ import { guardDashboardPage } from '@/lib/pageAccess';
 import { visibleNav } from '@/lib/nav';
 import BrandLogo from '@/components/BrandLogo';
 import SidebarUser from '@/components/SidebarUser';
+import GenesisIntake from '@/components/GenesisIntake';
 import { METROS, SCOUT_COST, PER_BUSINESS_COST, EST_CITY_COST } from '@/lib/metros';
 
 // ── Shared pipeline helpers (used by both the single run and the metro sweep) ──
@@ -956,14 +957,14 @@ export default function PipelinePage({ perms = {}, platformLogo = null, navOrder
 
           <main style={s.main}>
             <div style={{ display: 'inline-flex', background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: 8, padding: 3, marginBottom: 20 }}>
-              {[{ k: 'run', label: 'Pipeline Run' }, { k: 'metro', label: 'Metro Sweep' }, { k: 'replies', label: 'Replies' }].map(({ k, label }) => (
+              {[{ k: 'run', label: 'Pipeline Run' }, { k: 'metro', label: 'Metro Sweep' }, { k: 'intake', label: 'Incoming Leads' }, { k: 'replies', label: 'Replies' }].map(({ k, label }) => (
                 <button key={k} onClick={() => setView(k)} style={{ fontSize: 13, fontWeight: 600, fontFamily: 'inherit', border: 'none', cursor: 'pointer', borderRadius: 6, padding: '6px 16px', background: view === k ? '#FFFFFF' : 'transparent', color: view === k ? '#0057FF' : '#64748B', boxShadow: view === k ? '0 1px 2px rgba(15,23,42,.08)' : 'none' }}>
                   {label}
                 </button>
               ))}
             </div>
 
-            {view === 'replies' ? <RepliesPanel /> : view === 'metro' ? <MetroSweep /> : (
+            {view === 'intake' ? <GenesisIntake /> : view === 'replies' ? <RepliesPanel /> : view === 'metro' ? <MetroSweep /> : (
             <>
             <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
               <input value={city} onChange={e => setCity(e.target.value)} onKeyDown={e => e.key === 'Enter' && !isRunning && city.trim() && runPipeline()} placeholder="City (e.g. Dallas, TX)" disabled={isRunning} style={s.input} />

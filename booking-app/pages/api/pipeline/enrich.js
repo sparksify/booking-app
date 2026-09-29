@@ -25,16 +25,18 @@ function pickOwner(names) {
   return names.find(hasFullName) || names[0] || null;
 }
 
-async function verifyEmail(email) {
+export async function verifyEmail(email, { strict = false } = {}) {
   if (!email) return 'reject';
   if (!MV_KEY) return 'unchecked';
   try {
     const params = new URLSearchParams({ api: MV_KEY, email, timeout: '10' });
-    const r = await fetch(`https://api.millionverifier.com/api/v3/?${params}`);
+    const r = await fetch(`https://api.millionverifier.com/api/v3/?${params}`, { signal: AbortSignal.timeout(15000) });
+    if (!r.ok) return strict ? 'unchecked' : 'reject';
     const d = await r.json();
     if (d.result === 'ok')        return 'ok';
     if (d.result === 'catch_all') return 'catch_all';
-    return 'reject';
+    if (['invalid', 'disposable'].includes(d.result)) return 'reject';
+    return strict ? 'unchecked' : 'reject';
   } catch (e) {
     return 'unchecked';
   }
@@ -270,9 +272,7 @@ async function fullEnrichLookup(firstName, lastName, domain, businessName) {
   } catch (e) { return { work: null, personal: null }; }
 }
 
-const PIPELINE_START = Date.now();
 const MAX_BUDGET_MS = 250000;
-function timeRemaining() { return MAX_BUDGET_MS - (Date.now() - PIPELINE_START); }
 
 function mk(biz, email, owner, source, verification, loadable, holdReason, tried) {
   return {
@@ -288,7 +288,9 @@ function mk(biz, email, owner, source, verification, loadable, holdReason, tried
   };
 }
 
-async function enrichOne(biz) {
+export async function enrichOne(biz) {
+  const startedAt = Date.now();
+  const timeRemaining = () => MAX_BUDGET_MS - (Date.now() - startedAt);
   const { owner_name, domain, business_name, city } = biz;
   const websiteEmails = biz.website_emails || (biz.website_email ? [biz.website_email] : []);
   const names = parseOwnerNames(owner_name);

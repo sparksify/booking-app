@@ -1,4 +1,5 @@
 import GreenTeamExpressCard from '@/components/GreenTeamExpressCard';
+import CampaignTag from '@/components/CampaignTag';
 import { resolveClientTerritory } from '@/lib/clientTerritory';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
@@ -12,8 +13,8 @@ import { repIdentitySet, repInSet, normalizeRepName } from '@/lib/repName';
 import BrandLogo from '@/components/BrandLogo';
 import SidebarUser from '@/components/SidebarUser';
 import CallIntel from '@/components/CallIntel';
-import WatchIntel from '@/components/WatchIntel';
 import CompanyIntel from '@/components/CompanyIntel';
+import PersonIntel from '@/components/PersonIntel';
 import { DealDetailDrawer, DealFollowupRow, EnterDealDeskButton, InactiveDealRow } from '@/components/DealDesk';
 import { FccReminderRow, FccSettings } from '@/components/FccReminders';
 import { DEFAULT_DEAL_TIMEZONE, suggestFollowupGaps } from '@/lib/dealDesk';
@@ -169,6 +170,7 @@ function SourceBadge({ source }) {
     KANSO: { color: '#1D4ED8', background: '#DBEAFE', border: '1px solid #BFDBFE' },
   };
   const src = source || 'KANSO';
+  if (/^facebook/i.test(src)) return null;
   const st = styles[src] || { color: '#374151', background: '#F3F4F6', border: '1px solid #E5E7EB' };
   return (
     <span style={{ ...st, padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', display: 'inline-block' }}>
@@ -1867,6 +1869,7 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 9, flexWrap: 'wrap' }}>
+                <CampaignTag booking={booking} lead={lead} />
                 <SourceBadge source={booking.brand || booking._source_display || 'KANSO'} />
                 {booking.event_name && (
                   <span title={booking.event_name} style={{ padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: '#475569', background: '#F1F5F9', border: '1px solid #E2E8F0', whiteSpace: 'nowrap', maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block' }}>{booking.event_name}</span>
@@ -1980,9 +1983,18 @@ function CRMPanel({ booking, lead, loading, open, isDemo, brandPitches = {}, con
               {/* Company Intelligence (auto-researched business profile) */}
               <CompanyIntel email={booking.email} ghlContactId={booking.ghl_contact_id} leadId={lead?.id} isDemo={isDemo} />
 
+              {/* Person Dossier (web-researched individual profile) */}
+              <PersonIntel
+                email={booking.email}
+                name={[booking.first_name, booking.last_name].filter(Boolean).join(' ')}
+                phone={booking.phone}
+                ghlContactId={booking.ghl_contact_id}
+                leadId={lead?.id}
+                isDemo={isDemo}
+              />
+
               {/* Call Intelligence (Granola) */}
               <CallIntel ghlContactId={booking.ghl_contact_id} leadId={lead?.id} email={booking.email} isDemo={isDemo} />
-              <WatchIntel ghlContactId={booking.ghl_contact_id} leadId={lead?.id} email={booking.email} isDemo={isDemo} />
 
               {/* Contact / Booking Details */}
               <PanelSection title="Contact / Booking Details">

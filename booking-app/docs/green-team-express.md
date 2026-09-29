@@ -4,6 +4,53 @@ The Meetings client card, shared CRM card (including CQ Recovery), and expanded
 All Contacts lead card automatically check Green Team leads when opened. Other
 brands do not display the box or make requests. No database migration is needed.
 
+## Facebook opportunity source
+
+The client cards show a compact city campaign tag near the top. The four verified
+city ad sets in FCC2's Green Team campaign (`120247835569440452`) receive an
+**city campaign** tag: Jacksonville campaign, Reno campaign, Pensacola & Panama City
+Beach campaign, and Tallahassee campaign (including leads from its paused ad set).
+`lib/facebookAttribution.mjs` contains the ad set IDs and names verified on
+2026-09-16. Broad, interest, lookalike, and unknown ad sets display no campaign tag. Add
+new verified city ad set IDs to this catalog to enable their campaign tag.
+Cards do not display Facebook source labels, ad names, ad set names, or
+missing-source notices. Attribution metadata remains stored for matching.
+
+Source is distinct from residence, requested territory, and express eligibility.
+The Jacksonville ad set also targets Lakeland; Reno also targets Texas. Source
+labels must not change the territory used by the warehouse-distance check.
+
+Both native Facebook and Pabbly intake save IDs in the existing `fb_ad_id`,
+`fb_adset_id`, and `fb_campaign_id` columns. Names are saved under canonical
+`fb_ad_name`, `fb_adset_name`, and `fb_campaign_name` keys in `raw_fields`.
+Pabbly also accepts Meta's unprefixed field names. Duplicate Pabbly deliveries
+fill missing source details without resetting lead status or resending alerts.
+
+In Pabbly's existing Facebook-to-KANSO API step, map those six keys from the
+Facebook trigger's matching fields. Send **IDs as JSON strings**, since Meta IDs
+can exceed JavaScript's safe numeric range. In its parameter editor, wrap the
+three source ID tokens in double quotes; the normalizer accepts both ordinary
+strings and strings retaining these surrounding quotes. Save without sending a test request
+that would create a contact or notify the team. Confirm the next real delivery's
+saved `fb_adset_id` and card label. A replay for an existing `fb_lead_id` can fill
+missing details without inserting a new lead.
+
+Existing leads with a saved ad set ID resolve immediately. Leads without source
+data display no campaign tag; never infer the ad set from their city,
+phone area code, ad name, or form alone. Historical attribution needs a verified
+Facebook export or a Pabbly delivery containing the missing fields.
+
+On 2026-09-16, the six fields were added to the existing Green Team workflow's
+KANSO API step, using `Res3` fields from the Facebook trigger. Existing contact
+and lead-form mappings were retained. The saved mappings were verified after
+reloading the workflow. Before this change, production Pabbly payloads omitted
+these six fields. One existing lead's source metadata, verified from its original
+Pabbly history, was replayed through the deployed intake. The response confirmed
+an existing lead; exact IDs and names were saved. The initial source detail display was later
+replaced with city-only campaign tags at the user's request.
+This replay did not create a contact or send notifications. A new automatic
+Pabbly delivery has not yet been observed after the mapping change.
+
 ## Works without an API key
 
 The default check runs entirely on the server using bundled public U.S. Census
