@@ -121,10 +121,30 @@ export default async function handler(req, res) {
   if (allEmails.length) {
     const { data: leads } = await supabase
       .from('leads')
-      .select('email, status, ghl_contact_id, investment_level')
+      .select('email, status, ghl_contact_id, investment_level, franchise_brand, brand_slug')
       .in('email', allEmails);
     (leads || []).forEach(l => { leadsByEmail[l.email?.toLowerCase()] = l; });
   }
+
+  // Brand slug → display label map, so every meeting can show which brand it's for.
+  // Personal/rep calendars (is_personal) render as "First's Calendar" rather than
+  // the person's full name, so they don't masquerade as a franchise brand.
+  const brandsBySlug = {};
+  {
+    const { data: brandRows } = await supabase.from('brands').select('slug, name, is_personal');
+    (brandRows || []).forEach(br => {
+      if (!br.slug) return;
+      const name = br.name || br.slug;
+      brandsBySlug[br.slug] = br.is_personal
+        ? `${String(name).trim().split(/\s+/)[0]}'s Calendar`
+        : name;
+    });
+  }
+  const resolveBrand = (slug, lead) =>
+    (slug && brandsBySlug[slug]) ||
+    (lead?.brand_slug && brandsBySlug[lead.brand_slug]) ||
+    lead?.franchise_brand ||
+    null;
 
   const sbBks = rawSB.map(b => {
     const lead           = leadsByEmail[b.email] ?? null;
@@ -269,6 +289,7 @@ export default async function handler(req, res) {
         cq_received_at:   ovr.cq_received_at  || b.cq_received_at || cq.cq_received_at || null,
         ghl_contact_id:   b.ghl_contact_id   || ghlC.id             || null,
         investment_level: b.investment_level || ghlC.liquidCapital  || lead.investment_level || null,
+        brand:            resolveBrand(b.brand_slug, lead),
       });
     }
   }
@@ -304,7 +325,7 @@ export default async function handler(req, res) {
 export async function fetchSupabase(supabase, from, to) {
   let q = supabase
     .from('bookings')
-    .select('id, first_name, last_name, email, phone, slot_start, slot_end, status, investment_level, assigned_to_email, meet_link, created_at, lead_score, show_probability, fb_attribution, booking_source, cq_sent_at, cq_received_at')
+    .select('id, first_name, last_name, email, phone, slot_start, slot_end, status, investment_level, assigned_to_email, meet_link, created_at, lead_score, show_probability, fb_attribution, booking_source, brand_slug, cq_sent_at, cq_received_at')
     .order('slot_start', { ascending: true });
   if (from && to) q = q.gte('slot_start', from.toISOString()).lte('slot_start', to.toISOString());
   const { data, error } = await q;
