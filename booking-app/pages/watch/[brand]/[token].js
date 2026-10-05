@@ -33,7 +33,7 @@ export async function getServerSideProps({ params }) {
   const supabase = getSupabaseAdmin();
 
   const [{ data: brand }, { data: settings }] = await Promise.all([
-    supabase.from('brands').select('slug, name, wistia_video_id, meeting_title, accent_color').eq('slug', slug).maybeSingle(),
+    supabase.from('brands').select('slug, name, wistia_video_id, meeting_title, accent_color, routing_rules').eq('slug', slug).maybeSingle(),
     supabase.from('settings').select('timezone, days_ahead').eq('id', 1).maybeSingle(),
   ]);
   if (!brand) return { notFound: true };
@@ -47,6 +47,27 @@ export async function getServerSideProps({ params }) {
       .order('created_at', { ascending: false }).limit(1).maybeSingle());
   } else if (token) {
     ({ data: lead } = await supabase.from('leads').select(LEAD_COLS).eq('token', token).maybeSingle());
+  }
+
+  // Brands can temporarily bypass the watch funnel and send traffic straight
+  // to the normal booking calendar. This lets Facebook continue using the same
+  // /watch/<brand>/latest destination while we switch the funnel mode in data.
+  if (brand?.routing_rules?.funnel_mode === 'direct_booking') {
+    const qs = new URLSearchParams();
+    if (lead?.first_name) qs.set('first_name', lead.first_name);
+    if (lead?.last_name) qs.set('last_name', lead.last_name);
+    if (lead?.email) qs.set('email', lead.email);
+    if (lead?.phone) qs.set('phone', lead.phone);
+    if (lead?.investment_level) qs.set('liquid_capital', lead.investment_level);
+    if (lead?.token) qs.set('lead_id', lead.token);
+
+    const query = qs.toString();
+    return {
+      redirect: {
+        destination: `/${slug}${query ? `?${query}` : ''}`,
+        permanent: false,
+      },
+    };
   }
 
   // Downstream saves (watch tracking, questionnaire) key off the real lead token.
