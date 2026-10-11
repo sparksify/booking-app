@@ -290,7 +290,7 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
   }
 
   async function confirmBooking() {
-    if (!selDate || !selSlot) return;
+    if (!selDate || !selSlot || booking) return;
     setBooking(true); setBookErr('');
     try {
       const payload = {
@@ -315,18 +315,23 @@ export default function BrandBookingPage({ brand, settings, prefill }) {
       });
       const d = await r.json();
 
-      if (!r.ok) { setBookErr(d.error || 'Booking failed.'); setBooking(false); return; }
+      if (!r.ok || d.success !== true || !d.bookingId) { setBookErr(d.error || 'Booking failed.'); setBooking(false); return; }
 
       setBookedSlot({ date: selDate, slot: selSlot });
       setMeetLink(d.meetLink || null);
       setBookingId(d.bookingId || null);
       setPhase('booked');
 
-      trackWithBooking('booking_confirmed', leadId, d.bookingId, { brand: cfg.brandSlug });
-      trackLead(answers.email, 'booking_confirmed', { brand: cfg.brandSlug }, leadId);
-      pixelEvent('Schedule');
+      try {
+        trackWithBooking('booking_confirmed', leadId, d.bookingId, { brand: cfg.brandSlug });
+        trackLead(answers.email, 'booking_confirmed', { brand: cfg.brandSlug }, leadId);
+        pixelEvent('Schedule');
+      } catch { /* analytics must not interfere with a confirmed booking */ }
+      if (d.redirectUrl) {
+        try { const target = new URL(d.redirectUrl); if (target.protocol === 'https:') window.location.assign(target.href); } catch { /* keep standard confirmation */ }
+      }
     } catch (e) {
-      setBookErr('Something went wrong. Please try again.');
+      setBookErr('We could not confirm the booking response. Check your email or contact your consultant before trying again.');
     }
     setBooking(false);
   }

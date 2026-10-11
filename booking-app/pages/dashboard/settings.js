@@ -415,6 +415,11 @@ export default function Dashboard({ initialMembers, initialBookings, initialSett
       body: JSON.stringify(brand),
     });
     const d = await r.json();
+    if (!r.ok) {
+      setBrandSaving(s => ({ ...s, [brand.id]: false }));
+      window.alert(d.error || 'Calendar settings could not be saved.');
+      return;
+    }
     if (d.brand) {
       setBrands(bs => method === 'POST'
         ? [...bs.filter(b => !b.id.startsWith('new_')), d.brand]
@@ -1614,6 +1619,12 @@ function CalCard({ cal, expandedBrand, setExpandedBrand, brandSaving, brandSaved
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
             <div style={s.field}><label style={s.label}>Meeting Title</label><input style={s.input} value={cal.meeting_title || ''} onChange={e => onUpdate(cal.id, 'meeting_title', e.target.value)} placeholder="15-Minute Phone Call" /></div>
             <div style={s.field}><label style={s.label}>Duration (min)</label><input style={s.input} type="number" value={cal.meeting_duration || 15} onChange={e => onUpdate(cal.id, 'meeting_duration', parseInt(e.target.value)||15)} /></div>
+          </div>
+
+          <div style={{ ...s.field, marginBottom: 14 }}>
+            <label style={s.label}>Thank-you page URL (optional)</label>
+            <input style={s.input} type="url" value={cal.thank_you_redirect_url || ''} onChange={e => onUpdate(cal.id, 'thank_you_redirect_url', e.target.value)} placeholder="https://www.franchisedealflow.com/pilates/confirmed" />
+            <p style={{ fontSize: 12, color: '#64748B' }}>After a successful booking, continue to this page. Use a full HTTPS URL without query parameters. Leave blank to use the standard confirmation. The destination must support Kanso confirmation references.</p>
           </div>
 
           {/* Calendar settings */}

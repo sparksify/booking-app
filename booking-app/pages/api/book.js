@@ -1,6 +1,7 @@
+import { issueConfirmation } from '@/lib/bookingConfirmation.mjs';
 import crypto from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { createCalendarEvent, isMemberFreeAt } from '@/lib/googleCalendar';
+import { createCalendarEvent, isMemberFreeAt, deleteCalendarEvent } from '@/lib/googleCalendar';
 import { sendConfirmationEmail, sendBookingAlert } from '@/lib/resend';
 import { sendCapiEvents, buildCapiEvent } from '@/lib/fbConversionsApi';
 import { upsertGHLContact, createGHLOpportunity, addGHLTags, createGHLAppointment, removeContactFromWorkflow } from '@/lib/ghl';
@@ -96,6 +97,8 @@ export default async function handler(req, res) {
     .eq('active', true)
     .not('google_refresh_token', 'is', null);
 
+  let confirmedStart = null;
+  let confirmedEnd = null;
   let meetLink      = null;
   let eventId       = null;
   let assignedEmail = null;
@@ -156,6 +159,7 @@ export default async function handler(req, res) {
           assignedEmail = member.email;
           assignedName  = member.name;
           eventId       = result.eventId;
+          confirmedStart = result.start; confirmedEnd = result.end;
           meetLink      = result.meetLink;
           break;
         } catch (calErr) {
@@ -189,6 +193,7 @@ export default async function handler(req, res) {
       try {
         const result = await createCalendarEvent(member, { firstName, lastName, email, phone, date, h, m }, settings);
         eventId  = result.eventId;
+      confirmedStart = result.start; confirmedEnd = result.end;
         meetLink = result.meetLink;
       } catch (err) {
         console.error('[book] createCalendarEvent error:', err.message);
@@ -218,18 +223,21 @@ export default async function handler(req, res) {
     try {
       const result = await createCalendarEvent(member, { firstName, lastName, email, phone, date, h, m }, settings);
       eventId  = result.eventId;
+      confirmedStart = result.start; confirmedEnd = result.end;
       meetLink = result.meetLink;
     } catch (err) {
       console.error('[book] fallback createCalendarEvent error:', err.message);
     }
   }
 
+  if (!eventId || !assignedEmail || !confirmedStart || !confirmedEnd) {
+    return res.status(409).json({ error: 'This appointment could not be confirmed. Please select another available time.' });
+  }
+
   // ── Save to Supabase ────────────────────────────────────────────────────────
-  // Convert local slot time to correct UTC using the settings timezone
-  const [sy, smo, sd] = date.split('-').map(Number);
-  const offsetMins = getOffsetMinutes(date, settings.timezone);
-  const startMs = Date.UTC(sy, smo - 1, sd, h, m, 0) - offsetMins * 60_000;
-  const endMs   = startMs + settings.meetingDuration * 60_000;
+  // Use the actual Google event instants, including its resolved DST offset.
+  const startMs = Date.parse(confirmedStart);
+  const endMs   = Date.parse(confirmedEnd);
 
   // ── Resolve or create lead record ────────────────────────────────────────────
   // Ensures every booking — whether from a token link or a direct Facebook ad
@@ -293,7 +301,7 @@ export default async function handler(req, res) {
   const leadScore      = computeLeadScore(bookingForScoring, null);
   const showProbability = computeShowProbability(bookingForScoring, null);
 
-  const { error: dbError } = await supabase.from('bookings').insert({
+  const { data: savedBooking, error: dbError } = await supabase.from('bookings').insert({
     first_name:        firstName,
     last_name:         lastName,
     email,
@@ -310,21 +318,18 @@ export default async function handler(req, res) {
     show_probability:  showProbability,
     booking_source:    resolvedSource,
     lead_id:           resolvedLeadDbId,
-  });
+  }).select('id').single();
 
-  if (dbError) console.error('[book] db insert error:', dbError);
-
-  // Get the inserted booking ID for event tracking
-  let bookingId = null;
-  if (!dbError) {
-    const { data: inserted } = await supabase
-      .from('bookings')
-      .select('id')
-      .eq('email', email)
-      .eq('slot_start', new Date(startMs).toISOString())
-      .single();
-    bookingId = inserted?.id || null;
+  if (dbError || !savedBooking?.id) {
+    const member = (allMembers || []).find(m => m.email === assignedEmail);
+    try {
+      await deleteCalendarEvent(member, eventId);
+      return res.status(503).json({ error: 'We could not save your appointment. Please try again shortly.' });
+    } catch {
+      return res.status(503).json({ error: 'Your calendar invitation may have been created, but we could not save the booking. Please contact your consultant before booking again.' });
+    }
   }
+  const bookingId = savedBooking.id;
 
   // ── Facebook Conversions API — Schedule event ───────────────────────────────
   sendCapiEvents([
@@ -498,7 +503,13 @@ export default async function handler(req, res) {
     }).catch(() => {});
   }
 
-  res.json({ success: true, meetLink, bookingId });
+  let redirectUrl = null;
+  if (brand?.thank_you_redirect_url) {
+    try { redirectUrl = await issueConfirmation(supabase, bookingId, brand.thank_you_redirect_url, settings.timezone, settings.meetingTitle); }
+    catch { console.warn('[book] external confirmation unavailable; keeping standard confirmation'); }
+  }
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ success: true, meetLink, bookingId, redirectUrl });
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

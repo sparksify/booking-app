@@ -1,3 +1,4 @@
+import { validateRedirect } from '@/lib/bookingConfirmation.mjs';
 /**
  * /api/dashboard/brands
  *
@@ -17,6 +18,10 @@ export default async function handler(req, res) {
   const session = await getServerSession(req, res, authOptions);
   if (!session) return res.status(401).json({ error: 'Unauthorized' });
 
+  if ((req.method === 'POST' || req.method === 'PUT') && req.body.thank_you_redirect_url !== undefined) {
+    try { req.body.thank_you_redirect_url = validateRedirect(req.body.thank_you_redirect_url); }
+    catch { return res.status(400).json({ error: 'Use a full public HTTPS thank-you URL without query parameters or a fragment.' }); }
+  }
   const supabase = getSupabaseAdmin();
 
   // ── GET — list all brands ──────────────────────────────────────────────────
@@ -37,7 +42,7 @@ export default async function handler(req, res) {
       meeting_title, meeting_duration,
       event_description, event_location, event_color, event_reminder_mins,
       fb_form_ids, ghl_tags, rep_emails,
-      routing_rules,
+      routing_rules, thank_you_redirect_url,
     } = req.body;
 
     if (!slug || !name) return res.status(400).json({ error: 'slug and name are required' });
@@ -68,6 +73,7 @@ export default async function handler(req, res) {
         ghl_tags:            ghl_tags            || [],
         rep_emails:          rep_emails          || [],
         routing_rules:       routing_rules       || {},
+        thank_you_redirect_url: thank_you_redirect_url || null,
         routing_counters:    {},
         updated_at:          new Date().toISOString(),
       })
@@ -86,7 +92,7 @@ export default async function handler(req, res) {
     const allowed = [
       'type', 'slug', 'name', 'active', 'accent_color',
       'booking_headline', 'booking_subtitle', 'booking_description',
-      'meeting_title', 'meeting_duration',
+      'meeting_title', 'meeting_duration', 'thank_you_redirect_url',
       'event_description', 'event_location', 'event_color', 'event_reminder_mins',
       'fb_form_ids', 'ghl_tags', 'rep_emails', 'routing_rules',
     ];
