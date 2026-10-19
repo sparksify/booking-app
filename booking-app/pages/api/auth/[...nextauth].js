@@ -2,7 +2,28 @@ import NextAuth from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
+// Match NextAuth's default cookie naming (secure prefix on https) so existing
+// sessions survive this config change.
+const useSecureCookies =
+  process.env.NEXTAUTH_URL?.startsWith('https://') ??
+  process.env.NODE_ENV === 'production';
+
 export const authOptions = {
+  // The dashboard is embedded in a cross-site iframe (GoHighLevel), where
+  // SameSite=Lax cookies are never sent. SameSite=None requires Secure.
+  // CSRF exposure this opens up is handled by the origin check in middleware.js.
+  cookies: {
+    sessionToken: {
+      name: `${useSecureCookies ? '__Secure-' : ''}next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'none',
+        path: '/',
+        secure: true,
+      },
+    },
+  },
+
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID,
