@@ -13,7 +13,7 @@
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 import { sendMessage } from '@/lib/bluebubbles';
-import { logEvent } from '@/lib/leadEvents';
+import { logLeadEvent } from '@/lib/leadEvents';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
 export default async function handler(req, res) {
@@ -47,13 +47,26 @@ export default async function handler(req, res) {
       }
 
       if (resolvedLeadId) {
-        await logEvent({
-          supabase,
-          leadId:    resolvedLeadId,
-          eventType: 'imessage_sent',
-          label:     `iMessage sent by ${repEmail || 'rep'}: "${message.trim().slice(0, 60)}${message.length > 60 ? '…' : ''}"`,
-          repEmail,
-        });
+        const { data: lead } = await supabase
+          .from('leads')
+          .select('email, fb_lead_id')
+          .eq('id', resolvedLeadId)
+          .maybeSingle();
+
+        if (lead?.email) {
+          await logLeadEvent(
+            lead.email,
+            'imessage_sent',
+            {
+              label: `iMessage sent by ${repEmail || 'rep'}: "${message.trim().slice(0, 60)}${message.length > 60 ? '…' : ''}"`,
+              rep_email: repEmail,
+            },
+            {
+              leadId: lead.fb_lead_id,
+              bookingId: booking_id || null,
+            }
+          );
+        }
       }
     }
 

@@ -27,7 +27,7 @@
  */
 
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { logEvent } from '@/lib/leadEvents';
+import { logLeadEvent } from '@/lib/leadEvents';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -74,21 +74,24 @@ export default async function handler(req, res) {
   // Search leads table — try multiple phone formats
   const { data: leads } = await supabase
     .from('leads')
-    .select('id, first_name, last_name')
+    .select('id, first_name, last_name, email, fb_lead_id')
     .or(`phone.ilike.%${normalized}%,phone.ilike.%${address}%`)
     .limit(1);
 
   const lead = leads?.[0] || null;
 
-  if (lead) {
-    await logEvent({
-      supabase,
-      leadId:    lead.id,
-      eventType: 'imessage_received',
-      label:     `iMessage received from ${lead.first_name || address}: "${messageText.slice(0, 80)}${messageText.length > 80 ? '…' : ''}"`,
-      repEmail:  null,
-    });
+  if (lead?.email) {
+    await logLeadEvent(
+      lead.email,
+      'imessage_received',
+      {
+        label: `iMessage received from ${lead.first_name || address}: "${messageText.slice(0, 80)}${messageText.length > 80 ? '…' : ''}"`,
+      },
+      { leadId: lead.fb_lead_id }
+    );
     console.log(`[bb-webhook] logged imessage_received for lead ${lead.id}`);
+  } else if (lead) {
+    console.log(`[bb-webhook] lead ${lead.id} has no email — event not logged`);
   } else {
     console.log(`[bb-webhook] no lead found for address ${address} — event not logged`);
   }
