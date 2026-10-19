@@ -485,11 +485,17 @@ export async function fetchGHL(from, to) {
   const locationId = process.env.GHL_LOCATION_ID;
   if (!apiKey || !locationId) return [];
 
-  // Fetch both calendars in parallel, then deduplicate by event ID
-  const calendarIds = [
+  // Steve's designated calendar — every appointment on it routes to Steve's
+  // Daily Meetings (see the rep override in the map below), whatever GHL has as
+  // the assigned user.
+  const STEVE_CALENDAR_ID = process.env.GHL_CALENDAR_STEVE || 'RkS5DSD901q9AUmyY5uu';
+
+  // Fetch all calendars in parallel, then deduplicate by event ID.
+  const calendarIds = [...new Set([
     process.env.GHL_CALENDAR_ID   || DEFAULT_GHL_CALENDAR_ID,
     process.env.GHL_CALENDAR_ID_2  || DEFAULT_GHL_CALENDAR_ID_2,
-  ];
+    STEVE_CALENDAR_ID,
+  ].filter(Boolean))];
 
   const fetchHeaders = {
     'Authorization': `Bearer ${apiKey}`,
@@ -514,15 +520,20 @@ export async function fetchGHL(from, to) {
 
   const seenIds = new Set();
   const events  = [];
-  for (const result of calResults) {
+  calResults.forEach((result, ci) => {
+    const calId = calendarIds[ci];
     if (result.status === 'fulfilled') {
       for (const ev of (result.value.events || result.value.appointments || [])) {
-        if (!seenIds.has(ev.id)) { seenIds.add(ev.id); events.push(ev); }
+        if (!seenIds.has(ev.id)) {
+          seenIds.add(ev.id);
+          ev._kansoCalId = ev.calendarId || calId; // remember which calendar it came from
+          events.push(ev);
+        }
       }
     } else {
       console.error('[fetchGHL] calendar fetch failed:', result.reason?.message);
     }
-  }
+  });
 
   const ghlHeaders = { 'Authorization': `Bearer ${apiKey}`, 'Version': GHL_VERSION };
 
@@ -571,9 +582,12 @@ export async function fetchGHL(from, to) {
 
     // Resolve assigned rep name — normalize variants to canonical names
     const assignedUserId   = ev.assignedUserId || null;
-    const assignedUserName = assignedUserId
+    let   assignedUserName = assignedUserId
       ? normalizeRepName(userMap[assignedUserId] || null)
       : null;
+    // Appointments on Steve's designated calendar always route to Steve, so they
+    // show in his Daily Meetings regardless of GHL's assigned user (or none).
+    if ((ev._kansoCalId || ev.calendarId) === STEVE_CALENDAR_ID) assignedUserName = 'Steve Sparks';
 
     // Pull liquid capital from GHL custom fields
     const liquidCapital = getGHLLiquidCapital(contact);
