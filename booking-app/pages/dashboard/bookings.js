@@ -180,7 +180,7 @@ function SourceBadge({ source }) {
 }
 
 // ─── Main dashboard ───────────────────────────────────────────────────────────
-export default function BookingsDashboard({ brandPitches = {}, perms = {}, platformLogo = null, navOrder = null }) {
+export default function BookingsDashboard({ brandPitches = {}, perms = {}, platformLogo = null, navOrder = null, embed = false }) {
   const { data: session } = useSession();
   const router = useRouter();
   const focusedRef = useRef(false);
@@ -217,6 +217,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
   const [isAdmin,      setIsAdmin]      = useState(true);   // "can view all reps"
   const [canTransfer,  setCanTransfer]  = useState(true);
   const [activeReps,   setActiveReps]   = useState(null);  // null until loaded
+  const [menuOpen,     setMenuOpen]     = useState(false); // embed hamburger menu
   // smsConfirmations: { [bookingId]: { status, note, loading } }
   const [smsConfirmations, setSmsConfirmations] = useState({});
   const nowLineRef    = useRef(null);
@@ -547,7 +548,8 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
       <Head><title>Meetings — KANSO</title></Head>
       <div style={s.page}>
 
-        {/* ── White Sidebar ── */}
+        {/* ── White Sidebar (hidden in embed mode) ── */}
+        {!embed && (
         <aside style={s.sidebar}>
           {/* Logo */}
           <div style={s.sideLogoWrap}>
@@ -577,6 +579,7 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
             <SidebarUser avatarUrl={repAvatars?.[session?.user?.email] || null} />
           </div>
         </aside>
+        )}
 
         {/* ── Main ── */}
         <div style={s.main}>
@@ -610,6 +613,27 @@ export default function BookingsDashboard({ brandPitches = {}, perms = {}, platf
               <button onClick={load} style={s.topBtn}>↻ Refresh</button>
               <button onClick={() => setAddOpen(true)} style={s.topBtnPrimary}>+ Add Call</button>
               <button onClick={downloadCSV} style={s.topBtn}>Export ▾</button>
+              {embed && (
+                <div style={{ position: 'relative' }}>
+                  <button onClick={() => setMenuOpen(o => !o)} style={s.topBtn} aria-label="Menu">☰</button>
+                  {menuOpen && (
+                    <>
+                      <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
+                      <div style={{ position: 'absolute', right: 0, top: '115%', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 10px 30px rgba(15,23,42,.16)', padding: 6, zIndex: 100, minWidth: 200 }}>
+                        {visibleNav(perms, navOrder)
+                          .filter(i => !/\/(nurture|dealos)$/.test(i.href))
+                          .map(({ href, label, icon }) => (
+                            <Link key={href} href={href} onClick={() => setMenuOpen(false)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', fontSize: 13, fontWeight: 600, color: '#334155', textDecoration: 'none', borderRadius: 8 }}>
+                              <span style={{ color: '#9CA3AF', display: 'flex' }}><SideIcon name={icon} /></span>
+                              {label}
+                            </Link>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
