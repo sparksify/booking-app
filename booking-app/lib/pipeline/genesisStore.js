@@ -1,4 +1,5 @@
 import { sameLead } from './genesisRun.mjs';
+import { retryDespiteTerminal } from './franchiseGate.mjs';
 
 const RETRYABLE = new Set(['Error', 'Pending', 'Enriching']);
 
@@ -30,13 +31,15 @@ export async function findExistingLead(db, lead) {
   return null;
 }
 
+function canRetry(existing, lead) {
+  return RETRYABLE.has(existing.status) || retryDespiteTerminal(existing, lead);
+}
+
 export function createGenesisStore(db) {
   return {
     async claim(lead) {
-      const existing = await findExistingLead(db, lead);
-      if (existing && !RETRYABLE.has(existing.status)) return { duplicate: true, row: existing };
-      const now = new Date().toISOString();
-      if (existing) {
+      const reopen = async existing => {
+        const now = new Date().toISOString();
         const { data, error } = await db.from('genesis_leads').update({
           status: 'Pending',
           stage: 'pending',
@@ -45,7 +48,11 @@ export function createGenesisStore(db) {
         }).eq('id', existing.id).select().single();
         if (error) throw error;
         return { duplicate: false, row: data, retried: true };
-      }
+      };
+      const existing = await findExistingLead(db, lead);
+      if (existing && !canRetry(existing, lead)) return { duplicate: true, row: existing };
+      if (existing) return reopen(existing);
+      const now = new Date().toISOString();
       const { data, error } = await db.from('genesis_leads').insert({
         external_id: lead.external_id,
         source: lead.source,
@@ -73,6 +80,7 @@ export function createGenesisStore(db) {
       }).select().single();
       if (error?.code === '23505') {
         const again = await findExistingLead(db, lead);
+        if (again && canRetry(again, lead)) return reopen(again);
         if (again) return { duplicate: true, row: again };
       }
       if (error) throw error;
