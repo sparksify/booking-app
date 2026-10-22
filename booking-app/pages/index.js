@@ -432,14 +432,18 @@ export default function BookingPage() {
           brand:            brandRef.current || undefined,
         }),
       });
-      const data = res.ok ? await res.json() : {};
-      trackWithBooking('booking_completed', leadId, data.bookingId || null, {
-        dateStr: selDate.dateStr, h: selSlot.h, m: selSlot.m, source: 'calendar',
-      });
-      pixelTrack('Schedule', { content_name: 'Appointment Booked', content_category: 'Franchise' });
-    } catch (_) {}
+      const data = await res.json();
+      if (!res.ok || data.success !== true || !data.bookingId) { window.alert(data.error || 'Booking could not be confirmed.'); setBooking(false); return; }
+      try {
+        trackWithBooking('booking_completed', leadId, data.bookingId || null, {
+          dateStr: selDate.dateStr, h: selSlot.h, m: selSlot.m, source: 'calendar',
+        });
+        pixelTrack('Schedule', { content_name: 'Appointment Booked', content_category: 'Franchise' });
+      } catch { /* analytics must not interfere with a confirmed booking */ }
+      setPhase('booked');
+      if (data.redirectUrl) { try { const target = new URL(data.redirectUrl); if (target.protocol === 'https:') window.location.assign(target.href); } catch {} }
+    } catch (_) { window.alert('We could not confirm the booking response. Check your email or contact your consultant before trying again.'); }
     setBooking(false);
-    setPhase('booked');
   }
 
   // Select the recommended slot → this slides up the confirm bar (same as

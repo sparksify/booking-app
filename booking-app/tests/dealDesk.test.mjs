@@ -30,7 +30,9 @@ test('business-day defaults skip weekends in configured timezone', () => {
   assert.equal(wallClockValue(addDaysAtWorkTime(1, friday, 'America/Chicago'), 'America/Chicago'), '2026-09-19T10:00');
 });
 
-test('gap helper avoids meetings and allocated follow-ups', () => {
+test('gap helper avoids meetings and allocated follow-ups', (t) => {
+  // Hold the clock before the fixture workday so the future-slot filter is deterministic.
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-09-21T13:00:00Z') });
   const tz = 'America/Chicago';
   const day = parseWallClock('2026-09-21T08:00', tz);
   const meetings = [{ slot_start: parseWallClock('2026-09-21T09:00', tz), slot_end: parseWallClock('2026-09-21T09:30', tz) }];

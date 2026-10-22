@@ -361,7 +361,7 @@ export async function createCalendarEvent(member, booking, settings) {
     requestBody,
   });
 
-  return { eventId: event.data.id, meetLink: null };
+  return { eventId: event.data.id, meetLink: null, start: event.data.start?.dateTime, end: event.data.end?.dateTime };
 }
 
 // ─── Transfer helpers ─────────────────────────────────────────────────────────
