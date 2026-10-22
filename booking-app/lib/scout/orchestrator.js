@@ -4,11 +4,7 @@ import { searchWeb } from './search';
 import { extractCandidates } from './extract';
 import { normalizeCandidate, scoutCandidateToGenesisBusiness } from './normalize';
 import { qualifyScoutCandidate } from './qualify';
-import { invokeHandler } from './invokeHandler';
-import filterHandler from '@/pages/api/pipeline/filter';
-import discoverHandler from '@/pages/api/pipeline/discover';
-import enrichHandler from '@/pages/api/pipeline/enrich';
-import outreachHandler from '@/pages/api/pipeline/outreach';
+import { executeGenesis } from '@/lib/pipeline/runGenesis';
 
 const DAY=86400000;
 const event=(db,event_type,message,extra={})=>db.from('scout_events').insert({event_type,message,...extra});
@@ -57,19 +53,65 @@ async function executeMission(db,mission,settings) {
     await event(db,'search_completed',`${query}: ${results.length} results, ${found} candidates`,{mission_id:mission.id,metadata:{query,results:results.length,found,qualified,duplicates}}); return {found,qualified,duplicates};
   } catch(error){const failures=(mission.consecutive_errors||0)+1,delay=failures>=5?14:failures>=3?7:1;await db.from('scout_missions').update({status:failures>=5?'DEGRADED':'READY',consecutive_errors:failures,last_error:error.message,claimed_at:null,next_run_at:new Date(Date.now()+delay*DAY).toISOString(),updated_at:new Date().toISOString()}).eq('id',mission.id);await event(db,'error',`Mission failed: ${error.message}`,{mission_id:mission.id,metadata:{failures}});return {error:error.message};}
 }
-async function genesisHandoff(db,candidate,outreachEnabled) {
-  await db.from('scout_candidates').update({genesis_status:'DISCOVERING'}).eq('id',candidate.id);
+async function genesisHandoff(db, candidate, outreachEnabled) {
+  await db.from('scout_candidates').update({ genesis_status: 'DISCOVERING' }).eq('id', candidate.id);
   try {
-    const business=scoutCandidateToGenesisBusiness(candidate); const filtered=await invokeHandler(filterHandler,{businesses:[business]});
-    if(!filtered.businesses?.length){await db.from('scout_candidates').update({qualification_status:'REJECTED',genesis_status:'REJECTED_EXISTING_FRANCHISE',rejection_reason:'Existing franchise detected',processed_at:new Date().toISOString()}).eq('id',candidate.id);await event(db,'candidate_rejected',`${candidate.business_name}: existing franchise detected`,{candidate_id:candidate.id});return;}
-    const discovered=await invokeHandler(discoverHandler,{businesses:filtered.businesses}); await db.from('scout_candidates').update({genesis_status:'ENRICHING'}).eq('id',candidate.id); await event(db,'genesis_owner_found',discovered.businesses[0]?.owner_name?`Owner identified for ${candidate.business_name}: ${discovered.businesses[0].owner_name}`:`No owner found for ${candidate.business_name}`,{candidate_id:candidate.id});
-    const enriched=await invokeHandler(enrichHandler,{businesses:discovered.businesses}); const prospect=enriched.results[0]; let outreach=null;
-    if(outreachEnabled&&prospect?.loadable&&prospect.email) outreach=await invokeHandler(outreachHandler,{businesses:[prospect]});
-    const out=outreach?.results?.[0]; const {data:run,error:runErr}=await db.from('pipeline_runs').insert({city:candidate.city||'Scout',industry:candidate.industry||'Unknown',found:1,enriched_count:prospect?.enriched?1:0,enrichment_rate:prospect?.enriched?100:0,loaded:out?.outreach_status==='loaded'?1:0,ownership_candidates:0}).select().single();if(runErr)throw runErr;
-    const source=(await db.from('scout_candidate_sources').select('source_url').eq('candidate_id',candidate.id).limit(1)).data?.[0];
-    const {data:saved,error:saveErr}=await db.from('pipeline_prospects').insert({run_id:run.id,business_name:candidate.business_name,city:candidate.city,industry:candidate.industry,owner_name:prospect?.owner_name||prospect?.email_owner,email:prospect?.email?.toLowerCase()||null,domain:candidate.domain,website:candidate.website,email_source:prospect?.email_source,verification:prospect?.verification,phone:prospect?.phone,franchise_score:candidate.qualification_score||0,total_score:candidate.qualification_score||0,signals:candidate.qualification_reasons||[],enriched:!!prospect?.enriched,loaded:out?.outreach_status==='loaded',smartlead_status:outreachEnabled?(out?.outreach_status||'not_loadable'):'discovery_only',source_type:'scout',scout_candidate_id:candidate.id,scout_strategy:candidate.primary_strategy,scout_mission_id:candidate.primary_mission_id,scout_score:candidate.qualification_score,scout_source_url:source?.source_url}).select().single();if(saveErr)throw saveErr;
-    const status=out?.outreach_status==='loaded'?'SMARTLEAD_LOADED':prospect?.enriched?'ENRICHED':discovered.businesses[0]?.owner_name?'OWNER_FOUND':'RESEARCHED';await db.from('scout_candidates').update({genesis_status:status,pipeline_prospect_id:saved.id,processed_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',candidate.id);await db.from('scout_usage').insert({kind:'genesis',candidate_id:candidate.id,mission_id:candidate.primary_mission_id});await event(db,'sent_to_genesis',`${candidate.business_name} sent to Genesis (${outreachEnabled?'live outreach':'discovery only'})`,{candidate_id:candidate.id,metadata:{status,email_found:!!prospect?.email}});if(out?.outreach_status==='loaded')await event(db,'smartlead_loaded',`${candidate.business_name} loaded into Smartlead`,{candidate_id:candidate.id});
-  } catch(error){await db.from('scout_candidates').update({genesis_status:'FAILED_RETRYABLE',last_error:error.message,retry_count:(candidate.retry_count||0)+1,updated_at:new Date().toISOString()}).eq('id',candidate.id);await event(db,'error',`Genesis handoff failed for ${candidate.business_name}: ${error.message}`,{candidate_id:candidate.id});}
+    const business = {
+      ...scoutCandidateToGenesisBusiness(candidate),
+      scout_candidate_id: candidate.id,
+      phone: candidate.phone || null,
+      place_id: candidate.place_id || null,
+    };
+    const out = await executeGenesis({ businesses: [business], source: 'scout' }, db);
+    const lead = out.leads?.[0] || {};
+    if (lead.deduped) {
+      await db.from('scout_candidates').update({
+        genesis_status: 'ALREADY_PROCESSED',
+        processed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', candidate.id);
+      await event(db, 'duplicate_suppressed', `${candidate.business_name} already exists in Genesis`, { candidate_id: candidate.id });
+      return;
+    }
+    if (lead.hold_reason === 'franchise') {
+      await db.from('scout_candidates').update({
+        qualification_status: 'REJECTED',
+        genesis_status: 'REJECTED_EXISTING_FRANCHISE',
+        rejection_reason: 'Existing franchise detected',
+        processed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', candidate.id);
+      await event(db, 'candidate_rejected', `${candidate.business_name}: existing franchise detected`, { candidate_id: candidate.id });
+      return;
+    }
+    if (lead.status === 'Error' || !lead.status) throw new Error(lead.error || 'Genesis pipeline returned no lead');
+    const status = { Enriched: 'ENRICHED', 'Needs Founder': 'NEEDS_FOUNDER', 'No Match': 'NO_MATCH' }[lead.status] || 'RESEARCHED';
+    const prospect = (out.prospects || []).find(row => row.scout_candidate_id === candidate.id) || out.prospects?.[0] || null;
+    await db.from('scout_candidates').update({
+      genesis_status: status,
+      pipeline_prospect_id: prospect?.id || null,
+      processed_at: new Date().toISOString(),
+      last_error: null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', candidate.id);
+    await db.from('scout_usage').insert({ kind: 'genesis', candidate_id: candidate.id, mission_id: candidate.primary_mission_id });
+    const ownerLine = lead.owner_name
+      ? `Owner identified for ${candidate.business_name}: ${lead.owner_name} (${lead.owner_confidence || 'low'})`
+      : `No confirmed owner for ${candidate.business_name}`;
+    await event(db, 'genesis_owner_found', ownerLine, { candidate_id: candidate.id, metadata: { confidence: lead.owner_confidence || null, sources: lead.owner_sources || [] } });
+    await event(db, 'sent_to_genesis', `${candidate.business_name} drafted in Genesis. Nothing was sent.`, {
+      candidate_id: candidate.id,
+      metadata: { status, email_found: lead.status === 'Enriched', outreach_enabled_ignored: !!outreachEnabled, sent: false },
+    });
+  } catch (error) {
+    await db.from('scout_candidates').update({
+      genesis_status: 'FAILED_RETRYABLE',
+      last_error: error.message,
+      retry_count: (candidate.retry_count || 0) + 1,
+      updated_at: new Date().toISOString(),
+    }).eq('id', candidate.id);
+    await event(db, 'error', `Genesis handoff failed for ${candidate.business_name}: ${error.message}`, { candidate_id: candidate.id });
+  }
 }
 export async function runScoutTick(db) {
   const {data:settings,error}=await db.from('scout_settings').select('*').eq('id',true).single();if(error)throw error;if(!settings.enabled)return {skipped:'paused'};

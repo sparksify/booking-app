@@ -1,6 +1,7 @@
 export const config = { maxDuration: 300 };
 
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { requirePipelineAccess } from '@/lib/scout/auth';
 
 // Phrases anywhere in the page (nav, body, footer) that signal franchise recruiting.
 const FRANCHISE_NAV_PATTERNS = [
@@ -153,7 +154,7 @@ async function saveFranchise(biz, franchiseCheck) {
   }
 }
 
-async function checkOne(biz) {
+export async function checkOne(biz) {
   const { business_name, website } = biz;
 
   if (!website) {
@@ -194,6 +195,7 @@ async function checkOne(biz) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!await requirePipelineAccess(req, res)) return;
   const { businesses } = req.body;
   if (!businesses || !Array.isArray(businesses)) return res.status(400).json({ error: 'businesses array required' });
   if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'Missing ANTHROPIC_API_KEY' });

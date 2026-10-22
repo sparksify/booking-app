@@ -1,6 +1,7 @@
 export const config = { maxDuration: 60 };
 
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { requirePipelineAccess } from '@/lib/scout/auth';
 
 // Cross-run dedup for the metro sweep.
 //
@@ -11,6 +12,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 //   - owner_name + domain (same person running a business on the same domain)
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!await requirePipelineAccess(req, res)) return;
 
   const { prospects } = req.body || {};
   if (!Array.isArray(prospects) || prospects.length === 0) {
