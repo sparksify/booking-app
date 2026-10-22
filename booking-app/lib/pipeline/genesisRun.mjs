@@ -1,5 +1,6 @@
 import { brandKey, domainOf, parseOwnerNames, personParts } from './ownerNames.mjs';
 import { enrichLead, sumCredits } from './genesisEnrich.mjs';
+import { franchiseBrandRow, franchiseOverrideReason, retryDespiteTerminal } from './franchiseGate.mjs';
 
 const RETRYABLE = new Set(['Error', 'Pending', 'Enriching']);
 
@@ -56,6 +57,7 @@ export function normalizeBusiness(raw, defaults = {}) {
     scout_candidate_id: raw.scout_candidate_id || null,
     source: defaults.source || 'manual',
     dry_run: !!defaults.dry_run,
+    franchise_override: franchiseOverrideReason(raw.franchise_override ?? raw.franchiseOverride),
   };
 }
 
@@ -74,7 +76,7 @@ export function memoryStore() {
     rows,
     async claim(lead) {
       const existing = rows.find(row => sameLead(row, lead));
-      if (existing && !RETRYABLE.has(existing.status)) return { duplicate: true, row: { ...existing } };
+      if (existing && !RETRYABLE.has(existing.status) && !retryDespiteTerminal(existing, lead)) return { duplicate: true, row: { ...existing } };
       if (existing) {
         Object.assign(existing, {
           status: 'Pending', stage: 'pending', error: null, updated_at: new Date().toISOString(),
@@ -225,6 +227,8 @@ export async function runGenesis(input, deps) {
   }
 
   const leads = [];
+  const franchises = [];
+  let mapsCharged = false;
   for (let index = 0; index < businesses.length; index++) {
     let claimedId = null;
     try {
@@ -241,23 +245,49 @@ export async function runGenesis(input, deps) {
       }
       claimedId = claimed.row.id;
       let stageLog = logStage([], 'claimed');
-      let calls = index === 0 ? [...mapsCalls] : [];
 
+      // Franchise gate is the first external step for this business. Maps place
+      // details, name sources, finders, and verifiers run only after it passes.
       const filtered = await deps.filterOne(biz);
       stageLog = logStage(stageLog, 'filter', { passed: !filtered.is_franchise, check: filtered.franchise_check || null });
-      if (filtered.is_franchise) {
+      if (filtered.is_franchise && !biz.franchise_override) {
+        const brand = franchiseBrandRow({ ...biz, ...filtered, source: parsed.source });
+        franchises.push(brand);
+        if (!dryRun && deps.recordFranchise) {
+          try { await deps.recordFranchise(brand); }
+          catch (error) { stageLog = logStage(stageLog, 'franchise_save_error', { message: error.message }); }
+        }
         leads.push(await deps.store.update(claimedId, {
           stage: 'filter',
           status: 'No Match',
           hold_reason: 'franchise',
           franchise_check: filtered.franchise_check || 'franchise',
           stage_log: stageLog,
-          calls,
-          credits: sumCredits(calls),
+          calls: [],
+          credits: 0,
           lookup_at: new Date().toISOString(),
           icebreaker_sent: false,
         }));
         continue;
+      }
+      if (biz.franchise_override) {
+        stageLog = logStage(stageLog, 'franchise_override', {
+          reason: biz.franchise_override,
+          classifier: filtered.franchise_check || null,
+        });
+        if (!dryRun && deps.recordOverride) {
+          try {
+            await deps.recordOverride({ ...franchiseBrandRow({ ...biz, ...filtered, source: parsed.source }), override_reason: biz.franchise_override });
+          } catch (error) {
+            stageLog = logStage(stageLog, 'franchise_override_log_error', { message: error.message });
+          }
+        }
+      }
+
+      let calls = [];
+      if (!mapsCharged && mapsCalls.length) {
+        calls = [...mapsCalls];
+        mapsCharged = true;
       }
 
       await deps.store.update(claimedId, { stage: 'discover', status: 'Enriching', stage_log: stageLog });
@@ -395,6 +425,7 @@ export async function runGenesis(input, deps) {
     industry: parsed.industry || null,
     summary,
     leads,
+    franchises,
     sent: false,
   };
 }

@@ -7,6 +7,7 @@ import { draftIcebreaker } from '@/lib/pipeline/icebreaker';
 import { createGenesisStore } from '@/lib/pipeline/genesisStore';
 import { dryRunDependencies, runGenesis } from '@/lib/pipeline/genesisRun.mjs';
 import { uuidOrNull } from '@/lib/pipeline/ownerNames.mjs';
+import { logFranchiseOverride, saveFranchiseBrand } from '@/lib/pipeline/franchiseStore';
 
 function liveDependencies(db) {
   return {
@@ -17,6 +18,8 @@ function liveDependencies(db) {
     discoverOne,
     enrichOne,
     draftIcebreaker: biz => draftIcebreaker(biz, { dryRun: false }),
+    recordFranchise: row => saveFranchiseBrand(db, row),
+    recordOverride: row => logFranchiseOverride(db, row),
   };
 }
 

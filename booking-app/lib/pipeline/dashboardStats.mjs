@@ -126,3 +126,29 @@ export function leadsToCsv(rows) {
   }
   return lines.join('\n');
 }
+
+export function franchisesToCsv(rows) {
+  const header = [
+    'brand', 'domain', 'city', 'evidence_url', 'evidence_kind', 'evidence_detail',
+    'confidence', 'found_at', 'source', 'record_id', 'scout_candidate_id', 'override_reason', 'overridden_at',
+  ];
+  const lines = [header.join(',')];
+  for (const row of rows || []) {
+    lines.push([
+      row.brand,
+      row.domain,
+      row.city,
+      row.evidence_url,
+      row.evidence_kind,
+      row.evidence_detail,
+      row.confidence,
+      row.found_at,
+      row.source,
+      row.external_id,
+      row.scout_candidate_id,
+      row.override_reason,
+      row.overridden_at,
+    ].map(csvCell).join(','));
+  }
+  return lines.join('\n');
+}

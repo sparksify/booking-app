@@ -2,34 +2,10 @@ export const config = { maxDuration: 300 };
 
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { requirePipelineAccess } from '@/lib/scout/auth';
+import { classifierConfirmsFranchise, franchiseBrandRow, pageFranchiseEvidence } from '@/lib/pipeline/franchiseGate.mjs';
+import { saveFranchiseBrand } from '@/lib/pipeline/franchiseStore.js';
 
-// Phrases anywhere in the page (nav, body, footer) that signal franchise recruiting.
-const FRANCHISE_NAV_PATTERNS = [
-  'franchise',
-  'own a business',
-  'start your own',
-  'open a location',
-  'own your own',
-  'become a franchisee',
-  'franchise opportunit',
-  'franchise development',
-  'franchise disclosure',
-  'territories available',
-  'territory available',
-  'available territories',
-  'available territory',
-  'protected territory',
-  'exclusive territory',
-];
-
-// Generic "Own a/an [Brand]" nav-link pattern — catches "Own an ISI®" for any brand,
-// no hardcoded names needed.
-const OWN_BRAND_RE = /\bown\s+(a|an|your\s+own)\b[^.<>\n]{0,40}/i;
-
-// "territory/territories ... available" even when not an exact phrase match above
-const TERRITORY_RE = /\bterritor(y|ies)\b[^.<>\n]{0,60}\bavailable\b|\bavailable\b[^.<>\n]{0,60}\bterritor(y|ies)\b/i;
-
-// Multi-location URL structure is itself a franchise signal
+// A location-style URL is not a franchise by itself. It prompts a look at /franchise.
 const LOCATION_URL_RE = /\/locations?\/|\/gyms\/|\/studios\/|\/stores\//i;
 
 function matchesLocationUrl(website) {
@@ -43,11 +19,7 @@ function matchesLocationUrl(website) {
 // before this check runs was silently cutting off the word "Franchise" in the nav before
 // we ever looked for it. This must run on the full page, every time.
 function quickFranchiseCheck(html) {
-  const lower = html.toLowerCase();
-  if (FRANCHISE_NAV_PATTERNS.some(p => lower.includes(p))) return true;
-  if (OWN_BRAND_RE.test(html)) return true;
-  if (TERRITORY_RE.test(html)) return true;
-  return false;
+  return pageFranchiseEvidence(html);
 }
 
 // Fetch the FULL page, no truncation here. Truncation only happens later, and only for
@@ -87,10 +59,10 @@ async function checkSiblingFranchisePages(website) {
     const candidates = [base, `${base}/franchise`, `${base}/franchising`, `${base}/own-a-franchise`];
     for (const url of candidates) {
       const html = await fetchWebsite(url);
-      if (html && quickFranchiseCheck(html)) return true;
+      if (html && quickFranchiseCheck(html)) return url;
     }
   } catch (e) { /* fall through */ }
-  return false;
+  return null;
 }
 
 async function claudeFranchiseCheck(businessName, html) {
@@ -112,46 +84,31 @@ async function claudeFranchiseCheck(businessName, html) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 100,
+        max_tokens: 400,
         messages: [{
           role: 'user',
-          content: `You are checking whether a business is already a franchise system (i.e. they franchise TO others, or are a location of a national/regional franchise brand).
+          content: `Decide whether this business offers franchises or is a unit of a franchise system.
 
-Look for: navigation links or page text mentioning franchise opportunities, becoming a franchisee, owning a franchise location, franchise development, franchise disclosure documents (FDD), "own a [brand]" language, or "territories available" language. Also consider whether the business name and branding suggest a multi-location national chain even if this specific excerpt doesn't mention franchising directly.
+Call it a franchise ONLY when the page itself shows one of these:
+- a Franchise Disclosure Document or FDD
+- a franchise, franchising, or franchisee page or offer
+- a franchisor or franchising entity
+- territories available for sale
+
+The business name, a multi-location feeling, or "own a business" language is NOT enough. If the page does not contain that evidence, answer INDEPENDENT.
 
 Business: ${businessName}
-Page navigation/header/footer HTML (these are the regions most likely to contain a "Franchise" nav link):
+Page text:
 ${contentForAI}
 
-Reply with ONLY one word: FRANCHISE or INDEPENDENT`,
+Return ONLY JSON:
+{"decision":"FRANCHISE or INDEPENDENT","evidence":"exact quote copied from the page, or empty"}`,
         }],
       }),
     });
     const d = await r.json();
-    const answer = d.content?.[0]?.text?.trim().toUpperCase();
-    return answer === 'FRANCHISE';
-  } catch (e) { return false; }
-}
-
-async function saveFranchise(biz, franchiseCheck) {
-  try {
-    const supabase = getSupabaseAdmin();
-    await supabase.from('pipeline_franchises').insert({
-      business_name:   biz.business_name,
-      city:            biz.city,
-      industry:        biz.industry,
-      website:         biz.website,
-      domain:          biz.domain,
-      phone:           biz.phone || null,
-      rating:          biz.rating || null,
-      review_count:    biz.review_count || null,
-      address:         biz.address || null,
-      place_id:        biz.place_id || null,
-      franchise_check: franchiseCheck,
-    });
-  } catch (e) {
-    console.error('Failed to save franchise:', e.message);
-  }
+    return classifierConfirmsFranchise(html, d.content?.[0]?.text || '');
+  } catch (e) { return { franchise: false, evidence: null }; }
 }
 
 export async function checkOne(biz) {
@@ -166,31 +123,48 @@ export async function checkOne(biz) {
     return { ...biz, is_franchise: false, franchise_check: 'fetch_failed' };
   }
 
-  // Keyword check on the FULL untruncated page — this is the actual fix.
-  if (quickFranchiseCheck(html)) {
-    await saveFranchise(biz, 'keyword_match');
-    return { ...biz, is_franchise: true, franchise_check: 'keyword_match' };
+  const pageEvidence = quickFranchiseCheck(html);
+  if (pageEvidence) {
+    return {
+      ...biz,
+      is_franchise: true,
+      franchise_check: 'keyword_match',
+      franchise_evidence_kind: 'page',
+      franchise_evidence_url: website,
+      franchise_evidence_detail: pageEvidence.detail,
+      franchise_confidence: 'high',
+    };
   }
 
-  // If the URL itself looks like a location/gym/studio subpage, also check sibling pages
-  // (root, /franchise) before trusting that it's independent.
+  // A location URL is not itself a franchise. A sibling /franchise page is.
   if (matchesLocationUrl(website)) {
-    const siblingMatch = await checkSiblingFranchisePages(website);
-    if (siblingMatch) {
-      await saveFranchise(biz, 'sibling_page_match');
-      return { ...biz, is_franchise: true, franchise_check: 'sibling_page_match' };
+    const siblingUrl = await checkSiblingFranchisePages(website);
+    if (siblingUrl) {
+      return {
+        ...biz,
+        is_franchise: true,
+        franchise_check: 'sibling_page_match',
+        franchise_evidence_kind: 'page',
+        franchise_evidence_url: siblingUrl,
+        franchise_evidence_detail: 'franchise page',
+        franchise_confidence: 'high',
+      };
     }
   }
 
-  const isFranchise = await claudeFranchiseCheck(business_name, html);
-  if (isFranchise) {
-    await saveFranchise(biz, 'claude_detected');
+  const claude = await claudeFranchiseCheck(business_name, html);
+  if (claude.franchise) {
+    return {
+      ...biz,
+      is_franchise: true,
+      franchise_check: 'claude_detected',
+      franchise_evidence_kind: 'classifier',
+      franchise_evidence_url: website,
+      franchise_evidence_detail: claude.evidence,
+      franchise_confidence: 'medium',
+    };
   }
-  return {
-    ...biz,
-    is_franchise: isFranchise,
-    franchise_check: isFranchise ? 'claude_detected' : 'claude_clear',
-  };
+  return { ...biz, is_franchise: false, franchise_check: 'claude_clear' };
 }
 
 export default async function handler(req, res) {
@@ -204,6 +178,11 @@ export default async function handler(req, res) {
     const results = await Promise.all(businesses.map(biz => checkOne(biz)));
     const passed   = results.filter(b => !b.is_franchise);
     const filtered = results.filter(b => b.is_franchise);
+    const db = getSupabaseAdmin();
+    for (const biz of filtered) {
+      try { await saveFranchiseBrand(db, franchiseBrandRow(biz)); }
+      catch (error) { console.error('Failed to save franchise brand:', error.message); }
+    }
 
     return res.status(200).json({
       total:               results.length,

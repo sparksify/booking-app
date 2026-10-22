@@ -5,12 +5,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseOwnerNames, personParts } from '../lib/pipeline/ownerNames.mjs';
 import { candidatesFromMention, domainsAlign, emailMatchesOwner, inboxKind, judgeCandidates, mapsListingText, reviewSnippets } from '../lib/pipeline/ownerGate.mjs';
+import { classifierConfirmsFranchise, franchiseOverrideReason, pageFranchiseEvidence, retryDespiteTerminal, sameFranchise } from '../lib/pipeline/franchiseGate.mjs';
 import { enrichLead } from '../lib/pipeline/genesisEnrich.mjs';
 import { dryRunDependencies, memoryStore, runGenesis } from '../lib/pipeline/genesisRun.mjs';
 import { identifyOwner } from '../lib/pipeline/identifyOwner.mjs';
 import { combineVerification } from '../lib/pipeline/verifyDecision.mjs';
 import { pipelineAuthorized } from '../lib/pipeline/authDecision.mjs';
-import { leadsToCsv, pipelineStats } from '../lib/pipeline/dashboardStats.mjs';
+import { franchisesToCsv, leadsToCsv, pipelineStats } from '../lib/pipeline/dashboardStats.mjs';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const source = file => readFileSync(path.join(root, file), 'utf8');
@@ -230,16 +231,120 @@ test('the same domain is enriched once', async () => {
 
 test('a franchise never reaches owner discovery', async () => {
   let discovered = 0;
+  let enriched = 0;
   const out = await runGenesis({
-    businesses: [{ business_name: 'National Chain', website: 'https://chain.example', city: 'Austin' }],
+    businesses: [{ record_id: 'FM-000015', business_name: 'National Chain', website: 'https://chain.example', city: 'Austin' }],
   }, pipelineDeps({
-    filterOne: async biz => ({ ...biz, is_franchise: true, franchise_check: 'keyword_match' }),
+    scoutMaps: async () => { throw new Error('Maps must not run when the website is already known'); },
+    filterOne: async biz => ({ ...biz, is_franchise: true, franchise_check: 'keyword_match', franchise_evidence_kind: 'page', franchise_evidence_detail: 'franchise', franchise_evidence_url: biz.website, franchise_confidence: 'high' }),
     discoverOne: async () => { discovered += 1; return {}; },
+    enrichOne: async () => { enriched += 1; return {}; },
   }));
   assert.equal(discovered, 0);
+  assert.equal(enriched, 0);
   assert.equal(out.leads[0].status, 'No Match');
   assert.equal(out.leads[0].hold_reason, 'franchise');
   assert.equal(out.leads[0].franchise_check, 'keyword_match');
+  assert.equal(out.leads[0].credits, 0);
+  assert.deepEqual(out.leads[0].calls, []);
+  assert.equal(out.franchises[0].brand, 'National Chain');
+  assert.equal(out.franchises[0].domain, 'chain.example');
+  assert.equal(out.franchises[0].evidence_kind, 'page');
+  assert.equal(out.franchises[0].external_id, 'FM-000015');
+  assert.equal(out.franchises[0].confidence, 'high');
+});
+
+test('a city search still franchise-gates each business before name, finder, or verifier calls', async () => {
+  const order = [];
+  const out = await runGenesis({ city: 'Austin', industry: 'Food & Beverage' }, pipelineDeps({
+    scoutMaps: async () => {
+      order.push('maps');
+      return { businesses: [{ business_name: 'Chain', website: 'https://chain.example', city: 'Austin' }], calls: [{ finder: 'serpapi_maps', stage: 'name', credits: 2 }] };
+    },
+    filterOne: async biz => { order.push('filter'); return { ...biz, is_franchise: true, franchise_check: 'keyword_match', franchise_evidence_kind: 'page', franchise_confidence: 'high' }; },
+    discoverOne: async () => { order.push('discover'); return {}; },
+    enrichOne: async () => { order.push('enrich'); return {}; },
+  }));
+  assert.deepEqual(order, ['maps', 'filter']);
+  assert.equal(out.leads[0].credits, 0);
+  assert.deepEqual(out.leads[0].calls, []);
+});
+
+test('a scout override clears a franchise hold and reruns', async () => {
+  const store = memoryStore();
+  let discovered = 0;
+  const saved = [];
+  const overrides = [];
+  const deps = pipelineDeps({
+    store,
+    filterOne: async biz => ({ ...biz, is_franchise: true, franchise_check: 'claude_detected', franchise_evidence_kind: 'classifier', franchise_confidence: 'medium' }),
+    discoverOne: async biz => { discovered += 1; return { ...biz, owner_name: 'Avery Quinn', owner_first: 'Avery', owner_last: 'Quinn', owner_role: 'owner', owner_confidence: 'medium', owner_sources: ['site', 'maps'], website_emails: [], discover_calls: [] }; },
+    recordFranchise: async row => { saved.push(row); },
+    recordOverride: async row => { overrides.push(row); },
+  });
+  const held = await runGenesis({
+    businesses: [{ record_id: 'FM-000015', business_name: 'Eggroll Company', website: 'https://eggroll.example', city: 'Austin' }],
+  }, deps);
+  assert.equal(held.leads[0].hold_reason, 'franchise');
+  assert.equal(discovered, 0);
+  assert.equal(saved.length, 1);
+  const rerun = await runGenesis({
+    businesses: [{ record_id: 'FM-000015', business_name: 'Eggroll Company', website: 'https://eggroll.example', city: 'Austin', franchise_override: 'Scout found no franchise offering' }],
+  }, deps);
+  assert.equal(discovered, 1);
+  assert.equal(rerun.leads[0].deduped, undefined);
+  assert.equal(rerun.leads[0].status, 'Enriched');
+  assert.ok(rerun.leads[0].stage_log.some(entry => entry.stage === 'franchise_override' && entry.reason === 'Scout found no franchise offering'));
+  assert.equal(overrides[0].override_reason, 'Scout found no franchise offering');
+  assert.equal(saved.length, 1);
+  assert.equal(franchiseOverrideReason(true), 'verified non-franchise');
+  assert.equal(retryDespiteTerminal({ hold_reason: 'franchise', status: 'No Match' }, { franchise_override: 'Scout found no franchise offering' }), true);
+  assert.equal(retryDespiteTerminal({ hold_reason: 'franchise', status: 'No Match' }, {}), false);
+});
+
+test('a dry run keeps the franchise result in memory and does not write the brand catalog', async () => {
+  let saved = 0;
+  let discovered = 0;
+  const out = await runGenesis({
+    dry_run: true,
+    businesses: [{ record_id: 'FM-000015', business_name: 'National Chain', website: 'https://chain.example', city: 'Austin' }],
+  }, pipelineDeps({
+    filterOne: async biz => ({ ...biz, is_franchise: true, franchise_check: 'keyword_match', franchise_evidence_kind: 'page', franchise_confidence: 'high' }),
+    recordFranchise: async () => { saved += 1; },
+    discoverOne: async () => { discovered += 1; return {}; },
+  }));
+  assert.equal(saved, 0);
+  assert.equal(discovered, 0);
+  assert.equal(out.dry_run, true);
+  assert.equal(out.leads[0].hold_reason, 'franchise');
+  assert.equal(out.franchises.length, 1);
+  assert.equal(out.leads[0].credits, 0);
+});
+
+test('city search credits attach only to a business that passes the franchise gate', async () => {
+  const out = await runGenesis({ city: 'Austin', industry: 'Food & Beverage' }, pipelineDeps({
+    scoutMaps: async () => ({
+      businesses: [
+        { business_name: 'Chain', website: 'https://chain.example', city: 'Austin' },
+        { business_name: 'Cafe', website: 'https://cafe.example', city: 'Austin' },
+      ],
+      calls: [{ finder: 'serpapi_maps', stage: 'name', credits: 2 }],
+    }),
+    filterOne: async biz => ({
+      ...biz,
+      is_franchise: biz.domain === 'chain.example',
+      franchise_check: biz.domain === 'chain.example' ? 'keyword_match' : 'claude_clear',
+      franchise_evidence_kind: 'page',
+      franchise_confidence: 'high',
+    }),
+  }));
+  const chain = out.leads.find(lead => lead.domain === 'chain.example');
+  const cafe = out.leads.find(lead => lead.domain === 'cafe.example');
+  assert.equal(chain.credits, 0);
+  assert.deepEqual(chain.calls, []);
+  assert.ok(cafe.calls.some(call => call.finder === 'serpapi_maps' && call.credits === 2));
+  assert.equal(cafe.status, 'Enriched');
+  assert.equal(out.franchises.length, 1);
 });
 
 test('low confidence stays Needs Founder and skips finders and the icebreaker', async () => {
@@ -403,6 +508,41 @@ test('a personal email on a different domain is flagged and still counts as Enri
   assert.equal(stats.founder_verified, 1);
   assert.equal(stats.funnel.domain_mismatch, 1);
   assert.equal(stats.funnel.role_inboxes, 1);
+});
+
+test('the classifier needs an FDD, franchise page, or franchising quote that is actually on the page', () => {
+  const eggroll = '<html><title>Eggroll Company</title><p>Family restaurant in Austin. We are not a franchise. Start your own tradition.</p>';
+  assert.equal(pageFranchiseEvidence(eggroll), null);
+  assert.equal(pageFranchiseEvidence('<p>Own a business and open a location you love.</p>'), null);
+  assert.equal(classifierConfirmsFranchise(eggroll, 'FRANCHISE').franchise, false);
+  assert.equal(classifierConfirmsFranchise(eggroll, '{"decision":"FRANCHISE","evidence":"Franchise Disclosure Document"}').franchise, false);
+  const offering = '<html><a href="/franchise">Franchise opportunities</a><p>Read our Franchise Disclosure Document.</p>';
+  assert.equal(pageFranchiseEvidence(offering).kind, 'page');
+  assert.equal(pageFranchiseEvidence(offering).confidence, 'high');
+  const confirmed = classifierConfirmsFranchise(offering, '{"decision":"FRANCHISE","evidence":"Franchise Disclosure Document"}');
+  assert.equal(confirmed.franchise, true);
+  assert.match(confirmed.evidence, /Franchise Disclosure Document/);
+  assert.equal(classifierConfirmsFranchise(offering, '{"decision":"INDEPENDENT","evidence":"Franchise opportunities"}').franchise, false);
+  assert.equal(sameFranchise({ domain: 'Chain.example', brand_key: 'other' }, { domain: 'chain.example', brand_key: 'chain' }), true);
+  assert.equal(sameFranchise({ domain: null, brand_key: 'eggroll company' }, { domain: 'other.example', brand_key: 'eggroll company' }), true);
+  assert.equal(sameFranchise({ domain: 'a.example', brand_key: 'a' }, { domain: 'b.example', brand_key: 'b' }), false);
+  const csv = franchisesToCsv([{ brand: '=Chain', domain: 'chain.example', evidence_detail: 'franchise', confidence: 'high' }]);
+  assert.match(csv, /'=Chain/);
+  const prompt = source('pages/api/pipeline/filter.js');
+  assert.match(prompt, /classifierConfirmsFranchise/);
+  assert.doesNotMatch(prompt, /doesn.t mention franchising directly/);
+  const migration = source('supabase/migrations/20261022220000_franchise_brands.sql');
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.franchise_brands/);
+  assert.match(migration, /evidence_kind IN \('classifier', 'page', 'filing'\)/);
+  assert.match(migration, /franchise_brands_domain_uidx/);
+  assert.match(migration, /franchise_brands_brand_uidx/);
+  assert.match(migration, /ENABLE ROW LEVEL SECURITY/);
+  assert.match(migration, /REVOKE ALL ON public\.franchise_brands FROM anon, authenticated/);
+  assert.match(migration, /GRANT SELECT, INSERT, UPDATE, DELETE ON public\.franchise_brands TO service_role/);
+  assert.doesNotMatch(migration, /create policy/i);
+  assert.match(source('lib/pipeline/runGenesis.js'), /saveFranchiseBrand/);
+  assert.match(source('pages/api/dashboard/genesis-pipeline.js'), /franchise_brands/);
+  assert.match(source('pages/api/dashboard/genesis-pipeline.js'), /getSupabaseAdmin/);
 });
 
 test('genesis_leads stores franchise_check, locks out the anon key, and the server uses the service role', () => {
