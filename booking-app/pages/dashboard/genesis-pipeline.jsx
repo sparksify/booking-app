@@ -112,6 +112,7 @@ export default function GenesisPipelinePage({ perms, platformLogo, navOrder }) {
             <Metric label="Personal emails" value={funnel.founder_emails} hint="Enriched" />
             <Metric label="Role / freemail" value={funnel.role_inboxes} hint="Not a founder email" />
             <Metric label="Catch-all" value={funnel.catch_all} hint="Not Enriched" />
+            <Metric label="Domain mismatch" value={funnel.domain_mismatch} hint="Flagged, still Enriched" />
             <Metric label="No Match" value={funnel.no_match} />
             <Metric label="Drafts" value={funnel.drafts} hint="Never sent" />
             <Metric label="Name credits" value={stats.name_credits} hint="Estimated" />

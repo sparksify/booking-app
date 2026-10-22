@@ -32,6 +32,41 @@ export function emailMatchesOwner(email, person) {
   return false;
 }
 
+/** Pull review text whether SerpAPI returned an array or a keyed object. */
+export function reviewSnippets(value, limit = 4) {
+  const list = Array.isArray(value)
+    ? value
+    : Array.isArray(value?.most_relevant)
+      ? value.most_relevant
+      : Array.isArray(value?.reviews)
+        ? value.reviews
+        : [];
+  return list.slice(0, limit).map(review => {
+    if (typeof review === 'string') return review.trim();
+    if (!review || typeof review !== 'object') return '';
+    return String(review.snippet || review.description || review.text || '').trim();
+  }).filter(Boolean).join('\n');
+}
+
+export function emailHost(email) {
+  const host = String(email || '').toLowerCase().split('@')[1] || '';
+  return host.replace(/^www\./, '').replace(/\.+$/, '') || null;
+}
+
+/** True when there is nothing to compare, or the email host is the business domain or a subdomain of it. */
+export function domainsAlign(email, businessDomain) {
+  const host = emailHost(email);
+  const business = String(businessDomain || '').toLowerCase().replace(/^www\./, '').replace(/\.+$/, '');
+  if (!host || !business) return true;
+  return host === business || host.endsWith(`.${business}`);
+}
+
+export function mapsListingText(place, fallbackReviews) {
+  const listing = place && typeof place === 'object' ? place : {};
+  const reviews = reviewSnippets(listing.user_reviews) || reviewSnippets(fallbackReviews) || reviewSnippets(listing.reviews);
+  return [listing.description, listing.title, reviews].filter(Boolean).join('\n');
+}
+
 /** role, freemail, or possible. Catch-all is a verification result, not a shape. */
 export function inboxKind(email) {
   const lower = String(email || '').toLowerCase().trim();

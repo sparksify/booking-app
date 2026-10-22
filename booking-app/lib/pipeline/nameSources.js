@@ -1,5 +1,5 @@
 import { searchWeb } from '@/lib/scout/search';
-import { candidatesFromMention } from '@/lib/pipeline/ownerGate.mjs';
+import { candidatesFromMention, mapsListingText } from '@/lib/pipeline/ownerGate.mjs';
 
 function overviewText(aiOverview) {
   if (!aiOverview?.text_blocks) return '';
@@ -103,11 +103,12 @@ export async function mapsPlaceOwner(biz) {
     calls.push({ finder: 'serpapi_maps_place', stage: 'name', credits: 1 });
     if (response.ok) {
       const data = await response.json();
-      const place = data.place_results || data.local_results?.[0] || {};
+      const place = (data.place_results && typeof data.place_results === 'object' && !Array.isArray(data.place_results))
+        ? data.place_results
+        : (Array.isArray(data.local_results) ? data.local_results[0] : null) || {};
       business_phone = place.phone || business_phone;
       url = place.website || place.link || (biz.place_id ? `https://maps.google.com/?q=place_id:${biz.place_id}` : null);
-      const reviews = (place.user_reviews || data.user_reviews || []).slice(0, 4).map(review => review.snippet || review.description || '').join('\n');
-      text = [place.description, place.title, reviews].filter(Boolean).join('\n');
+      text = mapsListingText(place, data.user_reviews);
     }
   }
   const parsed = await askHaiku(biz.business_name, biz.city, text);
