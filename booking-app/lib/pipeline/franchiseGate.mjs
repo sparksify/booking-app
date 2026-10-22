@@ -50,6 +50,17 @@ export function retryDespiteTerminal(existing, incoming) {
   return !!(incoming?.franchise_override && existing?.hold_reason === 'franchise');
 }
 
+/**
+ * Value to store on genesis_leads.franchise_check for this run.
+ * A pass replaces an older detection. An override that clears a still-positive
+ * check is stored as override so the previous claude_detected value does not remain.
+ */
+export function recordedFranchiseCheck(filtered, overrideReason) {
+  if (!filtered?.is_franchise) return filtered?.franchise_check || null;
+  if (overrideReason) return 'override';
+  return filtered?.franchise_check || 'franchise';
+}
+
 export function sameFranchise(a, b) {
   if (a?.domain && b?.domain && String(a.domain).toLowerCase() === String(b.domain).toLowerCase()) return true;
   if (a?.brand_key && b?.brand_key && a.brand_key === b.brand_key) return true;

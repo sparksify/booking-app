@@ -1,6 +1,6 @@
 import { brandKey, domainOf, parseOwnerNames, personParts } from './ownerNames.mjs';
 import { enrichLead, sumCredits } from './genesisEnrich.mjs';
-import { franchiseBrandRow, franchiseOverrideReason, retryDespiteTerminal } from './franchiseGate.mjs';
+import { franchiseBrandRow, franchiseOverrideReason, recordedFranchiseCheck, retryDespiteTerminal } from './franchiseGate.mjs';
 
 const RETRYABLE = new Set(['Error', 'Pending', 'Enriching']);
 
@@ -261,7 +261,7 @@ export async function runGenesis(input, deps) {
           stage: 'filter',
           status: 'No Match',
           hold_reason: 'franchise',
-          franchise_check: filtered.franchise_check || 'franchise',
+          franchise_check: recordedFranchiseCheck(filtered, biz.franchise_override),
           stage_log: stageLog,
           calls: [],
           credits: 0,
@@ -290,7 +290,8 @@ export async function runGenesis(input, deps) {
         mapsCharged = true;
       }
 
-      await deps.store.update(claimedId, { stage: 'discover', status: 'Enriching', stage_log: stageLog });
+      const franchiseCheck = recordedFranchiseCheck(filtered, biz.franchise_override);
+      await deps.store.update(claimedId, { stage: 'discover', status: 'Enriching', stage_log: stageLog, franchise_check: franchiseCheck });
       const discovered = await deps.discoverOne({ ...biz, ...filtered, is_franchise: false });
       const ownerName = discovered.owner_name || null;
       const confirmed = discovered.owner_confidence === 'medium' || discovered.owner_confidence === 'high';
@@ -365,6 +366,7 @@ export async function runGenesis(input, deps) {
       leads.push(await deps.store.update(claimedId, {
         stage: 'done',
         status,
+        franchise_check: franchiseCheck,
         owner_name: ownerName,
         owner_first: discovered.owner_first || null,
         owner_last: discovered.owner_last || null,
