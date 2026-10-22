@@ -1,18 +1,22 @@
 export const config = { maxDuration: 60 };
 
+import { personParts } from '@/lib/pipeline/ownerNames.mjs';
+import { requirePipelineAccess } from '@/lib/scout/auth';
+
 const FULLENRICH_KEY = process.env.FULLENRICH_API_KEY;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!await requirePipelineAccess(req, res)) return;
   const { owner_name, domain, business_name } = req.body;
   if (!owner_name || !domain) return res.status(400).json({ error: 'owner_name and domain required' });
   if (!FULLENRICH_KEY) return res.status(500).json({ error: 'Missing FULLENRICH_API_KEY' });
 
-  const parts = owner_name.trim().split(/\s+/);
-  if (parts.length < 2) return res.status(400).json({ error: 'Need full name (first + last) to find mobile' });
+  const person = personParts(owner_name);
+  if (!person) return res.status(400).json({ error: 'Need full name (first + last) to find mobile' });
 
-  const firstName = parts[0];
-  const lastName  = parts.slice(1).join(' ');
+  const firstName = person.first;
+  const lastName  = person.last;
 
   try {
     // POST enrichment job

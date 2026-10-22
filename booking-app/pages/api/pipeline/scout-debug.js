@@ -1,6 +1,9 @@
 export const config = { maxDuration: 300 };
 
+import { requirePipelineAccess } from '@/lib/scout/auth';
+
 export default async function handler(req, res) {
+  if (!await requirePipelineAccess(req, res)) return;
   const { city, industry } = req.body;
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 

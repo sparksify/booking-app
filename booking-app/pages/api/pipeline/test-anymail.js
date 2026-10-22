@@ -1,4 +1,7 @@
+import { requirePipelineAccess } from '@/lib/scout/auth';
+
 export default async function handler(req, res) {
+  if (!await requirePipelineAccess(req, res)) return;
   const key = process.env.ANYMAIL_FINDER_API_KEY;
   if (!key) return res.status(200).json({ status: 'MISSING' });
   try {

@@ -1,5 +1,7 @@
 export const config = { maxDuration: 300 };
 
+import { requirePipelineAccess } from '@/lib/scout/auth';
+
 const SERP_API_KEY = process.env.SERP_API_KEY;
 
 const INDUSTRY_QUERIES = {
@@ -26,71 +28,85 @@ async function serpSearch(params) {
   } catch(e) { return null; }
 }
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-  const { city, industry } = req.body;
-  if (!city || !industry) return res.status(400).json({ error: 'city and industry required' });
-  if (!SERP_API_KEY) return res.status(500).json({ error: 'Missing SERP_API_KEY' });
+export async function scoutMaps({ city, industry, limit = 30 }) {
+  if (!city || !industry) {
+    const error = new Error('city and industry required');
+    error.status = 400;
+    throw error;
+  }
+  if (!SERP_API_KEY) {
+    const error = new Error('Missing SERP_API_KEY');
+    error.status = 500;
+    throw error;
+  }
 
-  try {
-    const queries = INDUSTRY_QUERIES[industry] || [`local independent ${industry}`, `locally owned ${industry}`];
+  const cap = Math.min(30, Math.max(1, Number(limit) || 30));
+  const queries = INDUSTRY_QUERIES[industry] || [`local independent ${industry}`, `locally owned ${industry}`];
+  const [maps1data, maps2data] = await Promise.all([
+    serpSearch({ engine: 'google_maps', q: `${queries[0]} ${city}`, type: 'search' }),
+    serpSearch({ engine: 'google_maps', q: `${queries[1]} ${city}`, type: 'search' }),
+  ]);
 
-    const [maps1data, maps2data] = await Promise.all([
-      serpSearch({ engine: 'google_maps', q: `${queries[0]} ${city}`, type: 'search' }),
-      serpSearch({ engine: 'google_maps', q: `${queries[1]} ${city}`, type: 'search' }),
-    ]);
-
-    const seen = new Set();
-    const businesses = [...(maps1data?.local_results || []), ...(maps2data?.local_results || [])]
-      .filter(b => {
-        const key = b.title?.toLowerCase();
-        if (!key || seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .slice(0, 30)
-      .map(b => {
-        const website = b.website || null;
-        const domain = website ? (() => { try { return new URL(website).hostname.replace(/^www\./, ''); } catch(e) { return null; } })() : null;
-        return {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          business_name: b.title,
-          city,
-          industry,
-          owner_name: null,
-          website,
-          domain,
-          rating: b.rating || null,
-          review_count: b.reviews || null,
-          address: b.address || null,
-          phone: b.phone || null,
-          place_id: b.place_id || null,
-          franchise_score: 5,
-          ownership_score: 5,
-          total_score: 10,
-          signals: [
-            b.rating ? `${b.rating} stars` : null,
-            b.reviews ? `${b.reviews} reviews` : null,
-            b.type ? b.type : null,
-          ].filter(Boolean),
-          ownership_candidate: false,
-          broker_candidate: false,
-          is_emerging: false,
-        };
-      });
-
-    return res.status(200).json({
-      city, industry,
-      count: businesses.length,
-      emerging_count: 0,
-      ownership_candidates: 0,
-      broker_candidates: 0,
-      maps_found: businesses.length,
-      businesses,
-      run_at: new Date().toISOString(),
+  const seen = new Set();
+  const businesses = [...(maps1data?.local_results || []), ...(maps2data?.local_results || [])]
+    .filter(b => {
+      const key = b.title?.toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, cap)
+    .map(b => {
+      const website = b.website || null;
+      const domain = website ? (() => { try { return new URL(website).hostname.replace(/^www\./, ''); } catch(e) { return null; } })() : null;
+      return {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        business_name: b.title,
+        city,
+        industry,
+        owner_name: null,
+        website,
+        domain,
+        rating: b.rating || null,
+        review_count: b.reviews || null,
+        address: b.address || null,
+        phone: b.phone || null,
+        place_id: b.place_id || null,
+        description: b.description || null,
+        franchise_score: 5,
+        ownership_score: 5,
+        total_score: 10,
+        signals: [
+          b.rating ? `${b.rating} stars` : null,
+          b.reviews ? `${b.reviews} reviews` : null,
+          b.type ? b.type : null,
+        ].filter(Boolean),
+        ownership_candidate: false,
+        broker_candidate: false,
+        is_emerging: false,
+      };
     });
 
+  return {
+    city, industry,
+    count: businesses.length,
+    emerging_count: 0,
+    ownership_candidates: 0,
+    broker_candidates: 0,
+    maps_found: businesses.length,
+    businesses,
+    calls: [{ finder: 'serpapi_maps', stage: 'name', credits: 2 }],
+    run_at: new Date().toISOString(),
+  };
+}
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!await requirePipelineAccess(req, res)) return;
+  try {
+    const { city, industry } = req.body || {};
+    return res.status(200).json(await scoutMaps({ city, industry, limit: 30 }));
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(err.status || 500).json({ error: err.message });
   }
 }

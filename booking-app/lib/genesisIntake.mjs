@@ -49,6 +49,8 @@ export function verifiedResult(lead, verification) {
 
 export function finalStatus(result) {
   if (!result.email) return 'no_email';
+  if (result.inbox_type === 'role' || result.inbox_type === 'freemail') return 'held_not_founder';
+  if (result.inbox_type === 'catch_all') return 'held_catch_all';
   if (result.verification === 'ok' || result.verification === 'skipped_verified_source') return 'ready_for_review';
   return result.verification === 'catch_all' ? 'held_catch_all' : result.verification === 'reject' ? 'held_invalid_email' : 'held_unverified';
 }
