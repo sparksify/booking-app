@@ -1,5 +1,5 @@
 import { parseOwnerNames, personParts } from './ownerNames.mjs';
-import { emailMatchesOwner, inboxKind, isConfirmedOwner } from './ownerGate.mjs';
+import { domainsAlign, emailMatchesOwner, inboxKind, isConfirmedOwner } from './ownerGate.mjs';
 
 export function sumCredits(calls) {
   return (calls || []).reduce((total, call) => total + (Number(call.credits) || 0), 0);
@@ -90,6 +90,7 @@ export async function enrichLead(biz, deps) {
       flag(normalized, result || 'reject', source);
       return null;
     }
+    if (!domainsAlign(normalized, biz.domain)) flag(normalized, 'domain_mismatch', source);
     return pack(biz, {
       email: normalized, owner: requireOwnerMatch ? matched.full : owner, source, inbox_type: 'personal', verification: 'ok', loadable: true, verdict,
     }, tried, calls, flagged);

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseOwnerNames, personParts } from '../lib/pipeline/ownerNames.mjs';
-import { candidatesFromMention, emailMatchesOwner, inboxKind, judgeCandidates } from '../lib/pipeline/ownerGate.mjs';
+import { candidatesFromMention, domainsAlign, emailMatchesOwner, inboxKind, judgeCandidates, mapsListingText, reviewSnippets } from '../lib/pipeline/ownerGate.mjs';
 import { enrichLead } from '../lib/pipeline/genesisEnrich.mjs';
 import { dryRunDependencies, memoryStore, runGenesis } from '../lib/pipeline/genesisRun.mjs';
 import { identifyOwner } from '../lib/pipeline/identifyOwner.mjs';
@@ -239,6 +239,7 @@ test('a franchise never reaches owner discovery', async () => {
   assert.equal(discovered, 0);
   assert.equal(out.leads[0].status, 'No Match');
   assert.equal(out.leads[0].hold_reason, 'franchise');
+  assert.equal(out.leads[0].franchise_check, 'keyword_match');
 });
 
 test('low confidence stays Needs Founder and skips finders and the icebreaker', async () => {
@@ -339,6 +340,88 @@ test('csv export separates personal emails and neutralizes spreadsheet formulas'
   assert.match(csv, /'-follow/);
   assert.match(csv, /site\|maps/);
   assert.doesNotMatch(csv, /^=/);
+});
+
+test('Maps review text survives object, missing, and numeric review payloads', () => {
+  const text = mapsListingText({
+    title: 'Cafe',
+    description: 'Local shop',
+    user_reviews: { most_relevant: [{ description: 'The owner is Avery.' }, { snippet: 'Saturday line.' }] },
+  });
+  assert.match(text, /The owner is Avery/);
+  assert.match(text, /Saturday line/);
+  assert.equal(mapsListingText({ user_reviews: { summary: 'A paragraph, not a list.' } }, { most_relevant: [{ text: 'From the fallback.' }] }), 'From the fallback.');
+  assert.equal(reviewSnippets(undefined), '');
+  assert.equal(reviewSnippets(null), '');
+  assert.equal(reviewSnippets('not-an-array'), '');
+  assert.equal(reviewSnippets(42), '');
+  assert.equal(mapsListingText({ user_reviews: 12, reviews: 80 }), '');
+  assert.doesNotMatch(source('lib/pipeline/nameSources.js'), /user_reviews[^;\n]*\.slice/);
+  assert.match(source('lib/pipeline/nameSources.js'), /mapsListingText\(/);
+});
+
+test('a personal email on a different domain is flagged and still counts as Enriched', async () => {
+  const result = await enrichLead({
+    owner_name: 'John Smith',
+    owner_confidence: 'medium',
+    domain: 'cafe.example',
+  }, {
+    anymailPerson: async () => ({ email: 'john.smith@otherco.com', calls: [{ finder: 'anymail_person', stage: 'email', credits: 1 }] }),
+    verifyEmail: async () => ({ result: 'ok', calls: [] }),
+    fullEnrich: null,
+    prospeo: null,
+  });
+  assert.equal(result.enriched, true);
+  assert.equal(result.email, 'john.smith@otherco.com');
+  assert.equal(result.inbox_type, 'personal');
+  assert.ok(result.flagged_emails.some(item => item.email === 'john.smith@otherco.com' && item.reason === 'domain_mismatch'));
+
+  const sameOrg = await enrichLead({
+    owner_name: 'John Smith',
+    owner_confidence: 'high',
+    domain: 'cafe.example',
+    website_emails: ['john@mail.cafe.example'],
+  }, {
+    anymailPerson: async () => { throw new Error('Anymail should not run'); },
+    verifyEmail: async () => ({ result: 'ok' }),
+  });
+  assert.equal(sameOrg.email, 'john@mail.cafe.example');
+  assert.equal(sameOrg.enriched, true);
+  assert.equal((sameOrg.flagged_emails || []).some(item => item.reason === 'domain_mismatch'), false);
+  assert.equal(domainsAlign('john@cafe.example', 'cafe.example'), true);
+  assert.equal(domainsAlign('john@otherco.com', 'cafe.example'), false);
+  assert.equal(domainsAlign('john@cafe.example', ''), true);
+
+  const stats = pipelineStats([{
+    status: 'Enriched',
+    inbox_type: 'personal',
+    verification: 'ok',
+    email_source: 'anymail_person',
+    flagged_emails: [{ email: 'john.smith@otherco.com', reason: 'domain_mismatch' }, { email: 'hello@cafe.example', reason: 'role' }],
+    calls: [],
+  }]);
+  assert.equal(stats.founder_verified, 1);
+  assert.equal(stats.funnel.domain_mismatch, 1);
+  assert.equal(stats.funnel.role_inboxes, 1);
+});
+
+test('genesis_leads stores franchise_check, locks out the anon key, and the server uses the service role', () => {
+  const franchise = source('supabase/migrations/20261022204000_genesis_leads_franchise_check.sql');
+  const rls = source('supabase/migrations/20261022204100_genesis_leads_rls.sql');
+  assert.match(franchise, /ADD COLUMN IF NOT EXISTS franchise_check TEXT/);
+  assert.match(rls, /ENABLE ROW LEVEL SECURITY/);
+  assert.match(rls, /REVOKE ALL ON public\.genesis_leads FROM anon, authenticated/);
+  assert.match(rls, /GRANT SELECT, INSERT, UPDATE, DELETE ON public\.genesis_leads TO service_role/);
+  assert.doesNotMatch(rls, /create policy/i);
+  assert.doesNotMatch(rls, /to anon|to authenticated/i);
+  for (const file of ['lib/pipeline/runGenesis.js', 'lib/pipeline/genesisStore.js', 'pages/api/dashboard/genesis-pipeline.js']) {
+    assert.doesNotMatch(source(file), /getSupabase\(/, file);
+  }
+  assert.match(source('lib/pipeline/runGenesis.js'), /getSupabaseAdmin/);
+  assert.match(source('pages/api/dashboard/genesis-pipeline.js'), /getSupabaseAdmin/);
+  assert.match(source('lib/supabase.js'), /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(source('pages/api/scout/tick.js'), /runScoutTick\(getSupabaseAdmin\(\)\)/);
+  assert.match(source('lib/pipeline/genesisRun.mjs'), /franchise_check: filtered\.franchise_check/);
 });
 
 test('the genesis path does not import outreach or Smartlead, and paid routes require auth', () => {
