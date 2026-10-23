@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseOwnerNames, personParts } from '../lib/pipeline/ownerNames.mjs';
 import { candidatesFromMention, domainsAlign, emailMatchesOwner, inboxKind, judgeCandidates, mapsListingText, reviewSnippets } from '../lib/pipeline/ownerGate.mjs';
-import { classifierConfirmsFranchise, franchiseOverrideReason, pageFranchiseEvidence, retryDespiteTerminal, sameFranchise } from '../lib/pipeline/franchiseGate.mjs';
+import { classifierConfirmsFranchise, franchiseOverrideReason, pageFranchiseEvidence, recordedFranchiseCheck, retryDespiteTerminal, sameFranchise } from '../lib/pipeline/franchiseGate.mjs';
 import { enrichLead } from '../lib/pipeline/genesisEnrich.mjs';
 import { dryRunDependencies, memoryStore, runGenesis } from '../lib/pipeline/genesisRun.mjs';
 import { identifyOwner } from '../lib/pipeline/identifyOwner.mjs';
@@ -300,6 +300,37 @@ test('a scout override clears a franchise hold and reruns', async () => {
   assert.equal(franchiseOverrideReason(true), 'verified non-franchise');
   assert.equal(retryDespiteTerminal({ hold_reason: 'franchise', status: 'No Match' }, { franchise_override: 'Scout found no franchise offering' }), true);
   assert.equal(retryDespiteTerminal({ hold_reason: 'franchise', status: 'No Match' }, {}), false);
+  assert.equal(held.leads[0].franchise_check, 'claude_detected');
+  assert.equal(rerun.leads[0].franchise_check, 'override');
+  assert.equal(store.rows[0].franchise_check, 'override');
+});
+
+test('a rerun that passes the franchise check replaces the stored claude_detected value', async () => {
+  const store = memoryStore();
+  const deps = pipelineDeps({
+    store,
+    filterOne: async biz => biz.franchise_override
+      ? { ...biz, is_franchise: false, franchise_check: 'claude_clear' }
+      : { ...biz, is_franchise: true, franchise_check: 'claude_detected', franchise_evidence_kind: 'classifier', franchise_confidence: 'medium' },
+    discoverOne: async biz => ({ ...biz, owner_name: 'Avery Quinn', owner_first: 'Avery', owner_last: 'Quinn', owner_role: 'owner', owner_confidence: 'medium', owner_sources: ['site', 'maps'], website_emails: [], discover_calls: [] }),
+  });
+  const held = await runGenesis({
+    businesses: [{ record_id: 'FM-000015', business_name: 'Eggroll Company', website: 'https://eggroll.example', city: 'Austin' }],
+  }, deps);
+  assert.equal(held.leads[0].franchise_check, 'claude_detected');
+  assert.equal(held.leads[0].hold_reason, 'franchise');
+  const rerun = await runGenesis({
+    businesses: [{ record_id: 'FM-000015', business_name: 'Eggroll Company', website: 'https://eggroll.example', city: 'Austin', franchise_override: true }],
+  }, deps);
+  assert.equal(rerun.leads[0].deduped, undefined);
+  assert.equal(rerun.leads[0].status, 'Enriched');
+  assert.equal(rerun.leads[0].hold_reason, null);
+  assert.equal(rerun.leads[0].franchise_check, 'claude_clear');
+  assert.equal(store.rows[0].franchise_check, 'claude_clear');
+  assert.notEqual(store.rows[0].franchise_check, 'claude_detected');
+  assert.equal(recordedFranchiseCheck({ is_franchise: false, franchise_check: 'claude_clear' }, 'verified non-franchise'), 'claude_clear');
+  assert.equal(recordedFranchiseCheck({ is_franchise: true, franchise_check: 'claude_detected' }, 'verified non-franchise'), 'override');
+  assert.equal(recordedFranchiseCheck({ is_franchise: true, franchise_check: 'claude_detected' }, null), 'claude_detected');
 });
 
 test('a dry run keeps the franchise result in memory and does not write the brand catalog', async () => {
@@ -561,7 +592,8 @@ test('genesis_leads stores franchise_check, locks out the anon key, and the serv
   assert.match(source('pages/api/dashboard/genesis-pipeline.js'), /getSupabaseAdmin/);
   assert.match(source('lib/supabase.js'), /SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(source('pages/api/scout/tick.js'), /runScoutTick\(getSupabaseAdmin\(\)\)/);
-  assert.match(source('lib/pipeline/genesisRun.mjs'), /franchise_check: filtered\.franchise_check/);
+  assert.match(source('lib/pipeline/genesisRun.mjs'), /franchise_check: recordedFranchiseCheck\(filtered, biz\.franchise_override\)/);
+  assert.match(source('lib/pipeline/genesisRun.mjs'), /franchise_check: franchiseCheck/);
 });
 
 test('the genesis path does not import outreach or Smartlead, and paid routes require auth', () => {
