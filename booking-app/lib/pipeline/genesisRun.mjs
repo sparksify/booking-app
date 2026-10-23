@@ -1,5 +1,5 @@
 import { brandKey, domainOf, parseOwnerNames, personParts } from './ownerNames.mjs';
-import { enrichLead, sumCredits } from './genesisEnrich.mjs';
+import { enrichLead, leadStatusForContact, sumCredits } from './genesisEnrich.mjs';
 import { franchiseBrandRow, franchiseOverrideReason, recordedFranchiseCheck, retryDespiteTerminal } from './franchiseGate.mjs';
 
 const RETRYABLE = new Set(['Error', 'Pending', 'Enriching']);
@@ -203,6 +203,8 @@ export function summarizeLeads(leads, extraCredits = 0) {
     deduped: leads.filter(lead => lead.deduped).length,
     enriched: fresh.filter(lead => lead.status === 'Enriched').length,
     founder_verified: fresh.filter(lead => lead.inbox_type === 'personal' && lead.verification === 'ok').length,
+    accepted_freemail: fresh.filter(lead => lead.inbox_type === 'freemail' && lead.verification === 'ok' && lead.email).length,
+    accepted_catch_all: fresh.filter(lead => lead.inbox_type === 'catch_all' && lead.verification === 'catch_all' && lead.email).length,
     flagged_not_founder: fresh.reduce((total, lead) => total + (lead.flagged_emails || []).filter(item => item.reason !== 'domain_mismatch').length, 0),
     role_inboxes: fresh.reduce((total, lead) => total + (lead.flagged_emails || []).filter(item => item.reason === 'role' || item.reason === 'freemail').length, 0),
     domain_mismatch: fresh.reduce((total, lead) => total + (lead.flagged_emails || []).filter(item => item.reason === 'domain_mismatch').length, 0),
@@ -337,9 +339,8 @@ export async function runGenesis(input, deps) {
         verification: enriched.verification || null,
       });
 
-      let status = 'No Match';
-      if (!confirmed) status = 'Needs Founder';
-      else if (enriched.inbox_type === 'personal' && enriched.verification === 'ok' && enriched.email) status = 'Enriched';
+      const status = leadStatusForContact(confirmed, enriched);
+      const keepEmail = status === 'Enriched' || status === 'Accepted Freemail' || status === 'Accepted Catch-all';
 
       let icebreaker = null;
       if (status === 'Needs Founder') {
@@ -377,13 +378,13 @@ export async function runGenesis(input, deps) {
         owner_phone: discovered.owner_phone || null,
         owner_phone_source: discovered.owner_phone_source || null,
         business_phone: discovered.business_phone || biz.phone || null,
-        email: status === 'Enriched' ? enriched.email : null,
-        inbox_type: status === 'Enriched' ? 'personal' : null,
-        email_source: status === 'Enriched' ? enriched.email_source : null,
-        verification: status === 'Enriched' ? enriched.verification : null,
+        email: keepEmail ? enriched.email : null,
+        inbox_type: keepEmail ? enriched.inbox_type : null,
+        email_source: keepEmail ? enriched.email_source : null,
+        verification: keepEmail ? enriched.verification : null,
         verification_detail: enriched.verification_detail || {},
         flagged_emails: enriched.flagged_emails || [],
-        hold_reason: status === 'Enriched' ? null : (enriched.hold_reason || (confirmed ? 'no_personal_email' : 'needs_founder')),
+        hold_reason: keepEmail ? null : (enriched.hold_reason || (confirmed ? 'no_personal_email' : 'needs_founder')),
         signal: discovered.signal || null,
         website_excerpt: discovered.website_excerpt || null,
         icebreaker,

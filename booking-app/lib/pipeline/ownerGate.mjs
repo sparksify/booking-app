@@ -1,6 +1,6 @@
 import { parseOwnerNames, personParts } from './ownerNames.mjs';
 
-const ROLE_LOCAL = /^(info|contact|hello|admin|sales|support|office|booking|bookings|reservations|reserve|hi|team|mail|enquiries|inquiries|help|jobs|careers|press|media|marketing|accounts|billing|orders|catering|concierge|frontdesk|reception|noreply|no-reply|donotreply)$/i;
+const ROLE_LOCAL = /^(info|contact|hello|hola|admin|sales|support|office|booking|bookings|reservations|reserve|hi|team|mail|enquiries|inquiries|help|jobs|careers|press|media|marketing|accounts|billing|orders|catering|eat|concierge|frontdesk|reception|noreply|no-reply|donotreply)$/i;
 const FREEMAIL = /@(gmail|googlemail|yahoo|ymail|hotmail|outlook|live|aol|icloud|me|msn|protonmail|proton|gmx|pm)\./i;
 
 export function cleanPhone(value) {
@@ -30,6 +30,14 @@ export function emailMatchesOwner(email, person) {
   if (local === `${first[0]}${last}`) return true;
   if (first.length >= 3 && local === first) return true;
   return false;
+}
+
+/** True when the mailbox local part contains the business name, ignoring spaces and punctuation. */
+export function emailMatchesBusiness(email, businessName) {
+  const local = String(email || '').split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+  const brand = String(businessName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (brand.length < 4 || local.length < brand.length) return false;
+  return local.includes(brand);
 }
 
 /** Pull review text whether SerpAPI returned an array or a keyed object. */

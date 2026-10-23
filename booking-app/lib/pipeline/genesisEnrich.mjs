@@ -1,5 +1,5 @@
 import { parseOwnerNames, personParts } from './ownerNames.mjs';
-import { domainsAlign, emailMatchesOwner, inboxKind, isConfirmedOwner } from './ownerGate.mjs';
+import { domainsAlign, emailMatchesBusiness, emailMatchesOwner, inboxKind, isConfirmedOwner } from './ownerGate.mjs';
 
 export function sumCredits(calls) {
   return (calls || []).reduce((total, call) => total + (Number(call.credits) || 0), 0);
@@ -37,10 +37,23 @@ function pack(biz, fields, tried, calls, flagged) {
 
 /**
  * Email order after a confirmed owner:
- * website addresses (a founder email only when they match the owner, verify, and are not role/freemail/catch-all),
- * then Anymail Finder, FullEnrich, and Prospeo when a key is configured.
+ * website addresses, then Anymail Finder, FullEnrich, and Prospeo when a key is configured.
+ * A verified founder inbox on a business domain wins immediately.
+ * Otherwise a founder-matching catch-all is kept ahead of founder freemail
+ * (a freemail that matches the owner, or a non-role website freemail that carries the business name).
+ * Role inboxes are never contacts. Accepted freemail and catch-all stay unloadable
+ * so they are not counted as verified business-founder emails.
  * No web search runs in this stage. Unconfirmed owners spend no finder credits.
  */
+
+export function leadStatusForContact(confirmed, enriched) {
+  if (!confirmed) return 'Needs Founder';
+  if (enriched?.inbox_type === 'personal' && enriched?.verification === 'ok' && enriched?.email) return 'Enriched';
+  if (enriched?.inbox_type === 'freemail' && enriched?.verification === 'ok' && enriched?.email) return 'Accepted Freemail';
+  if (enriched?.inbox_type === 'catch_all' && enriched?.verification === 'catch_all' && enriched?.email) return 'Accepted Catch-all';
+  return 'No Match';
+}
+
 function peopleFor(biz) {
   const people = parseOwnerNames(biz?.owner_name || '').map(personParts).filter(Boolean);
   if (biz?.owner_first && biz?.owner_last) {
@@ -57,23 +70,96 @@ export async function enrichLead(biz, deps) {
   const tried = [];
   const calls = [];
   const flagged = [];
+  let fallback = null;
 
   function flag(email, reason, source) {
     const normalized = String(email || '').toLowerCase().trim();
     if (!normalized) return;
+    if (fallback && fallback.email === normalized && (reason === 'freemail' || reason === 'catch_all')) return;
     flagged.push({ email: normalized, reason, source });
     tried.push(`${source}:flagged:${reason}:${normalized}`);
+  }
+
+  function founderMatch(email, ownerName) {
+    const queried = people.find(candidate => candidate.full.toLowerCase() === String(ownerName || '').toLowerCase());
+    if (queried && emailMatchesOwner(email, queried)) return queried;
+    return people.find(candidate => emailMatchesOwner(email, candidate)) || null;
+  }
+
+  function freemailOwner(email, ownerName, source) {
+    const matched = founderMatch(email, ownerName);
+    if (matched) return matched;
+    if (source === 'website_email' && emailMatchesBusiness(email, biz.business_name)) return person;
+    return null;
+  }
+
+  function fallbackRank(candidate) {
+    if (candidate.inbox_type === 'catch_all' && domainsAlign(candidate.email, biz.domain)) return 2;
+    if (candidate.inbox_type === 'catch_all') return 1;
+    return 0;
+  }
+
+  function rememberFallback(candidate) {
+    if (fallback && fallback.email === candidate.email) return;
+    if (!fallback || fallbackRank(candidate) > fallbackRank(fallback)) {
+      const previous = fallback;
+      fallback = candidate;
+      if (previous) flag(previous.email, previous.inbox_type, previous.source);
+      return;
+    }
+    flag(candidate.email, candidate.inbox_type, candidate.source);
+  }
+
+  function discardFallback() {
+    if (!fallback) return;
+    const previous = fallback;
+    fallback = null;
+    flag(previous.email, previous.inbox_type, previous.source);
+  }
+
+  function finish(holdReason, extra = {}) {
+    if (!fallback) return pack(biz, { source: 'not_found', holdReason, ...extra }, tried, calls, flagged);
+    return pack(biz, {
+      ...extra,
+      email: fallback.email,
+      owner: fallback.owner,
+      source: fallback.source,
+      inbox_type: fallback.inbox_type,
+      verification: fallback.verification,
+      loadable: false,
+      holdReason: null,
+      verdict: fallback.verdict,
+    }, tried, calls, flagged);
   }
 
   async function consider(email, owner, source, { requireOwnerMatch = false } = {}) {
     if (!email || !String(email).includes('@')) return null;
     const normalized = String(email).toLowerCase().trim();
     const shape = inboxKind(normalized);
-    if (shape === 'role' || shape === 'freemail') {
-      flag(normalized, shape, source);
+    if (shape === 'role') {
+      flag(normalized, 'role', source);
       return null;
     }
-    const matched = requireOwnerMatch ? people.find(candidate => emailMatchesOwner(normalized, candidate)) : person;
+    if (shape === 'freemail') {
+      const matched = freemailOwner(normalized, owner, source);
+      if (!matched) {
+        flag(normalized, 'freemail', source);
+        return null;
+      }
+      tried.push(`${source}:verify:${normalized}`);
+      const verdict = await deps.verifyEmail(normalized);
+      if (Array.isArray(verdict?.calls)) calls.push(...verdict.calls);
+      const result = verdict?.result || verdict;
+      if (result !== 'ok') {
+        flag(normalized, result || 'reject', source);
+        return null;
+      }
+      rememberFallback({
+        email: normalized, owner: matched.full, source, inbox_type: 'freemail', verification: 'ok', verdict,
+      });
+      return null;
+    }
+    const matched = founderMatch(normalized, owner);
     if (requireOwnerMatch && !matched) {
       flag(normalized, 'role', source);
       return null;
@@ -83,7 +169,11 @@ export async function enrichLead(biz, deps) {
     if (Array.isArray(verdict?.calls)) calls.push(...verdict.calls);
     const result = verdict?.result || verdict;
     if (result === 'catch_all') {
-      flag(normalized, 'catch_all', source);
+      if (matched) {
+        rememberFallback({
+          email: normalized, owner: matched.full, source, inbox_type: 'catch_all', verification: 'catch_all', verdict,
+        });
+      } else flag(normalized, 'catch_all', source);
       return null;
     }
     if (result !== 'ok') {
@@ -91,8 +181,9 @@ export async function enrichLead(biz, deps) {
       return null;
     }
     if (!domainsAlign(normalized, biz.domain)) flag(normalized, 'domain_mismatch', source);
+    discardFallback();
     return pack(biz, {
-      email: normalized, owner: requireOwnerMatch ? matched.full : owner, source, inbox_type: 'personal', verification: 'ok', loadable: true, verdict,
+      email: normalized, owner: matched ? matched.full : owner, source, inbox_type: 'personal', verification: 'ok', loadable: true, verdict,
     }, tried, calls, flagged);
   }
 
@@ -111,7 +202,7 @@ export async function enrichLead(biz, deps) {
 
   if (!biz.domain) {
     tried.push('finders:skipped_no_domain');
-    return pack(biz, { source: 'not_found', skipped_finders: true, holdReason: 'no_domain' }, tried, calls, flagged);
+    return finish('no_domain', { skipped_finders: true });
   }
 
   if (deps.anymailPerson) {
@@ -148,7 +239,7 @@ export async function enrichLead(biz, deps) {
     }
   }
 
-  return pack(biz, { source: 'not_found', holdReason: 'no_personal_email' }, tried, calls, flagged);
+  return finish('no_personal_email');
 }
 
 export { personParts };

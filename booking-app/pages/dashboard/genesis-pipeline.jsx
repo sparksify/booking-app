@@ -7,7 +7,7 @@ import { visibleNav } from '@/lib/nav';
 import { guardDashboardPage } from '@/lib/pageAccess';
 
 const colors = { navy: '#0D1B2E', blue: '#0057FF', teal: '#00A88F', green: '#16A34A', red: '#DC2626', amber: '#D97706', ink: '#0F172A', muted: '#64748B', line: '#E2E8F0', bg: '#F8FAFC' };
-const statusColor = status => ({ Enriched: colors.green, 'Needs Founder': colors.amber, 'No Match': colors.red, Error: colors.red, Enriching: colors.blue, Pending: colors.muted }[status] || colors.muted);
+const statusColor = status => ({ Enriched: colors.green, 'Accepted Freemail': colors.teal, 'Accepted Catch-all': colors.teal, 'Needs Founder': colors.amber, 'No Match': colors.red, Error: colors.red, Enriching: colors.blue, Pending: colors.muted }[status] || colors.muted);
 
 function Metric({ label, value, hint }) {
   return <div className="metric"><strong>{value ?? 0}</strong><span>{label}</span>{hint ? <em>{hint}</em> : null}</div>;
@@ -63,7 +63,7 @@ export default function GenesisPipelinePage({ perms, platformLogo, navOrder }) {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || 'Run failed');
       const summary = payload.summary || {};
-      setNotice(`${dryRun ? 'Dry run' : 'Run'} finished. Confirmed personal emails: ${summary.founder_verified ?? 0}. Needs Founder: ${summary.needs_founder ?? 0}. Nothing was sent.`);
+      setNotice(`${dryRun ? 'Dry run' : 'Run'} finished. Verified business emails: ${summary.founder_verified ?? 0}. Accepted freemail: ${summary.accepted_freemail ?? 0}. Accepted catch-all: ${summary.accepted_catch_all ?? 0}. Needs Founder: ${summary.needs_founder ?? 0}. Nothing was sent.`);
       if (!dryRun) await load();
     } catch (err) {
       setError(err.message);
@@ -90,7 +90,7 @@ export default function GenesisPipelinePage({ perms, platformLogo, navOrder }) {
         <header>
           <div>
             <h1>Genesis Pipeline</h1>
-            <p>Owner name first. Personal emails only. Drafts stay unsent.</p>
+            <p>Owner name first. Business-domain emails first. Drafts stay unsent.</p>
           </div>
           <a className="csv" href={tab === 'franchises' ? '/api/dashboard/genesis-pipeline?format=franchises' : '/api/dashboard/genesis-pipeline?format=csv'}>{tab === 'franchises' ? 'Export franchises' : 'Export CSV'}</a>
         </header>
@@ -99,9 +99,9 @@ export default function GenesisPipelinePage({ perms, platformLogo, navOrder }) {
           {notice && <div className="notice">{notice}</div>}
           <section className="hero">
             <div>
-              <div className="eyebrow">CONFIRMED PERSONAL EMAILS</div>
+              <div className="eyebrow">VERIFIED BUSINESS EMAILS</div>
               <h2>{stats.founder_verified ?? 0} of {stats.total ?? 0} leads</h2>
-              <p>Hit rate below counts only a verified personal founder email. Role inboxes, catch-all domains, and freemail such as gmail are flagged and are not Enriched.</p>
+              <p>This rate counts only a verified business-domain founder email. Accepted freemail and accepted catch-all are usable contacts and stay out of this rate. Role inboxes are rejected.</p>
             </div>
             <div className="rate">{stats.personal_hit_rate ?? 0}<span>%</span></div>
           </section>
@@ -110,9 +110,11 @@ export default function GenesisPipelinePage({ perms, platformLogo, navOrder }) {
             <Metric label="Franchises held" value={funnel.filtered_out} />
             <Metric label="Names stored" value={funnel.owners_found} />
             <Metric label="Needs Founder" value={funnel.needs_founder} hint="No finder credits" />
-            <Metric label="Personal emails" value={funnel.founder_emails} hint="Enriched" />
-            <Metric label="Role / freemail" value={funnel.role_inboxes} hint="Not a founder email" />
-            <Metric label="Catch-all" value={funnel.catch_all} hint="Not Enriched" />
+            <Metric label="Personal emails" value={funnel.founder_emails} hint="Verified business" />
+            <Metric label="Accepted freemail" value={funnel.accepted_freemail} hint="Usable, not verified business" />
+            <Metric label="Accepted catch-all" value={funnel.accepted_catch_all} hint="Usable, not verified business" />
+            <Metric label="Role / freemail" value={funnel.role_inboxes} hint="Rejected" />
+            <Metric label="Catch-all rejected" value={funnel.catch_all} hint="Not stored" />
             <Metric label="Domain mismatch" value={funnel.domain_mismatch} hint="Flagged, still Enriched" />
             <Metric label="No Match" value={funnel.no_match} />
             <Metric label="Drafts" value={funnel.drafts} hint="Never sent" />
@@ -160,7 +162,7 @@ export default function GenesisPipelinePage({ perms, platformLogo, navOrder }) {
           </section> : null}
           {tab === 'leads' && <>
           <section className="card">
-            <div className="cardHead"><div><h3>Finder hit rates</h3><p>A hit is a confirmed personal email that verified. Role, freemail, and catch-all results are not hits.</p></div></div>
+            <div className="cardHead"><div><h3>Finder hit rates</h3><p>A hit is a verified business-domain founder email. Accepted freemail and catch-all contacts are not hits.</p></div></div>
             <table>
               <thead><tr><th>Finder</th><th>Calls</th><th>Personal hits</th><th>Hit rate</th><th>Est. credits</th></tr></thead>
               <tbody>
@@ -180,7 +182,7 @@ export default function GenesisPipelinePage({ perms, platformLogo, navOrder }) {
                     <td>{[lead.owner_first, lead.owner_last].filter(Boolean).join(' ') || '—'}<div className="sub">{lead.owner_role || ''}</div></td>
                     <td>{lead.owner_confidence || '—'}</td>
                     <td>{lead.owner_phone || '—'}<div className="sub">{lead.owner_phone_source || ''}</div></td>
-                    <td>{lead.email || '—'}<div className="sub">{lead.inbox_type === 'personal' ? lead.email_source : ''}</div></td>
+                    <td>{lead.email || '—'}<div className="sub">{lead.email ? [lead.inbox_type, lead.email_source].filter(Boolean).join(' · ') : ''}</div></td>
                     <td><span className="pill" style={{ color: statusColor(lead.status), background: `${statusColor(lead.status)}12`, borderColor: `${statusColor(lead.status)}35` }}>{lead.status}</span></td>
                     <td>{(lead.flagged_emails || []).map(item => `${item.email} (${item.reason})`).join(', ') || '—'}</td>
                   </tr>)}
