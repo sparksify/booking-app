@@ -85,7 +85,7 @@ async function genesisHandoff(db, candidate, outreachEnabled) {
       return;
     }
     if (lead.status === 'Error' || !lead.status) throw new Error(lead.error || 'Genesis pipeline returned no lead');
-    const status = { Enriched: 'ENRICHED', 'Needs Founder': 'NEEDS_FOUNDER', 'No Match': 'NO_MATCH' }[lead.status] || 'RESEARCHED';
+    const status = { Enriched: 'ENRICHED', 'Accepted Freemail': 'ACCEPTED_FREEMAIL', 'Accepted Catch-all': 'ACCEPTED_CATCH_ALL', 'Needs Founder': 'NEEDS_FOUNDER', 'No Match': 'NO_MATCH' }[lead.status] || 'RESEARCHED';
     const prospect = (out.prospects || []).find(row => row.scout_candidate_id === candidate.id) || out.prospects?.[0] || null;
     await db.from('scout_candidates').update({
       genesis_status: status,
@@ -101,7 +101,7 @@ async function genesisHandoff(db, candidate, outreachEnabled) {
     await event(db, 'genesis_owner_found', ownerLine, { candidate_id: candidate.id, metadata: { confidence: lead.owner_confidence || null, sources: lead.owner_sources || [] } });
     await event(db, 'sent_to_genesis', `${candidate.business_name} drafted in Genesis. Nothing was sent.`, {
       candidate_id: candidate.id,
-      metadata: { status, email_found: lead.status === 'Enriched', outreach_enabled_ignored: !!outreachEnabled, sent: false },
+      metadata: { status, email_found: !!lead.email, outreach_enabled_ignored: !!outreachEnabled, sent: false },
     });
   } catch (error) {
     await db.from('scout_candidates').update({

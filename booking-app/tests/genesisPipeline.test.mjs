@@ -4,9 +4,9 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseOwnerNames, personParts } from '../lib/pipeline/ownerNames.mjs';
-import { candidatesFromMention, domainsAlign, emailMatchesOwner, inboxKind, judgeCandidates, mapsListingText, reviewSnippets } from '../lib/pipeline/ownerGate.mjs';
+import { candidatesFromMention, domainsAlign, emailMatchesBusiness, emailMatchesOwner, inboxKind, judgeCandidates, mapsListingText, reviewSnippets } from '../lib/pipeline/ownerGate.mjs';
 import { classifierConfirmsFranchise, franchiseOverrideReason, pageFranchiseEvidence, recordedFranchiseCheck, retryDespiteTerminal, sameFranchise } from '../lib/pipeline/franchiseGate.mjs';
-import { enrichLead } from '../lib/pipeline/genesisEnrich.mjs';
+import { enrichLead, leadStatusForContact } from '../lib/pipeline/genesisEnrich.mjs';
 import { dryRunDependencies, memoryStore, runGenesis } from '../lib/pipeline/genesisRun.mjs';
 import { identifyOwner } from '../lib/pipeline/identifyOwner.mjs';
 import { combineVerification } from '../lib/pipeline/verifyDecision.mjs';
@@ -56,9 +56,18 @@ test('role inboxes and freemail are not founder emails', () => {
   const person = personParts('John Smith');
   assert.equal(inboxKind('hello@cafe.example'), 'role');
   assert.equal(inboxKind('info@cafe.example'), 'role');
+  assert.equal(inboxKind('hola@cafe.example'), 'role');
+  assert.equal(inboxKind('contact@cafe.example'), 'role');
+  assert.equal(inboxKind('eat@cafe.example'), 'role');
+  assert.equal(inboxKind('hola@gmail.com'), 'role');
   assert.equal(inboxKind('john@gmail.com'), 'freemail');
   assert.equal(inboxKind('john@me.com'), 'freemail');
+  assert.equal(inboxKind('john@yahoo.com'), 'freemail');
+  assert.equal(inboxKind('john@hotmail.com'), 'freemail');
+  assert.equal(inboxKind('john@icloud.com'), 'freemail');
   assert.equal(inboxKind('john.smith@cafe.example'), 'possible');
+  assert.equal(emailMatchesBusiness('letstoastofficial@gmail.com', "Let's Toast"), true);
+  assert.equal(emailMatchesBusiness('randomstaff@gmail.com', "Let's Toast"), false);
   assert.equal(emailMatchesOwner('john.smith@cafe.example', person), true);
   assert.equal(emailMatchesOwner('jsmith@cafe.example', person), true);
   assert.equal(emailMatchesOwner('hello@cafe.example', person), false);
@@ -114,14 +123,202 @@ test('confirmed owners keep looking past role, freemail, and catch-all results',
   });
   assert.deepEqual(seen, ['anymail:John Smith', 'anymail:Jane Doe', 'fullenrich:John Smith', 'fullenrich:Jane Doe']);
   assert.equal(verified.includes('hello@cafe.example'), false);
-  assert.equal(verified.includes('john@gmail.com'), false);
+  assert.equal(verified.includes('john@gmail.com'), true);
   assert.equal(result.email, 'jane.doe@cafe.example');
   assert.equal(result.inbox_type, 'personal');
   assert.equal(result.enriched, true);
   assert.equal(result.email_owner, 'Jane Doe');
+  assert.equal(result.loadable, true);
   assert.ok(result.flagged_emails.some(item => item.email === 'hello@cafe.example' && item.reason === 'role'));
   assert.ok(result.flagged_emails.some(item => item.email === 'john@gmail.com' && item.reason === 'freemail'));
   assert.ok(result.flagged_emails.some(item => item.reason === 'catch_all'));
+});
+
+test('a website freemail does not bypass the name gate or call paid finders', async () => {
+  let called = false;
+  const result = await enrichLead({
+    business_name: "Let's Toast",
+    owner_name: 'Maya Chen',
+    owner_confidence: 'low',
+    domain: 'letstoast.example',
+    website_emails: ['letstoastofficial@gmail.com'],
+  }, {
+    anymailPerson: async () => { called = true; return { email: 'maya@letstoast.example' }; },
+    verifyEmail: async () => { called = true; return { result: 'ok' }; },
+    fullEnrich: async () => { called = true; return {}; },
+    prospeo: async () => { called = true; return {}; },
+  });
+  assert.equal(called, false);
+  assert.equal(result.email, null);
+  assert.equal(result.skipped_finders, true);
+  assert.equal(result.hold_reason, 'needs_founder');
+  assert.equal(leadStatusForContact(false, result), 'Needs Founder');
+});
+
+test('a website freemail that carries the business name is accepted after the name gate', async () => {
+  const verified = [];
+  let anymail = 0;
+  const result = await enrichLead({
+    business_name: "Let's Toast",
+    owner_name: 'Maya Chen',
+    owner_first: 'Maya',
+    owner_last: 'Chen',
+    owner_confidence: 'medium',
+    domain: 'letstoast.example',
+    website_emails: ['randomstaff@gmail.com', 'letstoastofficial@gmail.com', 'hola@letstoast.example', 'eat@letstoast.example', 'contact@letstoast.example', 'hello@letstoast.example', 'info@letstoast.example'],
+  }, {
+    anymailPerson: async () => { anymail += 1; return { email: null, calls: [{ finder: 'anymail_person', stage: 'email', credits: 1 }] }; },
+    fullEnrich: async () => ({ work: null, personal: null, calls: [] }),
+    prospeo: null,
+    verifyEmail: async email => {
+      verified.push(email);
+      return { result: email.endsWith('@gmail.com') ? 'ok' : 'reject' };
+    },
+  });
+  assert.equal(anymail, 1);
+  assert.deepEqual(verified, ['letstoastofficial@gmail.com']);
+  assert.equal(result.email, 'letstoastofficial@gmail.com');
+  assert.equal(result.inbox_type, 'freemail');
+  assert.equal(result.verification, 'ok');
+  assert.equal(result.email_source, 'website_email');
+  assert.equal(result.enriched, false);
+  assert.equal(result.loadable, false);
+  assert.equal(result.hold_reason, null);
+  assert.equal(leadStatusForContact(true, result), 'Accepted Freemail');
+  for (const role of ['hola@letstoast.example', 'eat@letstoast.example', 'contact@letstoast.example', 'hello@letstoast.example', 'info@letstoast.example']) {
+    assert.ok(result.flagged_emails.some(item => item.email === role && item.reason === 'role'), role);
+  }
+  assert.ok(result.flagged_emails.some(item => item.email === 'randomstaff@gmail.com' && item.reason === 'freemail'));
+  assert.equal(result.flagged_emails.some(item => item.email === 'letstoastofficial@gmail.com'), false);
+});
+
+test('a founder gmail from a finder is accepted when no business email verifies', async () => {
+  let later = 0;
+  const result = await enrichLead({
+    owner_name: 'John Smith',
+    owner_confidence: 'medium',
+    domain: 'cafe.example',
+  }, {
+    anymailPerson: async () => ({ email: 'john@yahoo.com', calls: [{ finder: 'anymail_person', stage: 'email', credits: 1 }] }),
+    fullEnrich: async () => { later += 1; return { work: null, personal: 'john.smith@hotmail.com', calls: [] }; },
+    prospeo: async () => { later += 1; return { email: null }; },
+    verifyEmail: async () => ({ result: 'ok' }),
+  });
+  assert.equal(later, 2);
+  assert.equal(result.email, 'john@yahoo.com');
+  assert.equal(result.inbox_type, 'freemail');
+  assert.equal(result.verification, 'ok');
+  assert.equal(result.enriched, false);
+  assert.equal(result.loadable, false);
+  assert.equal(result.hold_reason, null);
+});
+
+test('a founder-matching catch-all is accepted and stays out of the verified business count', async () => {
+  const verified = [];
+  const result = await enrichLead({
+    business_name: 'Mercado Sin Nombre',
+    owner_name: 'Julian Vega',
+    owner_first: 'Julian',
+    owner_last: 'Vega',
+    owner_confidence: 'high',
+    domain: 'mercadosinnombre.com',
+    website_emails: ['hola@mercadosinnombre.com', 'info@mercadosinnombre.com'],
+  }, {
+    anymailPerson: async () => ({ email: 'julian@mercadosinnombre.com', calls: [{ finder: 'anymail_person', stage: 'email', credits: 1 }] }),
+    fullEnrich: async () => ({ work: 'studio@mercadosinnombre.com', personal: null, calls: [] }),
+    prospeo: null,
+    verifyEmail: async email => {
+      verified.push(email);
+      return { result: 'catch_all' };
+    },
+  });
+  assert.equal(verified.includes('hola@mercadosinnombre.com'), false);
+  assert.equal(verified.includes('info@mercadosinnombre.com'), false);
+  assert.equal(result.email, 'julian@mercadosinnombre.com');
+  assert.equal(result.email_owner, 'Julian Vega');
+  assert.equal(result.inbox_type, 'catch_all');
+  assert.equal(result.verification, 'catch_all');
+  assert.equal(result.email_source, 'anymail_person');
+  assert.equal(result.enriched, false);
+  assert.equal(result.loadable, false);
+  assert.equal(result.hold_reason, null);
+  assert.equal(result.flagged_emails.some(item => item.email === 'julian@mercadosinnombre.com'), false);
+  assert.ok(result.flagged_emails.some(item => item.email === 'studio@mercadosinnombre.com' && item.reason === 'catch_all'));
+  assert.equal(leadStatusForContact(true, result), 'Accepted Catch-all');
+});
+
+test('a founder catch-all on the business domain is kept ahead of freemail', async () => {
+  const result = await enrichLead({
+    business_name: 'Mercado Sin Nombre',
+    owner_name: 'Julian Vega',
+    owner_confidence: 'high',
+    domain: 'mercadosinnombre.com',
+    website_emails: ['julian.vega@gmail.com'],
+  }, {
+    anymailPerson: async () => ({ email: 'julian@mercadosinnombre.com' }),
+    fullEnrich: null,
+    prospeo: null,
+    verifyEmail: async email => ({ result: email.endsWith('@gmail.com') ? 'ok' : 'catch_all' }),
+  });
+  assert.equal(result.email, 'julian@mercadosinnombre.com');
+  assert.equal(result.inbox_type, 'catch_all');
+  assert.equal(result.enriched, false);
+  assert.ok(result.flagged_emails.some(item => item.email === 'julian.vega@gmail.com' && item.reason === 'freemail'));
+});
+
+test('a catch-all that does not match the founder stays no_personal_email', async () => {
+  const result = await enrichLead({
+    owner_name: 'Julian Vega',
+    owner_confidence: 'high',
+    domain: 'mercadosinnombre.com',
+  }, {
+    anymailPerson: async () => ({ email: 'studio@mercadosinnombre.com' }),
+    fullEnrich: null,
+    prospeo: null,
+    verifyEmail: async () => ({ result: 'catch_all' }),
+  });
+  assert.equal(result.email, null);
+  assert.equal(result.inbox_type, null);
+  assert.equal(result.hold_reason, 'no_personal_email');
+  assert.ok(result.flagged_emails.some(item => item.email === 'studio@mercadosinnombre.com' && item.reason === 'catch_all'));
+});
+
+test('role inboxes from a finder are rejected even when the owner name is confirmed', async () => {
+  const verified = [];
+  const result = await enrichLead({
+    owner_name: 'Julian Vega',
+    owner_confidence: 'medium',
+    domain: 'mercadosinnombre.com',
+  }, {
+    anymailPerson: async () => ({ email: 'eat@mercadosinnombre.com' }),
+    fullEnrich: async () => ({ work: 'info@mercadosinnombre.com', personal: 'hola@gmail.com' }),
+    prospeo: async () => ({ email: 'contact@mercadosinnombre.com' }),
+    verifyEmail: async email => { verified.push(email); return { result: 'ok' }; },
+  });
+  assert.deepEqual(verified, []);
+  assert.equal(result.email, null);
+  assert.equal(result.hold_reason, 'no_personal_email');
+  assert.equal(result.enriched, false);
+  for (const role of ['eat@mercadosinnombre.com', 'info@mercadosinnombre.com', 'hola@gmail.com', 'contact@mercadosinnombre.com']) {
+    assert.ok(result.flagged_emails.some(item => item.email === role && item.reason === 'role'), role);
+  }
+});
+
+test('an invalid founder freemail is not stored', async () => {
+  const result = await enrichLead({
+    owner_name: 'John Smith',
+    owner_confidence: 'medium',
+    domain: 'cafe.example',
+    website_emails: ['john@icloud.com'],
+  }, {
+    anymailPerson: async () => ({ email: null }),
+    fullEnrich: null,
+    prospeo: null,
+    verifyEmail: async () => ({ result: 'reject' }),
+  });
+  assert.equal(result.email, null);
+  assert.equal(result.hold_reason, 'no_personal_email');
+  assert.ok(result.flagged_emails.some(item => item.email === 'john@icloud.com' && item.reason === 'reject'));
 });
 
 test('an owner-matching website email that verifies stops before Anymail', async () => {
@@ -413,6 +610,82 @@ test('a confirmed personal email is Enriched and the draft is not sent', async (
   assert.ok(lead.flagged_emails.some(item => item.reason === 'role'));
   assert.equal(out.summary.founder_verified, 1);
   assert.equal(out.summary.enriched, 1);
+  assert.equal(out.summary.accepted_freemail, 0);
+  assert.equal(out.summary.accepted_catch_all, 0);
+});
+
+test('accepted freemail is stored separately and the draft is not sent', async () => {
+  const out = await runGenesis({
+    businesses: [{ record_id: 'FM-000099', business_name: "Let's Toast", website: 'https://letstoast.example', city: 'Austin' }],
+  }, pipelineDeps({
+    discoverOne: async biz => ({
+      ...biz,
+      owner_name: 'Maya Chen',
+      owner_first: 'Maya',
+      owner_last: 'Chen',
+      owner_role: 'owner',
+      owner_confidence: 'medium',
+      owner_sources: ['site', 'maps'],
+      owner_source_urls: ['https://letstoast.example/about'],
+      website_emails: ['letstoastofficial@gmail.com', 'info@letstoast.example'],
+      discover_calls: [],
+    }),
+    enrichOne: async biz => enrichLead(biz, {
+      anymailPerson: async () => ({ email: null, calls: [{ finder: 'anymail_person', stage: 'email', credits: 1 }] }),
+      fullEnrich: async () => ({ work: null, personal: null, calls: [] }),
+      prospeo: null,
+      verifyEmail: async () => ({ result: 'ok', calls: [] }),
+    }),
+  }));
+  const lead = out.leads[0];
+  assert.equal(lead.status, 'Accepted Freemail');
+  assert.equal(lead.email, 'letstoastofficial@gmail.com');
+  assert.equal(lead.inbox_type, 'freemail');
+  assert.equal(lead.verification, 'ok');
+  assert.equal(lead.hold_reason, null);
+  assert.equal(lead.icebreaker_sent, false);
+  assert.equal(lead.icebreaker.email1.body, 'Draft only.');
+  assert.equal(out.sent, false);
+  assert.equal(out.summary.enriched, 0);
+  assert.equal(out.summary.founder_verified, 0);
+  assert.equal(out.summary.accepted_freemail, 1);
+  assert.equal(out.summary.accepted_catch_all, 0);
+});
+
+test('accepted catch-all is stored separately and the draft is not sent', async () => {
+  const out = await runGenesis({
+    businesses: [{ record_id: 'FM-000100', business_name: 'Mercado Sin Nombre', website: 'https://mercadosinnombre.com', city: 'Austin' }],
+  }, pipelineDeps({
+    discoverOne: async biz => ({
+      ...biz,
+      owner_name: 'Julian Vega',
+      owner_first: 'Julian',
+      owner_last: 'Vega',
+      owner_role: 'owner',
+      owner_confidence: 'high',
+      owner_sources: ['site', 'press'],
+      owner_source_urls: ['https://mercadosinnombre.com/about'],
+      website_emails: ['hola@mercadosinnombre.com'],
+      discover_calls: [],
+    }),
+    enrichOne: async biz => enrichLead(biz, {
+      anymailPerson: async () => ({ email: 'julian@mercadosinnombre.com', calls: [{ finder: 'anymail_person', stage: 'email', credits: 1 }] }),
+      fullEnrich: null,
+      prospeo: null,
+      verifyEmail: async () => ({ result: 'catch_all', calls: [] }),
+    }),
+  }));
+  const lead = out.leads[0];
+  assert.equal(lead.status, 'Accepted Catch-all');
+  assert.equal(lead.email, 'julian@mercadosinnombre.com');
+  assert.equal(lead.inbox_type, 'catch_all');
+  assert.equal(lead.verification, 'catch_all');
+  assert.equal(lead.hold_reason, null);
+  assert.equal(lead.icebreaker_sent, false);
+  assert.equal(out.sent, false);
+  assert.equal(out.summary.enriched, 0);
+  assert.equal(out.summary.founder_verified, 0);
+  assert.equal(out.summary.accepted_catch_all, 1);
 });
 
 test('dry run returns a personal email and writes nothing outside memory', async () => {
@@ -451,6 +724,8 @@ test('csv export separates personal emails and neutralizes spreadsheet formulas'
     { status: 'No Match', stage: 'done', inbox_type: null, email_source: null, calls: [{ finder: 'anymail_person', stage: 'email', credits: 1 }, { finder: 'serpapi_press', stage: 'name', credits: 1 }], flagged_emails: [{ email: 'owner@gmail.com', reason: 'freemail' }, { email: 'a@cafe.example', reason: 'catch_all' }] },
   ]);
   assert.equal(stats.founder_verified, 1);
+  assert.equal(stats.funnel.accepted_freemail, 0);
+  assert.equal(stats.funnel.accepted_catch_all, 0);
   assert.equal(stats.personal_hit_rate, 50);
   assert.equal(stats.funnel.role_inboxes, 2);
   assert.equal(stats.funnel.catch_all, 1);
@@ -539,6 +814,23 @@ test('a personal email on a different domain is flagged and still counts as Enri
   assert.equal(stats.founder_verified, 1);
   assert.equal(stats.funnel.domain_mismatch, 1);
   assert.equal(stats.funnel.role_inboxes, 1);
+});
+
+test('accepted freemail and catch-all stay out of the verified business email rate', () => {
+  const stats = pipelineStats([
+    { status: 'Enriched', inbox_type: 'personal', verification: 'ok', email: 'avery@cafe.example', email_source: 'anymail_person', calls: [{ finder: 'anymail_person', stage: 'email', credits: 1 }] },
+    { status: 'Accepted Freemail', inbox_type: 'freemail', verification: 'ok', email: 'letstoastofficial@gmail.com', email_source: 'website_email', calls: [], flagged_emails: [{ email: 'info@letstoast.example', reason: 'role' }] },
+    { status: 'Accepted Catch-all', inbox_type: 'catch_all', verification: 'catch_all', email: 'julian@mercadosinnombre.com', email_source: 'anymail_person', calls: [{ finder: 'anymail_person', stage: 'email', credits: 1 }] },
+  ]);
+  assert.equal(stats.founder_verified, 1);
+  assert.equal(stats.funnel.founder_emails, 1);
+  assert.equal(stats.funnel.accepted_freemail, 1);
+  assert.equal(stats.funnel.accepted_catch_all, 1);
+  assert.equal(stats.funnel.role_inboxes, 1);
+  assert.equal(stats.funnel.catch_all, 0);
+  assert.equal(stats.personal_hit_rate, 33);
+  const anymail = stats.finders.find(finder => finder.finder === 'anymail_person');
+  assert.equal(anymail.hits, 1);
 });
 
 test('the classifier needs an FDD, franchise page, or franchising quote that is actually on the page', () => {

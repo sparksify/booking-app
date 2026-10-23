@@ -45,6 +45,8 @@ export function pipelineStats(rows) {
     if (row.inbox_type === 'personal' && row.verification === 'ok' && row.email_source) bump(row.email_source, 'hits');
   }
   const founder = list.filter(row => row.inbox_type === 'personal' && row.verification === 'ok');
+  const acceptedFreemail = list.filter(row => row.inbox_type === 'freemail' && row.verification === 'ok' && row.email);
+  const acceptedCatchAll = list.filter(row => row.inbox_type === 'catch_all' && row.verification === 'catch_all' && row.email);
   const flagged = list.flatMap(row => row.flagged_emails || []);
   const rejected = flagged.filter(item => item.reason !== 'domain_mismatch');
   return {
@@ -57,6 +59,8 @@ export function pipelineStats(rows) {
       owners_found: list.filter(row => row.owner_name).length,
       enriching: list.filter(row => row.status === 'Enriching' || row.status === 'Pending').length,
       founder_emails: founder.length,
+      accepted_freemail: acceptedFreemail.length,
+      accepted_catch_all: acceptedCatchAll.length,
       role_inboxes: rejected.filter(item => item.reason === 'role' || item.reason === 'freemail').length,
       catch_all: rejected.filter(item => item.reason === 'catch_all').length,
       domain_mismatch: flagged.filter(item => item.reason === 'domain_mismatch').length,
